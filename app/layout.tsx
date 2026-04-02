@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import "./globals.css";
+import MobileNav from "@/components/MobileNav";
 
 export const metadata: Metadata = {
   title: "ECL Spring Split",
@@ -25,30 +26,31 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-black text-white">
+      <body className="overflow-x-hidden bg-black text-white">
         <header className="border-b border-white/10 bg-black/90 backdrop-blur-sm">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-            <Link href="/" className="group flex items-center gap-4">
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+            <Link href="/" className="group flex min-w-0 items-center gap-3 sm:gap-4">
               <Image
                 src="/ecl-logo.png"
                 alt="ECL Logo"
                 width={95}
                 height={95}
-                className="h-auto w-auto drop-shadow-[0_0_12px_rgba(74,222,128,0.18)] transition duration-300 group-hover:scale-105"
+                className="h-12 w-12 shrink-0 drop-shadow-[0_0_12px_rgba(74,222,128,0.18)] transition duration-300 group-hover:scale-105 sm:h-[72px] sm:w-[72px]"
                 priority
               />
 
-              <div className="leading-none">
-                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.45em] text-green-400/90">
+              <div className="min-w-0 leading-none">
+                <p className="truncate text-[0.5rem] font-semibold uppercase tracking-[0.28em] text-green-400/90 sm:text-[0.65rem] sm:tracking-[0.45em]">
                   Expat China League
                 </p>
-                <span className="bg-gradient-to-r from-white via-zinc-200 to-green-400 bg-clip-text text-2xl font-black uppercase tracking-[0.28em] text-transparent drop-shadow-[0_0_12px_rgba(74,222,128,0.12)] transition duration-300 group-hover:from-green-300 group-hover:via-white group-hover:to-green-500">
+                <span className="block truncate bg-gradient-to-r from-white via-zinc-200 to-green-400 bg-clip-text text-lg font-black uppercase tracking-[0.14em] text-transparent drop-shadow-[0_0_12px_rgba(74,222,128,0.12)] transition duration-300 group-hover:from-green-300 group-hover:via-white group-hover:to-green-500 sm:text-2xl sm:tracking-[0.28em]">
                   Spring Split
                 </span>
               </div>
             </Link>
 
-            <nav className="flex flex-wrap items-center gap-4 text-sm font-semibold uppercase tracking-[0.15em] text-zinc-300">
+            {/* Desktop nav */}
+            <nav className="hidden items-center gap-4 text-sm font-semibold uppercase tracking-[0.15em] text-zinc-300 md:flex">
               <Link href="/" className="transition hover:text-green-400">
                 Home
               </Link>
@@ -104,10 +106,15 @@ export default function RootLayout({
                 </svg>
               </a>
             </nav>
+
+            {/* Mobile nav */}
+            <div className="md:hidden">
+              <MobileNav splitOneLinks={splitOneLinks} />
+            </div>
           </div>
         </header>
 
-        {children}
+        <main className="overflow-x-hidden">{children}</main>
       </body>
     </html>
   );
