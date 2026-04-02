@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 export default async function FreeAgentsPage() {
   const freeAgents = await prisma.freeAgentRegistration.findMany({
     where: {
