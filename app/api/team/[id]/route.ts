@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function PATCH(
+export async function DELETE(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await context.params;
-    const { status } = await req.json();
 
-    const updated = await prisma.teamRegistration.update({
+    await prisma.teamRegistration.delete({
       where: { id },
-      data: { status },
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("DELETE /api/team-registration/[id] error:", error);
+
     return NextResponse.json(
-      { error: "Failed to update team status" },
+      { error: "Failed to delete team registration" },
       { status: 500 }
     );
   }
