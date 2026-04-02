@@ -5,9 +5,8 @@ export async function GET() {
   try {
     const freeAgents = await prisma.freeAgentRegistration.findMany();
 
-    // Custom sort: pending → approved → rejected, then newest first
     const sorted = freeAgents.sort((a, b) => {
-      const order = { pending: 0, approved: 1, rejected: 2 };
+      const order = { pending: 0, approved: 1, signed: 2, rejected: 3 };
 
       if (
         order[a.status as keyof typeof order] !==
