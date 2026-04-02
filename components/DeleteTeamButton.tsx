@@ -11,8 +11,11 @@ export default function DeleteTeamButton({ teamId }: { teamId: string }) {
       method: "DELETE",
     });
 
+    const data = await res.json().catch(() => null);
+    console.log("DELETE response:", res.status, data);
+
     if (!res.ok) {
-      alert("Failed to delete team");
+      alert(data?.details || data?.error || "Failed to delete team");
       return;
     }
 
@@ -24,7 +27,7 @@ export default function DeleteTeamButton({ teamId }: { teamId: string }) {
       onClick={handleDelete}
       className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
     >
-      Delete Team
+      Delete
     </button>
   );
 }

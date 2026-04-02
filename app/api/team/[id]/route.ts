@@ -8,16 +8,21 @@ export async function DELETE(
   try {
     const { id } = await context.params;
 
-    await prisma.teamRegistration.delete({
+    console.log("Deleting team registration id:", id);
+
+    const deleted = await prisma.teamRegistration.delete({
       where: { id },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, deleted });
   } catch (error) {
     console.error("DELETE /api/team-registration/[id] error:", error);
 
     return NextResponse.json(
-      { error: "Failed to delete team registration" },
+      {
+        error: "Failed to delete team registration",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 }
     );
   }
