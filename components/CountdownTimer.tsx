@@ -117,7 +117,7 @@ export default function CountdownTimer() {
         </p>
 
         <div className="inline-flex rounded-full border border-green-400/30 bg-green-400/10 px-5 py-2 text-sm font-bold uppercase tracking-[0.2em] text-green-300 shadow-[0_0_25px_rgba(74,222,128,0.12)]">
-          Lock In Your Spot
+          Limited Spots
         </div>
       </div>
     </div>

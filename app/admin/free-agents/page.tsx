@@ -16,6 +16,19 @@ type FreeAgent = {
   submittedAt: string;
 };
 
+const rankOrder = [
+  "Iron",
+  "Bronze",
+  "Silver",
+  "Gold",
+  "Platinum",
+  "Emerald",
+  "Diamond",
+  "Master",
+  "Grandmaster",
+  "Challenger",
+];
+
 export default function AdminFreeAgentsPage() {
   const [freeAgents, setFreeAgents] = useState<FreeAgent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,185 +50,104 @@ export default function AdminFreeAgentsPage() {
     id: string,
     status: "approved" | "rejected" | "signed"
   ) {
-    try {
-      const res = await fetch(`/api/free-agent/${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ status }),
-      });
+    await fetch(`/api/free-agent/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
 
-      if (!res.ok) {
-        throw new Error("Failed to update status");
-      }
+    fetchFreeAgents();
+  }
 
-      fetchFreeAgents();
-    } catch (error) {
-      console.error("Error updating status:", error);
-      alert("Failed to update status");
-    }
+  async function deleteAgent(id: string) {
+    if (!confirm("Are you sure you want to delete this player?")) return;
+
+    await fetch(`/api/free-agent/${id}`, {
+      method: "DELETE",
+    });
+
+    fetchFreeAgents();
   }
 
   useEffect(() => {
     fetchFreeAgents();
   }, []);
 
-  if (loading) {
-    return <div className="p-6">Loading free agents...</div>;
-  }
+  if (loading) return <div className="p-6">Loading...</div>;
 
-  const filteredAgents = freeAgents.filter((agent) => {
-    if (filter === "all") return true;
-    return agent.status === filter;
+  const filtered = freeAgents.filter((a) =>
+    filter === "all" ? true : a.status === filter
+  );
+
+  // 🔥 SORT BY RANK
+  const sorted = [...filtered].sort((a, b) => {
+    const rankA = rankOrder.indexOf(a.currentRank || "");
+    const rankB = rankOrder.indexOf(b.currentRank || "");
+
+    return rankB - rankA;
   });
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div className="mx-auto max-w-6xl p-6">
       <h1 className="mb-6 text-3xl font-bold">Admin - Free Agents</h1>
 
       <div className="mb-4 flex flex-wrap gap-2">
-        <button
-          onClick={() => setFilter("all")}
-          className="rounded bg-gray-200 px-3 py-1 text-black"
-        >
-          All
-        </button>
-
-        <button
-          onClick={() => setFilter("pending")}
-          className="rounded bg-gray-200 px-3 py-1 text-black"
-        >
-          Pending
-        </button>
-
-        <button
-          onClick={() => setFilter("approved")}
-          className="rounded bg-gray-200 px-3 py-1 text-black"
-        >
-          Approved
-        </button>
-
-        <button
-          onClick={() => setFilter("signed")}
-          className="rounded bg-gray-200 px-3 py-1 text-black"
-        >
-          Signed
-        </button>
-
-        <button
-          onClick={() => setFilter("rejected")}
-          className="rounded bg-gray-200 px-3 py-1 text-black"
-        >
-          Rejected
-        </button>
+        {["all", "pending", "approved", "signed", "rejected"].map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className="rounded bg-gray-200 px-3 py-1 text-black"
+          >
+            {f}
+          </button>
+        ))}
       </div>
 
       <div className="space-y-4">
-        {filteredAgents.length === 0 ? (
-          <p>No free agent registrations found.</p>
-        ) : (
-          filteredAgents.map((agent) => (
-            <div
-              key={agent.id}
-              className="rounded-lg border bg-white p-4 text-black shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <p>
-                    <strong>Player Name:</strong> {agent.playerName}
-                  </p>
-                  <p>
-                    <strong>Email:</strong> {agent.email}
-                  </p>
-                  <p>
-                    <strong>Riot ID:</strong> {agent.riotName}#{agent.riotTag}
-                  </p>
-                  <p>
-                    <strong>Primary Role:</strong> {agent.primaryRole}
-                  </p>
-                  <p>
-                    <strong>Secondary Role:</strong>{" "}
-                    {agent.secondaryRole || "None"}
-                  </p>
-                  <p>
-                    <strong>Current Rank:</strong>{" "}
-                    {agent.currentRank || "Not provided"}
-                  </p>
-                  <p>
-                    <strong>Status:</strong>{" "}
-                    <span
-                      className={`rounded px-2 py-1 text-sm font-medium ${
-                        agent.status === "approved"
-                          ? "bg-green-100 text-green-700"
-                          : agent.status === "rejected"
-                          ? "bg-red-100 text-red-700"
-                          : agent.status === "signed"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-yellow-100 text-yellow-700"
-                      }`}
-                    >
-                      {agent.status}
-                    </span>
-                  </p>
-                  <p>
-                    <strong>Notes:</strong> {agent.notes || "None"}
-                  </p>
-                </div>
+        {sorted.map((agent) => (
+          <div
+            key={agent.id}
+            className="rounded-lg border bg-white p-4 text-black shadow-sm"
+          >
+            <div className="flex justify-between gap-4">
+              <div className="space-y-1">
+                <p><strong>{agent.playerName}</strong></p>
+                <p>{agent.riotName}#{agent.riotTag}</p>
+                <p>Rank: {agent.currentRank}</p>
+                <p>Status: {agent.status}</p>
+              </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {agent.status === "pending" && (
-                    <>
-                      <button
-                        onClick={() => updateStatus(agent.id, "approved")}
-                        className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
-                      >
-                        Approve
-                      </button>
+              <div className="flex flex-wrap gap-2">
+                {agent.status === "pending" && (
+                  <>
+                    <button onClick={() => updateStatus(agent.id, "approved")} className="bg-green-600 text-white px-3 py-1 rounded">
+                      Approve
+                    </button>
+                    <button onClick={() => updateStatus(agent.id, "rejected")} className="bg-red-600 text-white px-3 py-1 rounded">
+                      Reject
+                    </button>
+                  </>
+                )}
 
-                      <button
-                        onClick={() => updateStatus(agent.id, "rejected")}
-                        className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700"
-                      >
-                        Reject
-                      </button>
-                    </>
-                  )}
+                {agent.status === "approved" && (
+                  <>
+                    <button onClick={() => updateStatus(agent.id, "signed")} className="bg-blue-600 text-white px-3 py-1 rounded">
+                      Signed
+                    </button>
+                  </>
+                )}
 
-                  {agent.status === "approved" && (
-                    <>
-                      <button
-                        onClick={() => updateStatus(agent.id, "signed")}
-                        className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-                      >
-                        Mark Signed
-                      </button>
-
-                      <button
-                        onClick={() => updateStatus(agent.id, "rejected")}
-                        className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700"
-                      >
-                        Reject
-                      </button>
-                    </>
-                  )}
-
-                  {agent.status === "signed" && (
-                    <p className="text-sm italic text-gray-500">
-                      Player has been signed
-                    </p>
-                  )}
-
-                  {agent.status === "rejected" && (
-                    <p className="text-sm italic text-gray-500">
-                      Already rejected
-                    </p>
-                  )}
-                </div>
+                {/* 🔥 DELETE BUTTON */}
+                <button
+                  onClick={() => deleteAgent(agent.id)}
+                  className="bg-black text-white px-3 py-1 rounded border border-red-500"
+                >
+                  Delete
+                </button>
               </div>
             </div>
-          ))
-        )}
+          </div>
+        ))}
       </div>
     </div>
   );

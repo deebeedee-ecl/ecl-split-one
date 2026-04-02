@@ -1,45 +1,85 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+
+const rankOptions = [
+  "Iron",
+  "Bronze",
+  "Silver",
+  "Gold",
+  "Platinum",
+  "Emerald",
+  "Diamond",
+  "Master",
+  "Grandmaster",
+  "Challenger",
+];
+
+const roleOptions = ["Top", "Jungle", "Mid", "ADC", "Support"];
 
 export default function FreeAgentPage() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitState, setSubmitState] = useState<"idle" | "success" | "error">(
+    "idle"
+  );
+  const [message, setMessage] = useState("");
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log("submit fired");
+    setIsSubmitting(true);
+    setSubmitState("idle");
+    setMessage("");
 
-    const formData = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+
+    const riotTag = String(formData.get("riotTag") || "").trim();
+
+    if (!/^\d+$/.test(riotTag)) {
+      setSubmitState("error");
+      setMessage("Riot tag must contain numbers only.");
+      setIsSubmitting(false);
+      return;
+    }
 
     const payload = {
-      playerName: formData.get("playerName"),
-      email: formData.get("email"),
-      riotName: formData.get("riotName"),
-      riotTag: formData.get("riotTag"),
-      primaryRole: formData.get("primaryRole"),
-      secondaryRole: formData.get("secondaryRole"),
-      currentRank: formData.get("currentRank"),
-      notes: formData.get("notes"),
+      playerName: String(formData.get("playerName") || "").trim(),
+      email: String(formData.get("email") || "").trim(),
+      riotName: String(formData.get("riotName") || "").trim(),
+      riotTag,
+      primaryRole: String(formData.get("primaryRole") || "").trim(),
+      secondaryRole: String(formData.get("secondaryRole") || "").trim(),
+      currentRank: String(formData.get("currentRank") || "").trim(),
+      notes: String(formData.get("notes") || "").trim(),
     };
 
-    console.log("payload:", payload);
+    try {
+      const res = await fetch("/api/free-agent", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-    const res = await fetch("/api/free-agent", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+      const data = await res.json();
 
-    console.log("response status:", res.status);
-
-    const data = await res.json();
-    console.log("response data:", data);
-
-    if (data.success) {
-      alert("Submitted successfully!");
-      e.currentTarget.reset();
-    } else {
-      alert(data.error || "Something went wrong");
+      if (res.ok) {
+        setSubmitState("success");
+        setMessage(
+          "Your free agent signup has been received and is now pending admin review."
+        );
+        form.reset();
+      } else {
+        setSubmitState("error");
+        setMessage(data.error || "Something went wrong. Please try again.");
+      }
+    } catch (error) {
+      console.error("Free agent submit error:", error);
+      setSubmitState("error");
+      setMessage("Something went wrong. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -58,11 +98,11 @@ export default function FreeAgentPage() {
           Sign up solo and we will place you into a team if accepted.
         </p>
 
-        <div className="mt-10 rounded-3xl border border-white/10 bg-zinc-900 p-6">
+        <div className="mt-10 rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-[0_0_40px_rgba(74,222,128,0.06)]">
           <form onSubmit={handleSubmit} className="grid gap-4">
             <input
               name="playerName"
-              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none"
+              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-zinc-500 focus:border-green-400/30"
               placeholder="Alias / Nickname"
               required
             />
@@ -70,70 +110,118 @@ export default function FreeAgentPage() {
             <input
               name="email"
               type="email"
-              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none"
+              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-zinc-500 focus:border-green-400/30"
               placeholder="Email"
               required
             />
 
-            {/* 🔥 Riot ID instructions */}
-            <div className="space-y-2">
-              <p className="text-sm text-zinc-400">
+            <div className="rounded-2xl border border-blue-400/20 bg-blue-400/10 p-4">
+              <p className="text-sm leading-7 text-zinc-200">
                 Enter your Riot ID exactly as it appears in League of Legends.
                 Example:{" "}
-                <span className="text-white font-semibold">
+                <span className="font-semibold text-white">
                   deebeedee#34323
                 </span>
               </p>
 
-              <p className="text-sm text-yellow-400">
-                If this does not match your real Riot ID, your signup may be rejected.
+              <p className="mt-2 text-sm leading-7 text-yellow-300">
+                Riot Name is required. Riot Tag is required and must be numbers
+                only. Incorrect Riot IDs may cause your signup to be rejected.
               </p>
             </div>
 
             <input
               name="riotName"
-              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none"
+              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-zinc-500 focus:border-green-400/30"
               placeholder="Riot Name (e.g. deebeedee)"
               required
             />
 
             <input
               name="riotTag"
-              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none"
-              placeholder="Riot Tag (e.g. 34323)"
+              inputMode="numeric"
+              pattern="[0-9]+"
+              title="Riot tag must contain numbers only"
+              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-zinc-500 focus:border-green-400/30"
+              placeholder="Riot Tag (numbers only, e.g. 34323)"
               required
             />
 
-            <input
+            <select
               name="primaryRole"
-              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none"
-              placeholder="Main Role"
+              defaultValue=""
+              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition focus:border-green-400/30"
               required
-            />
+            >
+              <option value="" disabled className="text-zinc-500">
+                Select Primary Role
+              </option>
+              {roleOptions.map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
+            </select>
 
-            <input
+            <select
               name="secondaryRole"
-              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none"
-              placeholder="Secondary Role"
-            />
+              defaultValue=""
+              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition focus:border-green-400/30"
+            >
+              <option value="">Select Secondary Role (Optional)</option>
+              {roleOptions.map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
+            </select>
 
-            <input
+            <select
               name="currentRank"
-              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none"
-              placeholder="Rank"
-            />
+              defaultValue=""
+              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition focus:border-green-400/30"
+              required
+            >
+              <option value="" disabled>
+                Select Current Rank
+              </option>
+              {rankOptions.map((rank) => (
+                <option key={rank} value={rank}>
+                  {rank}
+                </option>
+              ))}
+            </select>
 
             <textarea
               name="notes"
-              className="min-h-[120px] rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none"
+              className="min-h-[120px] rounded-2xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-zinc-500 focus:border-green-400/30"
               placeholder="Notes / WeChat / Extra Info"
             />
 
+            {submitState === "success" && (
+              <div className="rounded-2xl border border-green-400/20 bg-green-400/10 p-4">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-300">
+                  Registration Submitted
+                </p>
+                <p className="mt-2 text-sm leading-7 text-zinc-200">{message}</p>
+              </div>
+            )}
+
+            {submitState === "error" && (
+              <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red-300">
+                  Submission Error
+                </p>
+                <p className="mt-2 text-sm leading-7 text-zinc-200">{message}</p>
+              </div>
+            )}
+
             <button
               type="submit"
-              className="rounded-2xl bg-green-400 px-6 py-3 font-bold text-black transition hover:bg-green-300"
+              disabled={isSubmitting}
+              className="rounded-2xl bg-green-400 px-6 py-3 font-bold text-black transition hover:bg-green-300 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Submit Signup
+              {isSubmitting ? "Submitting..." : "Submit Signup"}
             </button>
           </form>
         </div>

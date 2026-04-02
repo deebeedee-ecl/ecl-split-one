@@ -24,3 +24,25 @@ export async function PATCH(
     );
   }
 }
+
+export async function DELETE(
+  req: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+
+    await prisma.freeAgentRegistration.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("DELETE /api/free-agent/[id] error:", error);
+
+    return NextResponse.json(
+      { error: "Failed to delete free agent" },
+      { status: 500 }
+    );
+  }
+}
