@@ -7,7 +7,7 @@ export default function DeleteTeamButton({ teamId }: { teamId: string }) {
     );
     if (!confirmed) return;
 
-    const res = await fetch(`/api/team-registration/${teamId}`, {
+    const res = await fetch(`/api/team/${teamId}`, {
       method: "DELETE",
     });
 
