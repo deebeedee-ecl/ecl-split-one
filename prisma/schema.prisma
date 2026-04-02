@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+model Team {
+  id        String   @id @default(uuid())
+  name      String
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  players   Player[]
+}
+
+model Player {
+  id        String   @id @default(uuid())
+  name      String
+  teamId    String?
+  team      Team?    @relation(fields: [teamId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model FreeAgentRegistration {
+  id            String   @id @default(uuid())
+  playerName    String
+  email         String
+  riotName      String
+  riotTag       String
+  primaryRole   String
+  secondaryRole String?
+  currentRank   String?
+  notes         String?
+  status        String   @default("pending")
+  submittedAt   DateTime @default(now())
+}model TeamRegistration {
+  id           String   @id @default(uuid())
+  teamName     String
+  captainName  String
+  captainEmail String
+
+  players      Json     // 👈 store all 7 players here
+
+  status       String   @default("pending")
+  submittedAt  DateTime @default(now())
+}
