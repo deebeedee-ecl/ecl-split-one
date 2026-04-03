@@ -17,11 +17,14 @@ export default function MobileNav({
   const [splitOpen, setSplitOpen] = useState(false);
 
   return (
-    <div className="relative">
+    <div className="relative z-[110]">
       <button
         type="button"
         aria-label="Open menu"
-        onClick={() => setMenuOpen((prev) => !prev)}
+        onClick={() => {
+          setMenuOpen((prev) => !prev);
+          if (menuOpen) setSplitOpen(false);
+        }}
         className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
       >
         <svg
@@ -33,19 +36,30 @@ export default function MobileNav({
           strokeWidth="1.8"
         >
           {menuOpen ? (
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M6 18L18 6M6 6l12 12"
+            />
           ) : (
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h16M4 17h16" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 7h16M4 12h16M4 17h16"
+            />
           )}
         </svg>
       </button>
 
       {menuOpen && (
-        <div className="absolute right-0 top-14 z-50 w-[min(90vw,320px)] rounded-2xl border border-white/10 bg-zinc-950/95 p-3 shadow-[0_0_30px_rgba(0,0,0,0.45)] backdrop-blur-md">
+        <div className="absolute right-0 top-14 z-[120] w-[min(90vw,320px)] rounded-2xl border border-white/10 bg-zinc-950/95 p-3 shadow-[0_0_30px_rgba(0,0,0,0.55)] backdrop-blur-md">
           <div className="flex flex-col gap-1 text-sm font-semibold uppercase tracking-[0.14em] text-zinc-300">
             <Link
               href="/"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                setMenuOpen(false);
+                setSplitOpen(false);
+              }}
               className="rounded-xl px-4 py-3 transition hover:bg-white/5 hover:text-green-400"
             >
               Home
@@ -53,7 +67,10 @@ export default function MobileNav({
 
             <Link
               href="/register/team"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                setMenuOpen(false);
+                setSplitOpen(false);
+              }}
               className="rounded-xl px-4 py-3 transition hover:bg-white/5 hover:text-green-400"
             >
               Team Signup
@@ -61,7 +78,10 @@ export default function MobileNav({
 
             <Link
               href="/register/free-agent"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                setMenuOpen(false);
+                setSplitOpen(false);
+              }}
               className="rounded-xl px-4 py-3 transition hover:bg-white/5 hover:text-green-400"
             >
               Free Agent
@@ -69,7 +89,10 @@ export default function MobileNav({
 
             <Link
               href="/teams"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                setMenuOpen(false);
+                setSplitOpen(false);
+              }}
               className="rounded-xl px-4 py-3 transition hover:bg-white/5 hover:text-green-400"
             >
               Teams

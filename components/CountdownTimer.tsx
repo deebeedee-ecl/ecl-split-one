@@ -49,7 +49,7 @@ export default function CountdownTimer() {
 
   if (timeLeft.expired) {
     return (
-      <div className="overflow-hidden rounded-[2rem] border border-red-400/20 bg-gradient-to-br from-red-500/10 via-zinc-950 to-black p-5 shadow-[0_0_50px_rgba(248,113,113,0.18)] sm:p-8">
+      <div className="relative z-0 overflow-hidden rounded-[2rem] border border-red-400/20 bg-gradient-to-br from-red-500/10 via-zinc-950 to-black p-5 shadow-[0_0_50px_rgba(248,113,113,0.18)] sm:p-8">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-300 sm:text-sm sm:tracking-[0.35em]">
           Registration Closed
         </p>
@@ -70,7 +70,7 @@ export default function CountdownTimer() {
 
   return (
     <div
-      className={`overflow-hidden rounded-[2rem] border border-green-400/20 bg-gradient-to-br from-zinc-900 via-black to-zinc-900 p-5 shadow-[0_0_60px_rgba(74,222,128,0.14)] transition-all duration-500 sm:p-8 ${
+      className={`relative z-0 overflow-hidden rounded-[2rem] border border-green-400/20 bg-gradient-to-br from-zinc-900 via-black to-zinc-900 p-5 shadow-[0_0_60px_rgba(74,222,128,0.14)] transition-all duration-500 sm:p-8 ${
         pulse ? "scale-[1.01]" : "scale-100"
       }`}
     >
