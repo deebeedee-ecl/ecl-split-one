@@ -4,14 +4,14 @@ import { useEffect, useState } from "react";
 
 type FreeAgent = {
   id: string;
-  playerName: string;
-  email: string;
-  riotName: string;
-  riotTag: string;
-  primaryRole: string;
-  secondaryRole: string | null;
-  currentRank: string | null;
-  notes: string | null;
+  playerName?: string | null;
+  email?: string | null;
+  riotName?: string | null;
+  riotTag?: string | null;
+  primaryRole?: string | null;
+  secondaryRole?: string | null;
+  currentRank?: string | null;
+  notes?: string | null;
   status: string;
   submittedAt: string;
 };
@@ -79,12 +79,14 @@ export default function AdminFreeAgentsPage() {
     filter === "all" ? true : a.status === filter
   );
 
-  // 🔥 SORT BY RANK
   const sorted = [...filtered].sort((a, b) => {
     const rankA = rankOrder.indexOf(a.currentRank || "");
     const rankB = rankOrder.indexOf(b.currentRank || "");
 
-    return rankB - rankA;
+    const safeRankA = rankA === -1 ? -999 : rankA;
+    const safeRankB = rankB === -1 ? -999 : rankB;
+
+    return safeRankB - safeRankA;
   });
 
   return (
@@ -96,7 +98,9 @@ export default function AdminFreeAgentsPage() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className="rounded bg-gray-200 px-3 py-1 text-black"
+            className={`rounded px-3 py-1 ${
+              filter === f ? "bg-black text-white" : "bg-gray-200 text-black"
+            }`}
           >
             {f}
           </button>
@@ -104,50 +108,105 @@ export default function AdminFreeAgentsPage() {
       </div>
 
       <div className="space-y-4">
-        {sorted.map((agent) => (
-          <div
-            key={agent.id}
-            className="rounded-lg border bg-white p-4 text-black shadow-sm"
-          >
-            <div className="flex justify-between gap-4">
-              <div className="space-y-1">
-                <p><strong>{agent.playerName}</strong></p>
-                <p>{agent.riotName}#{agent.riotTag}</p>
-                <p>Rank: {agent.currentRank}</p>
-                <p>Status: {agent.status}</p>
-              </div>
+        {sorted.map((agent) => {
+          const displayName =
+            agent.playerName?.trim() ||
+            agent.riotName?.trim() ||
+            "Unknown Player";
 
-              <div className="flex flex-wrap gap-2">
-                {agent.status === "pending" && (
-                  <>
-                    <button onClick={() => updateStatus(agent.id, "approved")} className="bg-green-600 text-white px-3 py-1 rounded">
-                      Approve
-                    </button>
-                    <button onClick={() => updateStatus(agent.id, "rejected")} className="bg-red-600 text-white px-3 py-1 rounded">
-                      Reject
-                    </button>
-                  </>
-                )}
+          const displayRiotId =
+            agent.riotName && agent.riotTag
+              ? `${agent.riotName}#${agent.riotTag}`
+              : agent.riotName
+              ? agent.riotName
+              : "-";
 
-                {agent.status === "approved" && (
-                  <>
-                    <button onClick={() => updateStatus(agent.id, "signed")} className="bg-blue-600 text-white px-3 py-1 rounded">
+          const displayRank = agent.currentRank?.trim() || "-";
+          const displayPrimaryRole = agent.primaryRole?.trim() || "-";
+          const displaySecondaryRole = agent.secondaryRole?.trim() || "-";
+          const displayEmail = agent.email?.trim() || "-";
+          const displayNotes = agent.notes?.trim() || "";
+
+          return (
+            <div
+              key={agent.id}
+              className="rounded-lg border bg-white p-4 text-black shadow-sm"
+            >
+              <div className="flex flex-col gap-4 md:flex-row md:justify-between">
+                <div className="space-y-1">
+                  <p className="text-lg font-bold">{displayName}</p>
+                  <p>
+                    <strong>Riot ID:</strong> {displayRiotId}
+                  </p>
+                  <p>
+                    <strong>Rank:</strong> {displayRank}
+                  </p>
+                  <p>
+                    <strong>Primary Role:</strong> {displayPrimaryRole}
+                  </p>
+                  <p>
+                    <strong>Secondary Role:</strong> {displaySecondaryRole}
+                  </p>
+                  <p>
+                    <strong>Email:</strong> {displayEmail}
+                  </p>
+                  <p>
+                    <strong>Status:</strong> {agent.status}
+                  </p>
+                  {displayNotes && (
+                    <p className="pt-1 text-sm text-gray-700">
+                      <strong>Notes:</strong> {displayNotes}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {agent.status === "pending" && (
+                    <>
+                      <button
+                        onClick={() => updateStatus(agent.id, "approved")}
+                        className="rounded bg-green-600 px-3 py-1 text-white"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => updateStatus(agent.id, "rejected")}
+                        className="rounded bg-red-600 px-3 py-1 text-white"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )}
+
+                  {agent.status === "approved" && (
+                    <button
+                      onClick={() => updateStatus(agent.id, "signed")}
+                      className="rounded bg-blue-600 px-3 py-1 text-white"
+                    >
                       Signed
                     </button>
-                  </>
-                )}
+                  )}
 
-                {/* 🔥 DELETE BUTTON */}
-                <button
-                  onClick={() => deleteAgent(agent.id)}
-                  className="bg-black text-white px-3 py-1 rounded border border-red-500"
-                >
-                  Delete
-                </button>
+                  {agent.status === "signed" && (
+                    <button
+                      onClick={() => updateStatus(agent.id, "approved")}
+                      className="rounded bg-yellow-500 px-3 py-1 text-black"
+                    >
+                      Return to Approved
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => deleteAgent(agent.id)}
+                    className="rounded border border-red-500 bg-black px-3 py-1 text-white"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

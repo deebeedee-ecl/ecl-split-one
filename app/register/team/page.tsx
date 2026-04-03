@@ -15,12 +15,23 @@ const rankOptions = [
   "Challenger",
 ];
 
+const roleOptions = ["Top", "Jungle", "Mid", "ADC", "Support"];
+
+const emptyPlayer = {
+  playerName: "",
+  riotName: "",
+  riotTag: "",
+  currentRank: "",
+  primaryRole: "",
+  secondaryRole: "",
+};
+
 export default function TeamRegisterPage() {
   const [teamName, setTeamName] = useState("");
   const [captainName, setCaptainName] = useState("");
   const [captainEmail, setCaptainEmail] = useState("");
   const [players, setPlayers] = useState(
-    Array(7).fill({ riotName: "", riotTag: "", rank: "" })
+    Array.from({ length: 7 }, () => ({ ...emptyPlayer }))
   );
   const [loading, setLoading] = useState(false);
   const [submitState, setSubmitState] = useState<"idle" | "success" | "error">("idle");
@@ -38,7 +49,6 @@ export default function TeamRegisterPage() {
     setSubmitState("idle");
     setMessage("");
 
-    // Validate Riot Tags (numbers only)
     for (let i = 0; i < players.length; i++) {
       const tag = players[i].riotTag?.trim();
       if (tag && !/^\d+$/.test(tag)) {
@@ -71,7 +81,7 @@ export default function TeamRegisterPage() {
       setTeamName("");
       setCaptainName("");
       setCaptainEmail("");
-      setPlayers(Array(7).fill({ riotName: "", riotTag: "", rank: "" }));
+      setPlayers(Array.from({ length: 7 }, () => ({ ...emptyPlayer })));
     } catch (error) {
       console.error(error);
       setSubmitState("error");
@@ -83,7 +93,7 @@ export default function TeamRegisterPage() {
 
   return (
     <main className="min-h-screen bg-black px-6 py-20 text-white">
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-4xl">
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-green-400">
           ECL
         </p>
@@ -126,18 +136,27 @@ export default function TeamRegisterPage() {
               required
             />
 
-            {/* PLAYER SLOTS */}
             <div className="space-y-4">
               {players.map((player, index) => (
                 <div
                   key={index}
                   className="rounded-2xl border border-white/10 bg-black/40 p-4"
                 >
-                  <p className="text-sm mb-3 text-zinc-400 uppercase tracking-[0.15em]">
+                  <p className="mb-3 text-sm uppercase tracking-[0.15em] text-zinc-400">
                     Player {index + 1}
                   </p>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <input
+                      placeholder="Alias / Nickname"
+                      value={player.playerName}
+                      onChange={(e) =>
+                        updatePlayer(index, "playerName", e.target.value)
+                      }
+                      className="bg-black border border-white/10 rounded px-3 py-2 focus:border-green-400/30"
+                      required={index < 5}
+                    />
+
                     <input
                       placeholder="Riot Name"
                       value={player.riotName}
@@ -145,7 +164,7 @@ export default function TeamRegisterPage() {
                         updatePlayer(index, "riotName", e.target.value)
                       }
                       className="bg-black border border-white/10 rounded px-3 py-2 focus:border-green-400/30"
-                      required={index < 5} // require first 5 players
+                      required={index < 5}
                     />
 
                     <input
@@ -161,9 +180,9 @@ export default function TeamRegisterPage() {
                     />
 
                     <select
-                      value={player.rank}
+                      value={player.currentRank}
                       onChange={(e) =>
-                        updatePlayer(index, "rank", e.target.value)
+                        updatePlayer(index, "currentRank", e.target.value)
                       }
                       className="bg-black border border-white/10 rounded px-3 py-2 focus:border-green-400/30"
                       required={index < 5}
@@ -175,12 +194,42 @@ export default function TeamRegisterPage() {
                         </option>
                       ))}
                     </select>
+
+                    <select
+                      value={player.primaryRole}
+                      onChange={(e) =>
+                        updatePlayer(index, "primaryRole", e.target.value)
+                      }
+                      className="bg-black border border-white/10 rounded px-3 py-2 focus:border-green-400/30"
+                      required={index < 5}
+                    >
+                      <option value="">Select Primary Role</option>
+                      {roleOptions.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={player.secondaryRole}
+                      onChange={(e) =>
+                        updatePlayer(index, "secondaryRole", e.target.value)
+                      }
+                      className="bg-black border border-white/10 rounded px-3 py-2 focus:border-green-400/30"
+                    >
+                      <option value="">Select Secondary Role</option>
+                      {roleOptions.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* SUCCESS / ERROR */}
             {submitState === "success" && (
               <div className="rounded-2xl border border-green-400/20 bg-green-400/10 p-4">
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-300">

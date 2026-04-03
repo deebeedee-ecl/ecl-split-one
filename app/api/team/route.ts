@@ -5,7 +5,6 @@ export async function GET() {
   try {
     const teams = await prisma.teamRegistration.findMany();
 
-    // Sort: pending → approved → rejected, then newest first
     const sorted = teams.sort((a, b) => {
       const order = { pending: 0, approved: 1, rejected: 2 };
 
@@ -40,12 +39,23 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
+    const rawPlayers = Array.isArray(body.players) ? body.players : [];
+
+    const players = rawPlayers.map((player: any) => ({
+      playerName: String(player.playerName || "").trim(),
+      riotName: String(player.riotName || "").trim(),
+      riotTag: String(player.riotTag || "").trim(),
+      currentRank: String(player.currentRank || player.rank || "").trim(),
+      primaryRole: String(player.primaryRole || "").trim(),
+      secondaryRole: String(player.secondaryRole || "").trim(),
+    }));
+
     const team = await prisma.teamRegistration.create({
       data: {
-        teamName: body.teamName,
-        captainName: body.captainName,
-        captainEmail: body.captainEmail,
-        players: body.players || [], // safe fallback
+        teamName: String(body.teamName || "").trim(),
+        captainName: String(body.captainName || "").trim(),
+        captainEmail: String(body.captainEmail || "").trim(),
+        players,
       },
     });
 

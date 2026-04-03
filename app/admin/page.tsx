@@ -67,6 +67,7 @@ type TeamPlayerJson = {
   primaryRole?: string;
   secondaryRole?: string;
   currentRank?: string;
+  rank?: string;
 };
 
 export default async function AdminPage() {
@@ -81,10 +82,10 @@ export default async function AdminPage() {
 
   const freeAgentPlayers: CombinedPlayer[] = freeAgents.map((player) => ({
     id: player.id,
-    playerName: player.playerName,
-    riotName: player.riotName,
-    riotTag: player.riotTag,
-    primaryRole: player.primaryRole,
+    playerName: player.playerName || player.riotName || "Unknown Player",
+    riotName: player.riotName || "",
+    riotTag: player.riotTag || "",
+    primaryRole: player.primaryRole ?? "",
     secondaryRole: player.secondaryRole ?? "",
     currentRank: player.currentRank ?? "UNRANKED",
     status: player.status,
@@ -100,12 +101,16 @@ export default async function AdminPage() {
 
     return players.map((player, index) => ({
       id: `${team.id}-${index}`,
-      playerName: player.playerName || player.name || "Unknown Player",
+      playerName:
+        player.playerName ||
+        player.name ||
+        player.riotName ||
+        "Unknown Player",
       riotName: player.riotName || "",
       riotTag: player.riotTag || "",
       primaryRole: player.primaryRole || "",
       secondaryRole: player.secondaryRole || "",
-      currentRank: player.currentRank || "UNRANKED",
+      currentRank: player.currentRank || player.rank || "UNRANKED",
       status: team.status,
       source: "Team" as const,
       teamName: team.teamName,
@@ -207,7 +212,7 @@ export default async function AdminPage() {
                       className="border-t border-white/10 hover:bg-white/5"
                     >
                       <td className="px-4 py-3 font-medium">
-                        {player.playerName}
+                        {player.playerName || "Unknown Player"}
                       </td>
                       <td className="px-4 py-3 text-white/80">
                         {player.riotName || "-"}

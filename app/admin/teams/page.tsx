@@ -11,24 +11,8 @@ type TeamPlayer = {
   primaryRole?: string;
   secondaryRole?: string;
   currentRank?: string;
+  rank?: string;
 };
-
-async function updateTeamStatus(id: string, status: string) {
-  "use server";
-
-  const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || ""}/api/team-registration/${id}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ status }),
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    throw new Error("Failed to update team status");
-  }
-}
 
 export default async function AdminTeamsPage() {
   const teams = await prisma.teamRegistration.findMany({
@@ -173,33 +157,49 @@ export default async function AdminTeamsPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {players.map((player, index) => (
-                              <tr
-                                key={`${team.id}-${index}`}
-                                className="border-t border-white/10 hover:bg-white/5"
-                              >
-                                <td className="px-4 py-3 font-medium">
-                                  {player.playerName || player.name || "-"}
-                                </td>
-                                <td className="px-4 py-3 text-white/80">
-                                  {player.riotName || "-"}
-                                </td>
-                                <td className="px-4 py-3 text-white/80">
-                                  {player.riotTag || "-"}
-                                </td>
-                                <td className="px-4 py-3">
-                                  <span className="rounded-full border border-green-400/30 bg-green-400/10 px-2 py-1 text-xs font-semibold text-green-300">
-                                    {player.currentRank || "UNRANKED"}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-white/80">
-                                  {player.primaryRole || "-"}
-                                </td>
-                                <td className="px-4 py-3 text-white/80">
-                                  {player.secondaryRole || "-"}
-                                </td>
-                              </tr>
-                            ))}
+                            {players.map((player, index) => {
+                              const displayName =
+                                player.playerName ||
+                                player.name ||
+                                player.riotName ||
+                                "Unknown Player";
+
+                              const displayRiotName = player.riotName || "-";
+                              const displayTag = player.riotTag || "-";
+                              const displayRank =
+                                player.currentRank || player.rank || "UNRANKED";
+                              const displayPrimary = player.primaryRole || "-";
+                              const displaySecondary =
+                                player.secondaryRole || "-";
+
+                              return (
+                                <tr
+                                  key={`${team.id}-${index}`}
+                                  className="border-t border-white/10 hover:bg-white/5"
+                                >
+                                  <td className="px-4 py-3 font-medium">
+                                    {displayName}
+                                  </td>
+                                  <td className="px-4 py-3 text-white/80">
+                                    {displayRiotName}
+                                  </td>
+                                  <td className="px-4 py-3 text-white/80">
+                                    {displayTag}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span className="rounded-full border border-green-400/30 bg-green-400/10 px-2 py-1 text-xs font-semibold text-green-300">
+                                      {displayRank}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-white/80">
+                                    {displayPrimary}
+                                  </td>
+                                  <td className="px-4 py-3 text-white/80">
+                                    {displaySecondary}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
