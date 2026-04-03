@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type FreeAgent = {
@@ -91,6 +92,15 @@ export default function AdminFreeAgentsPage() {
 
   return (
     <div className="mx-auto max-w-6xl p-6">
+      <div className="mb-6">
+        <Link
+          href="/admin"
+          className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+        >
+          ← Back to Dashboard
+        </Link>
+      </div>
+
       <h1 className="mb-6 text-3xl font-bold">Admin - Free Agents</h1>
 
       <div className="mb-4 flex flex-wrap gap-2">

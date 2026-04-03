@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import DeleteTeamButton from "@/components/DeleteTeamButton";
 
@@ -22,6 +23,15 @@ export default async function AdminTeamsPage() {
   return (
     <main className="min-h-screen bg-black px-6 py-10 text-white">
       <div className="mx-auto max-w-7xl">
+        <div className="mb-6">
+          <Link
+            href="/admin"
+            className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            ← Back to Dashboard
+          </Link>
+        </div>
+
         <div className="mb-8">
           <h1 className="text-4xl font-black uppercase tracking-[0.08em]">
             Team Registrations
