@@ -13,6 +13,73 @@ type TeamPlayer = {
   secondaryRole?: string;
 };
 
+const accentThemes = [
+  {
+    bar: "bg-green-400/80",
+    badge: "border-green-400/30 bg-green-400/10 text-green-300",
+    captain: "border-green-400/20 bg-green-400/10",
+    slot: "border-green-400/20 bg-green-400/10 text-green-300",
+    hover:
+      "hover:border-green-400/35 hover:shadow-[0_18px_60px_rgba(74,222,128,0.12)]",
+  },
+  {
+    bar: "bg-cyan-400/80",
+    badge: "border-cyan-400/30 bg-cyan-400/10 text-cyan-300",
+    captain: "border-cyan-400/20 bg-cyan-400/10",
+    slot: "border-cyan-400/20 bg-cyan-400/10 text-cyan-300",
+    hover:
+      "hover:border-cyan-400/35 hover:shadow-[0_18px_60px_rgba(34,211,238,0.12)]",
+  },
+  {
+    bar: "bg-violet-400/80",
+    badge: "border-violet-400/30 bg-violet-400/10 text-violet-300",
+    captain: "border-violet-400/20 bg-violet-400/10",
+    slot: "border-violet-400/20 bg-violet-400/10 text-violet-300",
+    hover:
+      "hover:border-violet-400/35 hover:shadow-[0_18px_60px_rgba(167,139,250,0.12)]",
+  },
+  {
+    bar: "bg-amber-400/80",
+    badge: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+    captain: "border-amber-400/20 bg-amber-400/10",
+    slot: "border-amber-400/20 bg-amber-400/10 text-amber-300",
+    hover:
+      "hover:border-amber-400/35 hover:shadow-[0_18px_60px_rgba(251,191,36,0.12)]",
+  },
+  {
+    bar: "bg-rose-400/80",
+    badge: "border-rose-400/30 bg-rose-400/10 text-rose-300",
+    captain: "border-rose-400/20 bg-rose-400/10",
+    slot: "border-rose-400/20 bg-rose-400/10 text-rose-300",
+    hover:
+      "hover:border-rose-400/35 hover:shadow-[0_18px_60px_rgba(251,113,133,0.12)]",
+  },
+  {
+    bar: "bg-fuchsia-400/80",
+    badge: "border-fuchsia-400/30 bg-fuchsia-400/10 text-fuchsia-300",
+    captain: "border-fuchsia-400/20 bg-fuchsia-400/10",
+    slot: "border-fuchsia-400/20 bg-fuchsia-400/10 text-fuchsia-300",
+    hover:
+      "hover:border-fuchsia-400/35 hover:shadow-[0_18px_60px_rgba(232,121,249,0.12)]",
+  },
+];
+
+function getTeamTag(teamName: string) {
+  const words = teamName
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (words.length === 0) return "ECL";
+  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
+
+  return words
+    .slice(0, 3)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+}
+
 export default async function TeamsPage() {
   const teams = await prisma.teamRegistration.findMany({
     where: { status: "approved" },
@@ -69,7 +136,10 @@ export default async function TeamsPage() {
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-2">
-            {teams.map((team) => {
+            {teams.map((team, teamIndex) => {
+              const accent = accentThemes[teamIndex % accentThemes.length];
+              const teamTag = getTeamTag(team.teamName);
+
               const players = Array.isArray(team.players)
                 ? (team.players as TeamPlayer[]).filter((player) => {
                     if (!player) return false;
@@ -93,33 +163,53 @@ export default async function TeamsPage() {
               return (
                 <article
                   key={team.id}
-                  className="group rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(24,24,27,0.98)_0%,rgba(8,8,10,1)_100%)] p-6 shadow-[0_12px_40px_rgba(0,0,0,0.55)] transition-all duration-300 hover:-translate-y-1 hover:border-green-400/35 hover:shadow-[0_18px_60px_rgba(74,222,128,0.12)]"
+                  className={`group rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(24,24,27,0.98)_0%,rgba(8,8,10,1)_100%)] p-6 shadow-[0_12px_40px_rgba(0,0,0,0.55)] transition-all duration-300 hover:-translate-y-1 ${accent.hover}`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <div className="mb-4 h-1 w-16 rounded-full bg-green-400/80" />
+                      <div className={`mb-4 h-1 w-16 rounded-full ${accent.bar}`} />
 
-                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-400">
-                        Team
+                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                        Team Identity
                       </p>
 
-                      <h2 className="mt-3 break-words text-3xl font-black uppercase leading-tight tracking-[0.03em] text-white transition group-hover:text-green-300">
-                        {team.teamName}
-                      </h2>
+                      <div className="mt-3 flex flex-wrap items-center gap-3">
+                        <h2 className="break-words text-2xl font-black uppercase tracking-[0.03em] text-white transition group-hover:text-white/95">
+                          {team.teamName}
+                        </h2>
+
+                        <div
+                          className={`rounded-lg border px-3 py-1 text-xs font-black uppercase tracking-[0.2em] ${accent.badge}`}
+                        >
+                          {teamTag}
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="shrink-0 rounded-xl border border-green-400/20 bg-green-400/10 px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-green-300">
+                    <div
+                      className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] ${accent.badge}`}
+                    >
                       {players.length} player{players.length === 1 ? "" : "s"}
                     </div>
                   </div>
 
-                  <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
-                      Captain
-                    </p>
-                    <p className="mt-2 text-lg font-bold uppercase text-white">
-                      {team.captainName}
-                    </p>
+                  <div className={`mt-6 rounded-xl border p-4 ${accent.captain}`}>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                          Team Captain
+                        </p>
+                        <p className="mt-2 text-lg font-bold uppercase text-white">
+                          {team.captainName}
+                        </p>
+                      </div>
+
+                      <div
+                        className={`rounded-lg border px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] ${accent.badge}`}
+                      >
+                        Captain
+                      </div>
+                    </div>
                   </div>
 
                   <div className="mt-6 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
@@ -155,9 +245,11 @@ export default async function TeamsPage() {
                           return (
                             <div
                               key={`${team.id}-${index}`}
-                              className="grid grid-cols-[64px_1fr_auto] items-center gap-4 rounded-xl border border-white/10 bg-black/40 px-4 py-4 transition-all duration-200 hover:border-green-400/30 hover:bg-white/[0.05]"
+                              className="grid grid-cols-[64px_1fr_auto] items-center gap-4 rounded-xl border border-white/10 bg-black/40 px-4 py-4 transition-all duration-200 hover:bg-white/[0.05]"
                             >
-                              <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-green-400/20 bg-green-400/10 text-sm font-black uppercase tracking-[0.14em] text-green-300">
+                              <div
+                                className={`flex h-12 w-12 items-center justify-center rounded-lg border text-sm font-black uppercase tracking-[0.14em] ${accent.slot}`}
+                              >
                                 P{index + 1}
                               </div>
 
