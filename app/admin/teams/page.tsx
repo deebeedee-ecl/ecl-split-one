@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import DeleteTeamButton from "@/components/DeleteTeamButton";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +17,76 @@ type TeamPlayer = {
   rank?: string;
 };
 
-export default async function AdminTeamsPage() {
+function cleanText(value?: string | null) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeRank(rank?: string | null) {
+  const value = cleanText(rank).toLowerCase();
+
+  if (value.includes("challenger")) return "Challenger";
+  if (value.includes("grandmaster")) return "Grandmaster";
+  if (value.includes("master")) return "Master";
+  if (value.includes("diamond")) return "Diamond";
+  if (value.includes("emerald")) return "Emerald";
+  if (value.includes("platinum")) return "Platinum";
+  if (value.includes("gold")) return "Gold";
+  if (value.includes("silver")) return "Silver";
+  if (value.includes("bronze")) return "Bronze";
+  if (value.includes("iron")) return "Iron";
+
+  return "Unranked";
+}
+
+function isRealTeamPlayer(player: TeamPlayer) {
+  return Boolean(
+    cleanText(player.playerName) ||
+      cleanText(player.name) ||
+      cleanText(player.riotName) ||
+      cleanText(player.riotTag) ||
+      cleanText(player.primaryRole) ||
+      cleanText(player.secondaryRole) ||
+      cleanText(player.currentRank) ||
+      cleanText(player.rank)
+  );
+}
+
+async function updateTeamStatus(formData: FormData) {
+  "use server";
+
+  const teamId = String(formData.get("teamId") || "");
+  const status = String(formData.get("status") || "");
+
+  if (!teamId || !["approved", "rejected", "pending"].includes(status)) {
+    redirect("/admin/teams?message=invalid");
+  }
+
+  await prisma.teamRegistration.update({
+    where: { id: teamId },
+    data: { status },
+  });
+
+  revalidatePath("/admin/teams");
+
+  if (status === "approved") {
+    redirect("/admin/teams?message=approved");
+  }
+
+  if (status === "rejected") {
+    redirect("/admin/teams?message=rejected");
+  }
+
+  redirect("/admin/teams?message=pending");
+}
+
+export default async function AdminTeamsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ message?: string }>;
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const message = resolvedSearchParams?.message;
+
   const teams = await prisma.teamRegistration.findMany({
     orderBy: { submittedAt: "desc" },
   });
@@ -37,9 +108,39 @@ export default async function AdminTeamsPage() {
             Team Registrations
           </h1>
           <p className="mt-2 text-white/60">
-            Review, approve, reject, and remove team signups.
+            Review, approve, reject, edit, and remove team signups.
           </p>
         </div>
+
+        {message === "approved" && (
+          <div className="mb-6 rounded-2xl border border-green-400/25 bg-green-400/10 px-5 py-4 text-sm font-semibold text-green-300">
+            Team approved.
+          </div>
+        )}
+
+        {message === "rejected" && (
+          <div className="mb-6 rounded-2xl border border-yellow-400/25 bg-yellow-400/10 px-5 py-4 text-sm font-semibold text-yellow-300">
+            Team rejected.
+          </div>
+        )}
+
+        {message === "pending" && (
+          <div className="mb-6 rounded-2xl border border-white/15 bg-white/5 px-5 py-4 text-sm font-semibold text-white/85">
+            Team set back to pending.
+          </div>
+        )}
+
+        {message === "saved" && (
+          <div className="mb-6 rounded-2xl border border-blue-400/25 bg-blue-400/10 px-5 py-4 text-sm font-semibold text-blue-300">
+            Team updated successfully.
+          </div>
+        )}
+
+        {message === "invalid" && (
+          <div className="mb-6 rounded-2xl border border-red-400/25 bg-red-400/10 px-5 py-4 text-sm font-semibold text-red-300">
+            Invalid team action.
+          </div>
+        )}
 
         {teams.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-white/60">
@@ -49,7 +150,7 @@ export default async function AdminTeamsPage() {
           <div className="space-y-6">
             {teams.map((team) => {
               const players = Array.isArray(team.players)
-                ? (team.players as TeamPlayer[])
+                ? (team.players as TeamPlayer[]).filter(isRealTeamPlayer)
                 : [];
 
               return (
@@ -88,15 +189,16 @@ export default async function AdminTeamsPage() {
                           {team.status}
                         </span>
 
-                        <form
-                          action={async () => {
-                            "use server";
-                            await prisma.teamRegistration.update({
-                              where: { id: team.id },
-                              data: { status: "approved" },
-                            });
-                          }}
+                        <Link
+                          href={`/admin/teams/${team.id}/edit`}
+                          className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20"
                         >
+                          Edit Team
+                        </Link>
+
+                        <form action={updateTeamStatus}>
+                          <input type="hidden" name="teamId" value={team.id} />
+                          <input type="hidden" name="status" value="approved" />
                           <button
                             type="submit"
                             className="rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm font-semibold text-green-300 transition hover:bg-green-500/20"
@@ -105,15 +207,9 @@ export default async function AdminTeamsPage() {
                           </button>
                         </form>
 
-                        <form
-                          action={async () => {
-                            "use server";
-                            await prisma.teamRegistration.update({
-                              where: { id: team.id },
-                              data: { status: "rejected" },
-                            });
-                          }}
-                        >
+                        <form action={updateTeamStatus}>
+                          <input type="hidden" name="teamId" value={team.id} />
+                          <input type="hidden" name="status" value="rejected" />
                           <button
                             type="submit"
                             className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-300 transition hover:bg-yellow-500/20"
@@ -122,15 +218,9 @@ export default async function AdminTeamsPage() {
                           </button>
                         </form>
 
-                        <form
-                          action={async () => {
-                            "use server";
-                            await prisma.teamRegistration.update({
-                              where: { id: team.id },
-                              data: { status: "pending" },
-                            });
-                          }}
-                        >
+                        <form action={updateTeamStatus}>
+                          <input type="hidden" name="teamId" value={team.id} />
+                          <input type="hidden" name="status" value="pending" />
                           <button
                             type="submit"
                             className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10"
@@ -169,18 +259,23 @@ export default async function AdminTeamsPage() {
                           <tbody>
                             {players.map((player, index) => {
                               const displayName =
-                                player.playerName ||
-                                player.name ||
-                                player.riotName ||
+                                cleanText(player.playerName) ||
+                                cleanText(player.name) ||
+                                cleanText(player.riotName) ||
                                 "Unknown Player";
 
-                              const displayRiotName = player.riotName || "-";
-                              const displayTag = player.riotTag || "-";
-                              const displayRank =
-                                player.currentRank || player.rank || "UNRANKED";
-                              const displayPrimary = player.primaryRole || "-";
+                              const displayRiotName =
+                                cleanText(player.riotName) || "-";
+                              const displayTag = cleanText(player.riotTag) || "-";
+                              const displayRank = normalizeRank(
+                                cleanText(player.currentRank) ||
+                                  cleanText(player.rank) ||
+                                  "Unranked"
+                              );
+                              const displayPrimary =
+                                cleanText(player.primaryRole) || "-";
                               const displaySecondary =
-                                player.secondaryRole || "-";
+                                cleanText(player.secondaryRole) || "-";
 
                               return (
                                 <tr

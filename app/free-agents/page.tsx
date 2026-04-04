@@ -9,6 +9,10 @@ export default async function FreeAgentsPage() {
         in: ["approved", "signed"],
       },
     },
+    orderBy: [
+      { status: "asc" },
+      { submittedAt: "desc" },
+    ],
   });
 
   return (
@@ -65,6 +69,7 @@ export default async function FreeAgentsPage() {
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {freeAgents.map((agent) => {
               const isSigned = agent.status === "signed";
+              const signedTeamName = agent.signedToTeamName?.trim() || "";
 
               return (
                 <article
@@ -151,8 +156,19 @@ export default async function FreeAgentsPage() {
                     </p>
                   </div>
 
-                  {isSigned && (
+                  {isSigned && signedTeamName && (
                     <div className="mt-6 rounded-2xl border border-blue-400/15 bg-blue-400/[0.06] px-4 py-3">
+                      <p className="text-sm font-semibold uppercase tracking-[0.14em] text-blue-300">
+                        Signed To
+                      </p>
+                      <p className="mt-1 text-base font-semibold text-white">
+                        {signedTeamName}
+                      </p>
+                    </div>
+                  )}
+
+                  {isSigned && (
+                    <div className="mt-4 rounded-2xl border border-blue-400/15 bg-blue-400/[0.06] px-4 py-3">
                       <p className="text-sm font-semibold uppercase tracking-[0.14em] text-blue-300">
                         Player Signed
                       </p>

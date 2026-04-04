@@ -30,25 +30,27 @@ model Player {
 }
 
 model FreeAgentRegistration {
-  id            String   @id @default(uuid())
-  playerName    String
-  email         String
-  riotName      String
-  riotTag       String
-  primaryRole   String
-  secondaryRole String?
-  currentRank   String?
-  notes         String?
-  status        String   @default("pending")
-  submittedAt   DateTime @default(now())
-}model TeamRegistration {
+  id               String   @id @default(uuid())
+  playerName       String
+  email            String
+  riotName         String
+  riotTag          String
+  primaryRole      String
+  secondaryRole    String?
+  currentRank      String?
+  notes            String?
+  status           String   @default("pending")
+  signedToTeamId   String?
+  signedToTeamName String?
+  submittedAt      DateTime @default(now())
+}
+
+model TeamRegistration {
   id           String   @id @default(uuid())
   teamName     String
   captainName  String
   captainEmail String
-
-  players      Json     // 👈 store all 7 players here
-
+  players      Json
   status       String   @default("pending")
   submittedAt  DateTime @default(now())
 }

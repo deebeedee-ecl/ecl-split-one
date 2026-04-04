@@ -3,28 +3,26 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    const teams = await prisma.teamRegistration.findMany();
-
-    const sorted = teams.sort((a, b) => {
-      const order = { pending: 0, approved: 1, rejected: 2 };
-
-      if (
-        order[a.status as keyof typeof order] !==
-        order[b.status as keyof typeof order]
-      ) {
-        return (
-          order[a.status as keyof typeof order] -
-          order[b.status as keyof typeof order]
-        );
-      }
-
-      return (
-        new Date(b.submittedAt).getTime() -
-        new Date(a.submittedAt).getTime()
-      );
+    const teams = await prisma.teamRegistration.findMany({
+      where: {
+        status: "approved",
+      },
+      orderBy: {
+        teamName: "asc",
+      },
     });
 
-    return NextResponse.json(sorted);
+    const formattedTeams = teams.map((team) => ({
+      id: team.id,
+      name: team.teamName,
+      captainName: team.captainName,
+      captainEmail: team.captainEmail,
+      status: team.status,
+      submittedAt: team.submittedAt,
+      players: team.players,
+    }));
+
+    return NextResponse.json(formattedTeams);
   } catch (error) {
     console.error("GET /api/team error:", error);
 

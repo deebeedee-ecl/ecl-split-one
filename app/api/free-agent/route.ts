@@ -3,19 +3,37 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    const freeAgents = await prisma.freeAgentRegistration.findMany();
+    const freeAgents = await prisma.freeAgentRegistration.findMany({
+      select: {
+        id: true,
+        playerName: true,
+        email: true,
+        riotName: true,
+        riotTag: true,
+        primaryRole: true,
+        secondaryRole: true,
+        currentRank: true,
+        notes: true,
+        status: true,
+        signedToTeamId: true,
+        signedToTeamName: true,
+        submittedAt: true,
+      },
+    });
+
+    const order = {
+      pending: 0,
+      approved: 1,
+      signed: 2,
+      rejected: 3,
+    };
 
     const sorted = freeAgents.sort((a, b) => {
-      const order = { pending: 0, approved: 1, signed: 2, rejected: 3 };
+      const statusA = order[a.status as keyof typeof order] ?? 999;
+      const statusB = order[b.status as keyof typeof order] ?? 999;
 
-      if (
-        order[a.status as keyof typeof order] !==
-        order[b.status as keyof typeof order]
-      ) {
-        return (
-          order[a.status as keyof typeof order] -
-          order[b.status as keyof typeof order]
-        );
+      if (statusA !== statusB) {
+        return statusA - statusB;
       }
 
       return (
