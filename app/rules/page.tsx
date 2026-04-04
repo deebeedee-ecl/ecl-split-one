@@ -141,7 +141,7 @@ export default function RulesPage() {
                 <ul className="mt-3 space-y-3 text-sm leading-7 text-zinc-200">
                   <li>• <span className="font-semibold text-white">1 Masters+ player</span> maximum</li>
                   <li>• <span className="font-semibold text-white">1 Diamond player</span> maximum</li>
-                  <li>• <span className="font-semibold text-white">1 Emerald player</span> maximum</li>
+                  <li>• <span className="font-semibold text-white">2 Emerald player</span> maximum</li>
                 </ul>
               </div>
 
@@ -174,7 +174,7 @@ export default function RulesPage() {
                 <li>• All rank restrictions apply to the <span className="font-semibold text-white">5 players actually playing in each game</span></li>
                 <li>• A lineup may include a maximum of <span className="font-semibold text-white">1 Masters+ player</span></li>
                 <li>• A lineup may include a maximum of <span className="font-semibold text-white">1 Diamond player</span></li>
-                <li>• A lineup may include a maximum of <span className="font-semibold text-white">1 Emerald player</span></li>
+                <li>• A lineup may include a maximum of <span className="font-semibold text-white">2 Emerald player</span></li>
                 <li>• Every lineup must include at least <span className="font-semibold text-white">1 Silver-or-below player</span></li>
               </ul>
             </div>
