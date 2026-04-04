@@ -12,9 +12,8 @@ export default function RulesPage() {
             accessible to a wide range of players.
           </p>
           <p className="mt-4">
-            These rules exist to provide clear structure for teams, match play, roster building,
-            scheduling, and disputes. By entering the tournament, all players agree to follow the
-            official ECL rules and accept admin rulings made throughout the event.
+            The goal of the tournament is to provide structured matches, balanced teams, and a
+            clear ruleset that ensures a smooth and fair experience for all participants.
           </p>
         </>
       ),
@@ -26,7 +25,7 @@ export default function RulesPage() {
         <ul className="space-y-3">
           <li>• Split One begins with a <span className="font-semibold text-white">single round-robin stage</span></li>
           <li>• Regular season matches are <span className="font-semibold text-white">Best of 2</span></li>
-          <li>• Teams progress into a <span className="font-semibold text-white">single elimination knockout stage</span> after the round-robin stage</li>
+          <li>• After the round-robin stage, teams progress into a <span className="font-semibold text-white">single elimination knockout stage</span></li>
           <li>• Knockout matches are played as <span className="font-semibold text-white">Best of 3</span></li>
           <li>• <span className="font-semibold text-white">Fearless Draft</span> is active during knockout matches</li>
           <li>• Fearless Draft resets in the <span className="font-semibold text-white">Semifinals</span></li>
@@ -41,8 +40,8 @@ export default function RulesPage() {
         <>
           <ul className="space-y-3">
             <li>• Matches must be scheduled <span className="font-semibold text-white">at least 24 hours in advance</span></li>
-            <li>• Teams must use <span className="font-semibold text-white">KOOK</span> to confirm match times and coordination</li>
-            <li>• Official scheduling procedure will be confirmed by ECL admins</li>
+            <li>• Scheduling must be submitted through the <span className="font-semibold text-white">official ECL reporting system</span></li>
+            <li>• Teams must use KOOK to confirm match time and coordination</li>
           </ul>
 
           <div className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-5">
@@ -51,7 +50,7 @@ export default function RulesPage() {
             </p>
             <ul className="mt-3 space-y-3 text-sm leading-7 text-zinc-200">
               <li>• A no-show results in an automatic <span className="font-semibold text-white">2-0 loss</span></li>
-              <li>• Cancelling without agreement may result in an automatic <span className="font-semibold text-white">2-0 loss</span></li>
+              <li>• Cancelling without agreement results in an automatic <span className="font-semibold text-white">2-0 loss</span></li>
               <li>• If a team causes a delay of <span className="font-semibold text-white">more than 1 hour</span>, the opposing team may leave and request an <span className="font-semibold text-white">admin-awarded win</span></li>
             </ul>
           </div>
@@ -64,9 +63,9 @@ export default function RulesPage() {
       content: (
         <>
           <ul className="space-y-3">
-            <li>• After each match, the <span className="font-semibold text-white">winning captain</span> must report the result</li>
-            <li>• Results must be submitted through the <span className="font-semibold text-white">official ECL reporting process</span></li>
-            <li>• Admins may request screenshots or additional proof where needed</li>
+            <li>• After each match, the <span className="font-semibold text-white">winning captain</span> must submit the result through the <span className="font-semibold text-white">official ECL reporting system</span></li>
+            <li>• Captains must provide the final match score when reporting</li>
+            <li>• Admins may request a screenshot or additional proof if needed</li>
           </ul>
 
           <div className="mt-6 rounded-2xl border border-blue-400/20 bg-blue-400/10 p-5">
@@ -74,8 +73,8 @@ export default function RulesPage() {
               Reporting Note
             </p>
             <p className="mt-3 text-sm leading-7 text-zinc-200">
-              Automated reporting tools are currently under construction. Until finalized, ECL admins
-              will confirm the accepted reporting method.
+              Screenshot system currently under construction — exact screenshot source / website
+              confirmation will be finalized before <span className="font-semibold text-white">April 20</span>.
             </p>
           </div>
 
@@ -84,7 +83,7 @@ export default function RulesPage() {
               Result Finality
             </p>
             <p className="mt-3 text-sm leading-7 text-zinc-200">
-              Match results are considered <span className="font-semibold text-white">official once submitted</span>,
+              Match results are considered <span className="font-semibold text-white">final once submitted</span>,
               unless a formal dispute is raised and reviewed by admins.
             </p>
           </div>
@@ -104,32 +103,41 @@ export default function RulesPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-300">
               Rank Determination
             </p>
-            <p className="mt-3 text-sm leading-7 text-zinc-200">
-              A player’s tournament rank is determined using their <span className="font-semibold text-white">highest proven rank across any region</span>
-              (including CN, NA, EUW, and others) within the past <span className="font-semibold text-white">three seasons</span>.
-            </p>
-            <p className="mt-3 text-sm leading-7 text-zinc-200">
-              If a player is currently active, admins may also consider that player’s
-              <span className="font-semibold text-white"> highest rank between Solo Queue and Flex Queue</span>.
-            </p>
-            <p className="mt-3 text-sm leading-7 text-zinc-200">
-              Players with fewer than <span className="font-semibold text-white">30 ranked games</span> may be treated as
-              <span className="font-semibold text-white"> provisional</span> and reviewed further.
-            </p>
-            <p className="mt-3 text-sm leading-7 text-zinc-200">
-              Admins reserve the right to place a player in a <span className="font-semibold text-white">higher competitive tier</span>
-              if their listed rank does not accurately reflect their true level.
-            </p>
+
+            <div className="mt-5 rounded-2xl border border-green-400/15 bg-black/30 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Classification Rule</p>
+              <p className="mt-3 text-sm leading-7 text-zinc-200">
+                A player’s tournament rank will be determined using their
+                <span className="font-semibold text-white"> highest proven rank across any region</span>
+                {" "}within the past <span className="font-semibold text-white">three seasons</span>,
+                including CN, NA, EUW, and other major servers.
+              </p>
+              <p className="mt-3 text-sm leading-7 text-zinc-200">
+                Admins may also consider a player’s
+                <span className="font-semibold text-white"> higher rank between Solo Queue and Flex Queue</span>
+                {" "}when evaluating current level.
+              </p>
+              <p className="mt-3 text-sm leading-7 text-zinc-200">
+                Players with fewer than <span className="font-semibold text-white">30 ranked games</span>
+                {" "}may be treated as <span className="font-semibold text-white">provisional</span>.
+                In these cases, admins may review previous seasons, off-region rank, and known competitive level.
+              </p>
+              <p className="mt-3 text-sm leading-7 text-zinc-200">
+                Admins reserve the right to place a player in a
+                <span className="font-semibold text-white"> higher competitive tier</span>
+                {" "}if their declared or current rank does not accurately reflect their true level.
+              </p>
+            </div>
           </div>
 
           <div className="mt-6 rounded-[1.75rem] border border-green-400/20 bg-gradient-to-br from-green-400/10 via-green-400/[0.06] to-transparent p-6 shadow-[0_0_35px_rgba(74,222,128,0.08)]">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-300">
-              Maximum Allowed Per Roster
+              Important — Roster Restrictions
             </p>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Roster Limits</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Maximum Allowed On Roster</p>
                 <ul className="mt-3 space-y-3 text-sm leading-7 text-zinc-200">
                   <li>• <span className="font-semibold text-white">1 Masters+ player</span> maximum</li>
                   <li>• <span className="font-semibold text-white">1 Diamond player</span> maximum</li>
@@ -138,23 +146,32 @@ export default function RulesPage() {
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Substitute Requirement</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Required Rule</p>
                 <ul className="mt-3 space-y-3 text-sm leading-7 text-zinc-200">
                   <li>• At least <span className="font-semibold text-white">one substitute</span> on the 7-player roster must be <span className="font-semibold text-white">Silver or below</span></li>
                 </ul>
               </div>
             </div>
+
+            <div className="mt-5 rounded-2xl border border-green-400/15 bg-black/30 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Special Case</p>
+              <p className="mt-3 text-sm leading-7 text-zinc-200">
+                If a team does <span className="font-semibold text-white">not</span> have a Masters+ player,
+                that team may instead have up to <span className="font-semibold text-white">2 Diamond players</span>
+                {" "}on the full roster, provided all match-day lineup restrictions are still respected.
+              </p>
+            </div>
           </div>
 
           <div className="mt-6 rounded-[1.75rem] border border-green-400/20 bg-gradient-to-br from-green-400/10 via-green-400/[0.06] to-transparent p-6 shadow-[0_0_35px_rgba(74,222,128,0.08)]">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-300">
-              Active Lineup Rules
+              Active Lineup Restrictions
             </p>
 
             <div className="mt-5 rounded-2xl border border-green-400/15 bg-black/30 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Per Game</p>
               <ul className="mt-3 space-y-3 text-sm leading-7 text-zinc-200">
-                <li>• All rank restrictions apply to the <span className="font-semibold text-white">5 players actually playing each game</span></li>
+                <li>• All rank restrictions apply to the <span className="font-semibold text-white">5 players actually playing in each game</span></li>
                 <li>• A lineup may include a maximum of <span className="font-semibold text-white">1 Masters+ player</span></li>
                 <li>• A lineup may include a maximum of <span className="font-semibold text-white">1 Diamond player</span></li>
                 <li>• A lineup may include a maximum of <span className="font-semibold text-white">1 Emerald player</span></li>
@@ -166,7 +183,8 @@ export default function RulesPage() {
               <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Substitution Rule</p>
               <p className="mt-3 text-sm leading-7 text-zinc-200">
                 Substitutions are only legal if the new five-player lineup remains fully compliant
-                with all active lineup restrictions.
+                with all active lineup restrictions. Teams may not substitute in a player if doing
+                so would make the lineup illegal.
               </p>
             </div>
           </div>
@@ -181,7 +199,6 @@ export default function RulesPage() {
           <ul className="space-y-3">
             <li>• Teams must confirm their match lineup <span className="font-semibold text-white">at least 1 hour before the match</span></li>
             <li>• Any substitution between games in a BO2 or BO3 must be communicated before the next game begins</li>
-            <li>• All substitute players must be officially registered and approved</li>
           </ul>
 
           <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
@@ -190,7 +207,8 @@ export default function RulesPage() {
             </p>
             <ul className="mt-3 space-y-3 text-sm leading-7 text-zinc-200">
               <li>• At least <span className="font-semibold text-white">one substitute must be Silver or below</span></li>
-              <li>• All substitutes must still follow roster and active lineup restrictions</li>
+              <li>• Additional substitutes must still follow all roster rank restrictions</li>
+              <li>• Every game lineup must still remain legal after any substitution</li>
             </ul>
           </div>
         </>
@@ -245,9 +263,8 @@ export default function RulesPage() {
               Remakes
             </p>
             <ul className="mt-3 space-y-3 text-sm leading-7 text-zinc-200">
-              <li>• Remakes may only be considered for serious early-game technical issues</li>
-              <li>• Admins may request evidence before approving a remake</li>
-              <li>• Once the game has meaningfully progressed, a remake is unlikely to be granted</li>
+              <li>• Games may only be remade within the <span className="font-semibold text-white">first 5 minutes</span></li>
+              <li>• After 5 minutes, the game <span className="font-semibold text-white">cannot be remade</span></li>
             </ul>
           </div>
 
@@ -256,7 +273,7 @@ export default function RulesPage() {
               Pauses
             </p>
             <ul className="mt-3 space-y-3 text-sm leading-7 text-zinc-200">
-              <li>• There is <span className="font-semibold text-white">no guaranteed pause system</span></li>
+              <li>• There are <span className="font-semibold text-white">no pauses</span></li>
               <li>• There is <span className="font-semibold text-white">no chronobreak system</span></li>
               <li>• Teams are expected to play through issues unless admins intervene</li>
             </ul>
@@ -281,7 +298,7 @@ export default function RulesPage() {
               <li>• Account sharing</li>
               <li>• Smurfing or incorrect rank declaration</li>
               <li>• Fraudulent registration</li>
-              <li>• Use of undeclared off-region peak rank to gain a lower classification</li>
+              <li>• Hiding off-region rank history or providing misleading rank evidence</li>
               <li>• Any attempt to gain an unfair competitive advantage</li>
             </ul>
           </div>
@@ -359,8 +376,8 @@ export default function RulesPage() {
               Final Authority
             </p>
             <p className="mt-3 text-sm leading-7 text-zinc-200">
-              Admin decisions are <span className="font-semibold text-white">final</span>. This applies to rank rulings,
-              roster rulings, gameplay rulings, conduct rulings, and all tournament-related decisions.
+              Admin decisions are <span className="font-semibold text-white">final</span>. This applies to roster rulings,
+              gameplay rulings, conduct rulings, rank rulings, and all tournament-related decisions.
             </p>
           </div>
         </>
@@ -400,7 +417,7 @@ export default function RulesPage() {
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
               <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Match Reporting</p>
-              <p className="mt-2 text-xl font-bold text-white">Admin Confirmed</p>
+              <p className="mt-2 text-xl font-bold text-white">KOOK Bot</p>
             </div>
           </div>
         </div>
@@ -429,7 +446,7 @@ export default function RulesPage() {
             {sections.map((section) => (
               <section
                 key={section.number}
-                id={`#section-${section.number}`.replace("#", "")}
+                id={`section-${section.number}`}
                 className="scroll-mt-24 rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-950 via-black to-zinc-900 p-7 shadow-[0_10px_40px_rgba(0,0,0,0.35)] md:p-8"
               >
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
