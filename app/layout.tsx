@@ -62,24 +62,17 @@ export default function RootLayout({
               </Link>
 
               <Link
-                href="/register/team"
-                className="rounded-md px-3 py-2 transition duration-200 hover:bg-green-500/10 hover:text-green-400"
-              >
-                Team Signup
-              </Link>
-
-              <Link
-                href="/register/free-agent"
-                className="rounded-md px-3 py-2 transition duration-200 hover:bg-green-500/10 hover:text-green-400"
-              >
-                Free Agent
-              </Link>
-
-              <Link
                 href="/teams"
                 className="rounded-md px-3 py-2 transition duration-200 hover:bg-green-500/10 hover:text-green-400"
               >
                 Teams
+              </Link>
+
+              <Link
+                href="/free-agents"
+                className="rounded-md px-3 py-2 transition duration-200 hover:bg-green-500/10 hover:text-green-400"
+              >
+                Free Agency
               </Link>
 
               <div className="group relative">

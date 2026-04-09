@@ -72,6 +72,8 @@ async function saveTeam(formData: FormData) {
   const teamName = cleanText(String(formData.get("teamName") || ""));
   const captainName = cleanText(String(formData.get("captainName") || ""));
   const captainEmail = cleanText(String(formData.get("captainEmail") || ""));
+  const logoUrl = cleanText(String(formData.get("logoUrl") || ""));
+  const kitUrl = cleanText(String(formData.get("kitUrl") || ""));
 
   const playerNames = formData.getAll("playerName");
   const riotNames = formData.getAll("riotName");
@@ -129,8 +131,26 @@ async function saveTeam(formData: FormData) {
     },
   });
 
+  await prisma.team.upsert({
+    where: { name: teamName },
+    update: {
+      name: teamName,
+      logoUrl: logoUrl || null,
+      kitUrl: kitUrl || null,
+    },
+    create: {
+      name: teamName,
+      logoUrl: logoUrl || null,
+      kitUrl: kitUrl || null,
+    },
+  });
+
+  revalidatePath("/admin");
   revalidatePath("/admin/teams");
   revalidatePath(`/admin/teams/${teamId}/edit`);
+  revalidatePath("/teams");
+  revalidatePath("/free-agents");
+
   redirect("/admin/teams?message=saved");
 }
 
@@ -164,6 +184,12 @@ export default async function EditTeamPage({
     );
   }
 
+  const savedTeam = await prisma.team.findFirst({
+    where: {
+      name: team.teamName,
+    },
+  });
+
   const players = normalizePlayers(team.players);
   const paddedPlayers = [...players];
 
@@ -188,7 +214,7 @@ export default async function EditTeamPage({
             Edit Team
           </h1>
           <p className="mt-2 text-white/60">
-            Update team details and roster information.
+            Update team details, branding, and roster information.
           </p>
         </div>
 
@@ -230,6 +256,72 @@ export default async function EditTeamPage({
                   defaultValue={team.captainEmail}
                   className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-white"
                 />
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <h2 className="mb-4 text-2xl font-bold">Branding</h2>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <label className="mb-2 block text-sm font-semibold text-white/80">
+                  Logo URL
+                </label>
+                <input
+                  name="logoUrl"
+                  defaultValue={savedTeam?.logoUrl || ""}
+                  placeholder="/logos/mfg.png"
+                  className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-white"
+                />
+
+                <p className="mt-2 text-xs text-white/45">
+                  Example: /logos/mfg.png
+                </p>
+
+                <div className="mt-4 flex h-32 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+                  {savedTeam?.logoUrl ? (
+                    <img
+                      src={savedTeam.logoUrl}
+                      alt={`${team.teamName} logo preview`}
+                      className="max-h-24 max-w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-xs uppercase tracking-[0.18em] text-white/30">
+                      No logo preview
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <label className="mb-2 block text-sm font-semibold text-white/80">
+                  Kit URL
+                </label>
+                <input
+                  name="kitUrl"
+                  defaultValue={savedTeam?.kitUrl || ""}
+                  placeholder="/kit/mfg.png"
+                  className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-white"
+                />
+
+                <p className="mt-2 text-xs text-white/45">
+                  Example: /kit/mfg.png
+                </p>
+
+                <div className="mt-4 flex h-40 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                  {savedTeam?.kitUrl ? (
+                    <img
+                      src={savedTeam.kitUrl}
+                      alt={`${team.teamName} kit preview`}
+                      className="h-full max-h-36 w-auto object-contain"
+                    />
+                  ) : (
+                    <span className="text-xs uppercase tracking-[0.18em] text-white/30">
+                      No kit preview
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </section>

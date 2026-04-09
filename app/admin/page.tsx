@@ -175,14 +175,21 @@ export default async function AdminPage({
       ? "asc"
       : "asc";
 
-  const [freeAgents, teams] = await Promise.all([
-    prisma.freeAgentRegistration.findMany({
-      orderBy: { submittedAt: "desc" },
-    }),
-    prisma.teamRegistration.findMany({
-      orderBy: { submittedAt: "desc" },
-    }),
-  ]);
+  const [freeAgents, teams, leagueWireCount, visibleLeagueWireCount] =
+    await Promise.all([
+      prisma.freeAgentRegistration.findMany({
+        orderBy: { submittedAt: "desc" },
+      }),
+      prisma.teamRegistration.findMany({
+        orderBy: { submittedAt: "desc" },
+      }),
+      prisma.leagueWireItem.count(),
+      prisma.leagueWireItem.count({
+        where: {
+          isVisible: true,
+        },
+      }),
+    ]);
 
   const freeAgentPlayers: CombinedPlayer[] = freeAgents
     .filter(
@@ -295,7 +302,8 @@ export default async function AdminPage({
             Admin Dashboard
           </h1>
           <p className="mt-2 text-white/60">
-            Manage registrations and view all players in one place.
+            Manage registrations, homepage updates, and view all players in one
+            place.
           </p>
         </div>
 
@@ -306,7 +314,7 @@ export default async function AdminPage({
           <StatCard label="Approved Teams" value={approvedTeams} />
         </div>
 
-        <div className="mb-10 grid gap-4 md:grid-cols-2">
+        <div className="mb-10 grid gap-4 md:grid-cols-3">
           <Link
             href="/admin/free-agents"
             className="rounded-2xl border border-white/10 bg-white/5 p-6 transition hover:border-green-400/40 hover:bg-green-400/10"
@@ -324,6 +332,21 @@ export default async function AdminPage({
             <h2 className="text-2xl font-bold">Teams</h2>
             <p className="mt-2 text-sm text-white/65">
               Review team registrations and manage full rosters.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/league-wire"
+            className="rounded-2xl border border-green-400/20 bg-green-500/10 p-6 transition hover:border-green-400/50 hover:bg-green-400/15"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-2xl font-bold">League Wire</h2>
+              <span className="rounded-full border border-green-400/30 bg-green-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-green-300">
+                {visibleLeagueWireCount}/{leagueWireCount}
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-white/65">
+              Manage homepage ticker updates and control which items are live.
             </p>
           </Link>
         </div>

@@ -87,9 +87,22 @@ export default async function AdminTeamsPage({
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const message = resolvedSearchParams?.message;
 
-  const teams = await prisma.teamRegistration.findMany({
-    orderBy: { submittedAt: "desc" },
-  });
+  const [teams, savedTeams] = await Promise.all([
+    prisma.teamRegistration.findMany({
+      orderBy: { submittedAt: "desc" },
+    }),
+    prisma.team.findMany({
+      select: {
+        id: true,
+        name: true,
+        logoUrl: true,
+      },
+    }),
+  ]);
+
+  const savedTeamMap = new Map(
+    savedTeams.map((team) => [cleanText(team.name).toLowerCase(), team])
+  );
 
   return (
     <main className="min-h-screen bg-black px-6 py-10 text-white">
@@ -153,42 +166,77 @@ export default async function AdminTeamsPage({
                 ? (team.players as TeamPlayer[]).filter(isRealTeamPlayer)
                 : [];
 
+              const matchedSavedTeam = savedTeamMap.get(
+                cleanText(team.teamName).toLowerCase()
+              );
+
+              const logoUrl = matchedSavedTeam?.logoUrl || null;
+
               return (
                 <section
                   key={team.id}
-                  className="overflow-hidden rounded-2xl border border-white/10 bg-white/5"
+                  className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 transition hover:border-green-400/25"
                 >
                   <div className="border-b border-white/10 px-6 py-5">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <h2 className="text-2xl font-bold">{team.teamName}</h2>
-                        <div className="mt-2 space-y-1 text-sm text-white/65">
-                          <p>
-                            <span className="font-semibold text-white/85">
-                              Captain:
-                            </span>{" "}
-                            {team.captainName}
-                          </p>
-                          <p>
-                            <span className="font-semibold text-white/85">
-                              Email:
-                            </span>{" "}
-                            {team.captainEmail}
-                          </p>
-                          <p>
-                            <span className="font-semibold text-white/85">
-                              Submitted:
-                            </span>{" "}
-                            {new Date(team.submittedAt).toLocaleString()}
-                          </p>
+                    <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                          {logoUrl ? (
+                            <img
+                              src={logoUrl}
+                              alt={`${team.teamName} logo`}
+                              className="h-full w-full object-contain"
+                            />
+                          ) : (
+                            <div className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-white/35">
+                              No Logo
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <h2 className="text-2xl font-bold">{team.teamName}</h2>
+
+                          <div className="mt-2 space-y-1 text-sm text-white/65">
+                            <p>
+                              <span className="font-semibold text-white/85">
+                                Captain:
+                              </span>{" "}
+                              {team.captainName}
+                            </p>
+                            <p>
+                              <span className="font-semibold text-white/85">
+                                Email:
+                              </span>{" "}
+                              {team.captainEmail}
+                            </p>
+                            <p>
+                              <span className="font-semibold text-white/85">
+                                Submitted:
+                              </span>{" "}
+                              {new Date(team.submittedAt).toLocaleString()}
+                            </p>
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <span className="rounded-full border border-green-400/30 bg-green-400/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-green-300">
+                              {team.status}
+                            </span>
+
+                            {logoUrl ? (
+                              <span className="rounded-full border border-blue-400/30 bg-blue-400/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-300">
+                                Logo Saved
+                              </span>
+                            ) : (
+                              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white/60">
+                                No Logo Yet
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-3">
-                        <span className="rounded-full border border-green-400/30 bg-green-400/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-green-300">
-                          {team.status}
-                        </span>
-
                         <Link
                           href={`/admin/teams/${team.id}/edit`}
                           className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20"

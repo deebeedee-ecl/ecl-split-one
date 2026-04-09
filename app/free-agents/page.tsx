@@ -33,6 +33,20 @@ export default async function FreeAgentsPage() {
             can use this pool to scout talent, review preferred roles, and track
             roster movement before the split begins.
           </p>
+
+          {/* 🔥 CTA BUTTON (NEW) */}
+          <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
+            <a
+              href="/register/free-agent"
+              className="inline-block rounded-2xl bg-green-400 px-6 py-4 font-black uppercase tracking-wide text-black shadow-[0_0_25px_rgba(74,222,128,0.25)] transition duration-200 hover:scale-[1.03] hover:bg-green-300"
+            >
+              Register as Free Agent
+            </a>
+
+            <p className="text-sm text-zinc-400">
+              Join the player pool and get picked up by a team during the split.
+            </p>
+          </div>
         </div>
 
         <div className="rounded-[2rem] border border-white/10 bg-zinc-900/80 p-6 shadow-[0_0_40px_rgba(74,222,128,0.06)] backdrop-blur-sm">

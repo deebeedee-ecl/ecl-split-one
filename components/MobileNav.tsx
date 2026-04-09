@@ -66,28 +66,6 @@ export default function MobileNav({
             </Link>
 
             <Link
-              href="/register/team"
-              onClick={() => {
-                setMenuOpen(false);
-                setSplitOpen(false);
-              }}
-              className="rounded-xl px-4 py-3 transition hover:bg-white/5 hover:text-green-400"
-            >
-              Team Signup
-            </Link>
-
-            <Link
-              href="/register/free-agent"
-              onClick={() => {
-                setMenuOpen(false);
-                setSplitOpen(false);
-              }}
-              className="rounded-xl px-4 py-3 transition hover:bg-white/5 hover:text-green-400"
-            >
-              Free Agent
-            </Link>
-
-            <Link
               href="/teams"
               onClick={() => {
                 setMenuOpen(false);
@@ -96,6 +74,17 @@ export default function MobileNav({
               className="rounded-xl px-4 py-3 transition hover:bg-white/5 hover:text-green-400"
             >
               Teams
+            </Link>
+
+            <Link
+              href="/free-agents"
+              onClick={() => {
+                setMenuOpen(false);
+                setSplitOpen(false);
+              }}
+              className="rounded-xl px-4 py-3 transition hover:bg-white/5 hover:text-green-400"
+            >
+              Free Agency
             </Link>
 
             <button
