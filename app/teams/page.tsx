@@ -158,7 +158,7 @@ export default async function TeamsPage() {
                   <div className="flex items-start justify-center bg-black p-8">
                     <div className="w-full max-w-md">
                       <div className="mb-8 flex justify-center">
-                        <div className="flex h-28 w-28 items-center justify-center rounded-2xl border border-white/10 bg-zinc-900/80 shadow-[0_20px_60px_rgba(0,0,0,0.65)] md:h-48 md:w-48">
+                        <div className="flex h-28 w-28 items-center justify-center rounded-2xl border border-white/10 bg-zinc-900/80 shadow-[0_20px_60px_rgba(0,0,0,0.65)] md:h-32 md:w-32">
                           {logoUrl ? (
                             <img
                               src={logoUrl}

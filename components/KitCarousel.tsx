@@ -9,7 +9,7 @@ const teams = [
   { tag: "NiuNiu", kit: "/kit/niu.png" },
   { tag: "Flanmingos", kit: "/kit/fla.png" },
   { tag: "Bean In Your Mum", kit: "/kit/biy.png" },
-  { tag: "Exile Bunzz", kit: "/kit/eb.png" },
+  { tag: "Exiled Bunzz", kit: "/kit/eb.png" },
   { tag: "Zycope & Friends", kit: "/kit/zaf.png" },
 ];
 
