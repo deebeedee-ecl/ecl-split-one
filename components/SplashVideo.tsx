@@ -64,7 +64,7 @@ export default function SplashVideo() {
             playsInline
             controls
           >
-            <source src="/video/hype.mp4" type="video/mp4" />
+            <source src="/video/Hype.mp4" type="video/mp4" />
           </video>
 
           <div className="flex flex-col gap-3 border-t border-white/10 bg-neutral-950/95 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
