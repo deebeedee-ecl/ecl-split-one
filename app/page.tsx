@@ -67,6 +67,68 @@ export default async function Home() {
 
               {/* COUNTDOWN */}
               <CountdownTimer />
+
+              {/* LEAGUE MEDIA */}
+              <div className="mt-10 rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-6 shadow-[0_0_40px_rgba(34,197,94,0.08)]">
+                <div className="mb-6">
+                  <p className="text-sm font-semibold uppercase tracking-[0.3em] text-green-400">
+                    League Media
+                  </p>
+                  <h2 className="mt-3 text-2xl font-black uppercase text-white sm:text-3xl">
+                    Watch & Listen
+                  </h2>
+                  <p className="mt-3 max-w-lg text-sm leading-6 text-zinc-400 sm:text-base">
+                    Rewatch the Split One hype video and tune into the official
+                    ECL podcast as the league story unfolds.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="group rounded-[1.5rem] border border-white/10 bg-black/40 p-5 transition duration-200 hover:border-green-400/30 hover:bg-zinc-900">
+                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-green-400">
+                      Official Hype Video
+                    </p>
+                    <h3 className="mt-3 text-xl font-black uppercase text-white">
+                      Split One Cinematic
+                    </h3>
+                    <p className="mt-3 text-sm leading-6 text-zinc-400">
+                      Open the official hype video and relive the launch of
+                      Split One.
+                    </p>
+
+                    <a
+                      href="/video/Hype.mp4"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-5 inline-flex items-center justify-center rounded-xl bg-green-400 px-5 py-3 text-sm font-bold uppercase tracking-wide text-black transition duration-200 hover:scale-[1.02] hover:bg-green-300"
+                    >
+                      Watch Video
+                    </a>
+                  </div>
+
+                  <div className="group rounded-[1.5rem] border border-white/10 bg-black/40 p-5 transition duration-200 hover:border-green-400/30 hover:bg-zinc-900">
+                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-green-400">
+                      ECL Podcast
+                    </p>
+                    <h3 className="mt-3 text-xl font-black uppercase text-white">
+                      League Talk
+                    </h3>
+                    <p className="mt-3 text-sm leading-6 text-zinc-400">
+                      Follow the latest podcast episodes covering matches,
+                      players, league stories, and community discussion.
+                    </p>
+
+                    <a
+                      href="https://www.youtube.com/playlist?list=PLdfbxhGWRe1pqOASdseItbXbCy6cLxri6"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-5 inline-flex items-center justify-center rounded-xl border border-green-400/40 bg-transparent px-5 py-3 text-sm font-bold uppercase tracking-wide text-green-400 transition duration-200 hover:scale-[1.02] hover:border-green-300 hover:bg-green-400/10 hover:text-green-300"
+                    >
+                      Listen on YouTube
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* RIGHT SIDE */}
