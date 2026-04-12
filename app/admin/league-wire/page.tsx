@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
@@ -65,6 +66,13 @@ export default async function LeagueWireAdminPage() {
   return (
     <main className="min-h-screen bg-[#0a0a0f] px-6 py-10 text-white">
       <div className="mx-auto max-w-5xl">
+        <Link
+          href="/admin"
+          className="mb-6 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-white/60 transition hover:text-green-400"
+        >
+          ← Back to Dashboard
+        </Link>
+
         <div className="mb-10">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-green-400">
             Admin Panel

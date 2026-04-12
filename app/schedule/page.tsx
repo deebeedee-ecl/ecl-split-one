@@ -38,262 +38,126 @@ const weeklyFixtures = [
     week: "Week 1",
     window: "20 April – 26 April",
     matches: [
-      {
-        home: teams.mfg,
-        away: teams.eb,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
-      {
-        home: teams.mfg,
-        away: teams.zaf,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
-      {
-        home: teams.niu,
-        away: teams.fla,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
-      {
-        home: teams.biy,
-        away: teams.eb,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
-      {
-        home: teams.biy,
-        away: teams.zaf,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
+      { home: teams.mfg, away: teams.eb },
+      { home: teams.mfg, away: teams.zaf },
+      { home: teams.niu, away: teams.fla },
+      { home: teams.biy, away: teams.eb },
+      { home: teams.biy, away: teams.zaf },
     ],
   },
   {
     week: "Week 2",
     window: "27 April – 3 May",
     matches: [
-      {
-        home: teams.niu,
-        away: teams.zaf,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
-      {
-        home: teams.niu,
-        away: teams.eb,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
-      {
-        home: teams.fla,
-        away: teams.eb,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
-      {
-        home: teams.mfg,
-        away: teams.biy,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
-      {
-        home: teams.mfg,
-        away: teams.fla,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
+      { home: teams.niu, away: teams.zaf },
+      { home: teams.niu, away: teams.eb },
+      { home: teams.fla, away: teams.eb },
+      { home: teams.mfg, away: teams.biy },
+      { home: teams.mfg, away: teams.fla },
     ],
   },
   {
     week: "Week 3",
     window: "4 May – 10 May",
     matches: [
-      {
-        home: teams.mfg,
-        away: teams.niu,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
-      {
-        home: teams.fla,
-        away: teams.biy,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
-      {
-        home: teams.eb,
-        away: teams.zaf,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
-      {
-        home: teams.niu,
-        away: teams.biy,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
-      {
-        home: teams.fla,
-        away: teams.zaf,
-        status: "To Be Scheduled",
-        scoreHome: null,
-        scoreAway: null,
-      },
+      { home: teams.mfg, away: teams.niu },
+      { home: teams.fla, away: teams.biy },
+      { home: teams.eb, away: teams.zaf },
+      { home: teams.niu, away: teams.biy },
+      { home: teams.fla, away: teams.zaf },
     ],
   },
 ];
 
-function TeamBadge({
+function TeamSide({
+  name,
   tag,
   logo,
   align = "left",
 }: {
+  name: string;
   tag: string;
   logo: string;
   align?: "left" | "right";
 }) {
-  const wrapper =
-    align === "right"
-      ? "flex min-w-0 items-center justify-end gap-4 text-right"
-      : "flex min-w-0 items-center gap-4";
+  const isRight = align === "right";
 
   return (
-    <div className={wrapper}>
-      {align === "right" ? (
-        <>
-          <div className="min-w-0">
-            <p className="truncate text-3xl font-black uppercase tracking-[0.08em] text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.08)] sm:text-4xl">
-              {tag}
-            </p>
-          </div>
+    <div
+      className={`flex min-w-0 items-center gap-4 ${
+        isRight ? "justify-end text-right" : "justify-start text-left"
+      }`}
+    >
+      {!isRight && (
+        <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-950 to-black p-2 shadow-[0_0_18px_rgba(0,0,0,0.35)] sm:h-20 sm:w-20">
+          <div className="absolute inset-0 rounded-2xl bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_50%)]" />
+          <Image
+            src={logo}
+            alt={`${tag} logo`}
+            width={64}
+            height={64}
+            className="relative h-11 w-11 object-contain sm:h-14 sm:w-14"
+          />
+        </div>
+      )}
 
-          <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.35rem] border border-white/10 bg-gradient-to-b from-zinc-950 to-black p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_0_20px_rgba(0,0,0,0.35)] sm:h-20 sm:w-20">
-            <div className="absolute inset-0 rounded-[1.35rem] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_50%)]" />
-            <Image
-              src={logo}
-              alt={`${tag} logo`}
-              width={64}
-              height={64}
-              className="relative h-11 w-11 object-contain sm:h-14 sm:w-14"
-            />
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.35rem] border border-white/10 bg-gradient-to-b from-zinc-950 to-black p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_0_20px_rgba(0,0,0,0.35)] sm:h-20 sm:w-20">
-            <div className="absolute inset-0 rounded-[1.35rem] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_50%)]" />
-            <Image
-              src={logo}
-              alt={`${tag} logo`}
-              width={64}
-              height={64}
-              className="relative h-11 w-11 object-contain sm:h-14 sm:w-14"
-            />
-          </div>
+      <div className="min-w-0">
+        <p className="truncate text-3xl font-black uppercase tracking-[0.08em] text-white sm:text-4xl">
+          {tag}
+        </p>
+        <p className="mt-1 truncate text-xs uppercase tracking-[0.22em] text-zinc-400 sm:text-sm">
+          {name}
+        </p>
+      </div>
 
-          <div className="min-w-0">
-            <p className="truncate text-3xl font-black uppercase tracking-[0.08em] text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.08)] sm:text-4xl">
-              {tag}
-            </p>
-          </div>
-        </>
+      {isRight && (
+        <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-950 to-black p-2 shadow-[0_0_18px_rgba(0,0,0,0.35)] sm:h-20 sm:w-20">
+          <div className="absolute inset-0 rounded-2xl bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_50%)]" />
+          <Image
+            src={logo}
+            alt={`${tag} logo`}
+            width={64}
+            height={64}
+            className="relative h-11 w-11 object-contain sm:h-14 sm:w-14"
+          />
+        </div>
       )}
     </div>
   );
 }
 
-function MatchCenter({
-  scoreHome,
-  scoreAway,
-}: {
-  scoreHome: number | null;
-  scoreAway: number | null;
-}) {
-  const hasScore = scoreHome !== null && scoreAway !== null;
-
-  return (
-    <div className="flex items-center justify-center">
-      <div
-        className={`rounded-full px-5 py-3 text-base font-black uppercase tracking-[0.24em] shadow-[0_0_18px_rgba(0,0,0,0.2)] ${
-          hasScore
-            ? "border border-white/15 bg-white/10 text-white"
-            : "border border-green-400/20 bg-green-500/10 text-green-300"
-        }`}
-      >
-        {hasScore ? `${scoreHome} - ${scoreAway}` : "VS"}
-      </div>
-    </div>
-  );
-}
-
-function StatusBadge({
-  status,
-}: {
-  status: string;
-}) {
-  const styles =
-    status === "Completed"
-      ? "border-green-400/20 bg-green-500/10 text-green-300"
-      : status === "Scheduled"
-        ? "border-blue-400/20 bg-blue-500/10 text-blue-300"
-        : "border-amber-400/20 bg-amber-500/10 text-amber-300";
-
-  return (
-    <span
-      className={`rounded-full border px-5 py-3 text-xs font-bold uppercase tracking-[0.22em] ${styles}`}
-    >
-      {status}
-    </span>
-  );
-}
-
-function MatchRow({
+function MatchCard({
   home,
   away,
-  status,
-  scoreHome,
-  scoreAway,
 }: {
   home: { name: string; tag: string; logo: string };
   away: { name: string; tag: string; logo: string };
-  status: string;
-  scoreHome: number | null;
-  scoreAway: number | null;
 }) {
   return (
-    <div className="group relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-b from-black via-black to-zinc-950 p-6 shadow-[0_0_30px_rgba(0,0,0,0.25)] transition duration-300 hover:border-green-400/30 hover:shadow-[0_0_40px_rgba(34,197,94,0.08)]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.06),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.03),transparent_24%)] opacity-70" />
-      <div className="relative flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-        <div className="grid gap-6 md:grid-cols-[1fr_auto_1fr] md:items-center">
-          <TeamBadge tag={home.tag} logo={home.logo} />
+    <div className="group relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-b from-black via-black to-zinc-950 p-6 shadow-[0_0_30px_rgba(0,0,0,0.22)] transition duration-300 hover:border-green-400/30 hover:shadow-[0_0_40px_rgba(34,197,94,0.08)]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.05),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.03),transparent_22%)] opacity-80" />
 
-          <MatchCenter scoreHome={scoreHome} scoreAway={scoreAway} />
+      <div className="relative mb-6 flex items-center justify-end">
+        <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-zinc-300">
+          BO2
+        </span>
+      </div>
 
-          <TeamBadge tag={away.tag} logo={away.logo} align="right" />
+      <div className="relative grid items-center gap-8 md:grid-cols-[1fr_auto_1fr]">
+        <TeamSide name={home.name} tag={home.tag} logo={home.logo} />
+
+        <div className="flex items-center justify-center">
+          <div className="rounded-full border border-green-400/20 bg-green-500/10 px-8 py-4 text-lg font-black uppercase tracking-[0.26em] text-green-300">
+            VS
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 xl:justify-end">
-          <span className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-xs font-bold uppercase tracking-[0.22em] text-zinc-300">
-            BO2
-          </span>
-          <StatusBadge status={status} />
-        </div>
+        <TeamSide
+          name={away.name}
+          tag={away.tag}
+          logo={away.logo}
+          align="right"
+        />
       </div>
     </div>
   );
@@ -367,14 +231,14 @@ export default function SchedulePage() {
               </h2>
 
               <p className="mt-4 max-w-3xl text-zinc-300">
-                Fixtures are listed by week. Before a match is played, the center
-                shows <span className="font-bold text-white">VS</span>. After the
-                BO2 is completed, that changes to the final series score.
+                This page shows the official fixture poster for the regular
+                season. Results and final scores are tracked separately on the{" "}
+                <span className="font-bold text-white">Results</span> page.
               </p>
             </div>
 
             <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-zinc-300">
-              Score-ready layout
+              Fixture Overview
             </div>
           </div>
 
@@ -398,13 +262,10 @@ export default function SchedulePage() {
 
                 <div className="space-y-5">
                   {week.matches.map((match, index) => (
-                    <MatchRow
+                    <MatchCard
                       key={`${week.week}-${index}`}
                       home={match.home}
                       away={match.away}
-                      status={match.status}
-                      scoreHome={match.scoreHome}
-                      scoreAway={match.scoreAway}
                     />
                   ))}
                 </div>
@@ -425,11 +286,11 @@ export default function SchedulePage() {
           <div className="mt-6 space-y-4 text-zinc-300">
             <p>
               Each regular season fixture is a BO2 series, meaning both teams
-              play two games in that matchup. 'Home' team chooses Red/Blue side.
+              play two games in that matchup.
             </p>
             <p>
-              Before results are entered, fixtures display as VS. Once completed,
-              scores like 2 - 0 or 1 - 1 can be shown in the center.
+              This schedule page is for fixture visibility only. Final scorelines
+              and completed results are shown on the Results page.
             </p>
             <p>
               The recommended official scheduling window is between 18:00 and

@@ -14,12 +14,17 @@ model User {
 }
 
 model Team {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  logoUrl   String?
-  kitUrl    String?
-  createdAt DateTime @default(now())
-  players   Player[]
+  id               String                  @id @default(uuid())
+  name             String                  @unique
+  logoUrl          String?
+  kitUrl           String?
+  createdAt        DateTime                @default(now())
+  players          Player[]
+  homeMatches      Match[]                 @relation("HomeTeamMatches")
+  awayMatches      Match[]                 @relation("AwayTeamMatches")
+  wonMatches       Match[]                 @relation("WinnerTeamMatches")
+  signedFreeAgents FreeAgentRegistration[] @relation("SignedFreeAgents")
+  wonGames         MatchGame[]             @relation("WinnerTeamGames")
 }
 
 model Player {
@@ -44,6 +49,8 @@ model FreeAgentRegistration {
   signedToTeamId   String?
   signedToTeamName String?
   submittedAt      DateTime @default(now())
+
+  signedToTeam Team? @relation("SignedFreeAgents", fields: [signedToTeamId], references: [id])
 }
 
 model TeamRegistration {
@@ -64,4 +71,75 @@ model LeagueWireItem {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Match {
+  id          String      @id @default(uuid())
+  stage       MatchStage
+  roundLabel  String?
+  matchLabel  String?
+  bestOf      Int
+  scheduledAt DateTime?
+  status      MatchStatus @default(SCHEDULED)
+
+  homeTeamId   String
+  awayTeamId   String
+  winnerTeamId String?
+
+  homeScore Int @default(0)
+  awayScore Int @default(0)
+
+  forfeitWinnerId String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  homeTeam   Team        @relation("HomeTeamMatches", fields: [homeTeamId], references: [id])
+  awayTeam   Team        @relation("AwayTeamMatches", fields: [awayTeamId], references: [id])
+  winnerTeam Team?       @relation("WinnerTeamMatches", fields: [winnerTeamId], references: [id])
+  games      MatchGame[]
+
+  @@index([stage])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([homeTeamId])
+  @@index([awayTeamId])
+}
+
+model MatchGame {
+  id              String   @id @default(uuid())
+  matchId         String
+  gameNumber      Int
+  winnerTeamId    String?
+  durationSeconds Int?
+  homeKills       Int?
+  awayKills       Int?
+  homeGold        Int?
+  awayGold        Int?
+  mvpName         String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  match      Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  winnerTeam Team? @relation("WinnerTeamGames", fields: [winnerTeamId], references: [id])
+
+  @@unique([matchId, gameNumber])
+  @@index([matchId])
+  @@index([winnerTeamId])
+}
+
+enum MatchStage {
+  REGULAR_SEASON
+  PLAYOFFS
+  SEMIFINALS
+  FINALS
+}
+
+enum MatchStatus {
+  SCHEDULED
+  COMPLETED
+  FORFEIT
+  POSTPONED
+  CANCELLED
 }

@@ -175,21 +175,39 @@ export default async function AdminPage({
       ? "asc"
       : "asc";
 
-  const [freeAgents, teams, leagueWireCount, visibleLeagueWireCount] =
-    await Promise.all([
-      prisma.freeAgentRegistration.findMany({
-        orderBy: { submittedAt: "desc" },
-      }),
-      prisma.teamRegistration.findMany({
-        orderBy: { submittedAt: "desc" },
-      }),
-      prisma.leagueWireItem.count(),
-      prisma.leagueWireItem.count({
-        where: {
-          isVisible: true,
-        },
-      }),
-    ]);
+  const [
+    freeAgents,
+    teams,
+    leagueWireCount,
+    visibleLeagueWireCount,
+    totalMatches,
+    scheduledMatches,
+    completedMatches,
+  ] = await Promise.all([
+    prisma.freeAgentRegistration.findMany({
+      orderBy: { submittedAt: "desc" },
+    }),
+    prisma.teamRegistration.findMany({
+      orderBy: { submittedAt: "desc" },
+    }),
+    prisma.leagueWireItem.count(),
+    prisma.leagueWireItem.count({
+      where: {
+        isVisible: true,
+      },
+    }),
+    prisma.match.count(),
+    prisma.match.count({
+      where: {
+        status: "SCHEDULED",
+      },
+    }),
+    prisma.match.count({
+      where: {
+        status: "COMPLETED",
+      },
+    }),
+  ]);
 
   const freeAgentPlayers: CombinedPlayer[] = freeAgents
     .filter(
@@ -221,25 +239,23 @@ export default async function AdminPage({
       ? (team.players as TeamPlayerJson[])
       : [];
 
-    return players
-      .filter(isRealTeamPlayer)
-      .map((player, index) => ({
-        id: `${team.id}-${index}`,
-        playerName:
-          cleanText(player.playerName) ||
-          cleanText(player.name) ||
-          cleanText(player.riotName) ||
-          "Unknown Player",
-        riotName: cleanText(player.riotName),
-        riotTag: cleanText(player.riotTag),
-        primaryRole: cleanText(player.primaryRole),
-        secondaryRole: cleanText(player.secondaryRole),
-        currentRank: normalizeRank(player.currentRank || player.rank),
-        status: team.status,
-        source: "Team" as const,
-        teamName: team.teamName,
-        submittedAt: team.submittedAt,
-      }));
+    return players.filter(isRealTeamPlayer).map((player, index) => ({
+      id: `${team.id}-${index}`,
+      playerName:
+        cleanText(player.playerName) ||
+        cleanText(player.name) ||
+        cleanText(player.riotName) ||
+        "Unknown Player",
+      riotName: cleanText(player.riotName),
+      riotTag: cleanText(player.riotTag),
+      primaryRole: cleanText(player.primaryRole),
+      secondaryRole: cleanText(player.secondaryRole),
+      currentRank: normalizeRank(player.currentRank || player.rank),
+      status: team.status,
+      source: "Team" as const,
+      teamName: team.teamName,
+      submittedAt: team.submittedAt,
+    }));
   });
 
   const allPlayers = [...freeAgentPlayers, ...teamPlayers].sort((a, b) => {
@@ -314,7 +330,13 @@ export default async function AdminPage({
           <StatCard label="Approved Teams" value={approvedTeams} />
         </div>
 
-        <div className="mb-10 grid gap-4 md:grid-cols-3">
+        <div className="mb-8 grid gap-4 sm:grid-cols-3">
+          <StatCard label="Matches" value={totalMatches} />
+          <StatCard label="Scheduled Matches" value={scheduledMatches} />
+          <StatCard label="Completed Matches" value={completedMatches} />
+        </div>
+
+        <div className="mb-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Link
             href="/admin/free-agents"
             className="rounded-2xl border border-white/10 bg-white/5 p-6 transition hover:border-green-400/40 hover:bg-green-400/10"
@@ -332,6 +354,16 @@ export default async function AdminPage({
             <h2 className="text-2xl font-bold">Teams</h2>
             <p className="mt-2 text-sm text-white/65">
               Review team registrations and manage full rosters.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/matches"
+            className="rounded-2xl border border-white/10 bg-white/5 p-6 transition hover:border-green-400/40 hover:bg-green-400/10"
+          >
+            <h2 className="text-2xl font-bold">Matches</h2>
+            <p className="mt-2 text-sm text-white/65">
+              Create fixtures and manage match records for schedule and results.
             </p>
           </Link>
 

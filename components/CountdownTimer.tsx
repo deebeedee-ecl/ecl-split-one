@@ -36,12 +36,22 @@ function getTimeLeft(target: string): TimeLeft {
   };
 }
 
+const EMPTY_TIME: TimeLeft = {
+  total: 1,
+  days: 0,
+  hours: 0,
+  minutes: 0,
+  seconds: 0,
+};
+
 export default function CountdownTimer() {
-  const [timeLeft, setTimeLeft] = useState<TimeLeft>(() =>
-    getTimeLeft(TARGET_DATE)
-  );
+  const [mounted, setMounted] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<TimeLeft>(EMPTY_TIME);
 
   useEffect(() => {
+    setMounted(true);
+    setTimeLeft(getTimeLeft(TARGET_DATE));
+
     const interval = setInterval(() => {
       setTimeLeft(getTimeLeft(TARGET_DATE));
     }, 1000);
@@ -49,35 +59,29 @@ export default function CountdownTimer() {
     return () => clearInterval(interval);
   }, []);
 
-  const isStarted = timeLeft.total <= 0;
+  const isStarted = mounted && timeLeft.total <= 0;
 
   return (
     <div className="mt-10">
-      {/* LABEL */}
       <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-green-400">
         Split Starts In
       </p>
 
-      {/* 🔥 PREMIUM URGENT STRIP */}
       <div className="inline-flex items-center gap-5 rounded-xl border border-green-400/30 bg-gradient-to-r from-zinc-900 via-black to-zinc-900 px-6 py-3 backdrop-blur-md shadow-[0_0_25px_rgba(74,222,128,0.15)]">
-
         {isStarted ? (
           <span className="text-sm font-bold uppercase tracking-[0.2em] text-green-300">
             League Live
           </span>
         ) : (
           <>
-            {/* 🔴 LIVE DOT */}
             <span className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
 
-            {/* TEXT */}
             <span className="text-[10px] font-bold uppercase tracking-[0.35em] text-green-400">
               Countdown
             </span>
 
             <Divider />
 
-            {/* TIME */}
             <div className="flex items-center gap-4">
               <TimeUnit value={timeLeft.days} label="D" />
               <Divider />
@@ -93,8 +97,6 @@ export default function CountdownTimer() {
     </div>
   );
 }
-
-/* 🔥 COMPONENTS */
 
 function TimeUnit({ value, label }: { value: number; label: string }) {
   return (
