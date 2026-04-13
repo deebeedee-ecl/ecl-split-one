@@ -427,7 +427,7 @@ async function submitGameStats(formData: FormData) {
           include: {
             players: {
               orderBy: {
-                riotName: "asc",
+                name: "asc",
               },
             },
           },
@@ -436,7 +436,7 @@ async function submitGameStats(formData: FormData) {
           include: {
             players: {
               orderBy: {
-                riotName: "asc",
+                name: "asc",
               },
             },
           },
@@ -862,7 +862,7 @@ export default async function EditMatchPage({
         include: {
           players: {
             orderBy: {
-              riotName: "asc",
+              name: "asc",
             },
           },
         },
@@ -871,7 +871,7 @@ export default async function EditMatchPage({
         include: {
           players: {
             orderBy: {
-              riotName: "asc",
+              name: "asc",
             },
           },
         },
@@ -1411,7 +1411,7 @@ export default async function EditMatchPage({
                                 <option value="">Select Player</option>
                                 {match.homeTeam.players.map((player) => (
                                   <option key={player.id} value={player.id}>
-                                    {player.riotName}#{player.riotTag}
+                                    {player.name}#{player.riotTag}
                                   </option>
                                 ))}
                               </select>
@@ -1488,7 +1488,7 @@ export default async function EditMatchPage({
                                 <option value="">Select Player</option>
                                 {match.awayTeam.players.map((player) => (
                                   <option key={player.id} value={player.id}>
-                                    {player.riotName}#{player.riotTag}
+                                    {player.name}#{player.riotTag}
                                   </option>
                                 ))}
                               </select>
