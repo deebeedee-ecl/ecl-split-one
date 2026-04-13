@@ -25,6 +25,7 @@ model Team {
   wonMatches       Match[]                 @relation("WinnerTeamMatches")
   signedFreeAgents FreeAgentRegistration[] @relation("SignedFreeAgents")
   wonGames         MatchGame[]             @relation("WinnerTeamGames")
+  playerStats      MatchGamePlayerStat[]
 }
 
 model Player {
@@ -39,6 +40,8 @@ model Player {
   winStreak  Int      @default(0)
   lossStreak Int      @default(0)
   createdAt  DateTime @default(now())
+
+  gameStats MatchGamePlayerStat[]
 
   @@index([teamId])
   @@index([riotName, riotTag])
@@ -130,12 +133,51 @@ model MatchGame {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  match      Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  winnerTeam Team? @relation("WinnerTeamGames", fields: [winnerTeamId], references: [id])
+  match       Match                @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  winnerTeam  Team?                @relation("WinnerTeamGames", fields: [winnerTeamId], references: [id])
+  playerStats MatchGamePlayerStat[]
 
   @@unique([matchId, gameNumber])
   @@index([matchId])
   @@index([winnerTeamId])
+}
+
+model MatchGamePlayerStat {
+  id          String   @id @default(uuid())
+  matchGameId String
+  playerId    String
+  teamId      String?
+
+  kills   Int @default(0)
+  deaths  Int @default(0)
+  assists Int @default(0)
+
+  gold       Int?
+  damage     Int?
+  cs         Int?
+  visionScore Int?
+
+  isWin Boolean @default(false)
+  isMVP Boolean @default(false)
+  isSVP Boolean @default(false)
+
+  lpChange  Int      @default(0)
+  eloBefore Int?
+  eloAfter  Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  matchGame MatchGame @relation(fields: [matchGameId], references: [id], onDelete: Cascade)
+  player    Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  team      Team?     @relation(fields: [teamId], references: [id])
+
+  @@unique([matchGameId, playerId])
+  @@index([matchGameId])
+  @@index([playerId])
+  @@index([teamId])
+  @@index([isWin])
+  @@index([isMVP])
 }
 
 enum MatchStage {

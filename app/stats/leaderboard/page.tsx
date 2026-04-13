@@ -44,16 +44,66 @@ function getRankBadge(rank: number) {
   return null;
 }
 
+function formatWinRate(wins: number, gamesPlayed: number) {
+  if (gamesPlayed === 0) return "—";
+  return `${Math.round((wins / gamesPlayed) * 100)}%`;
+}
+
+function formatKDA(kills: number, deaths: number, assists: number) {
+  if (kills === 0 && deaths === 0 && assists === 0) return "—";
+  const kda = (kills + assists) / Math.max(1, deaths);
+  return kda.toFixed(2);
+}
+
 export default async function LeaderboardPage() {
   const players = await prisma.player.findMany({
     include: {
       team: true,
+      gameStats: true,
     },
-    orderBy: [
-      { elo: "desc" },
-      { name: "asc" },
-    ],
   });
+
+  const leaderboard = players
+    .map((player) => {
+      const teamTag = getTeamTag(player.team?.name);
+
+      const gamesPlayed = player.gameStats.length;
+      const wins = player.gameStats.filter((stat) => stat.isWin).length;
+      const mvpCount = player.gameStats.filter((stat) => stat.isMVP).length;
+
+      const totalKills = player.gameStats.reduce((sum, stat) => sum + stat.kills, 0);
+      const totalDeaths = player.gameStats.reduce((sum, stat) => sum + stat.deaths, 0);
+      const totalAssists = player.gameStats.reduce((sum, stat) => sum + stat.assists, 0);
+
+      let streakLabel = "—";
+      if (player.winStreak > 0) {
+        streakLabel = `W${player.winStreak}`;
+      } else if (player.lossStreak > 0) {
+        streakLabel = `L${player.lossStreak}`;
+      }
+
+      return {
+        id: player.id,
+        name: player.name,
+        riotLine:
+          player.riotName || player.riotTag
+            ? [player.riotName, player.riotTag].filter(Boolean).join("#")
+            : null,
+        teamTag,
+        elo: player.elo,
+        gamesPlayed,
+        wins,
+        winRate: formatWinRate(wins, gamesPlayed),
+        kda: formatKDA(totalKills, totalDeaths, totalAssists),
+        mvpCount,
+        streakLabel,
+      };
+    })
+    .sort((a, b) => {
+      if (b.elo !== a.elo) return b.elo - a.elo;
+      if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
+      return a.name.localeCompare(b.name);
+    });
 
   return (
     <main className="min-h-screen bg-black px-6 py-20 text-white">
@@ -74,8 +124,8 @@ export default async function LeaderboardPage() {
         </h1>
 
         <p className="mt-6 max-w-3xl text-lg leading-8 text-zinc-300">
-          Live player rankings based on current ELO. Unsigned players are shown
-          as [FA].
+          Live player rankings based on current ELO, match performance, and
+          recorded game stats. Unsigned players are shown as [FA].
         </p>
 
         <div className="mt-10 overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-b from-white/[0.04] to-white/[0.02]">
@@ -88,33 +138,25 @@ export default async function LeaderboardPage() {
                 <th className="px-4 py-4 text-center">ELO</th>
                 <th className="px-4 py-4 text-center">GP</th>
                 <th className="px-4 py-4 text-center">WR</th>
+                <th className="px-4 py-4 text-center">KDA</th>
+                <th className="px-4 py-4 text-center">MVP</th>
                 <th className="px-4 py-4 text-center">Streak</th>
               </tr>
             </thead>
 
             <tbody>
-              {players.length === 0 ? (
+              {leaderboard.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={9}
                     className="px-4 py-10 text-center text-sm text-white/50"
                   >
                     No players found yet.
                   </td>
                 </tr>
               ) : (
-                players.map((player, i) => {
+                leaderboard.map((player, i) => {
                   const badge = getRankBadge(i);
-                  const teamTag = getTeamTag(player.team?.name);
-                  const gamesPlayed = 0;
-                  const winRate = "—";
-
-                  let streakLabel = "—";
-                  if (player.winStreak > 0) {
-                    streakLabel = `W${player.winStreak}`;
-                  } else if (player.lossStreak > 0) {
-                    streakLabel = `L${player.lossStreak}`;
-                  }
 
                   return (
                     <tr
@@ -133,18 +175,16 @@ export default async function LeaderboardPage() {
                       <td className="px-4 py-4 font-semibold text-white">
                         <div className="flex flex-col">
                           <span>{player.name}</span>
-                          {(player.riotName || player.riotTag) && (
+                          {player.riotLine ? (
                             <span className="text-xs font-medium text-white/40">
-                              {[player.riotName, player.riotTag]
-                                .filter(Boolean)
-                                .join("#")}
+                              {player.riotLine}
                             </span>
-                          )}
+                          ) : null}
                         </div>
                       </td>
 
                       <td className="px-4 py-4 text-center text-white/70">
-                        [{teamTag}]
+                        [{player.teamTag}]
                       </td>
 
                       <td className="px-4 py-4 text-center font-bold text-green-400">
@@ -152,15 +192,23 @@ export default async function LeaderboardPage() {
                       </td>
 
                       <td className="px-4 py-4 text-center font-bold text-white">
-                        {gamesPlayed}
+                        {player.gamesPlayed}
                       </td>
 
                       <td className="px-4 py-4 text-center text-white">
-                        {winRate}
+                        {player.winRate}
+                      </td>
+
+                      <td className="px-4 py-4 text-center text-white">
+                        {player.kda}
+                      </td>
+
+                      <td className="px-4 py-4 text-center font-bold text-yellow-400">
+                        {player.mvpCount}
                       </td>
 
                       <td className="px-4 py-4 text-center font-bold text-white">
-                        {streakLabel}
+                        {player.streakLabel}
                       </td>
                     </tr>
                   );
