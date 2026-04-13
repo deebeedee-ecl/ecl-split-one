@@ -14,7 +14,7 @@ const splitOneLinks = [
   { href: "/schedule", label: "Schedule" },
   { href: "/format", label: "Format" },
   { href: "/results", label: "Results" },
-  { href: "/player-stats", label: "Player Stats" },
+  { href: "/stats", label: "Stats" },
   { href: "/standings", label: "Standings" },
   { href: "/rules", label: "Rules" },
   { href: "/contact", label: "Contact" },

@@ -272,12 +272,12 @@ export default async function ResultsPage() {
                             </p>
                           </div>
 
-                          <button
-                            type="button"
+                          <Link
+                            href={`/matches/${match.id}`}
                             className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-white/70 transition hover:border-green-400/40 hover:bg-green-400/10 hover:text-white"
                           >
                             View Full Match Data
-                          </button>
+                          </Link>
                         </div>
 
                         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -381,7 +381,14 @@ export default async function ResultsPage() {
                       </>
                     ) : (
                       <div className="rounded-2xl border border-white/10 bg-black/20 px-5 py-6 text-center text-white/50">
-                        No individual game data has been added for this series yet.
+                        <p>No individual game data has been added for this series yet.</p>
+
+                        <Link
+                          href={`/matches/${match.id}`}
+                          className="mt-4 inline-flex rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-white/70 transition hover:border-green-400/40 hover:bg-green-400/10 hover:text-white"
+                        >
+                          View Full Match Data
+                        </Link>
                       </div>
                     )}
                   </div>

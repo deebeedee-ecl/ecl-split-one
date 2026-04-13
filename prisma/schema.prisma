@@ -28,11 +28,20 @@ model Team {
 }
 
 model Player {
-  id        String   @id @default(uuid())
-  name      String
-  teamId    String?
-  team      Team?    @relation(fields: [teamId], references: [id])
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  name       String
+  riotName   String?
+  riotTag    String?
+  email      String?
+  teamId     String?
+  team       Team?    @relation(fields: [teamId], references: [id])
+  elo        Int      @default(1000)
+  winStreak  Int      @default(0)
+  lossStreak Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([teamId])
+  @@index([riotName, riotTag])
 }
 
 model FreeAgentRegistration {

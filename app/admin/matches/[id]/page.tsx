@@ -236,7 +236,9 @@ async function updateMatch(formData: FormData) {
       const parsed = Number(value);
 
       if (Number.isNaN(parsed) || parsed < 0) {
-        throw new Error(`Game ${gameNumber}: ${fieldLabel} must be a valid non-negative number.`);
+        throw new Error(
+          `Game ${gameNumber}: ${fieldLabel} must be a valid non-negative number.`
+        );
       }
 
       return Math.round(parsed);
@@ -354,6 +356,7 @@ async function updateMatch(formData: FormData) {
   revalidatePath("/schedule");
   revalidatePath("/results");
   revalidatePath("/standings");
+  revalidatePath(`/matches/${id}`);
 
   redirect("/admin/matches?updated=1");
 }
@@ -376,6 +379,7 @@ async function deleteMatch(formData: FormData) {
   revalidatePath("/schedule");
   revalidatePath("/results");
   revalidatePath("/standings");
+  revalidatePath(`/matches/${id}`);
 
   redirect("/admin/matches?deleted=1");
 }
