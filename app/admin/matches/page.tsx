@@ -449,8 +449,8 @@ export default async function AdminMatchesPage({
 
                         return {
                           gameNumber,
-                          hasStats:
-                            existingGame?._count.playerStats > 0,
+                          hasStats:(existingGame?._count?.playerStats ?? 0) > 0,
+                      
                         };
                       }
                     );
