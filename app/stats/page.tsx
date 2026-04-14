@@ -53,8 +53,8 @@ export default function StatsPage() {
             </h2>
 
             <p className="mt-4 max-w-md text-sm leading-7 text-zinc-300">
-              Compare team win rates, objective control, average game time, and
-              overall split performance.
+              Open dedicated team pages to view overall performance, simplified
+              infographic stats, and a full roster breakdown.
             </p>
 
             <div className="mt-8 text-sm font-bold uppercase tracking-[0.2em] text-white/60 transition group-hover:text-green-400">

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { MatchStage, MatchStatus } from "@prisma/client";
+import ResetGameStatsMenu from "@/components/admin/ResetGameStatsMenu";
 
 export const dynamic = "force-dynamic";
 
@@ -175,6 +176,18 @@ export default async function AdminMatchesPage({
         homeTeam: true,
         awayTeam: true,
         winnerTeam: true,
+        games: {
+          include: {
+            _count: {
+              select: {
+                playerStats: true,
+              },
+            },
+          },
+          orderBy: {
+            gameNumber: "asc",
+          },
+        },
       },
       orderBy: [{ scheduledAt: "asc" }, { createdAt: "desc" }],
     }),
@@ -425,47 +438,72 @@ export default async function AdminMatchesPage({
                     </td>
                   </tr>
                 ) : (
-                  matches.map((match) => (
-                    <tr
-                      key={match.id}
-                      className="border-t border-white/10 hover:bg-white/5"
-                    >
-                      <td className="px-4 py-3 font-medium">
-                        {match.homeTeam.name} vs {match.awayTeam.name}
-                      </td>
-                      <td className="px-4 py-3 text-white/80">
-                        {formatStage(match.stage)}
-                      </td>
-                      <td className="px-4 py-3 text-white/80">
-                        {match.roundLabel || "-"}
-                      </td>
-                      <td className="px-4 py-3 text-white/80">
-                        BO{match.bestOf}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-xs uppercase tracking-wide text-white/80">
-                          {formatStatus(match.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-white/80">
-                        {formatDate(match.scheduledAt)}
-                      </td>
-                      <td className="px-4 py-3 text-white/80">
-                        {match.homeScore} - {match.awayScore}
-                      </td>
-                      <td className="px-4 py-3 text-white/80">
-                        {getWinnerDisplay(match)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/admin/matches/${match.id}`}
-                          className="text-sm font-semibold text-green-400 transition hover:text-green-300"
-                        >
-                          Edit
-                        </Link>
-                      </td>
-                    </tr>
-                  ))
+                  matches.map((match) => {
+                    const gamesForReset = Array.from(
+                      { length: match.bestOf },
+                      (_, index) => {
+                        const gameNumber = index + 1;
+                        const existingGame = match.games.find(
+                          (game) => game.gameNumber === gameNumber
+                        );
+
+                        return {
+                          gameNumber,
+                          hasStats:
+                            existingGame?._count.playerStats > 0,
+                        };
+                      }
+                    );
+
+                    return (
+                      <tr
+                        key={match.id}
+                        className="border-t border-white/10 hover:bg-white/5"
+                      >
+                        <td className="px-4 py-3 font-medium">
+                          {match.homeTeam.name} vs {match.awayTeam.name}
+                        </td>
+                        <td className="px-4 py-3 text-white/80">
+                          {formatStage(match.stage)}
+                        </td>
+                        <td className="px-4 py-3 text-white/80">
+                          {match.roundLabel || "-"}
+                        </td>
+                        <td className="px-4 py-3 text-white/80">
+                          BO{match.bestOf}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-xs uppercase tracking-wide text-white/80">
+                            {formatStatus(match.status)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-white/80">
+                          {formatDate(match.scheduledAt)}
+                        </td>
+                        <td className="px-4 py-3 text-white/80">
+                          {match.homeScore} - {match.awayScore}
+                        </td>
+                        <td className="px-4 py-3 text-white/80">
+                          {getWinnerDisplay(match)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-2">
+                            <Link
+                              href={`/admin/matches/${match.id}`}
+                              className="rounded-lg border border-green-400/30 bg-green-500/10 px-3 py-2 text-xs font-bold uppercase tracking-wide text-green-300 transition hover:border-green-400/50 hover:bg-green-500/15"
+                            >
+                              Edit
+                            </Link>
+
+                            <ResetGameStatsMenu
+                              matchId={match.id}
+                              games={gamesForReset}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

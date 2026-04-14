@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import SyncPlayersButton from "@/components/admin/SyncPlayersButton";
 
 export const dynamic = "force-dynamic";
 
@@ -321,6 +322,10 @@ export default async function AdminPage({
             Manage registrations, homepage updates, and view all players in one
             place.
           </p>
+        </div>
+
+        <div className="mb-8">
+          <SyncPlayersButton />
         </div>
 
         <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
