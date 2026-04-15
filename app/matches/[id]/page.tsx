@@ -24,6 +24,11 @@ function formatGold(gold?: number | null) {
   return `${(gold / 1000).toFixed(1)}k`;
 }
 
+function formatDamage(value?: number | null) {
+  if (value === null || value === undefined) return "—";
+  return `${(value / 1000).toFixed(1)}k`;
+}
+
 function getWinnerName(
   winnerTeamId: string | null,
   homeTeamId: string,
@@ -107,17 +112,46 @@ function FooterBadge({
 }: {
   label: string;
   value: string;
-  accent: "gold" | "standard";
+  accent: "gold" | "standard" | "cyan";
 }) {
   const styles =
     accent === "gold"
       ? "border-yellow-400/40 bg-yellow-400/15 text-yellow-300"
-      : "border-white/10 bg-white/[0.04] text-white/60";
+      : accent === "cyan"
+        ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-300"
+        : "border-white/10 bg-white/[0.04] text-white/60";
 
   return (
     <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 ${styles}`}>
       <span className="text-[11px] font-black uppercase tracking-[0.18em]">{label}</span>
       <span className="text-sm font-bold text-white">{value}</span>
+    </div>
+  );
+}
+
+function PlayerBadges({
+  isMVP,
+  isSVP,
+}: {
+  isMVP?: boolean;
+  isSVP?: boolean;
+}) {
+  if (!isMVP && !isSVP) {
+    return <span className="text-white/30">—</span>;
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-2">
+      {isMVP && (
+        <span className="rounded-full border border-yellow-400/30 bg-yellow-500/15 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-yellow-300">
+          MVP
+        </span>
+      )}
+      {isSVP && (
+        <span className="rounded-full border border-cyan-400/30 bg-cyan-500/15 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">
+          SVP
+        </span>
+      )}
     </div>
   );
 }
@@ -131,6 +165,14 @@ export default async function MatchPage({ params }: PageProps) {
       homeTeam: true,
       awayTeam: true,
       games: {
+        include: {
+          playerStats: {
+            include: {
+              player: true,
+            },
+            orderBy: [{ isMVP: "desc" }, { isSVP: "desc" }, { kills: "desc" }],
+          },
+        },
         orderBy: {
           gameNumber: "asc",
         },
@@ -158,7 +200,7 @@ export default async function MatchPage({ params }: PageProps) {
 
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-7xl">
         <Link
           href="/results"
           className="mb-5 inline-flex items-center text-sm font-semibold text-white/60 transition hover:text-green-400"
@@ -220,6 +262,31 @@ export default async function MatchPage({ params }: PageProps) {
               away.name
             );
 
+            const homePlayers = game.playerStats.filter(
+              (stat) => stat.teamId === home.id
+            );
+            const awayPlayers = game.playerStats.filter(
+              (stat) => stat.teamId === away.id
+            );
+
+            const mvpStat =
+              game.playerStats.find((stat) => stat.isMVP) ?? null;
+            const svpStat =
+              game.playerStats.find((stat) => stat.isSVP) ?? null;
+
+            const mvpName =
+              game.mvpName ||
+              mvpStat?.player?.name ||
+              mvpStat?.riotName ||
+              "Not set";
+
+            const svpName =
+              svpStat?.player?.name ||
+              svpStat?.riotName ||
+              "Not set";
+
+            const hasPlayerStats = game.playerStats.length > 0;
+
             return (
               <section
                 key={game.id}
@@ -243,7 +310,7 @@ export default async function MatchPage({ params }: PageProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-4 border-b border-white/10 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 py-4">
                   <div className="flex items-center gap-4">
                     <span className="text-2xl font-black uppercase tracking-[0.06em] text-white">
                       [{homeTag}]
@@ -252,6 +319,8 @@ export default async function MatchPage({ params }: PageProps) {
                     <div className="flex flex-wrap items-center gap-2">
                       <StatPill icon="⚔️" value={game.homeKills ?? "—"} />
                       <StatPill icon="💰" value={formatGold(game.homeGold)} />
+                      <StatPill icon="🏰" value={game.homeTowers ?? "—"} />
+                      <StatPill icon="🐉" value={game.homeDrakes ?? "—"} />
                     </div>
                   </div>
 
@@ -259,6 +328,8 @@ export default async function MatchPage({ params }: PageProps) {
                     <div className="flex flex-wrap items-center gap-2">
                       <StatPill icon="⚔️" value={game.awayKills ?? "—"} />
                       <StatPill icon="💰" value={formatGold(game.awayGold)} />
+                      <StatPill icon="🏰" value={game.awayTowers ?? "—"} />
+                      <StatPill icon="🐉" value={game.awayDrakes ?? "—"} />
                     </div>
 
                     <span className="text-2xl font-black uppercase tracking-[0.06em] text-white">
@@ -267,61 +338,241 @@ export default async function MatchPage({ params }: PageProps) {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full table-fixed border-collapse">
-                    <thead>
-                      <tr className="border-b border-white/10 text-[11px] uppercase tracking-[0.2em] text-white/50">
-                        <th className="w-[28%] px-3 py-3 text-left">Team</th>
-                        <th className="w-[18%] px-2 py-3 text-center">Kills</th>
-                        <th className="w-[14%] px-2 py-3 text-center">Gold</th>
-                        <th className="w-[1%] px-0 py-3"></th>
-                        <th className="w-[14%] px-2 py-3 text-center">Gold</th>
-                        <th className="w-[18%] px-2 py-3 text-center">Kills</th>
-                        <th className="w-[28%] px-3 py-3 text-right">Team</th>
-                      </tr>
-                    </thead>
+                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
+                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
+                      <span>⚔️</span>
+                      <span>Kills</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-base font-bold">
+                      <span className="text-white/60">{homeTag}</span>
+                      <span className="text-xl font-black tracking-wide text-white">
+                        {game.homeKills != null && game.awayKills != null
+                          ? `${game.homeKills} - ${game.awayKills}`
+                          : "—"}
+                      </span>
+                      <span className="text-white/60">{awayTag}</span>
+                    </div>
+                  </div>
 
-                    <tbody>
-                      <tr className="border-b border-white/[0.06] text-sm transition hover:bg-green-400/[0.06]">
-                        <td className="truncate px-3 py-3 text-left text-[15px] font-semibold text-white">
-                          [{homeTag}]
-                        </td>
+                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
+                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
+                      <span>💰</span>
+                      <span>Gold</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-base font-bold">
+                      <span className="text-white/60">{homeTag}</span>
+                      <span className="text-lg font-black tracking-wide text-white">
+                        {game.homeGold != null && game.awayGold != null
+                          ? `${formatGold(game.homeGold)} - ${formatGold(game.awayGold)}`
+                          : "—"}
+                      </span>
+                      <span className="text-white/60">{awayTag}</span>
+                    </div>
+                  </div>
 
-                        <td className="px-2 py-3 text-center text-[15px] font-bold tracking-wide text-white/90">
-                          {game.homeKills ?? "—"}
-                        </td>
+                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
+                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
+                      <span>🏰</span>
+                      <span>Towers</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-base font-bold">
+                      <span className="text-white/60">{homeTag}</span>
+                      <span className="text-lg font-black tracking-wide text-white">
+                        {game.homeTowers != null && game.awayTowers != null
+                          ? `${game.homeTowers} - ${game.awayTowers}`
+                          : "—"}
+                      </span>
+                      <span className="text-white/60">{awayTag}</span>
+                    </div>
+                  </div>
 
-                        <td className="px-2 py-3 text-center text-[16px] font-extrabold text-red-400">
-                          {formatGold(game.homeGold)}
-                        </td>
+                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
+                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
+                      <span>💥</span>
+                      <span>Inhibitors</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-base font-bold">
+                      <span className="text-white/60">{homeTag}</span>
+                      <span className="text-lg font-black tracking-wide text-white">
+                        {game.homeInhibitors != null && game.awayInhibitors != null
+                          ? `${game.homeInhibitors} - ${game.awayInhibitors}`
+                          : "—"}
+                      </span>
+                      <span className="text-white/60">{awayTag}</span>
+                    </div>
+                  </div>
 
-                        <td className="px-0 py-3">
-                          <div className="mx-auto h-4 w-px bg-white/5" />
-                        </td>
+                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
+                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
+                      <span>🟣</span>
+                      <span>Barons</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-base font-bold">
+                      <span className="text-white/60">{homeTag}</span>
+                      <span className="text-lg font-black tracking-wide text-white">
+                        {game.homeBarons != null && game.awayBarons != null
+                          ? `${game.homeBarons} - ${game.awayBarons}`
+                          : "—"}
+                      </span>
+                      <span className="text-white/60">{awayTag}</span>
+                    </div>
+                  </div>
 
-                        <td className="px-2 py-3 text-center text-[16px] font-extrabold text-sky-400">
-                          {formatGold(game.awayGold)}
-                        </td>
-
-                        <td className="px-2 py-3 text-center text-[15px] font-bold tracking-wide text-white/90">
-                          {game.awayKills ?? "—"}
-                        </td>
-
-                        <td className="truncate px-3 py-3 text-right text-[15px] font-semibold text-white">
-                          [{awayTag}]
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
+                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
+                      <span>🐉</span>
+                      <span>Drakes</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-base font-bold">
+                      <span className="text-white/60">{homeTag}</span>
+                      <span className="text-lg font-black tracking-wide text-white">
+                        {game.homeDrakes != null && game.awayDrakes != null
+                          ? `${game.homeDrakes} - ${game.awayDrakes}`
+                          : "—"}
+                      </span>
+                      <span className="text-white/60">{awayTag}</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-5">
+                <div className="mt-5 flex flex-wrap items-center gap-3">
                   <FooterBadge
                     label="MVP"
-                    value={game.mvpName || "Not set"}
+                    value={mvpName}
                     accent="gold"
                   />
+                  <FooterBadge
+                    label="SVP"
+                    value={svpName}
+                    accent="cyan"
+                  />
+                  <FooterBadge
+                    label="Players"
+                    value={String(game.playerStats.length)}
+                    accent="standard"
+                  />
+                </div>
 
+                <div className="mt-5 grid gap-5 xl:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <h4 className="text-sm font-black uppercase tracking-[0.18em] text-white">
+                        {home.name}
+                      </h4>
+                      <span className="text-xs uppercase tracking-[0.18em] text-white/45">
+                        {homePlayers.length} Players
+                      </span>
+                    </div>
+
+                    {!hasPlayerStats || homePlayers.length === 0 ? (
+                      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-white/45">
+                        No player stats recorded.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-[0.16em] text-white/45">
+                              <th className="px-2 py-2">Player</th>
+                              <th className="px-2 py-2">K / D / A</th>
+                              <th className="px-2 py-2">Gold</th>
+                              <th className="px-2 py-2">Damage</th>
+                              <th className="px-2 py-2 text-right">Badges</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {homePlayers.map((stat) => (
+                              <tr
+                                key={stat.id}
+                                className="border-b border-white/5 text-white/80 last:border-b-0"
+                              >
+                                <td className="px-2 py-3 font-semibold text-white">
+                                  {stat.player?.name || stat.riotName || "Unknown"}
+                                </td>
+                                <td className="px-2 py-3">
+                                  {stat.kills}/{stat.deaths}/{stat.assists}
+                                </td>
+                                <td className="px-2 py-3">
+                                  {formatGold(stat.gold)}
+                                </td>
+                                <td className="px-2 py-3">
+                                  {formatDamage(stat.damage)}
+                                </td>
+                                <td className="px-2 py-3 text-right">
+                                  <PlayerBadges
+                                    isMVP={stat.isMVP}
+                                    isSVP={stat.isSVP}
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <h4 className="text-sm font-black uppercase tracking-[0.18em] text-white">
+                        {away.name}
+                      </h4>
+                      <span className="text-xs uppercase tracking-[0.18em] text-white/45">
+                        {awayPlayers.length} Players
+                      </span>
+                    </div>
+
+                    {!hasPlayerStats || awayPlayers.length === 0 ? (
+                      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-white/45">
+                        No player stats recorded.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-[0.16em] text-white/45">
+                              <th className="px-2 py-2">Player</th>
+                              <th className="px-2 py-2">K / D / A</th>
+                              <th className="px-2 py-2">Gold</th>
+                              <th className="px-2 py-2">Damage</th>
+                              <th className="px-2 py-2 text-right">Badges</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {awayPlayers.map((stat) => (
+                              <tr
+                                key={stat.id}
+                                className="border-b border-white/5 text-white/80 last:border-b-0"
+                              >
+                                <td className="px-2 py-3 font-semibold text-white">
+                                  {stat.player?.name || stat.riotName || "Unknown"}
+                                </td>
+                                <td className="px-2 py-3">
+                                  {stat.kills}/{stat.deaths}/{stat.assists}
+                                </td>
+                                <td className="px-2 py-3">
+                                  {formatGold(stat.gold)}
+                                </td>
+                                <td className="px-2 py-3">
+                                  {formatDamage(stat.damage)}
+                                </td>
+                                <td className="px-2 py-3 text-right">
+                                  <PlayerBadges
+                                    isMVP={stat.isMVP}
+                                    isSVP={stat.isSVP}
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                   {game.notes ? (
                     <FooterBadge
                       label="Note"
@@ -331,7 +582,7 @@ export default async function MatchPage({ params }: PageProps) {
                   ) : (
                     <FooterBadge
                       label="Status"
-                      value="Awaiting player OCR stats"
+                      value={hasPlayerStats ? "OCR stats recorded" : "Awaiting player stats"}
                       accent="standard"
                     />
                   )}

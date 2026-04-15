@@ -268,7 +268,7 @@ export default async function ResultsPage() {
                               Series Breakdown
                             </h2>
                             <p className="mt-1 text-sm text-white/50">
-                              Open each series to see the key game details.
+                              Quick match summary here. Open the full match page for the deep dive.
                             </p>
                           </div>
 
@@ -284,11 +284,13 @@ export default async function ResultsPage() {
                           {match.games.map((game) => (
                             <div
                               key={game.id}
-                              className="rounded-2xl border border-white/10 bg-black/30 p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]"
+                              className="rounded-2xl border border-white/10 bg-black/30 p-5"
                             >
                               <div className="mb-4 flex items-center justify-between gap-3">
                                 <h3 className="text-sm font-black uppercase tracking-[0.2em] text-green-400">
-                                  Game {["One", "Two", "Three", "Four", "Five"][game.gameNumber - 1] || game.gameNumber}
+                                  Game{" "}
+                                  {["One", "Two", "Three", "Four", "Five"][game.gameNumber - 1] ||
+                                    game.gameNumber}
                                 </h3>
                                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/50">
                                   #{game.gameNumber}
@@ -315,63 +317,55 @@ export default async function ResultsPage() {
                                     </div>
                                   </div>
 
-                                  <div
-                                    className="rounded-xl border px-4 py-3 shadow-[0_0_24px_rgba(255,215,0,0.22)]"
-                                    style={{
-                                      borderColor: "#d4af37",
-                                      background:
-                                        "linear-gradient(135deg, #5c4300 0%, #b8860b 45%, #f0c419 100%)",
-                                    }}
-                                  >
-                                    <div className="text-[11px] uppercase tracking-[0.18em] text-white/85">
-                                      MVP
-                                    </div>
-                                    <div className="mt-1 text-base font-black text-white">
-                                      {game.mvpName || "—"}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="grid gap-3 sm:grid-cols-2">
                                   <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
-                                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
-                                      <span>⚔️</span>
-                                      <span>Kills</span>
+                                    <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
+                                      Gold
                                     </div>
-                                    <div className="mt-2 flex items-center justify-between text-base font-bold">
-                                      <span className="text-white/60">{homeTag}</span>
-                                      <span className="text-xl font-black tracking-wide text-white">
-                                        {game.homeKills != null && game.awayKills != null
-                                          ? `${game.homeKills} - ${game.awayKills}`
-                                          : "—"}
-                                      </span>
-                                      <span className="text-white/60">{awayTag}</span>
-                                    </div>
-                                  </div>
-
-                                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
-                                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
-                                      <span>💰</span>
-                                      <span>Gold</span>
-                                    </div>
-                                    <div className="mt-2 flex items-center justify-between text-base font-bold">
-                                      <span className="text-white/60">{homeTag}</span>
-                                      <span className="text-lg font-black tracking-wide text-white">
-                                        {game.homeGold != null && game.awayGold != null
-                                          ? `${formatGold(game.homeGold)} - ${formatGold(game.awayGold)}`
-                                          : "—"}
-                                      </span>
-                                      <span className="text-white/60">{awayTag}</span>
+                                    <div className="mt-1 text-base font-bold text-white">
+                                      {game.homeGold != null && game.awayGold != null
+                                        ? `${formatGold(game.homeGold)} - ${formatGold(game.awayGold)}`
+                                        : "—"}
                                     </div>
                                   </div>
                                 </div>
 
                                 <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
-                                  <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
-                                    Notes
+                                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
+                                    <span>⚔️</span>
+                                    <span>Kills</span>
                                   </div>
-                                  <div className="mt-1 text-sm text-white/75">
-                                    {game.notes || "No notes recorded."}
+                                  <div className="mt-2 flex items-center justify-between text-base font-bold">
+                                    <span className="text-white/60">{homeTag}</span>
+                                    <span className="text-xl font-black tracking-wide text-white">
+                                      {game.homeKills != null && game.awayKills != null
+                                        ? `${game.homeKills} - ${game.awayKills}`
+                                        : "—"}
+                                    </span>
+                                    <span className="text-white/60">{awayTag}</span>
+                                  </div>
+                                </div>
+
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
+                                    <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
+                                      Towers
+                                    </div>
+                                    <div className="mt-1 text-base font-bold text-white">
+                                      {game.homeTowers != null && game.awayTowers != null
+                                        ? `${game.homeTowers} - ${game.awayTowers}`
+                                        : "—"}
+                                    </div>
+                                  </div>
+
+                                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
+                                    <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
+                                      Drakes
+                                    </div>
+                                    <div className="mt-1 text-base font-bold text-white">
+                                      {game.homeDrakes != null && game.awayDrakes != null
+                                        ? `${game.homeDrakes} - ${game.awayDrakes}`
+                                        : "—"}
+                                    </div>
                                   </div>
                                 </div>
                               </div>

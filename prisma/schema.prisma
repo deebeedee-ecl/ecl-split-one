@@ -128,8 +128,22 @@ model MatchGame {
   awayKills       Int?
   homeGold        Int?
   awayGold        Int?
+
+  homeTowers      Int?
+  awayTowers      Int?
+
+  homeInhibitors  Int?
+  awayInhibitors  Int?
+
+  homeBarons      Int?
+  awayBarons      Int?
+
+  homeDrakes      Int?
+  awayDrakes      Int?
+
   mvpName         String?
   notes           String?
+  ocrRawJson      Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -143,34 +157,37 @@ model MatchGame {
 }
 
 model MatchGamePlayerStat {
-  id          String   @id @default(uuid())
-  matchGameId String
-  playerId    String
-  teamId      String?
+  id           String   @id @default(uuid())
+  matchGameId  String
+  playerId     String
+  teamId       String?
 
-  kills   Int @default(0)
-  deaths  Int @default(0)
-  assists Int @default(0)
+  riotName     String?
+  riotTag      String?
 
-  gold       Int?
-  damage     Int?
-  cs         Int?
-  visionScore Int?
+  kills        Int @default(0)
+  deaths       Int @default(0)
+  assists      Int @default(0)
 
-  isWin Boolean @default(false)
-  isMVP Boolean @default(false)
-  isSVP Boolean @default(false)
+  gold         Int?
+  damage       Int?
+  cs           Int?
+  visionScore  Int?
 
-  lpChange  Int      @default(0)
-  eloBefore Int?
-  eloAfter  Int?
+  isWin        Boolean @default(false)
+  isMVP        Boolean @default(false)
+  isSVP        Boolean @default(false)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  lpChange     Int      @default(0)
+  eloBefore    Int?
+  eloAfter     Int?
 
-  matchGame MatchGame @relation(fields: [matchGameId], references: [id], onDelete: Cascade)
-  player    Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  team      Team?     @relation(fields: [teamId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  matchGame    MatchGame @relation(fields: [matchGameId], references: [id], onDelete: Cascade)
+  player       Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  team         Team?     @relation(fields: [teamId], references: [id])
 
   @@unique([matchGameId, playerId])
   @@index([matchGameId])
