@@ -37,7 +37,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get match
     const match = await prisma.match.findUnique({
       where: { id: matchId },
     });
@@ -46,7 +45,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
     }
 
-    // Check whether this exact game already exists
     const existingGame = await prisma.matchGame.findUnique({
       where: {
         matchId_gameNumber: {
@@ -62,8 +60,7 @@ export async function POST(req: Request) {
 
     const isNewGame = !existingGame;
 
-    // Determine which side is home/away
-    const homeIsTop = true; // current safe default for this OCR layout
+    const homeIsTop = true;
 
     const homeTeamStats = homeIsTop ? topTeam : bottomTeam;
     const awayTeamStats = homeIsTop ? bottomTeam : topTeam;
@@ -71,6 +68,11 @@ export async function POST(req: Request) {
     const winnerTeamId = homeTeamStats.isWinner
       ? match.homeTeamId
       : match.awayTeamId;
+
+    const loserTeamId =
+      winnerTeamId === match.homeTeamId
+        ? match.awayTeamId
+        : match.homeTeamId;
 
     const allPlayers = [
       ...(Array.isArray(winningPlayers) ? winningPlayers : []),
@@ -90,7 +92,6 @@ export async function POST(req: Request) {
     const durationSeconds =
       safeDurationMinutes !== null ? safeDurationMinutes * 60 : null;
 
-    // Upsert MatchGame
     const game = await prisma.matchGame.upsert({
       where: {
         matchId_gameNumber: {
@@ -138,23 +139,19 @@ export async function POST(req: Request) {
       },
     });
 
-    // Helper to process players
-    async function processPlayer(p: any, teamId: string, isWin: boolean) {
+    let matched = 0;
+    let skipped = 0;
+
+    async function processPlayer(p: any) {
       const rawName = typeof p.name === "string" ? p.name.trim() : "";
       const [parsedRiotName, parsedRiotTag] = rawName.split("#");
 
-      const riotName =
-        typeof p.riotName === "string" && p.riotName.trim().length > 0
-          ? p.riotName.trim()
-          : parsedRiotName?.trim() || null;
-
-      const riotTag =
-        typeof p.riotTag === "string" && p.riotTag.trim().length > 0
-          ? p.riotTag.trim()
-          : parsedRiotTag?.trim() || null;
+      const riotName = parsedRiotName?.trim();
+      const riotTag = parsedRiotTag?.trim();
 
       if (!riotName || !riotTag) {
-        console.log("Could not parse riotName/riotTag for player:", p.name);
+        console.log("❌ Invalid tag:", p.name);
+        skipped++;
         return;
       }
 
@@ -166,9 +163,25 @@ export async function POST(req: Request) {
       });
 
       if (!player) {
-        console.log("Player not found:", p.name);
+        console.log("⚠️ Not in DB:", p.name);
+        skipped++;
         return;
       }
+
+      // 🔥 NEW: roster validation
+      if (
+        player.teamId !== match.homeTeamId &&
+        player.teamId !== match.awayTeamId
+      ) {
+        console.log("⚠️ Not in this match:", p.name);
+        skipped++;
+        return;
+      }
+
+      const teamId = player.teamId!;
+      const isWin = teamId === winnerTeamId;
+
+      matched++;
 
       const existingStat = await prisma.matchGamePlayerStat.findUnique({
         where: {
@@ -177,9 +190,7 @@ export async function POST(req: Request) {
             playerId: player.id,
           },
         },
-        select: {
-          id: true,
-        },
+        select: { id: true },
       });
 
       const isNewStat = !existingStat;
@@ -203,26 +214,7 @@ export async function POST(req: Request) {
         });
 
         lpChange = eloResult.lpChange;
-        eloBefore = player.elo;
         eloAfter = player.elo + lpChange;
-      } else {
-        const existingSavedStat = await prisma.matchGamePlayerStat.findUnique({
-          where: {
-            matchGameId_playerId: {
-              matchGameId: game.id,
-              playerId: player.id,
-            },
-          },
-          select: {
-            lpChange: true,
-            eloBefore: true,
-            eloAfter: true,
-          },
-        });
-
-        lpChange = existingSavedStat?.lpChange ?? 0;
-        eloBefore = existingSavedStat?.eloBefore ?? player.elo;
-        eloAfter = existingSavedStat?.eloAfter ?? player.elo;
       }
 
       await prisma.matchGamePlayerStat.upsert({
@@ -268,7 +260,6 @@ export async function POST(req: Request) {
         },
       });
 
-      // Only update player Elo/streaks the first time this game's stat is created
       if (isNewStat) {
         await prisma.player.update({
           where: { id: player.id },
@@ -281,21 +272,13 @@ export async function POST(req: Request) {
       }
     }
 
-    // Process players
-    for (const p of winningPlayers) {
-      await processPlayer(p, winnerTeamId, true);
+    // 🔥 Changed: process ALL players together
+    for (const p of allPlayers) {
+      await processPlayer(p);
     }
 
-    const loserTeamId =
-      winnerTeamId === match.homeTeamId
-        ? match.awayTeamId
-        : match.homeTeamId;
+    console.log(`✅ Matched: ${matched}, ❌ Skipped: ${skipped}`);
 
-    for (const p of losingPlayers) {
-      await processPlayer(p, loserTeamId, false);
-    }
-
-    // Only increment match score if this is a brand new game
     let homeScore = match.homeScore;
     let awayScore = match.awayScore;
 
@@ -320,13 +303,9 @@ export async function POST(req: Request) {
       if (totalGamesPlayed >= 2) {
         status = "COMPLETED";
 
-        if (homeScore > awayScore) {
-          finalWinner = match.homeTeamId;
-        } else if (awayScore > homeScore) {
-          finalWinner = match.awayTeamId;
-        } else {
-          finalWinner = null;
-        }
+        if (homeScore > awayScore) finalWinner = match.homeTeamId;
+        else if (awayScore > homeScore) finalWinner = match.awayTeamId;
+        else finalWinner = null;
       } else {
         status = "SCHEDULED";
         finalWinner = null;
@@ -357,6 +336,8 @@ export async function POST(req: Request) {
       success: true,
       gameId: game.id,
       isNewGame,
+      matchedPlayers: matched,
+      skippedPlayers: skipped,
     });
   } catch (err) {
     console.error("INGEST ERROR:", err);
