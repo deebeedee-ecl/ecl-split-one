@@ -45,6 +45,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
     }
 
+    const homeTeamId = match.homeTeamId;
+    const awayTeamId = match.awayTeamId;
+    const matchBestOf = match.bestOf;
+    const currentHomeScore = match.homeScore;
+    const currentAwayScore = match.awayScore;
+    const currentStatus = match.status;
+    const currentWinnerTeamId = match.winnerTeamId;
+
     const existingGame = await prisma.matchGame.findUnique({
       where: {
         matchId_gameNumber: {
@@ -65,14 +73,9 @@ export async function POST(req: Request) {
     const homeTeamStats = homeIsTop ? topTeam : bottomTeam;
     const awayTeamStats = homeIsTop ? bottomTeam : topTeam;
 
-    const winnerTeamId = homeTeamStats.isWinner
-      ? match.homeTeamId
-      : match.awayTeamId;
+    const winnerTeamId = homeTeamStats.isWinner ? homeTeamId : awayTeamId;
 
-    const loserTeamId =
-      winnerTeamId === match.homeTeamId
-        ? match.awayTeamId
-        : match.homeTeamId;
+    const loserTeamId = winnerTeamId === homeTeamId ? awayTeamId : homeTeamId;
 
     const allPlayers = [
       ...(Array.isArray(winningPlayers) ? winningPlayers : []),
@@ -168,11 +171,8 @@ export async function POST(req: Request) {
         return;
       }
 
-      // 🔥 NEW: roster validation
-      if (
-        player.teamId !== match.homeTeamId &&
-        player.teamId !== match.awayTeamId
-      ) {
+      // 🔥 roster validation
+      if (player.teamId !== homeTeamId && player.teamId !== awayTeamId) {
         console.log("⚠️ Not in this match:", p.name);
         skipped++;
         return;
@@ -272,53 +272,48 @@ export async function POST(req: Request) {
       }
     }
 
-    // 🔥 Changed: process ALL players together
     for (const p of allPlayers) {
       await processPlayer(p);
     }
 
     console.log(`✅ Matched: ${matched}, ❌ Skipped: ${skipped}`);
 
-    let homeScore = match.homeScore;
-    let awayScore = match.awayScore;
+    let homeScore = currentHomeScore;
+    let awayScore = currentAwayScore;
 
     if (isNewGame) {
       homeScore =
-        winnerTeamId === match.homeTeamId
-          ? match.homeScore + 1
-          : match.homeScore;
+        winnerTeamId === homeTeamId ? currentHomeScore + 1 : currentHomeScore;
 
       awayScore =
-        winnerTeamId === match.awayTeamId
-          ? match.awayScore + 1
-          : match.awayScore;
+        winnerTeamId === awayTeamId ? currentAwayScore + 1 : currentAwayScore;
     }
 
-    let status = match.status;
-    let finalWinner = match.winnerTeamId;
+    let status = currentStatus;
+    let finalWinner = currentWinnerTeamId;
 
-    if (match.bestOf === 2) {
+    if (matchBestOf === 2) {
       const totalGamesPlayed = homeScore + awayScore;
 
       if (totalGamesPlayed >= 2) {
         status = "COMPLETED";
 
-        if (homeScore > awayScore) finalWinner = match.homeTeamId;
-        else if (awayScore > homeScore) finalWinner = match.awayTeamId;
+        if (homeScore > awayScore) finalWinner = homeTeamId;
+        else if (awayScore > homeScore) finalWinner = awayTeamId;
         else finalWinner = null;
       } else {
         status = "SCHEDULED";
         finalWinner = null;
       }
     } else {
-      const winsNeeded = Math.ceil(match.bestOf / 2);
+      const winsNeeded = Math.ceil(matchBestOf / 2);
 
       if (homeScore >= winsNeeded) {
         status = "COMPLETED";
-        finalWinner = match.homeTeamId;
+        finalWinner = homeTeamId;
       } else if (awayScore >= winsNeeded) {
         status = "COMPLETED";
-        finalWinner = match.awayTeamId;
+        finalWinner = awayTeamId;
       }
     }
 
