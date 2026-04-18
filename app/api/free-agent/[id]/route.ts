@@ -1,22 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-type TeamPlayer = {
-  freeAgentId?: string;
-  playerName?: string;
-  riotName?: string;
-  riotTag?: string;
-  currentRank?: string;
-  primaryRole?: string;
-  secondaryRole?: string;
-  email?: string;
-  notes?: string;
-};
-
-function normalizePlayers(players: unknown): TeamPlayer[] {
-  return Array.isArray(players) ? (players as TeamPlayer[]) : [];
-}
-
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -43,40 +27,12 @@ function normalizeRank(value: unknown) {
   return "Unranked";
 }
 
-function isSamePlayer(
-  player: TeamPlayer,
-  agent: {
-    id: string;
-    email: string;
-    riotName: string;
-    riotTag: string;
-  }
-) {
-  const sameFreeAgentId = player.freeAgentId && player.freeAgentId === agent.id;
-
-  const sameEmail =
-    player.email &&
-    agent.email &&
-    player.email.toLowerCase() === agent.email.toLowerCase();
-
-  const sameRiot =
-    player.riotName &&
-    player.riotTag &&
-    agent.riotName &&
-    agent.riotTag &&
-    player.riotName.toLowerCase() === agent.riotName.toLowerCase() &&
-    player.riotTag.toLowerCase() === agent.riotTag.toLowerCase();
-
-  return sameFreeAgentId || sameEmail || sameRiot;
-}
-
 export async function PATCH(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await context.params;
-
     const body = await req.json();
 
     const existingAgent = await prisma.freeAgentRegistration.findUnique({
@@ -97,12 +53,12 @@ export async function PATCH(
 
     const nextSignedToTeamId =
       body.signedToTeamId !== undefined
-        ? body.signedToTeamId
+        ? normalizeNullableText(body.signedToTeamId)
         : existingAgent.signedToTeamId;
 
     const nextSignedToTeamName =
       body.signedToTeamName !== undefined
-        ? body.signedToTeamName
+        ? normalizeNullableText(body.signedToTeamName)
         : existingAgent.signedToTeamName;
 
     const nextPlayerName =
@@ -119,7 +75,9 @@ export async function PATCH(
         : existingAgent.riotName;
 
     const nextRiotTag =
-      body.riotTag !== undefined ? cleanText(body.riotTag) : existingAgent.riotTag;
+      body.riotTag !== undefined
+        ? cleanText(body.riotTag)
+        : existingAgent.riotTag;
 
     const nextPrimaryRole =
       body.primaryRole !== undefined
@@ -137,12 +95,14 @@ export async function PATCH(
         : normalizeRank(existingAgent.currentRank);
 
     const nextNotes =
-      body.notes !== undefined ? normalizeNullableText(body.notes) : existingAgent.notes;
+      body.notes !== undefined
+        ? normalizeNullableText(body.notes)
+        : existingAgent.notes;
 
     const updatedAgentData = {
       status: nextStatus,
-      signedToTeamId: nextSignedToTeamId ?? null,
-      signedToTeamName: nextSignedToTeamName ?? null,
+      signedToTeamId: nextStatus === "signed" ? nextSignedToTeamId : null,
+      signedToTeamName: nextStatus === "signed" ? nextSignedToTeamName : null,
       playerName: nextPlayerName,
       email: nextEmail,
       riotName: nextRiotName,
@@ -153,85 +113,14 @@ export async function PATCH(
       notes: nextNotes,
     };
 
-    const nextAgentIdentity = {
-      id: existingAgent.id,
-      email: nextEmail,
-      riotName: nextRiotName,
-      riotTag: nextRiotTag,
-    };
-
-    // Remove from old team first if player used to be signed
-    if (existingAgent.signedToTeamId) {
-      const oldTeam = await prisma.teamRegistration.findUnique({
-        where: { id: existingAgent.signedToTeamId },
-      });
-
-      if (oldTeam) {
-        const oldPlayers = normalizePlayers(oldTeam.players);
-
-        const cleanedOldPlayers = oldPlayers.filter(
-          (player) => !isSamePlayer(player, nextAgentIdentity)
-        );
-
-        await prisma.teamRegistration.update({
-          where: { id: oldTeam.id },
-          data: {
-            players: cleanedOldPlayers,
-          },
-        });
-      }
-    }
-
-    // If the player should now be signed, add them into the selected team's roster
-    if (nextStatus === "signed") {
-      if (!nextSignedToTeamId || !nextSignedToTeamName) {
-        return NextResponse.json(
-          { error: "Missing signed team information" },
-          { status: 400 }
-        );
-      }
-
-      const newTeam = await prisma.teamRegistration.findUnique({
-        where: { id: nextSignedToTeamId },
-      });
-
-      if (!newTeam) {
-        return NextResponse.json(
-          { error: "Selected team not found" },
-          { status: 404 }
-        );
-      }
-
-      const currentPlayers = normalizePlayers(newTeam.players);
-
-      const playerAlreadyExists = currentPlayers.some((player) =>
-        isSamePlayer(player, nextAgentIdentity)
+    if (
+      updatedAgentData.status === "signed" &&
+      (!updatedAgentData.signedToTeamId || !updatedAgentData.signedToTeamName)
+    ) {
+      return NextResponse.json(
+        { error: "Missing signed team information" },
+        { status: 400 }
       );
-
-      const newPlayerEntry: TeamPlayer = {
-        freeAgentId: existingAgent.id,
-        playerName: nextPlayerName,
-        riotName: nextRiotName,
-        riotTag: nextRiotTag,
-        currentRank: nextCurrentRank || "Unranked",
-        primaryRole: nextPrimaryRole,
-        secondaryRole: nextSecondaryRole || undefined,
-        email: nextEmail,
-        notes: nextNotes || undefined,
-      };
-
-      const updatedPlayers = playerAlreadyExists
-        ? currentPlayers.map((player) =>
-            isSamePlayer(player, nextAgentIdentity) ? newPlayerEntry : player
-          )
-        : [...currentPlayers, newPlayerEntry];
-
-      await prisma.teamRegistration.update({
-        where: { id: newTeam.id },
-        data: {
-          players: updatedPlayers,
-        },
-      });
     }
 
     const updatedAgent = await prisma.freeAgentRegistration.update({
@@ -266,33 +155,6 @@ export async function DELETE(
         { error: "Free agent not found" },
         { status: 404 }
       );
-    }
-
-    if (existingAgent.signedToTeamId) {
-      const team = await prisma.teamRegistration.findUnique({
-        where: { id: existingAgent.signedToTeamId },
-      });
-
-      if (team) {
-        const currentPlayers = normalizePlayers(team.players);
-
-        const cleanedPlayers = currentPlayers.filter(
-          (player) =>
-            !isSamePlayer(player, {
-              id: existingAgent.id,
-              email: existingAgent.email,
-              riotName: existingAgent.riotName,
-              riotTag: existingAgent.riotTag,
-            })
-        );
-
-        await prisma.teamRegistration.update({
-          where: { id: team.id },
-          data: {
-            players: cleanedPlayers,
-          },
-        });
-      }
     }
 
     await prisma.freeAgentRegistration.delete({

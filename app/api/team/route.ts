@@ -3,31 +3,25 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    const teams = await prisma.teamRegistration.findMany({
-      where: {
-        status: "approved",
-      },
+    const teams = await prisma.team.findMany({
       orderBy: {
-        teamName: "asc",
+        name: "asc",
+      },
+      select: {
+        id: true,
+        name: true,
+        logoUrl: true,
+        kitUrl: true,
+        createdAt: true,
       },
     });
 
-    const formattedTeams = teams.map((team) => ({
-      id: team.id,
-      name: team.teamName,
-      captainName: team.captainName,
-      captainEmail: team.captainEmail,
-      status: team.status,
-      submittedAt: team.submittedAt,
-      players: team.players,
-    }));
-
-    return NextResponse.json(formattedTeams);
+    return NextResponse.json(teams);
   } catch (error) {
     console.error("GET /api/team error:", error);
 
     return NextResponse.json(
-      { error: "Failed to fetch team registrations" },
+      { error: "Failed to fetch teams" },
       { status: 500 }
     );
   }
