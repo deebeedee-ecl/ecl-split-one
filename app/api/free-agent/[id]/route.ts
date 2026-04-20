@@ -27,6 +27,10 @@ function normalizeRank(value: unknown) {
   return "Unranked";
 }
 
+function normalizeTeamKey(value: unknown) {
+  return cleanText(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 type TeamPlayerJson = {
   freeAgentId?: string;
   playerName?: string;
@@ -53,9 +57,7 @@ function sameRosterPlayer(
   const rosterEmail = cleanText(player.email).toLowerCase();
   const rosterRiotName = cleanText(player.riotName).toLowerCase();
   const rosterRiotTag = cleanText(player.riotTag).toLowerCase();
-  const rosterPlayerName = cleanText(
-    typeof player.playerName === "string" ? player.playerName : player.name
-  ).toLowerCase();
+  const rosterPlayerName = cleanText(player.playerName || player.name).toLowerCase();
 
   const targetEmail = cleanText(email).toLowerCase();
   const targetRiotName = cleanText(riotName).toLowerCase();
@@ -196,9 +198,7 @@ export async function PATCH(
 
       if (nextEmail) {
         matchedPlayer = await tx.player.findFirst({
-          where: {
-            email: nextEmail,
-          },
+          where: { email: nextEmail },
           select: {
             id: true,
             name: true,
@@ -233,9 +233,7 @@ export async function PATCH(
 
       if (matchedPlayer) {
         await tx.player.update({
-          where: {
-            id: matchedPlayer.id,
-          },
+          where: { id: matchedPlayer.id },
           data: {
             teamId:
               updatedAgent.status === "signed"
@@ -258,9 +256,9 @@ export async function PATCH(
         },
       });
 
-      for (const teamReg of allTeamRegistrations) {
-        const existingPlayers = Array.isArray(teamReg.players)
-          ? (teamReg.players as TeamPlayerJson[])
+      for (const team of allTeamRegistrations) {
+        const existingPlayers = Array.isArray(team.players)
+          ? (team.players as TeamPlayerJson[])
           : [];
 
         const filteredPlayers = existingPlayers.filter(
@@ -277,7 +275,7 @@ export async function PATCH(
 
         if (filteredPlayers.length !== existingPlayers.length) {
           await tx.teamRegistration.update({
-            where: { id: teamReg.id },
+            where: { id: team.id },
             data: {
               players: filteredPlayers,
             },
@@ -287,9 +285,7 @@ export async function PATCH(
 
       if (updatedAgent.status === "signed" && updatedAgent.signedToTeamId) {
         const savedTeam = await tx.team.findUnique({
-          where: {
-            id: updatedAgent.signedToTeamId,
-          },
+          where: { id: updatedAgent.signedToTeamId },
           select: {
             id: true,
             name: true,
@@ -301,16 +297,26 @@ export async function PATCH(
             ? `${warning} Matching team record was not found in prisma.team.`
             : "Matching team record was not found in prisma.team.";
         } else {
-          const targetTeamRegistration = await tx.teamRegistration.findFirst({
-            where: {
-              teamName: savedTeam.name,
-            },
+          const allRegistrations = await tx.teamRegistration.findMany({
             select: {
               id: true,
               teamName: true,
               players: true,
             },
           });
+
+          const exactMatch = allRegistrations.find(
+            (team) => cleanText(team.teamName) === cleanText(savedTeam.name)
+          );
+
+          const normalizedMatch =
+            exactMatch ||
+            allRegistrations.find(
+              (team) =>
+                normalizeTeamKey(team.teamName) === normalizeTeamKey(savedTeam.name)
+            );
+
+          const targetTeamRegistration = normalizedMatch ?? null;
 
           if (!targetTeamRegistration) {
             warning = warning
