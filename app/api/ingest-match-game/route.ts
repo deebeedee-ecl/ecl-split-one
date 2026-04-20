@@ -2,6 +2,41 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { calculateLpChange } from "@/lib/elo";
 
+type ParsedPlayer = {
+  name?: string;
+  kills?: number;
+  deaths?: number;
+  assists?: number;
+  gold?: number;
+  damage?: number;
+  isMVP?: boolean;
+  isSVP?: boolean;
+};
+
+type ParsedTeamStats = {
+  kills?: number;
+  gold?: number;
+  towers?: number;
+  inhibitors?: number;
+  barons?: number;
+  drakes?: number;
+  isWinner?: boolean;
+};
+
+function normalizeRiotNameParts(rawName: string) {
+  const trimmed = rawName.trim();
+  const [name, tag] = trimmed.split("#");
+
+  return {
+    riotName: name?.trim() || "",
+    riotTag: tag?.trim() || "",
+  };
+}
+
+function safeNumber(value: unknown, fallback = 0) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -39,6 +74,18 @@ export async function POST(req: Request) {
 
     const match = await prisma.match.findUnique({
       where: { id: matchId },
+      include: {
+        homeTeam: {
+          include: {
+            players: true,
+          },
+        },
+        awayTeam: {
+          include: {
+            players: true,
+          },
+        },
+      },
     });
 
     if (!match) {
@@ -68,21 +115,104 @@ export async function POST(req: Request) {
 
     const isNewGame = !existingGame;
 
-    const homeIsTop = true;
+    const homeRosterKeys = new Set(
+      (match.homeTeam?.players ?? [])
+        .filter((p) => p.riotName && p.riotTag)
+        .map(
+          (p) =>
+            `${p.riotName.trim().toLowerCase()}#${p.riotTag.trim().toLowerCase()}`
+        )
+    );
 
-    const homeTeamStats = homeIsTop ? topTeam : bottomTeam;
-    const awayTeamStats = homeIsTop ? bottomTeam : topTeam;
+    const awayRosterKeys = new Set(
+      (match.awayTeam?.players ?? [])
+        .filter((p) => p.riotName && p.riotTag)
+        .map(
+          (p) =>
+            `${p.riotName.trim().toLowerCase()}#${p.riotTag.trim().toLowerCase()}`
+        )
+    );
 
-    const winnerTeamId = homeTeamStats.isWinner ? homeTeamId : awayTeamId;
+    function scoreSideAgainstRoster(players: ParsedPlayer[], rosterKeys: Set<string>) {
+      let score = 0;
 
+      for (const p of players) {
+        const rawName = typeof p?.name === "string" ? p.name.trim() : "";
+        if (!rawName.includes("#")) continue;
+
+        const { riotName, riotTag } = normalizeRiotNameParts(rawName);
+        const key = `${riotName.toLowerCase()}#${riotTag.toLowerCase()}`;
+
+        if (rosterKeys.has(key)) {
+          score++;
+        }
+      }
+
+      return score;
+    }
+
+    const topSidePlayers = topTeam?.isWinner ? winningPlayers : losingPlayers;
+    const bottomSidePlayers = topTeam?.isWinner ? losingPlayers : winningPlayers;
+
+    const topVsHomeScore = scoreSideAgainstRoster(topSidePlayers, homeRosterKeys);
+    const topVsAwayScore = scoreSideAgainstRoster(topSidePlayers, awayRosterKeys);
+    const bottomVsHomeScore = scoreSideAgainstRoster(
+      bottomSidePlayers,
+      homeRosterKeys
+    );
+    const bottomVsAwayScore = scoreSideAgainstRoster(
+      bottomSidePlayers,
+      awayRosterKeys
+    );
+
+    let topTeamId: string | null = null;
+    let bottomTeamId: string | null = null;
+
+    if (topVsHomeScore > topVsAwayScore && bottomVsAwayScore >= bottomVsHomeScore) {
+      topTeamId = homeTeamId;
+      bottomTeamId = awayTeamId;
+    } else if (
+      topVsAwayScore > topVsHomeScore &&
+      bottomVsHomeScore >= bottomVsAwayScore
+    ) {
+      topTeamId = awayTeamId;
+      bottomTeamId = homeTeamId;
+    } else {
+      return NextResponse.json(
+        {
+          error: "Could not map screenshot sides to scheduled teams",
+          debug: {
+            topVsHomeScore,
+            topVsAwayScore,
+            bottomVsHomeScore,
+            bottomVsAwayScore,
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    const homeIsTop = topTeamId === homeTeamId;
+
+    const homeTeamStats: ParsedTeamStats = homeIsTop ? topTeam : bottomTeam;
+    const awayTeamStats: ParsedTeamStats = homeIsTop ? bottomTeam : topTeam;
+
+    const winnerTeamId = topTeam.isWinner ? topTeamId : bottomTeamId;
     const loserTeamId = winnerTeamId === homeTeamId ? awayTeamId : homeTeamId;
+
+    if (!winnerTeamId || !loserTeamId) {
+      return NextResponse.json(
+        { error: "Failed to determine winner/loser team IDs" },
+        { status: 400 }
+      );
+    }
 
     const allPlayers = [
       ...(Array.isArray(winningPlayers) ? winningPlayers : []),
       ...(Array.isArray(losingPlayers) ? losingPlayers : []),
     ];
 
-    const mvpPlayer = allPlayers.find((p: any) => p?.isMVP);
+    const mvpPlayer = allPlayers.find((p: ParsedPlayer) => p?.isMVP);
     const mvpName = mvpPlayer?.name ?? null;
 
     const safeDurationMinutes =
@@ -105,18 +235,18 @@ export async function POST(req: Request) {
       update: {
         winnerTeamId,
         durationSeconds,
-        homeKills: homeTeamStats.kills,
-        awayKills: awayTeamStats.kills,
-        homeGold: homeTeamStats.gold,
-        awayGold: awayTeamStats.gold,
-        homeTowers: homeTeamStats.towers,
-        awayTowers: awayTeamStats.towers,
-        homeInhibitors: homeTeamStats.inhibitors,
-        awayInhibitors: awayTeamStats.inhibitors,
-        homeBarons: homeTeamStats.barons,
-        awayBarons: awayTeamStats.barons,
-        homeDrakes: homeTeamStats.drakes,
-        awayDrakes: awayTeamStats.drakes,
+        homeKills: safeNumber(homeTeamStats.kills),
+        awayKills: safeNumber(awayTeamStats.kills),
+        homeGold: safeNumber(homeTeamStats.gold),
+        awayGold: safeNumber(awayTeamStats.gold),
+        homeTowers: safeNumber(homeTeamStats.towers),
+        awayTowers: safeNumber(awayTeamStats.towers),
+        homeInhibitors: safeNumber(homeTeamStats.inhibitors),
+        awayInhibitors: safeNumber(awayTeamStats.inhibitors),
+        homeBarons: safeNumber(homeTeamStats.barons),
+        awayBarons: safeNumber(awayTeamStats.barons),
+        homeDrakes: safeNumber(homeTeamStats.drakes),
+        awayDrakes: safeNumber(awayTeamStats.drakes),
         mvpName,
         ocrRawJson: body,
       },
@@ -125,18 +255,18 @@ export async function POST(req: Request) {
         gameNumber,
         winnerTeamId,
         durationSeconds,
-        homeKills: homeTeamStats.kills,
-        awayKills: awayTeamStats.kills,
-        homeGold: homeTeamStats.gold,
-        awayGold: awayTeamStats.gold,
-        homeTowers: homeTeamStats.towers,
-        awayTowers: awayTeamStats.towers,
-        homeInhibitors: homeTeamStats.inhibitors,
-        awayInhibitors: awayTeamStats.inhibitors,
-        homeBarons: homeTeamStats.barons,
-        awayBarons: awayTeamStats.barons,
-        homeDrakes: homeTeamStats.drakes,
-        awayDrakes: awayTeamStats.drakes,
+        homeKills: safeNumber(homeTeamStats.kills),
+        awayKills: safeNumber(awayTeamStats.kills),
+        homeGold: safeNumber(homeTeamStats.gold),
+        awayGold: safeNumber(awayTeamStats.gold),
+        homeTowers: safeNumber(homeTeamStats.towers),
+        awayTowers: safeNumber(awayTeamStats.towers),
+        homeInhibitors: safeNumber(homeTeamStats.inhibitors),
+        awayInhibitors: safeNumber(awayTeamStats.inhibitors),
+        homeBarons: safeNumber(homeTeamStats.barons),
+        awayBarons: safeNumber(awayTeamStats.barons),
+        homeDrakes: safeNumber(homeTeamStats.drakes),
+        awayDrakes: safeNumber(awayTeamStats.drakes),
         mvpName,
         ocrRawJson: body,
       },
@@ -145,12 +275,9 @@ export async function POST(req: Request) {
     let matched = 0;
     let skipped = 0;
 
-    async function processPlayer(p: any) {
+    async function processPlayer(p: ParsedPlayer) {
       const rawName = typeof p.name === "string" ? p.name.trim() : "";
-      const [parsedRiotName, parsedRiotTag] = rawName.split("#");
-
-      const riotName = parsedRiotName?.trim();
-      const riotTag = parsedRiotTag?.trim();
+      const { riotName, riotTag } = normalizeRiotNameParts(rawName);
 
       if (!riotName || !riotTag) {
         console.log("❌ Invalid tag:", p.name);
@@ -171,15 +298,20 @@ export async function POST(req: Request) {
         return;
       }
 
-      // 🔥 roster validation
       if (player.teamId !== homeTeamId && player.teamId !== awayTeamId) {
         console.log("⚠️ Not in this match:", p.name);
         skipped++;
         return;
       }
 
-      const teamId = player.teamId!;
+      const teamId = player.teamId;
       const isWin = teamId === winnerTeamId;
+
+      if (!teamId) {
+        console.log("⚠️ Player has no teamId:", p.name);
+        skipped++;
+        return;
+      }
 
       matched++;
 
@@ -202,13 +334,13 @@ export async function POST(req: Request) {
       if (isNewStat) {
         const eloResult = calculateLpChange({
           win: isWin,
-          kills: p.kills,
-          deaths: p.deaths,
-          assists: p.assists,
-          isMVP: p.isMVP,
-          isSVP: p.isSVP,
-          gold: p.gold,
-          damage: p.damage,
+          kills: safeNumber(p.kills),
+          deaths: safeNumber(p.deaths),
+          assists: safeNumber(p.assists),
+          isMVP: Boolean(p.isMVP),
+          isSVP: Boolean(p.isSVP),
+          gold: safeNumber(p.gold),
+          damage: safeNumber(p.damage),
           winStreak: player.winStreak,
           lossStreak: player.lossStreak,
         });
@@ -228,14 +360,14 @@ export async function POST(req: Request) {
           teamId,
           riotName,
           riotTag,
-          kills: p.kills,
-          deaths: p.deaths,
-          assists: p.assists,
-          gold: p.gold,
-          damage: p.damage,
+          kills: safeNumber(p.kills),
+          deaths: safeNumber(p.deaths),
+          assists: safeNumber(p.assists),
+          gold: safeNumber(p.gold),
+          damage: safeNumber(p.damage),
           isWin,
-          isMVP: p.isMVP,
-          isSVP: p.isSVP,
+          isMVP: Boolean(p.isMVP),
+          isSVP: Boolean(p.isSVP),
           lpChange,
           eloBefore,
           eloAfter,
@@ -246,14 +378,14 @@ export async function POST(req: Request) {
           teamId,
           riotName,
           riotTag,
-          kills: p.kills,
-          deaths: p.deaths,
-          assists: p.assists,
-          gold: p.gold,
-          damage: p.damage,
+          kills: safeNumber(p.kills),
+          deaths: safeNumber(p.deaths),
+          assists: safeNumber(p.assists),
+          gold: safeNumber(p.gold),
+          damage: safeNumber(p.damage),
           isWin,
-          isMVP: p.isMVP,
-          isSVP: p.isSVP,
+          isMVP: Boolean(p.isMVP),
+          isSVP: Boolean(p.isSVP),
           lpChange,
           eloBefore,
           eloAfter,
@@ -333,6 +465,13 @@ export async function POST(req: Request) {
       isNewGame,
       matchedPlayers: matched,
       skippedPlayers: skipped,
+      debug: {
+        topTeamId,
+        bottomTeamId,
+        winnerTeamId,
+        homeScore,
+        awayScore,
+      },
     });
   } catch (err) {
     console.error("INGEST ERROR:", err);
