@@ -62,7 +62,6 @@ function cleanText(value?: string | null) {
 export default async function TeamsPage() {
   const [teams, savedTeams] = await Promise.all([
     prisma.teamRegistration.findMany({
-      where: { status: "approved" },
       orderBy: { submittedAt: "desc" },
     }),
     prisma.team.findMany({
