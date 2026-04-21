@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { calculateLpChange } from "@/lib/elo";
-import { MatchStage, MatchStatus } from "@prisma/client";
+import { MatchStage, MatchStatus, Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,14 @@ const statusOptions = [
   { value: "POSTPONED", label: "Postponed" },
   { value: "CANCELLED", label: "Cancelled" },
 ];
+
+type RouteParams = Promise<{ id: string }>;
+type RouteSearchParams = Promise<{
+  updated?: string;
+  statsSaved?: string;
+  game?: string;
+  error?: string;
+}>;
 
 function formatStage(stage: MatchStage) {
   switch (stage) {
@@ -103,6 +111,155 @@ function parseRequiredNonNegativeInt(value: string, label: string) {
   return Math.round(parsed);
 }
 
+function parseOptionalNonNegativeInt(value: string) {
+  const trimmed = value.trim();
+
+  if (trimmed === "") return null;
+
+  const parsed = Number(trimmed);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return "__INVALID__" as const;
+  }
+
+  return Math.round(parsed);
+}
+
+function getPlayerDisplayName(player: {
+  name: string;
+  riotName: string | null;
+  riotTag: string | null;
+}) {
+  if (player.riotName && player.riotTag) {
+    return `${player.name} (${player.riotName}#${player.riotTag})`;
+  }
+
+  if (player.riotTag) {
+    return `${player.name}#${player.riotTag}`;
+  }
+
+  return player.name;
+}
+
+type TxClient = Prisma.TransactionClient;
+
+async function recalculateAllPlayerStats(tx: TxClient) {
+  await tx.player.updateMany({
+    data: {
+      elo: 1000,
+      winStreak: 0,
+      lossStreak: 0,
+    },
+  });
+
+  const players = await tx.player.findMany({
+    select: {
+      id: true,
+      elo: true,
+      winStreak: true,
+      lossStreak: true,
+    },
+  });
+
+  const playerState = new Map(
+    players.map((player) => [
+      player.id,
+      {
+        elo: 1000,
+        winStreak: 0,
+        lossStreak: 0,
+      },
+    ])
+  );
+
+  const allStats = await tx.matchGamePlayerStat.findMany({
+    include: {
+      matchGame: {
+        include: {
+          match: {
+            select: {
+              scheduledAt: true,
+              createdAt: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  allStats.sort((a, b) => {
+    const aTime =
+      a.matchGame.match.scheduledAt?.getTime() ??
+      a.matchGame.match.createdAt.getTime();
+    const bTime =
+      b.matchGame.match.scheduledAt?.getTime() ??
+      b.matchGame.match.createdAt.getTime();
+
+    if (aTime !== bTime) return aTime - bTime;
+    if (a.matchGame.gameNumber !== b.matchGame.gameNumber) {
+      return a.matchGame.gameNumber - b.matchGame.gameNumber;
+    }
+
+    return a.id.localeCompare(b.id);
+  });
+
+  for (const stat of allStats) {
+    const current = playerState.get(stat.playerId) ?? {
+      elo: 1000,
+      winStreak: 0,
+      lossStreak: 0,
+    };
+
+    const { lpChange } = calculateLpChange({
+      win: stat.isWin,
+      kills: stat.kills,
+      deaths: stat.deaths,
+      assists: stat.assists,
+      isMVP: stat.isMVP,
+      isSVP: stat.isSVP,
+      gold: stat.gold ?? 0,
+      damage: stat.damage ?? 0,
+      winStreak: current.winStreak,
+      lossStreak: current.lossStreak,
+    });
+
+    const eloBefore = current.elo;
+    const eloAfter = eloBefore + lpChange;
+
+    const nextState = stat.isWin
+      ? {
+          elo: eloAfter,
+          winStreak: current.winStreak + 1,
+          lossStreak: 0,
+        }
+      : {
+          elo: eloAfter,
+          winStreak: 0,
+          lossStreak: current.lossStreak + 1,
+        };
+
+    await tx.matchGamePlayerStat.update({
+      where: { id: stat.id },
+      data: {
+        lpChange,
+        eloBefore,
+        eloAfter,
+      },
+    });
+
+    await tx.player.update({
+      where: { id: stat.playerId },
+      data: {
+        elo: nextState.elo,
+        winStreak: nextState.winStreak,
+        lossStreak: nextState.lossStreak,
+      },
+    });
+
+    playerState.set(stat.playerId, nextState);
+  }
+}
+
 async function updateMatch(formData: FormData) {
   "use server";
 
@@ -166,7 +323,7 @@ async function updateMatch(formData: FormData) {
       redirect(buildRedirectUrl(id, { error: "invalid_scores" }));
     }
 
-    let winnerTeamId: string | null = winnerTeamIdRaw || null;
+    const winnerTeamId: string | null = winnerTeamIdRaw || null;
 
     if (
       winnerTeamId &&
@@ -184,6 +341,14 @@ async function updateMatch(formData: FormData) {
       awayKills: number | null;
       homeGold: number | null;
       awayGold: number | null;
+      homeTowers: number | null;
+      awayTowers: number | null;
+      homeInhibitors: number | null;
+      awayInhibitors: number | null;
+      homeBarons: number | null;
+      awayBarons: number | null;
+      homeDrakes: number | null;
+      awayDrakes: number | null;
       mvpName: string | null;
       notes: string | null;
       isEmpty: boolean;
@@ -212,6 +377,38 @@ async function updateMatch(formData: FormData) {
 
       const gameAwayGoldRaw = String(
         formData.get(`game_${gameNumber}_awayGold`) || ""
+      ).trim();
+
+      const gameHomeTowersRaw = String(
+        formData.get(`game_${gameNumber}_homeTowers`) || ""
+      ).trim();
+
+      const gameAwayTowersRaw = String(
+        formData.get(`game_${gameNumber}_awayTowers`) || ""
+      ).trim();
+
+      const gameHomeInhibitorsRaw = String(
+        formData.get(`game_${gameNumber}_homeInhibitors`) || ""
+      ).trim();
+
+      const gameAwayInhibitorsRaw = String(
+        formData.get(`game_${gameNumber}_awayInhibitors`) || ""
+      ).trim();
+
+      const gameHomeBaronsRaw = String(
+        formData.get(`game_${gameNumber}_homeBarons`) || ""
+      ).trim();
+
+      const gameAwayBaronsRaw = String(
+        formData.get(`game_${gameNumber}_awayBarons`) || ""
+      ).trim();
+
+      const gameHomeDrakesRaw = String(
+        formData.get(`game_${gameNumber}_homeDrakes`) || ""
+      ).trim();
+
+      const gameAwayDrakesRaw = String(
+        formData.get(`game_${gameNumber}_awayDrakes`) || ""
       ).trim();
 
       const gameMvpNameRaw = String(
@@ -251,28 +448,32 @@ async function updateMatch(formData: FormData) {
         durationSeconds = Math.round(parsedMinutes * 60);
       }
 
-      const parseOptionalInt = (value: string) => {
-        if (value === "") return null;
-
-        const parsed = Number(value);
-
-        if (Number.isNaN(parsed) || parsed < 0) {
-          return "__INVALID__";
-        }
-
-        return Math.round(parsed);
-      };
-
-      const homeKills = parseOptionalInt(gameHomeKillsRaw);
-      const awayKills = parseOptionalInt(gameAwayKillsRaw);
-      const homeGold = parseOptionalInt(gameHomeGoldRaw);
-      const awayGold = parseOptionalInt(gameAwayGoldRaw);
+      const homeKills = parseOptionalNonNegativeInt(gameHomeKillsRaw);
+      const awayKills = parseOptionalNonNegativeInt(gameAwayKillsRaw);
+      const homeGold = parseOptionalNonNegativeInt(gameHomeGoldRaw);
+      const awayGold = parseOptionalNonNegativeInt(gameAwayGoldRaw);
+      const homeTowers = parseOptionalNonNegativeInt(gameHomeTowersRaw);
+      const awayTowers = parseOptionalNonNegativeInt(gameAwayTowersRaw);
+      const homeInhibitors = parseOptionalNonNegativeInt(gameHomeInhibitorsRaw);
+      const awayInhibitors = parseOptionalNonNegativeInt(gameAwayInhibitorsRaw);
+      const homeBarons = parseOptionalNonNegativeInt(gameHomeBaronsRaw);
+      const awayBarons = parseOptionalNonNegativeInt(gameAwayBaronsRaw);
+      const homeDrakes = parseOptionalNonNegativeInt(gameHomeDrakesRaw);
+      const awayDrakes = parseOptionalNonNegativeInt(gameAwayDrakesRaw);
 
       if (
         homeKills === "__INVALID__" ||
         awayKills === "__INVALID__" ||
         homeGold === "__INVALID__" ||
-        awayGold === "__INVALID__"
+        awayGold === "__INVALID__" ||
+        homeTowers === "__INVALID__" ||
+        awayTowers === "__INVALID__" ||
+        homeInhibitors === "__INVALID__" ||
+        awayInhibitors === "__INVALID__" ||
+        homeBarons === "__INVALID__" ||
+        awayBarons === "__INVALID__" ||
+        homeDrakes === "__INVALID__" ||
+        awayDrakes === "__INVALID__"
       ) {
         redirect(
           buildRedirectUrl(id, {
@@ -288,6 +489,14 @@ async function updateMatch(formData: FormData) {
         awayKills === null &&
         homeGold === null &&
         awayGold === null &&
+        homeTowers === null &&
+        awayTowers === null &&
+        homeInhibitors === null &&
+        awayInhibitors === null &&
+        homeBarons === null &&
+        awayBarons === null &&
+        homeDrakes === null &&
+        awayDrakes === null &&
         gameMvpNameRaw.length === 0 &&
         gameNotesRaw.length === 0;
 
@@ -299,6 +508,14 @@ async function updateMatch(formData: FormData) {
         awayKills: awayKills as number | null,
         homeGold: homeGold as number | null,
         awayGold: awayGold as number | null,
+        homeTowers: homeTowers as number | null,
+        awayTowers: awayTowers as number | null,
+        homeInhibitors: homeInhibitors as number | null,
+        awayInhibitors: awayInhibitors as number | null,
+        homeBarons: homeBarons as number | null,
+        awayBarons: awayBarons as number | null,
+        homeDrakes: homeDrakes as number | null,
+        awayDrakes: awayDrakes as number | null,
         mvpName: gameMvpNameRaw || null,
         notes: gameNotesRaw || null,
         isEmpty,
@@ -359,6 +576,14 @@ async function updateMatch(formData: FormData) {
               awayKills: game.awayKills,
               homeGold: game.homeGold,
               awayGold: game.awayGold,
+              homeTowers: game.homeTowers,
+              awayTowers: game.awayTowers,
+              homeInhibitors: game.homeInhibitors,
+              awayInhibitors: game.awayInhibitors,
+              homeBarons: game.homeBarons,
+              awayBarons: game.awayBarons,
+              homeDrakes: game.homeDrakes,
+              awayDrakes: game.awayDrakes,
               mvpName: game.mvpName,
               notes: game.notes,
             },
@@ -374,6 +599,14 @@ async function updateMatch(formData: FormData) {
               awayKills: game.awayKills,
               homeGold: game.homeGold,
               awayGold: game.awayGold,
+              homeTowers: game.homeTowers,
+              awayTowers: game.awayTowers,
+              homeInhibitors: game.homeInhibitors,
+              awayInhibitors: game.awayInhibitors,
+              homeBarons: game.homeBarons,
+              awayBarons: game.awayBarons,
+              homeDrakes: game.homeDrakes,
+              awayDrakes: game.awayDrakes,
               mvpName: game.mvpName,
               notes: game.notes,
             },
@@ -403,7 +636,7 @@ async function updateMatch(formData: FormData) {
   }
 }
 
-async function submitGameStats(formData: FormData) {
+async function saveGamePlayerRows(formData: FormData) {
   "use server";
 
   try {
@@ -442,6 +675,9 @@ async function submitGameStats(formData: FormData) {
           },
         },
         games: {
+          include: {
+            playerStats: true,
+          },
           orderBy: {
             gameNumber: "asc",
           },
@@ -471,8 +707,31 @@ async function submitGameStats(formData: FormData) {
       );
     }
 
+    const selectedMvpPlayerId = String(formData.get("selectedMvpPlayerId") || "").trim();
+    const selectedSvpPlayerId = String(formData.get("selectedSvpPlayerId") || "").trim();
+
     const homeTeamPlayerIds = new Set(match.homeTeam.players.map((p) => p.id));
     const awayTeamPlayerIds = new Set(match.awayTeam.players.map((p) => p.id));
+    const allValidPlayerIds = new Set([
+      ...match.homeTeam.players.map((p) => p.id),
+      ...match.awayTeam.players.map((p) => p.id),
+    ]);
+
+    if (selectedMvpPlayerId && !allValidPlayerIds.has(selectedMvpPlayerId)) {
+      redirect(buildRedirectUrl(matchId, { error: `game_${gameNumber}_invalid_mvp` }));
+    }
+
+    if (selectedSvpPlayerId && !allValidPlayerIds.has(selectedSvpPlayerId)) {
+      redirect(buildRedirectUrl(matchId, { error: `game_${gameNumber}_invalid_svp` }));
+    }
+
+    if (
+      selectedMvpPlayerId &&
+      selectedSvpPlayerId &&
+      selectedMvpPlayerId === selectedSvpPlayerId
+    ) {
+      redirect(buildRedirectUrl(matchId, { error: `game_${gameNumber}_mvp_svp_same` }));
+    }
 
     const entries: Array<{
       playerId: string;
@@ -480,7 +739,10 @@ async function submitGameStats(formData: FormData) {
       kills: number;
       deaths: number;
       assists: number;
+      gold: number | null;
+      damage: number | null;
       isMVP: boolean;
+      isSVP: boolean;
     }> = [];
 
     for (let i = 0; i < 5; i++) {
@@ -488,14 +750,15 @@ async function submitGameStats(formData: FormData) {
       const killsRaw = String(formData.get(`home_k_${i}`) || "").trim();
       const deathsRaw = String(formData.get(`home_d_${i}`) || "").trim();
       const assistsRaw = String(formData.get(`home_a_${i}`) || "").trim();
-      const isMVP = formData.get(`home_mvp_${i}`) === "on";
+      const goldRaw = String(formData.get(`home_gold_${i}`) || "").trim();
+      const damageRaw = String(formData.get(`home_damage_${i}`) || "").trim();
 
       const hasAnyValue =
-        playerId !== "" ||
         killsRaw !== "" ||
         deathsRaw !== "" ||
         assistsRaw !== "" ||
-        isMVP;
+        goldRaw !== "" ||
+        damageRaw !== "";
 
       if (!hasAnyValue) continue;
 
@@ -518,6 +781,16 @@ async function submitGameStats(formData: FormData) {
       const kills = parseRequiredNonNegativeInt(killsRaw, "Kills");
       const deaths = parseRequiredNonNegativeInt(deathsRaw, "Deaths");
       const assists = parseRequiredNonNegativeInt(assistsRaw, "Assists");
+      const gold = parseOptionalNonNegativeInt(goldRaw);
+      const damage = parseOptionalNonNegativeInt(damageRaw);
+
+      if (gold === "__INVALID__" || damage === "__INVALID__") {
+        redirect(
+          buildRedirectUrl(matchId, {
+            error: `game_${gameNumber}_invalid_numbers`,
+          })
+        );
+      }
 
       entries.push({
         playerId,
@@ -525,7 +798,10 @@ async function submitGameStats(formData: FormData) {
         kills,
         deaths,
         assists,
-        isMVP,
+        gold: gold as number | null,
+        damage: damage as number | null,
+        isMVP: playerId === selectedMvpPlayerId,
+        isSVP: playerId === selectedSvpPlayerId,
       });
     }
 
@@ -534,14 +810,15 @@ async function submitGameStats(formData: FormData) {
       const killsRaw = String(formData.get(`away_k_${i}`) || "").trim();
       const deathsRaw = String(formData.get(`away_d_${i}`) || "").trim();
       const assistsRaw = String(formData.get(`away_a_${i}`) || "").trim();
-      const isMVP = formData.get(`away_mvp_${i}`) === "on";
+      const goldRaw = String(formData.get(`away_gold_${i}`) || "").trim();
+      const damageRaw = String(formData.get(`away_damage_${i}`) || "").trim();
 
       const hasAnyValue =
-        playerId !== "" ||
         killsRaw !== "" ||
         deathsRaw !== "" ||
         assistsRaw !== "" ||
-        isMVP;
+        goldRaw !== "" ||
+        damageRaw !== "";
 
       if (!hasAnyValue) continue;
 
@@ -564,6 +841,16 @@ async function submitGameStats(formData: FormData) {
       const kills = parseRequiredNonNegativeInt(killsRaw, "Kills");
       const deaths = parseRequiredNonNegativeInt(deathsRaw, "Deaths");
       const assists = parseRequiredNonNegativeInt(assistsRaw, "Assists");
+      const gold = parseOptionalNonNegativeInt(goldRaw);
+      const damage = parseOptionalNonNegativeInt(damageRaw);
+
+      if (gold === "__INVALID__" || damage === "__INVALID__") {
+        redirect(
+          buildRedirectUrl(matchId, {
+            error: `game_${gameNumber}_invalid_numbers`,
+          })
+        );
+      }
 
       entries.push({
         playerId,
@@ -571,14 +858,17 @@ async function submitGameStats(formData: FormData) {
         kills,
         deaths,
         assists,
-        isMVP,
+        gold: gold as number | null,
+        damage: damage as number | null,
+        isMVP: playerId === selectedMvpPlayerId,
+        isSVP: playerId === selectedSvpPlayerId,
       });
     }
 
-    if (entries.length !== 10) {
+    if (entries.length === 0) {
       redirect(
         buildRedirectUrl(matchId, {
-          error: `game_${gameNumber}_need_10_players`,
+          error: `game_${gameNumber}_no_player_rows`,
         })
       );
     }
@@ -592,30 +882,12 @@ async function submitGameStats(formData: FormData) {
       );
     }
 
-    const mvpCount = entries.filter((entry) => entry.isMVP).length;
-    if (mvpCount > 1) {
-      redirect(
-        buildRedirectUrl(matchId, {
-          error: `game_${gameNumber}_multiple_mvps`,
-        })
-      );
+    if (selectedMvpPlayerId && !uniquePlayerIds.has(selectedMvpPlayerId)) {
+      redirect(buildRedirectUrl(matchId, { error: `game_${gameNumber}_mvp_not_in_rows` }));
     }
 
-    const existingStats = await prisma.matchGamePlayerStat.findMany({
-      where: {
-        matchGameId: game.id,
-        playerId: {
-          in: entries.map((entry) => entry.playerId),
-        },
-      },
-    });
-
-    if (existingStats.length > 0) {
-      redirect(
-        buildRedirectUrl(matchId, {
-          error: `game_${gameNumber}_stats_already_exist`,
-        })
-      );
+    if (selectedSvpPlayerId && !uniquePlayerIds.has(selectedSvpPlayerId)) {
+      redirect(buildRedirectUrl(matchId, { error: `game_${gameNumber}_svp_not_in_rows` }));
     }
 
     const players = await prisma.player.findMany({
@@ -635,81 +907,67 @@ async function submitGameStats(formData: FormData) {
         const player = playerMap.get(entry.playerId);
 
         if (!player) {
-          throw new Error(`Player not found for stat submission: ${entry.playerId}`);
+          throw new Error(`Player not found for stat save: ${entry.playerId}`);
         }
 
         const isWin = entry.teamId === game.winnerTeamId;
 
-        const { lpChange } = calculateLpChange({
-          win: isWin,
-          kills: entry.kills,
-          deaths: entry.deaths,
-          assists: entry.assists,
-          isMVP: entry.isMVP,
-          winStreak: player.winStreak,
-          lossStreak: player.lossStreak,
-        });
-
-        const newElo = player.elo + lpChange;
-
-        let newWinStreak = player.winStreak;
-        let newLossStreak = player.lossStreak;
-
-        if (isWin) {
-          newWinStreak += 1;
-          newLossStreak = 0;
-        } else {
-          newLossStreak += 1;
-          newWinStreak = 0;
-        }
-
-        await tx.matchGamePlayerStat.create({
-          data: {
-            matchGameId: game.id,
-            playerId: player.id,
+        await tx.matchGamePlayerStat.upsert({
+          where: {
+            matchGameId_playerId: {
+              matchGameId: game.id,
+              playerId: entry.playerId,
+            },
+          },
+          update: {
             teamId: entry.teamId,
+            riotName: player.riotName,
+            riotTag: player.riotTag,
             kills: entry.kills,
             deaths: entry.deaths,
             assists: entry.assists,
+            gold: entry.gold,
+            damage: entry.damage,
             isMVP: entry.isMVP,
+            isSVP: entry.isSVP,
             isWin,
-            lpChange,
+          },
+          create: {
+            matchGameId: game.id,
+            playerId: entry.playerId,
+            teamId: entry.teamId,
+            riotName: player.riotName,
+            riotTag: player.riotTag,
+            kills: entry.kills,
+            deaths: entry.deaths,
+            assists: entry.assists,
+            gold: entry.gold,
+            damage: entry.damage,
+            isMVP: entry.isMVP,
+            isSVP: entry.isSVP,
+            isWin,
+            lpChange: 0,
             eloBefore: player.elo,
-            eloAfter: newElo,
+            eloAfter: player.elo,
           },
-        });
-
-        await tx.player.update({
-          where: { id: player.id },
-          data: {
-            elo: newElo,
-            winStreak: newWinStreak,
-            lossStreak: newLossStreak,
-          },
-        });
-
-        playerMap.set(player.id, {
-          ...player,
-          elo: newElo,
-          winStreak: newWinStreak,
-          lossStreak: newLossStreak,
         });
 
         if (entry.isMVP) {
-          selectedMvpName = player.riotName
-            ? `${player.riotName}#${player.riotTag}`
-            : player.name;
+          selectedMvpName =
+            player.riotName && player.riotTag
+              ? `${player.riotName}#${player.riotTag}`
+              : player.name;
         }
       }
 
-      if (selectedMvpName) {
-        await tx.matchGame.update({
-          where: { id: game.id },
-          data: {
-            mvpName: selectedMvpName,
-          },
-        });
-      }
+      await tx.matchGame.update({
+        where: { id: game.id },
+        data: {
+          mvpName: selectedMvpName,
+        },
+      });
+
+      await recalculateAllPlayerStats(tx);
     });
 
     revalidatePath("/admin");
@@ -729,7 +987,7 @@ async function submitGameStats(formData: FormData) {
       })
     );
   } catch (error) {
-    console.error("submitGameStats error:", error);
+    console.error("saveGamePlayerRows error:", error);
 
     const matchId = String(formData.get("matchId") || "").trim();
     if (matchId) {
@@ -785,39 +1043,66 @@ function getFriendlyMessage(error: string | undefined) {
     invalid_match_winner: "Winner must be one of the two teams in the match.",
     update_failed: "Failed to save match changes.",
     delete_failed: "Failed to delete match.",
-    missing_stats_ids: "Missing match or game information for stats submission.",
+    missing_stats_ids: "Missing match or game information for player row save.",
     invalid_game_number: "Invalid game number.",
     match_not_found: "Match not found.",
-    stats_submit_failed: "Failed to submit player stats.",
+    stats_submit_failed: "Failed to save player rows.",
+    game_1_no_player_rows: "Enter at least one player row before saving.",
+    game_2_no_player_rows: "Enter at least one player row before saving.",
+    game_3_no_player_rows: "Enter at least one player row before saving.",
+    game_4_no_player_rows: "Enter at least one player row before saving.",
+    game_5_no_player_rows: "Enter at least one player row before saving.",
   };
 
   if (messages[error]) return messages[error];
 
   if (error.includes("_winner_not_set")) {
-    return "Set the winner for that individual game before submitting player stats.";
-  }
-
-  if (error.includes("_stats_already_exist")) {
-    return "Player stats for that game already exist. Duplicate submission was blocked.";
-  }
-
-  if (error.includes("_need_10_players")) {
-    return "You must enter all 10 players before saving game stats.";
+    return "Set the winner for that game before saving player rows.";
   }
 
   if (error.includes("_duplicate_players")) {
-    return "The same player was selected more than once in this game.";
+    return "The same player was selected more than once in that game.";
   }
 
   if (error.includes("_multiple_mvps")) {
     return "Only one MVP can be selected per game.";
   }
 
-  if (error.includes("_home_missing_player") || error.includes("_away_missing_player")) {
-    return "One of the stat rows has KDA entered but no player selected.";
+  if (error.includes("_multiple_svps")) {
+    return "Only one SVP can be selected per game.";
   }
 
-  if (error.includes("_home_invalid_player") || error.includes("_away_invalid_player")) {
+  if (error.includes("_invalid_mvp")) {
+    return "The selected MVP player is invalid.";
+  }
+
+  if (error.includes("_invalid_svp")) {
+    return "The selected SVP player is invalid.";
+  }
+
+  if (error.includes("_mvp_svp_same")) {
+    return "MVP and SVP cannot be the same player.";
+  }
+
+  if (error.includes("_mvp_not_in_rows")) {
+    return "The selected MVP player is not included in the saved rows.";
+  }
+
+  if (error.includes("_svp_not_in_rows")) {
+    return "The selected SVP player is not included in the saved rows.";
+  }
+
+  if (
+    error.includes("_home_missing_player") ||
+    error.includes("_away_missing_player")
+  ) {
+    return "One row has stats entered but no player selected.";
+  }
+
+  if (
+    error.includes("_home_invalid_player") ||
+    error.includes("_away_invalid_player")
+  ) {
     return "A selected player does not belong to the correct team.";
   }
 
@@ -834,23 +1119,51 @@ function getFriendlyMessage(error: string | undefined) {
   }
 
   if (error.includes("_invalid_numbers")) {
-    return "One of the game stat fields contains an invalid number.";
+    return "One of the fields contains an invalid number.";
   }
 
   return "Something went wrong.";
+}
+
+function buildPlayerRowDefaults(
+  teamPlayers: Array<{
+    id: string;
+    name: string;
+    riotName: string | null;
+    riotTag: string | null;
+  }>,
+  playerStats: Array<{
+    playerId: string;
+    kills: number;
+    deaths: number;
+    assists: number;
+    gold: number | null;
+    damage: number | null;
+  }>
+) {
+  return Array.from({ length: 5 }).map((_, index) => {
+    const defaultPlayer = teamPlayers[index];
+    const stat = defaultPlayer
+      ? playerStats.find((item) => item.playerId === defaultPlayer.id)
+      : null;
+
+    return {
+      playerId: defaultPlayer?.id ?? "",
+      kills: stat?.kills?.toString() ?? "",
+      deaths: stat?.deaths?.toString() ?? "",
+      assists: stat?.assists?.toString() ?? "",
+      gold: stat?.gold?.toString() ?? "",
+      damage: stat?.damage?.toString() ?? "",
+    };
+  });
 }
 
 export default async function EditMatchPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{
-    updated?: string;
-    statsSaved?: string;
-    game?: string;
-    error?: string;
-  }>;
+  params: RouteParams;
+  searchParams: RouteSearchParams;
 }) {
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
@@ -878,6 +1191,9 @@ export default async function EditMatchPage({
       },
       winnerTeam: true,
       games: {
+        include: {
+          playerStats: true,
+        },
         orderBy: {
           gameNumber: "asc",
         },
@@ -889,9 +1205,25 @@ export default async function EditMatchPage({
     notFound();
   }
 
+  const combinedRoster = [...match.homeTeam.players, ...match.awayTeam.players];
+
   const gameSlots = Array.from({ length: match.bestOf }, (_, index) => {
     const gameNumber = index + 1;
     const existingGame = match.games.find((game) => game.gameNumber === gameNumber);
+
+    const homePlayerStats = existingGame
+      ? existingGame.playerStats.filter((stat) => stat.teamId === match.homeTeam.id)
+      : [];
+
+    const awayPlayerStats = existingGame
+      ? existingGame.playerStats.filter((stat) => stat.teamId === match.awayTeam.id)
+      : [];
+
+    const selectedMvpPlayerId =
+      existingGame?.playerStats.find((stat) => stat.isMVP)?.playerId ?? "";
+
+    const selectedSvpPlayerId =
+      existingGame?.playerStats.find((stat) => stat.isSVP)?.playerId ?? "";
 
     return {
       id: existingGame?.id ?? "",
@@ -905,10 +1237,26 @@ export default async function EditMatchPage({
       awayKills: existingGame?.awayKills?.toString() ?? "",
       homeGold: existingGame?.homeGold?.toString() ?? "",
       awayGold: existingGame?.awayGold?.toString() ?? "",
+      homeTowers: existingGame?.homeTowers?.toString() ?? "",
+      awayTowers: existingGame?.awayTowers?.toString() ?? "",
+      homeInhibitors: existingGame?.homeInhibitors?.toString() ?? "",
+      awayInhibitors: existingGame?.awayInhibitors?.toString() ?? "",
+      homeBarons: existingGame?.homeBarons?.toString() ?? "",
+      awayBarons: existingGame?.awayBarons?.toString() ?? "",
+      homeDrakes: existingGame?.homeDrakes?.toString() ?? "",
+      awayDrakes: existingGame?.awayDrakes?.toString() ?? "",
       mvpName: existingGame?.mvpName ?? "",
       notes: existingGame?.notes ?? "",
       hasSavedGame: !!existingGame,
       hasWinnerSet: !!existingGame?.winnerTeamId,
+      selectedMvpPlayerId,
+      selectedSvpPlayerId,
+      homeRows: buildPlayerRowDefaults(match.homeTeam.players, homePlayerStats),
+      awayRows: buildPlayerRowDefaults(match.awayTeam.players, awayPlayerStats),
+      rosterOptions: combinedRoster.map((player) => ({
+        id: player.id,
+        label: getPlayerDisplayName(player),
+      })),
     };
   });
 
@@ -944,19 +1292,19 @@ export default async function EditMatchPage({
             {match.homeTeam.name} vs {match.awayTeam.name}
           </h1>
           <p className="mt-3 text-sm text-white/60">
-            Update fixture details, scoreline, status, winner, and individual game data.
+            Edit the series, patch game objective stats, and overwrite individual player rows without doing a full 10-man resubmission.
           </p>
         </div>
 
         {successUpdated && (
           <div className="mb-6 rounded-2xl border border-green-400/25 bg-green-500/10 px-5 py-4 text-sm text-green-200">
-            Match changes saved successfully.
+            Match and game details saved successfully.
           </div>
         )}
 
         {successStatsSaved && (
           <div className="mb-6 rounded-2xl border border-green-400/25 bg-green-500/10 px-5 py-4 text-sm text-green-200">
-            Player stats saved successfully
+            Player rows saved successfully
             {savedGameNumber ? ` for Game ${savedGameNumber}` : ""}.
           </div>
         )}
@@ -975,9 +1323,9 @@ export default async function EditMatchPage({
         </div>
 
         <div className="rounded-2xl border border-green-400/20 bg-green-500/10 p-6">
-          <h2 className="text-2xl font-bold">Edit Match</h2>
+          <h2 className="text-2xl font-bold">Edit Match & Games</h2>
           <p className="mt-2 text-sm text-white/65">
-            Save updated match information for schedule, results, standings, and future game stats.
+            Home and away stay in the database for structure, but this admin page is meant to be edited using the actual team names and per-game winners.
           </p>
 
           <form action={updateMatch} className="mt-6 space-y-8">
@@ -986,7 +1334,7 @@ export default async function EditMatchPage({
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-white/80">
-                  Home Team
+                  Team A
                 </label>
                 <input
                   value={match.homeTeam.name}
@@ -997,7 +1345,7 @@ export default async function EditMatchPage({
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-white/80">
-                  Away Team
+                  Team B
                 </label>
                 <input
                   value={match.awayTeam.name}
@@ -1099,7 +1447,7 @@ export default async function EditMatchPage({
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-white/80">
-                  Home Score
+                  {match.homeTeam.name} Series Score
                 </label>
                 <input
                   name="homeScore"
@@ -1112,7 +1460,7 @@ export default async function EditMatchPage({
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-white/80">
-                  Away Score
+                  {match.awayTeam.name} Series Score
                 </label>
                 <input
                   name="awayScore"
@@ -1125,7 +1473,7 @@ export default async function EditMatchPage({
 
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-semibold text-white/80">
-                  Winner / Draw
+                  Series Winner / Draw
                 </label>
                 <select
                   name="winnerTeamId"
@@ -1157,9 +1505,9 @@ export default async function EditMatchPage({
 
             <div className="border-t border-white/10 pt-8">
               <div className="mb-4">
-                <h3 className="text-2xl font-bold">Individual Games</h3>
+                <h3 className="text-2xl font-bold">Per-Game Editor</h3>
                 <p className="mt-2 text-sm text-white/60">
-                  Add per-game results for this series. Blank game cards will not be saved.
+                  This is the manual fallback for OCR misses. Patch team stats and objective counts directly here.
                 </p>
               </div>
 
@@ -1209,75 +1557,93 @@ export default async function EditMatchPage({
                         />
                       </div>
 
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div>
-                          <label className="mb-2 block text-sm font-semibold text-white/80">
-                            {match.homeTeam.name} Kills
-                          </label>
-                          <input
-                            name={`game_${game.gameNumber}_homeKills`}
-                            type="number"
-                            min="0"
-                            defaultValue={game.homeKills}
-                            placeholder="e.g. 30"
-                            className="w-full rounded-xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-green-400/50"
-                          />
+                      <div className="rounded-2xl border border-green-400/15 bg-green-500/5 p-4">
+                        <div className="mb-3 text-sm font-bold text-green-400">
+                          {match.homeTeam.name}
                         </div>
 
-                        <div>
-                          <label className="mb-2 block text-sm font-semibold text-white/80">
-                            {match.awayTeam.name} Kills
-                          </label>
-                          <input
-                            name={`game_${game.gameNumber}_awayKills`}
-                            type="number"
-                            min="0"
-                            defaultValue={game.awayKills}
-                            placeholder="e.g. 20"
-                            className="w-full rounded-xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-green-400/50"
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <Field
+                            label="Kills"
+                            name={`game_${game.gameNumber}_homeKills`}
+                            defaultValue={game.homeKills}
+                          />
+                          <Field
+                            label="Gold"
+                            name={`game_${game.gameNumber}_homeGold`}
+                            defaultValue={game.homeGold}
+                          />
+                          <Field
+                            label="Towers"
+                            name={`game_${game.gameNumber}_homeTowers`}
+                            defaultValue={game.homeTowers}
+                          />
+                          <Field
+                            label="Inhibitors"
+                            name={`game_${game.gameNumber}_homeInhibitors`}
+                            defaultValue={game.homeInhibitors}
+                          />
+                          <Field
+                            label="Barons"
+                            name={`game_${game.gameNumber}_homeBarons`}
+                            defaultValue={game.homeBarons}
+                          />
+                          <Field
+                            label="Drakes"
+                            name={`game_${game.gameNumber}_homeDrakes`}
+                            defaultValue={game.homeDrakes}
                           />
                         </div>
                       </div>
 
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div>
-                          <label className="mb-2 block text-sm font-semibold text-white/80">
-                            {match.homeTeam.name} Gold
-                          </label>
-                          <input
-                            name={`game_${game.gameNumber}_homeGold`}
-                            type="number"
-                            min="0"
-                            defaultValue={game.homeGold}
-                            placeholder="e.g. 48032"
-                            className="w-full rounded-xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-green-400/50"
-                          />
+                      <div className="rounded-2xl border border-blue-400/15 bg-blue-500/5 p-4">
+                        <div className="mb-3 text-sm font-bold text-blue-300">
+                          {match.awayTeam.name}
                         </div>
 
-                        <div>
-                          <label className="mb-2 block text-sm font-semibold text-white/80">
-                            {match.awayTeam.name} Gold
-                          </label>
-                          <input
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <Field
+                            label="Kills"
+                            name={`game_${game.gameNumber}_awayKills`}
+                            defaultValue={game.awayKills}
+                          />
+                          <Field
+                            label="Gold"
                             name={`game_${game.gameNumber}_awayGold`}
-                            type="number"
-                            min="0"
                             defaultValue={game.awayGold}
-                            placeholder="e.g. 42584"
-                            className="w-full rounded-xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-green-400/50"
+                          />
+                          <Field
+                            label="Towers"
+                            name={`game_${game.gameNumber}_awayTowers`}
+                            defaultValue={game.awayTowers}
+                          />
+                          <Field
+                            label="Inhibitors"
+                            name={`game_${game.gameNumber}_awayInhibitors`}
+                            defaultValue={game.awayInhibitors}
+                          />
+                          <Field
+                            label="Barons"
+                            name={`game_${game.gameNumber}_awayBarons`}
+                            defaultValue={game.awayBarons}
+                          />
+                          <Field
+                            label="Drakes"
+                            name={`game_${game.gameNumber}_awayDrakes`}
+                            defaultValue={game.awayDrakes}
                           />
                         </div>
                       </div>
 
                       <div>
                         <label className="mb-2 block text-sm font-semibold text-white/80">
-                          MVP
+                          MVP Display Name
                         </label>
                         <input
                           name={`game_${game.gameNumber}_mvpName`}
                           type="text"
                           defaultValue={game.mvpName}
-                          placeholder="e.g. nidebaba"
+                          placeholder="e.g. JeanCultamaire#32640"
                           className="w-full rounded-xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-green-400/50"
                         />
                       </div>
@@ -1305,7 +1671,7 @@ export default async function EditMatchPage({
                 type="submit"
                 className="rounded-xl bg-green-400 px-6 py-3 font-bold uppercase tracking-wide text-black transition hover:scale-[1.02] hover:bg-green-300"
               >
-                Save Changes
+                Save Match & Game Changes
               </button>
 
               <Link
@@ -1338,11 +1704,11 @@ export default async function EditMatchPage({
         <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-6">
           <div className="mb-6">
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-green-400">
-              Player Stats Entry
+              Player Row Editor
             </p>
-            <h2 className="mt-2 text-2xl font-bold">Submit Player Stats Per Game</h2>
+            <h2 className="mt-2 text-2xl font-bold">Patch / Overwrite Player Rows</h2>
             <p className="mt-2 text-sm text-white/60">
-              Save all 10 players for an individual game. Make sure that game winner is set first in the match editor above.
+              Save one row, five rows, or all ten. MVP and SVP are selected once per game below, then Prisma and ELO are recalculated cleanly.
             </p>
           </div>
 
@@ -1360,175 +1726,77 @@ export default async function EditMatchPage({
                     <p className="mt-1 text-sm text-white/50">
                       {game.hasSavedGame
                         ? game.hasWinnerSet
-                          ? "Ready for player stat submission."
-                          : "Set the individual game winner above before saving player stats."
-                        : "This game has not been created yet in the match editor above."}
+                          ? "Winner is set. Patch any player row below."
+                          : "Set the winner above before saving player rows."
+                        : "Create this game in the editor above first."}
                     </p>
                   </div>
 
                   <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
-                    {game.hasWinnerSet ? "Winner Set" : "Winner Missing"}
+                    {game.hasWinnerSet ? "Ready" : "Winner Missing"}
                   </div>
                 </div>
 
-                <form action={submitGameStats} className="space-y-6">
+                <form action={saveGamePlayerRows} className="space-y-6">
                   <input type="hidden" name="matchId" value={match.id} />
                   <input type="hidden" name="gameNumber" value={game.gameNumber} />
 
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+                        MVP Player
+                      </label>
+                      <select
+                        name="selectedMvpPlayerId"
+                        defaultValue={game.selectedMvpPlayerId}
+                        className="w-full rounded-xl border border-white/10 bg-black px-4 py-3 text-sm text-white outline-none transition focus:border-green-400/50"
+                      >
+                        <option value="">No MVP selected</option>
+                        {game.rosterOptions.map((player) => (
+                          <option key={`mvp-${player.id}`} value={player.id}>
+                            {player.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+                        SVP Player
+                      </label>
+                      <select
+                        name="selectedSvpPlayerId"
+                        defaultValue={game.selectedSvpPlayerId}
+                        className="w-full rounded-xl border border-white/10 bg-black px-4 py-3 text-sm text-white outline-none transition focus:border-green-400/50"
+                      >
+                        <option value="">No SVP selected</option>
+                        {game.rosterOptions.map((player) => (
+                          <option key={`svp-${player.id}`} value={player.id}>
+                            {player.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
                   <div className="grid gap-6 xl:grid-cols-2">
-                    <div className="rounded-2xl border border-green-400/15 bg-green-500/5 p-4">
-                      <div className="mb-4 flex items-center justify-between">
-                        <h4 className="text-lg font-bold text-green-400">
-                          {match.homeTeam.name}
-                        </h4>
-                        <span className="text-xs uppercase tracking-[0.2em] text-white/40">
-                          Home Team
-                        </span>
-                      </div>
+                    <PlayerRowTable
+                      title={match.homeTeam.name}
+                      accent="green"
+                      teamLabel="Team A"
+                      rows={game.homeRows}
+                      players={match.homeTeam.players}
+                      side="home"
+                    />
 
-                      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_80px] gap-2 px-1 pb-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                        <div>Player</div>
-                        <div>K</div>
-                        <div>D</div>
-                        <div>A</div>
-                        <div className="text-center">MVP</div>
-                      </div>
-
-                      <div className="space-y-2">
-                        {Array.from({ length: 5 }).map((_, i) => {
-                          const defaultPlayer = match.homeTeam.players[i];
-
-                          return (
-                            <div
-                              key={`home-row-${game.gameNumber}-${i}`}
-                              className="grid grid-cols-[2fr_1fr_1fr_1fr_80px] gap-2"
-                            >
-                              <select
-                                name={`home_player_${i}`}
-                                defaultValue={defaultPlayer?.id || ""}
-                                className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
-                              >
-                                <option value="">Select Player</option>
-                                {match.homeTeam.players.map((player) => (
-                                  <option key={player.id} value={player.id}>
-                                    {player.name}#{player.riotTag}
-                                  </option>
-                                ))}
-                              </select>
-
-                              <input
-                                name={`home_k_${i}`}
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
-                              />
-
-                              <input
-                                name={`home_d_${i}`}
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
-                              />
-
-                              <input
-                                name={`home_a_${i}`}
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
-                              />
-
-                              <label className="flex items-center justify-center rounded-xl border border-white/10 bg-black px-3 py-2">
-                                <input
-                                  name={`home_mvp_${i}`}
-                                  type="checkbox"
-                                  className="h-4 w-4"
-                                />
-                              </label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-blue-400/15 bg-blue-500/5 p-4">
-                      <div className="mb-4 flex items-center justify-between">
-                        <h4 className="text-lg font-bold text-blue-300">
-                          {match.awayTeam.name}
-                        </h4>
-                        <span className="text-xs uppercase tracking-[0.2em] text-white/40">
-                          Away Team
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_80px] gap-2 px-1 pb-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                        <div>Player</div>
-                        <div>K</div>
-                        <div>D</div>
-                        <div>A</div>
-                        <div className="text-center">MVP</div>
-                      </div>
-
-                      <div className="space-y-2">
-                        {Array.from({ length: 5 }).map((_, i) => {
-                          const defaultPlayer = match.awayTeam.players[i];
-
-                          return (
-                            <div
-                              key={`away-row-${game.gameNumber}-${i}`}
-                              className="grid grid-cols-[2fr_1fr_1fr_1fr_80px] gap-2"
-                            >
-                              <select
-                                name={`away_player_${i}`}
-                                defaultValue={defaultPlayer?.id || ""}
-                                className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
-                              >
-                                <option value="">Select Player</option>
-                                {match.awayTeam.players.map((player) => (
-                                  <option key={player.id} value={player.id}>
-                                    {player.name}#{player.riotTag}
-                                  </option>
-                                ))}
-                              </select>
-
-                              <input
-                                name={`away_k_${i}`}
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
-                              />
-
-                              <input
-                                name={`away_d_${i}`}
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
-                              />
-
-                              <input
-                                name={`away_a_${i}`}
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
-                              />
-
-                              <label className="flex items-center justify-center rounded-xl border border-white/10 bg-black px-3 py-2">
-                                <input
-                                  name={`away_mvp_${i}`}
-                                  type="checkbox"
-                                  className="h-4 w-4"
-                                />
-                              </label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    <PlayerRowTable
+                      title={match.awayTeam.name}
+                      accent="blue"
+                      teamLabel="Team B"
+                      rows={game.awayRows}
+                      players={match.awayTeam.players}
+                      side="away"
+                    />
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3">
@@ -1537,11 +1805,11 @@ export default async function EditMatchPage({
                       disabled={!game.hasSavedGame || !game.hasWinnerSet}
                       className="rounded-xl bg-green-400 px-6 py-3 font-bold uppercase tracking-wide text-black transition hover:scale-[1.02] hover:bg-green-300 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:hover:scale-100"
                     >
-                      Save Player Stats for Game {game.gameNumber}
+                      Save Player Rows for Game {game.gameNumber}
                     </button>
 
                     <p className="text-xs text-white/45">
-                      One submission saves all 10 players and updates ELO/streaks.
+                      Existing rows are overwritten. Missing rows can be added without resetting the whole game.
                     </p>
                   </div>
                 </form>
@@ -1561,6 +1829,158 @@ function StatCard({ label, value }: { label: string; value: string }) {
         {label}
       </div>
       <div className="mt-2 text-2xl font-black text-white">{value}</div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  name,
+  defaultValue,
+}: {
+  label: string;
+  name: string;
+  defaultValue: string;
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+        {label}
+      </label>
+      <input
+        name={name}
+        type="number"
+        min="0"
+        defaultValue={defaultValue}
+        placeholder="0"
+        className="w-full rounded-xl border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-green-400/50"
+      />
+    </div>
+  );
+}
+
+function PlayerRowTable({
+  title,
+  accent,
+  teamLabel,
+  rows,
+  players,
+  side,
+}: {
+  title: string;
+  accent: "green" | "blue";
+  teamLabel: string;
+  rows: Array<{
+    playerId: string;
+    kills: string;
+    deaths: string;
+    assists: string;
+    gold: string;
+    damage: string;
+  }>;
+  players: Array<{
+    id: string;
+    name: string;
+    riotName: string | null;
+    riotTag: string | null;
+  }>;
+  side: "home" | "away";
+}) {
+  const accentClasses =
+    accent === "green"
+      ? {
+          wrap: "border-green-400/15 bg-green-500/5",
+          title: "text-green-400",
+        }
+      : {
+          wrap: "border-blue-400/15 bg-blue-500/5",
+          title: "text-blue-300",
+        };
+
+  return (
+    <div className={`rounded-2xl border p-4 ${accentClasses.wrap}`}>
+      <div className="mb-4 flex items-center justify-between">
+        <h4 className={`text-lg font-bold ${accentClasses.title}`}>{title}</h4>
+        <span className="text-xs uppercase tracking-[0.2em] text-white/40">
+          {teamLabel}
+        </span>
+      </div>
+
+      <div className="mb-2 grid grid-cols-[minmax(220px,2fr)_60px_60px_60px_90px_90px] gap-2 px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
+        <div>Player</div>
+        <div>K</div>
+        <div>D</div>
+        <div>A</div>
+        <div>Gold</div>
+        <div>Dmg</div>
+      </div>
+
+      <div className="space-y-2">
+        {rows.map((row, i) => (
+          <div
+            key={`${side}-row-${i}`}
+            className="grid grid-cols-[minmax(220px,2fr)_60px_60px_60px_90px_90px] gap-2"
+          >
+            <select
+              name={`${side}_player_${i}`}
+              defaultValue={row.playerId}
+              className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
+            >
+              <option value="">Select Player</option>
+              {players.map((player) => (
+                <option key={player.id} value={player.id}>
+                  {getPlayerDisplayName(player)}
+                </option>
+              ))}
+            </select>
+
+            <input
+              name={`${side}_k_${i}`}
+              type="number"
+              min="0"
+              defaultValue={row.kills}
+              placeholder="0"
+              className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
+            />
+
+            <input
+              name={`${side}_d_${i}`}
+              type="number"
+              min="0"
+              defaultValue={row.deaths}
+              placeholder="0"
+              className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
+            />
+
+            <input
+              name={`${side}_a_${i}`}
+              type="number"
+              min="0"
+              defaultValue={row.assists}
+              placeholder="0"
+              className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
+            />
+
+            <input
+              name={`${side}_gold_${i}`}
+              type="number"
+              min="0"
+              defaultValue={row.gold}
+              placeholder="0"
+              className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
+            />
+
+            <input
+              name={`${side}_damage_${i}`}
+              type="number"
+              min="0"
+              defaultValue={row.damage}
+              placeholder="0"
+              className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-green-400/50"
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

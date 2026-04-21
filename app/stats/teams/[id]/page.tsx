@@ -31,7 +31,12 @@ function polarToCartesian(cx: number, cy: number, r: number, angle: number) {
   };
 }
 
-function buildPolygonPoints(values: number[], cx: number, cy: number, radius: number) {
+function buildPolygonPoints(
+  values: number[],
+  cx: number,
+  cy: number,
+  radius: number
+) {
   const total = values.length;
 
   return values
@@ -43,7 +48,12 @@ function buildPolygonPoints(values: number[], cx: number, cy: number, radius: nu
     .join(" ");
 }
 
-function buildGridPolygonPoints(sides: number, cx: number, cy: number, radius: number) {
+function buildGridPolygonPoints(
+  sides: number,
+  cx: number,
+  cy: number,
+  radius: number
+) {
   return Array.from({ length: sides })
     .map((_, index) => {
       const angle = (360 / sides) * index;
@@ -120,6 +130,7 @@ export default async function TeamStatsDetailPage({
     notFound();
   }
 
+  // Series record still comes from match-level results
   const allSeries = [...team.homeMatches, ...team.awayMatches].filter(
     (match) => match.status === "COMPLETED" || match.status === "FORFEIT"
   );
@@ -130,16 +141,47 @@ export default async function TeamStatsDetailPage({
   ).length;
   const seriesDraws = allSeries.filter((match) => !match.winnerTeamId).length;
 
-  const seriesWr =
-    seriesWins + seriesLosses > 0
-      ? (seriesWins / (seriesWins + seriesLosses)) * 100
-      : 0;
+  // Win rate now comes from MatchGame winners instead of Match.winnerTeamId
+  const completedMatchIds = allSeries.map((match) => match.id);
 
-  const hasSeriesData = allSeries.length > 0;
+  const matchGames = completedMatchIds.length
+    ? await prisma.matchGame.findMany({
+        where: {
+          matchId: {
+            in: completedMatchIds,
+          },
+          match: {
+            OR: [{ homeTeamId: team.id }, { awayTeamId: team.id }],
+          },
+        },
+        include: {
+          match: true,
+        },
+        orderBy: [{ matchId: "asc" }, { gameNumber: "asc" }],
+      })
+    : [];
+
+  const gameWins = matchGames.filter((game) => game.winnerTeamId === team.id).length;
+  const gameLosses = matchGames.filter(
+    (game) => game.winnerTeamId && game.winnerTeamId !== team.id
+  ).length;
+  const gameDraws = matchGames.filter((game) => !game.winnerTeamId).length;
+
+  const gameWr =
+    gameWins + gameLosses > 0 ? (gameWins / (gameWins + gameLosses)) * 100 : 0;
+
+  const hasGameData = matchGames.length > 0;
 
   const playerStats = await prisma.matchGamePlayerStat.findMany({
     where: {
       teamId: team.id,
+      matchGame: {
+        match: {
+          status: {
+            in: ["COMPLETED", "FORFEIT"],
+          },
+        },
+      },
     },
     include: {
       player: true,
@@ -159,7 +201,9 @@ export default async function TeamStatsDetailPage({
   const avgKills = hasPlayerStatData ? totalKills / playerStats.length : 0;
   const avgDeaths = hasPlayerStatData ? totalDeaths / playerStats.length : 0;
   const avgAssists = hasPlayerStatData ? totalAssists / playerStats.length : 0;
-  const teamKda = hasPlayerStatData ? formatKda(totalKills, totalDeaths, totalAssists) : "—";
+  const teamKda = hasPlayerStatData
+    ? formatKda(totalKills, totalDeaths, totalAssists)
+    : "—";
 
   const statsByPlayerId = new Map<
     string,
@@ -239,11 +283,11 @@ export default async function TeamStatsDetailPage({
   const fightScore = hasPlayerStatData ? clamp(avgKills * 12) : 0;
   const controlScore = hasPlayerStatData ? clamp(100 - avgDeaths * 10) : 0;
   const teamplayScore = hasPlayerStatData ? clamp(avgAssists * 8) : 0;
-  const winScore = hasSeriesData ? clamp(seriesWr) : 0;
+  const winScore = hasGameData ? clamp(gameWr) : 0;
 
-  const totalGames = playerStats.length || 1;
+  const totalGames = matchGames.length || 1;
   const totalMVPs = playerStats.filter((s) => s.isMVP).length;
-  const impactScore = hasPlayerStatData ? clamp((totalMVPs / totalGames) * 100) : 0;
+  const impactScore = hasGameData ? clamp((totalMVPs / totalGames) * 100) : 0;
 
   const efficiencyScore = rosterRows.length ? clamp(rosterAvgElo / 16) : 0;
 
@@ -251,7 +295,7 @@ export default async function TeamStatsDetailPage({
     {
       label: "WINRATE",
       short: "WR",
-      valueLabel: hasSeriesData ? formatPercent(seriesWr) : "—",
+      valueLabel: hasGameData ? formatPercent(gameWr) : "—",
       chartValue: winScore,
       position: {
         left: "50%",
@@ -354,7 +398,7 @@ export default async function TeamStatsDetailPage({
               />
               <HeroPill
                 label="Win Rate"
-                value={hasSeriesData ? formatPercent(seriesWr) : "—"}
+                value={hasGameData ? formatPercent(gameWr) : "—"}
                 highlight
               />
             </div>
@@ -468,12 +512,7 @@ export default async function TeamStatsDetailPage({
                     fill="rgba(8,8,8,0.96)"
                     stroke="rgba(255,255,255,0.10)"
                   />
-                  <circle
-                    cx="280"
-                    cy="280"
-                    r="38"
-                    fill="rgba(255,255,255,0.04)"
-                  />
+                  <circle cx="280" cy="280" r="38" fill="rgba(255,255,255,0.04)" />
                 </svg>
 
                 <div className="absolute left-1/2 top-1/2 z-20 h-[118px] w-[118px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-[radial-gradient(circle,rgba(255,255,255,0.14),rgba(255,255,255,0.03)_40%,rgba(0,0,0,0.9)_74%)] shadow-[0_0_40px_rgba(250,204,21,0.08)]" />
