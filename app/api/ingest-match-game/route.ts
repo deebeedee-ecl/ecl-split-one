@@ -23,18 +23,120 @@ type ParsedTeamStats = {
   isWinner?: boolean;
 };
 
+type RosterPlayer = {
+  id: string;
+  riotName: string | null;
+  riotTag: string | null;
+  teamId: string | null;
+  elo: number;
+  winStreak: number;
+  lossStreak: number;
+};
+
 function normalizeRiotNameParts(rawName: string) {
   const trimmed = rawName.trim();
-  const [name, tag] = trimmed.split("#");
-
+  const hashIndex = trimmed.lastIndexOf("#");
+  if (hashIndex === -1) return { riotName: trimmed, riotTag: "" };
   return {
-    riotName: name?.trim() || "",
-    riotTag: tag?.trim() || "",
+    riotName: trimmed.slice(0, hashIndex).trim(),
+    riotTag: trimmed.slice(hashIndex + 1).trim(),
   };
 }
 
 function safeNumber(value: unknown, fallback = 0) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+// ---------------------------------------------------------------------------
+// Levenshtein edit distance — used for fuzzy name matching only.
+// We keep this cheap: strings are short (player names, ~5–20 chars).
+// ---------------------------------------------------------------------------
+function editDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 0; i < a.length; i++) {
+    const curr = [i + 1];
+    for (let j = 0; j < b.length; j++) {
+      curr.push(
+        Math.min(
+          prev[j + 1] + 1,
+          curr[j] + 1,
+          prev[j] + (a[i] !== b[j] ? 1 : 0)
+        )
+      );
+    }
+    prev.splice(0, prev.length, ...curr);
+  }
+  return prev[b.length];
+}
+
+// ---------------------------------------------------------------------------
+// Fuzzy player lookup.
+//
+// Strategy (in order):
+//   1. Exact riotName + riotTag match (case-insensitive).
+//   2. Exact tag + fuzzy name — edit distance ≤ MAX_NAME_DISTANCE.
+//      Catches: Fembov→Femboy, xVanp→xVamp, MANBA0UT→MANBAOUT, etc.
+//
+// Returns the best-matching RosterPlayer or null.
+// ---------------------------------------------------------------------------
+const MAX_NAME_DISTANCE = 2;
+
+function fuzzyFindPlayer(
+  rawName: string,
+  rosterPlayers: RosterPlayer[]
+): RosterPlayer | null {
+  if (!rawName.includes("#")) return null;
+
+  const { riotName: ocrName, riotTag: ocrTag } =
+    normalizeRiotNameParts(rawName);
+  const ocrNameLower = ocrName.toLowerCase();
+  const ocrTagLower = ocrTag.toLowerCase();
+
+  // 1. Exact match
+  for (const p of rosterPlayers) {
+    if (
+      p.riotName?.toLowerCase() === ocrNameLower &&
+      p.riotTag?.toLowerCase() === ocrTagLower
+    ) {
+      return p;
+    }
+  }
+
+  // 2. Exact tag + fuzzy name
+  let bestPlayer: RosterPlayer | null = null;
+  let bestDist = MAX_NAME_DISTANCE + 1;
+
+  for (const p of rosterPlayers) {
+    if (p.riotTag?.toLowerCase() !== ocrTagLower) continue;
+    const dist = editDistance(ocrNameLower, p.riotName?.toLowerCase() ?? "");
+    if (dist <= MAX_NAME_DISTANCE && dist < bestDist) {
+      bestDist = dist;
+      bestPlayer = p;
+    }
+  }
+
+  return bestPlayer;
+}
+
+// ---------------------------------------------------------------------------
+// Score how many OCR players fuzzy-match a given roster.
+// Used to map top/bottom screenshot sides to home/away teams.
+// ---------------------------------------------------------------------------
+function scoreSideAgainstRoster(
+  players: ParsedPlayer[],
+  rosterPlayers: RosterPlayer[]
+): number {
+  let score = 0;
+  for (const p of players) {
+    const rawName = typeof p?.name === "string" ? p.name.trim() : "";
+    if (!rawName.includes("#")) continue;
+    if (fuzzyFindPlayer(rawName, rosterPlayers)) score++;
+  }
+  return score;
 }
 
 export async function POST(req: Request) {
@@ -75,16 +177,8 @@ export async function POST(req: Request) {
     const match = await prisma.match.findUnique({
       where: { id: matchId },
       include: {
-        homeTeam: {
-          include: {
-            players: true,
-          },
-        },
-        awayTeam: {
-          include: {
-            players: true,
-          },
-        },
+        homeTeam: { include: { players: true } },
+        awayTeam: { include: { players: true } },
       },
     });
 
@@ -100,82 +194,54 @@ export async function POST(req: Request) {
     const currentStatus = match.status;
     const currentWinnerTeamId = match.winnerTeamId;
 
+    const homePlayers: RosterPlayer[] = (match.homeTeam?.players ?? []).filter(
+      (p) => p.riotName && p.riotTag
+    ) as RosterPlayer[];
+
+    const awayPlayers: RosterPlayer[] = (match.awayTeam?.players ?? []).filter(
+      (p) => p.riotName && p.riotTag
+    ) as RosterPlayer[];
+
     const existingGame = await prisma.matchGame.findUnique({
-      where: {
-        matchId_gameNumber: {
-          matchId,
-          gameNumber,
-        },
-      },
-      select: {
-        id: true,
-        winnerTeamId: true,
-      },
+      where: { matchId_gameNumber: { matchId, gameNumber } },
+      select: { id: true, winnerTeamId: true },
     });
 
     const isNewGame = !existingGame;
 
-    const homeRosterKeys = new Set(
-      (match.homeTeam?.players ?? []).flatMap((p) => {
-        const riotName = p.riotName?.trim();
-        const riotTag = p.riotTag?.trim();
+    // Map top/bottom screenshot sides to home/away using fuzzy scoring
+    const topSidePlayers: ParsedPlayer[] = topTeam?.isWinner
+      ? winningPlayers
+      : losingPlayers;
+    const bottomSidePlayers: ParsedPlayer[] = topTeam?.isWinner
+      ? losingPlayers
+      : winningPlayers;
 
-        if (!riotName || !riotTag) return [];
-
-        return [`${riotName.toLowerCase()}#${riotTag.toLowerCase()}`];
-      })
-    );
-
-    const awayRosterKeys = new Set(
-      (match.awayTeam?.players ?? []).flatMap((p) => {
-        const riotName = p.riotName?.trim();
-        const riotTag = p.riotTag?.trim();
-
-        if (!riotName || !riotTag) return [];
-
-        return [`${riotName.toLowerCase()}#${riotTag.toLowerCase()}`];
-      })
-    );
-
-    function scoreSideAgainstRoster(
-      players: ParsedPlayer[],
-      rosterKeys: Set<string>
-    ) {
-      let score = 0;
-
-      for (const p of players) {
-        const rawName = typeof p?.name === "string" ? p.name.trim() : "";
-        if (!rawName.includes("#")) continue;
-
-        const { riotName, riotTag } = normalizeRiotNameParts(rawName);
-        const key = `${riotName.toLowerCase()}#${riotTag.toLowerCase()}`;
-
-        if (rosterKeys.has(key)) {
-          score++;
-        }
-      }
-
-      return score;
-    }
-
-    const topSidePlayers = topTeam?.isWinner ? winningPlayers : losingPlayers;
-    const bottomSidePlayers = topTeam?.isWinner ? losingPlayers : winningPlayers;
-
-    const topVsHomeScore = scoreSideAgainstRoster(topSidePlayers, homeRosterKeys);
-    const topVsAwayScore = scoreSideAgainstRoster(topSidePlayers, awayRosterKeys);
+    const topVsHomeScore = scoreSideAgainstRoster(topSidePlayers, homePlayers);
+    const topVsAwayScore = scoreSideAgainstRoster(topSidePlayers, awayPlayers);
     const bottomVsHomeScore = scoreSideAgainstRoster(
       bottomSidePlayers,
-      homeRosterKeys
+      homePlayers
     );
     const bottomVsAwayScore = scoreSideAgainstRoster(
       bottomSidePlayers,
-      awayRosterKeys
+      awayPlayers
     );
+
+    console.log("🔍 Side scores:", {
+      topVsHomeScore,
+      topVsAwayScore,
+      bottomVsHomeScore,
+      bottomVsAwayScore,
+    });
 
     let topTeamId: string | null = null;
     let bottomTeamId: string | null = null;
 
-    if (topVsHomeScore > topVsAwayScore && bottomVsAwayScore >= bottomVsHomeScore) {
+    if (
+      topVsHomeScore > topVsAwayScore &&
+      bottomVsAwayScore >= bottomVsHomeScore
+    ) {
       topTeamId = homeTeamId;
       bottomTeamId = awayTeamId;
     } else if (
@@ -185,27 +251,49 @@ export async function POST(req: Request) {
       topTeamId = awayTeamId;
       bottomTeamId = homeTeamId;
     } else {
-      return NextResponse.json(
-        {
-          error: "Could not map screenshot sides to scheduled teams",
-          debug: {
-            topVsHomeScore,
-            topVsAwayScore,
-            bottomVsHomeScore,
-            bottomVsAwayScore,
+      // Fallback: pick whichever side has a higher total match score
+      const homeTotal = topVsHomeScore + bottomVsHomeScore;
+      const awayTotal = topVsAwayScore + bottomVsAwayScore;
+
+      console.warn("⚠️ Ambiguous side mapping — using fallback scoring", {
+        homeTotal,
+        awayTotal,
+      });
+
+      if (homeTotal > 0 || awayTotal > 0) {
+        // Assign by whichever side scored more home players on top
+        topTeamId = topVsHomeScore >= topVsAwayScore ? homeTeamId : awayTeamId;
+        bottomTeamId = topTeamId === homeTeamId ? awayTeamId : homeTeamId;
+      } else {
+        return NextResponse.json(
+          {
+            error: "Could not map screenshot sides to scheduled teams",
+            debug: {
+              topVsHomeScore,
+              topVsAwayScore,
+              bottomVsHomeScore,
+              bottomVsAwayScore,
+              homePlayers: homePlayers.map(
+                (p) => `${p.riotName}#${p.riotTag}`
+              ),
+              awayPlayers: awayPlayers.map(
+                (p) => `${p.riotName}#${p.riotTag}`
+              ),
+              receivedTopSide: topSidePlayers.map((p) => p.name),
+              receivedBottomSide: bottomSidePlayers.map((p) => p.name),
+            },
           },
-        },
-        { status: 400 }
-      );
+          { status: 400 }
+        );
+      }
     }
 
     const homeIsTop = topTeamId === homeTeamId;
-
     const homeTeamStats: ParsedTeamStats = homeIsTop ? topTeam : bottomTeam;
     const awayTeamStats: ParsedTeamStats = homeIsTop ? bottomTeam : topTeam;
-
     const winnerTeamId = topTeam.isWinner ? topTeamId : bottomTeamId;
-    const loserTeamId = winnerTeamId === homeTeamId ? awayTeamId : homeTeamId;
+    const loserTeamId =
+      winnerTeamId === homeTeamId ? awayTeamId : homeTeamId;
 
     if (!winnerTeamId || !loserTeamId) {
       return NextResponse.json(
@@ -214,12 +302,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const allPlayers = [
+    const allPlayers: ParsedPlayer[] = [
       ...(Array.isArray(winningPlayers) ? winningPlayers : []),
       ...(Array.isArray(losingPlayers) ? losingPlayers : []),
     ];
 
-    const mvpPlayer = allPlayers.find((p: ParsedPlayer) => p?.isMVP);
+    const mvpPlayer = allPlayers.find((p) => p?.isMVP);
     const mvpName = mvpPlayer?.name ?? null;
 
     const safeDurationMinutes =
@@ -233,12 +321,7 @@ export async function POST(req: Request) {
       safeDurationMinutes !== null ? safeDurationMinutes * 60 : null;
 
     const game = await prisma.matchGame.upsert({
-      where: {
-        matchId_gameNumber: {
-          matchId,
-          gameNumber,
-        },
-      },
+      where: { matchId_gameNumber: { matchId, gameNumber } },
       update: {
         winnerTeamId,
         durationSeconds,
@@ -281,59 +364,38 @@ export async function POST(req: Request) {
 
     let matched = 0;
     let skipped = 0;
+    const allRosterPlayers = [...homePlayers, ...awayPlayers];
 
     async function processPlayer(p: ParsedPlayer) {
       const rawName = typeof p.name === "string" ? p.name.trim() : "";
-      const { riotName, riotTag } = normalizeRiotNameParts(rawName);
 
-      if (!riotName || !riotTag) {
-        console.log("❌ Invalid tag:", p.name);
-        skipped++;
-        return;
-      }
-
-      const player = await prisma.player.findFirst({
-        where: {
-          riotName,
-          riotTag,
-        },
-      });
+      // Use the same fuzzy lookup so Fembov→Femboy works here too
+      const player = fuzzyFindPlayer(rawName, allRosterPlayers);
 
       if (!player) {
-        console.log("⚠️ Not in DB:", p.name);
+        console.log("⚠️ Not in roster (fuzzy):", rawName);
         skipped++;
         return;
       }
 
       if (player.teamId !== homeTeamId && player.teamId !== awayTeamId) {
-        console.log("⚠️ Not in this match:", p.name);
+        console.log("⚠️ Not in this match:", rawName);
         skipped++;
         return;
       }
 
-      const teamId = player.teamId;
+      const teamId = player.teamId!;
       const isWin = teamId === winnerTeamId;
-
-      if (!teamId) {
-        console.log("⚠️ Player has no teamId:", p.name);
-        skipped++;
-        return;
-      }
-
       matched++;
 
       const existingStat = await prisma.matchGamePlayerStat.findUnique({
         where: {
-          matchGameId_playerId: {
-            matchGameId: game.id,
-            playerId: player.id,
-          },
+          matchGameId_playerId: { matchGameId: game.id, playerId: player.id },
         },
         select: { id: true },
       });
 
       const isNewStat = !existingStat;
-
       let lpChange = 0;
       let eloBefore = player.elo;
       let eloAfter = player.elo;
@@ -351,22 +413,20 @@ export async function POST(req: Request) {
           winStreak: player.winStreak,
           lossStreak: player.lossStreak,
         });
-
         lpChange = eloResult.lpChange;
         eloAfter = player.elo + lpChange;
       }
 
+      const { riotName, riotTag } = normalizeRiotNameParts(rawName);
+
       await prisma.matchGamePlayerStat.upsert({
         where: {
-          matchGameId_playerId: {
-            matchGameId: game.id,
-            playerId: player.id,
-          },
+          matchGameId_playerId: { matchGameId: game.id, playerId: player.id },
         },
         update: {
           teamId,
-          riotName,
-          riotTag,
+          riotName: player.riotName!,
+          riotTag: player.riotTag!,
           kills: safeNumber(p.kills),
           deaths: safeNumber(p.deaths),
           assists: safeNumber(p.assists),
@@ -383,8 +443,8 @@ export async function POST(req: Request) {
           matchGameId: game.id,
           playerId: player.id,
           teamId,
-          riotName,
-          riotTag,
+          riotName: player.riotName!,
+          riotTag: player.riotTag!,
           kills: safeNumber(p.kills),
           deaths: safeNumber(p.deaths),
           assists: safeNumber(p.assists),
@@ -422,10 +482,13 @@ export async function POST(req: Request) {
 
     if (isNewGame) {
       homeScore =
-        winnerTeamId === homeTeamId ? currentHomeScore + 1 : currentHomeScore;
-
+        winnerTeamId === homeTeamId
+          ? currentHomeScore + 1
+          : currentHomeScore;
       awayScore =
-        winnerTeamId === awayTeamId ? currentAwayScore + 1 : currentAwayScore;
+        winnerTeamId === awayTeamId
+          ? currentAwayScore + 1
+          : currentAwayScore;
     }
 
     let status = currentStatus;
@@ -433,10 +496,8 @@ export async function POST(req: Request) {
 
     if (matchBestOf === 2) {
       const totalGamesPlayed = homeScore + awayScore;
-
       if (totalGamesPlayed >= 2) {
         status = "COMPLETED";
-
         if (homeScore > awayScore) finalWinner = homeTeamId;
         else if (awayScore > homeScore) finalWinner = awayTeamId;
         else finalWinner = null;
@@ -446,7 +507,6 @@ export async function POST(req: Request) {
       }
     } else {
       const winsNeeded = Math.ceil(matchBestOf / 2);
-
       if (homeScore >= winsNeeded) {
         status = "COMPLETED";
         finalWinner = homeTeamId;
@@ -458,12 +518,7 @@ export async function POST(req: Request) {
 
     await prisma.match.update({
       where: { id: matchId },
-      data: {
-        homeScore,
-        awayScore,
-        status,
-        winnerTeamId: finalWinner,
-      },
+      data: { homeScore, awayScore, status, winnerTeamId: finalWinner },
     });
 
     return NextResponse.json({
