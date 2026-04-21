@@ -116,24 +116,31 @@ export async function POST(req: Request) {
     const isNewGame = !existingGame;
 
     const homeRosterKeys = new Set(
-      (match.homeTeam?.players ?? [])
-        .filter((p) => p.riotName && p.riotTag)
-        .map(
-          (p) =>
-            `${p.riotName.trim().toLowerCase()}#${p.riotTag.trim().toLowerCase()}`
-        )
+      (match.homeTeam?.players ?? []).flatMap((p) => {
+        const riotName = p.riotName?.trim();
+        const riotTag = p.riotTag?.trim();
+
+        if (!riotName || !riotTag) return [];
+
+        return [`${riotName.toLowerCase()}#${riotTag.toLowerCase()}`];
+      })
     );
 
     const awayRosterKeys = new Set(
-      (match.awayTeam?.players ?? [])
-        .filter((p) => p.riotName && p.riotTag)
-        .map(
-          (p) =>
-            `${p.riotName.trim().toLowerCase()}#${p.riotTag.trim().toLowerCase()}`
-        )
+      (match.awayTeam?.players ?? []).flatMap((p) => {
+        const riotName = p.riotName?.trim();
+        const riotTag = p.riotTag?.trim();
+
+        if (!riotName || !riotTag) return [];
+
+        return [`${riotName.toLowerCase()}#${riotTag.toLowerCase()}`];
+      })
     );
 
-    function scoreSideAgainstRoster(players: ParsedPlayer[], rosterKeys: Set<string>) {
+    function scoreSideAgainstRoster(
+      players: ParsedPlayer[],
+      rosterKeys: Set<string>
+    ) {
       let score = 0;
 
       for (const p of players) {
