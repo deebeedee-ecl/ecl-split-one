@@ -130,18 +130,10 @@ export default async function TeamStatsDetailPage({
     notFound();
   }
 
-  // Series record still comes from match-level results
   const allSeries = [...team.homeMatches, ...team.awayMatches].filter(
     (match) => match.status === "COMPLETED" || match.status === "FORFEIT"
   );
 
-  const seriesWins = allSeries.filter((match) => match.winnerTeamId === team.id).length;
-  const seriesLosses = allSeries.filter(
-    (match) => match.winnerTeamId && match.winnerTeamId !== team.id
-  ).length;
-  const seriesDraws = allSeries.filter((match) => !match.winnerTeamId).length;
-
-  // Win rate now comes from MatchGame winners instead of Match.winnerTeamId
   const completedMatchIds = allSeries.map((match) => match.id);
 
   const matchGames = completedMatchIds.length
@@ -394,7 +386,7 @@ export default async function TeamStatsDetailPage({
             <div className="mt-5 flex flex-wrap gap-3">
               <HeroPill
                 label="Record"
-                value={`${seriesWins}-${seriesLosses}${seriesDraws > 0 ? `-${seriesDraws}` : ""}`}
+                value={`${gameWins}-${gameLosses}${gameDraws > 0 ? `-${gameDraws}` : ""}`}
               />
               <HeroPill
                 label="Win Rate"
