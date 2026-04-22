@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { calculateLpChange } from "@/lib/elo";
 import { MatchStage, MatchStatus, Prisma } from "@prisma/client";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 
 export const dynamic = "force-dynamic";
 
@@ -180,6 +181,7 @@ async function recalculateAllPlayerStats(tx: TxClient) {
             select: {
               scheduledAt: true,
               createdAt: true,
+              status: true,
             },
           },
         },
@@ -187,7 +189,13 @@ async function recalculateAllPlayerStats(tx: TxClient) {
     },
   });
 
-  allStats.sort((a, b) => {
+  const relevantStats = allStats.filter(
+    (stat) =>
+      stat.matchGame.match.status === "COMPLETED" ||
+      stat.matchGame.match.status === "FORFEIT"
+  );
+
+  relevantStats.sort((a, b) => {
     const aTime =
       a.matchGame.match.scheduledAt?.getTime() ??
       a.matchGame.match.createdAt.getTime();
@@ -203,7 +211,7 @@ async function recalculateAllPlayerStats(tx: TxClient) {
     return a.id.localeCompare(b.id);
   });
 
-  for (const stat of allStats) {
+  for (const stat of relevantStats) {
     const current = playerState.get(stat.playerId) ?? {
       elo: 1000,
       winStreak: 0,
@@ -625,6 +633,10 @@ async function updateMatch(formData: FormData) {
 
     redirect(buildRedirectUrl(id, { updated: "1" }));
   } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
     console.error("updateMatch error:", error);
 
     const id = String(formData.get("id") || "").trim();
@@ -754,6 +766,7 @@ async function saveGamePlayerRows(formData: FormData) {
       const damageRaw = String(formData.get(`home_damage_${i}`) || "").trim();
 
       const hasAnyValue =
+        playerId !== "" ||
         killsRaw !== "" ||
         deathsRaw !== "" ||
         assistsRaw !== "" ||
@@ -778,9 +791,9 @@ async function saveGamePlayerRows(formData: FormData) {
         );
       }
 
-      const kills = parseRequiredNonNegativeInt(killsRaw, "Kills");
-      const deaths = parseRequiredNonNegativeInt(deathsRaw, "Deaths");
-      const assists = parseRequiredNonNegativeInt(assistsRaw, "Assists");
+      const kills = parseRequiredNonNegativeInt(killsRaw || "0", "Kills");
+      const deaths = parseRequiredNonNegativeInt(deathsRaw || "0", "Deaths");
+      const assists = parseRequiredNonNegativeInt(assistsRaw || "0", "Assists");
       const gold = parseOptionalNonNegativeInt(goldRaw);
       const damage = parseOptionalNonNegativeInt(damageRaw);
 
@@ -814,6 +827,7 @@ async function saveGamePlayerRows(formData: FormData) {
       const damageRaw = String(formData.get(`away_damage_${i}`) || "").trim();
 
       const hasAnyValue =
+        playerId !== "" ||
         killsRaw !== "" ||
         deathsRaw !== "" ||
         assistsRaw !== "" ||
@@ -838,9 +852,9 @@ async function saveGamePlayerRows(formData: FormData) {
         );
       }
 
-      const kills = parseRequiredNonNegativeInt(killsRaw, "Kills");
-      const deaths = parseRequiredNonNegativeInt(deathsRaw, "Deaths");
-      const assists = parseRequiredNonNegativeInt(assistsRaw, "Assists");
+      const kills = parseRequiredNonNegativeInt(killsRaw || "0", "Kills");
+      const deaths = parseRequiredNonNegativeInt(deathsRaw || "0", "Deaths");
+      const assists = parseRequiredNonNegativeInt(assistsRaw || "0", "Assists");
       const gold = parseOptionalNonNegativeInt(goldRaw);
       const damage = parseOptionalNonNegativeInt(damageRaw);
 
@@ -900,75 +914,92 @@ async function saveGamePlayerRows(formData: FormData) {
 
     const playerMap = new Map(players.map((player) => [player.id, player]));
 
-    await prisma.$transaction(async (tx) => {
-      let selectedMvpName: string | null = null;
+    await prisma.$transaction(
+      async (tx) => {
+        let selectedMvpName: string | null = null;
 
-      for (const entry of entries) {
-        const player = playerMap.get(entry.playerId);
+        const submittedPlayerIds = entries.map((entry) => entry.playerId);
 
-        if (!player) {
-          throw new Error(`Player not found for stat save: ${entry.playerId}`);
-        }
-
-        const isWin = entry.teamId === game.winnerTeamId;
-
-        await tx.matchGamePlayerStat.upsert({
+        await tx.matchGamePlayerStat.deleteMany({
           where: {
-            matchGameId_playerId: {
-              matchGameId: game.id,
-              playerId: entry.playerId,
-            },
-          },
-          update: {
-            teamId: entry.teamId,
-            riotName: player.riotName,
-            riotTag: player.riotTag,
-            kills: entry.kills,
-            deaths: entry.deaths,
-            assists: entry.assists,
-            gold: entry.gold,
-            damage: entry.damage,
-            isMVP: entry.isMVP,
-            isSVP: entry.isSVP,
-            isWin,
-          },
-          create: {
             matchGameId: game.id,
-            playerId: entry.playerId,
-            teamId: entry.teamId,
-            riotName: player.riotName,
-            riotTag: player.riotTag,
-            kills: entry.kills,
-            deaths: entry.deaths,
-            assists: entry.assists,
-            gold: entry.gold,
-            damage: entry.damage,
-            isMVP: entry.isMVP,
-            isSVP: entry.isSVP,
-            isWin,
-            lpChange: 0,
-            eloBefore: player.elo,
-            eloAfter: player.elo,
+            playerId: {
+              notIn: submittedPlayerIds,
+            },
           },
         });
 
-        if (entry.isMVP) {
-          selectedMvpName =
-            player.riotName && player.riotTag
-              ? `${player.riotName}#${player.riotTag}`
-              : player.name;
+        for (const entry of entries) {
+          const player = playerMap.get(entry.playerId);
+
+          if (!player) {
+            throw new Error(`Player not found for stat save: ${entry.playerId}`);
+          }
+
+          const isWin = entry.teamId === game.winnerTeamId;
+
+          await tx.matchGamePlayerStat.upsert({
+            where: {
+              matchGameId_playerId: {
+                matchGameId: game.id,
+                playerId: entry.playerId,
+              },
+            },
+            update: {
+              teamId: entry.teamId,
+              riotName: player.riotName,
+              riotTag: player.riotTag,
+              kills: entry.kills,
+              deaths: entry.deaths,
+              assists: entry.assists,
+              gold: entry.gold,
+              damage: entry.damage,
+              isMVP: entry.isMVP,
+              isSVP: entry.isSVP,
+              isWin,
+            },
+            create: {
+              matchGameId: game.id,
+              playerId: entry.playerId,
+              teamId: entry.teamId,
+              riotName: player.riotName,
+              riotTag: player.riotTag,
+              kills: entry.kills,
+              deaths: entry.deaths,
+              assists: entry.assists,
+              gold: entry.gold,
+              damage: entry.damage,
+              isMVP: entry.isMVP,
+              isSVP: entry.isSVP,
+              isWin,
+              lpChange: 0,
+              eloBefore: player.elo,
+              eloAfter: player.elo,
+            },
+          });
+
+          if (entry.isMVP) {
+            selectedMvpName =
+              player.riotName && player.riotTag
+                ? `${player.riotName}#${player.riotTag}`
+                : player.name;
+          }
         }
+
+        await tx.matchGame.update({
+          where: { id: game.id },
+          data: {
+            mvpName: selectedMvpName,
+          },
+        });
+
+        await recalculateAllPlayerStats(tx);
+      },
+      {
+        maxWait: 10000,
+        timeout: 30000,
       }
-
-      await tx.matchGame.update({
-        where: { id: game.id },
-        data: {
-          mvpName: selectedMvpName,
-        },
-      });
-
-      await recalculateAllPlayerStats(tx);
-    });
+    );
 
     revalidatePath("/admin");
     revalidatePath("/admin/matches");
@@ -987,6 +1018,10 @@ async function saveGamePlayerRows(formData: FormData) {
       })
     );
   } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
     console.error("saveGamePlayerRows error:", error);
 
     const matchId = String(formData.get("matchId") || "").trim();
@@ -1021,6 +1056,10 @@ async function deleteMatch(formData: FormData) {
 
     redirect("/admin/matches?deleted=1");
   } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
     console.error("deleteMatch error:", error);
 
     const id = String(formData.get("id") || "").trim();
@@ -1126,12 +1165,6 @@ function getFriendlyMessage(error: string | undefined) {
 }
 
 function buildPlayerRowDefaults(
-  teamPlayers: Array<{
-    id: string;
-    name: string;
-    riotName: string | null;
-    riotTag: string | null;
-  }>,
   playerStats: Array<{
     playerId: string;
     kills: number;
@@ -1141,21 +1174,25 @@ function buildPlayerRowDefaults(
     damage: number | null;
   }>
 ) {
-  return Array.from({ length: 5 }).map((_, index) => {
-    const defaultPlayer = teamPlayers[index];
-    const stat = defaultPlayer
-      ? playerStats.find((item) => item.playerId === defaultPlayer.id)
-      : null;
+  const savedRows = playerStats.slice(0, 5).map((stat) => ({
+    playerId: stat.playerId,
+    kills: stat.kills.toString(),
+    deaths: stat.deaths.toString(),
+    assists: stat.assists.toString(),
+    gold: stat.gold?.toString() ?? "",
+    damage: stat.damage?.toString() ?? "",
+  }));
 
-    return {
-      playerId: defaultPlayer?.id ?? "",
-      kills: stat?.kills?.toString() ?? "",
-      deaths: stat?.deaths?.toString() ?? "",
-      assists: stat?.assists?.toString() ?? "",
-      gold: stat?.gold?.toString() ?? "",
-      damage: stat?.damage?.toString() ?? "",
-    };
-  });
+  const blankRows = Array.from({ length: Math.max(0, 5 - savedRows.length) }).map(() => ({
+    playerId: "",
+    kills: "",
+    deaths: "",
+    assists: "",
+    gold: "",
+    damage: "",
+  }));
+
+  return [...savedRows, ...blankRows];
 }
 
 export default async function EditMatchPage({
@@ -1192,7 +1229,11 @@ export default async function EditMatchPage({
       winnerTeam: true,
       games: {
         include: {
-          playerStats: true,
+          playerStats: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
         },
         orderBy: {
           gameNumber: "asc",
@@ -1251,8 +1292,8 @@ export default async function EditMatchPage({
       hasWinnerSet: !!existingGame?.winnerTeamId,
       selectedMvpPlayerId,
       selectedSvpPlayerId,
-      homeRows: buildPlayerRowDefaults(match.homeTeam.players, homePlayerStats),
-      awayRows: buildPlayerRowDefaults(match.awayTeam.players, awayPlayerStats),
+      homeRows: buildPlayerRowDefaults(homePlayerStats),
+      awayRows: buildPlayerRowDefaults(awayPlayerStats),
       rosterOptions: combinedRoster.map((player) => ({
         id: player.id,
         label: getPlayerDisplayName(player),
@@ -1708,7 +1749,7 @@ export default async function EditMatchPage({
             </p>
             <h2 className="mt-2 text-2xl font-bold">Patch / Overwrite Player Rows</h2>
             <p className="mt-2 text-sm text-white/60">
-              Save one row, five rows, or all ten. MVP and SVP are selected once per game below, then Prisma and ELO are recalculated cleanly.
+              The editor now loads the actual saved rows for this game first. Saving this form overwrites the current saved rows for that game, removes stale wrong rows, and then recalculates Prisma + ELO cleanly.
             </p>
           </div>
 
@@ -1726,7 +1767,7 @@ export default async function EditMatchPage({
                     <p className="mt-1 text-sm text-white/50">
                       {game.hasSavedGame
                         ? game.hasWinnerSet
-                          ? "Winner is set. Patch any player row below."
+                          ? "Winner is set. Patch the real saved player rows below."
                           : "Set the winner above before saving player rows."
                         : "Create this game in the editor above first."}
                     </p>
@@ -1809,7 +1850,7 @@ export default async function EditMatchPage({
                     </button>
 
                     <p className="text-xs text-white/45">
-                      Existing rows are overwritten. Missing rows can be added without resetting the whole game.
+                      Blank rows stay blank. Submitted rows become the saved truth for this game.
                     </p>
                   </div>
                 </form>
