@@ -119,7 +119,6 @@ function getNextDirection(
     return currentDir === "asc" ? "desc" : "asc";
   }
 
-  if (clickedSort === "rank") return "asc";
   return "asc";
 }
 
@@ -170,45 +169,44 @@ export default async function AdminPage({
       : "rank";
 
   const dir: SortDirection =
-    requestedDir === "desc" || requestedDir === "asc"
-      ? requestedDir
-      : sort === "rank"
-      ? "asc"
-      : "asc";
+    requestedDir === "desc" || requestedDir === "asc" ? requestedDir : "asc";
 
-  const [
-    freeAgents,
-    teams,
-    leagueWireCount,
-    visibleLeagueWireCount,
-    totalMatches,
-    scheduledMatches,
-    completedMatches,
-  ] = await Promise.all([
-    prisma.freeAgentRegistration.findMany({
-      orderBy: { submittedAt: "desc" },
-    }),
-    prisma.teamRegistration.findMany({
-      orderBy: { submittedAt: "desc" },
-    }),
-    prisma.leagueWireItem.count(),
-    prisma.leagueWireItem.count({
-      where: {
-        isVisible: true,
-      },
-    }),
-    prisma.match.count(),
-    prisma.match.count({
-      where: {
-        status: "SCHEDULED",
-      },
-    }),
-    prisma.match.count({
-      where: {
-        status: "COMPLETED",
-      },
-    }),
-  ]);
+  // IMPORTANT:
+  // These are sequential on purpose to avoid hammering Supabase local pool.
+  const freeAgents = await prisma.freeAgentRegistration.findMany({
+    orderBy: { submittedAt: "desc" },
+  });
+
+  const teams = await prisma.teamRegistration.findMany({
+    orderBy: { submittedAt: "desc" },
+  });
+
+  const leagueWireItems = await prisma.leagueWireItem.findMany({
+    select: {
+      id: true,
+      isVisible: true,
+    },
+  });
+
+  const matches = await prisma.match.findMany({
+    select: {
+      id: true,
+      status: true,
+    },
+  });
+
+  const leagueWireCount = leagueWireItems.length;
+  const visibleLeagueWireCount = leagueWireItems.filter(
+    (item) => item.isVisible
+  ).length;
+
+  const totalMatches = matches.length;
+  const scheduledMatches = matches.filter(
+    (match) => match.status === "SCHEDULED"
+  ).length;
+  const completedMatches = matches.filter(
+    (match) => match.status === "COMPLETED"
+  ).length;
 
   const freeAgentPlayers: CombinedPlayer[] = freeAgents
     .filter(
