@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description:
     "ECL is a competitive League of Legends tournament for expats in China. Follow Split One standings, results, schedules, free agency, and more.",
   verification: {
-    google: "885e8d7c2ed47b99",
+    google: "nkyMLTgWGpE-gL8zv51ouuhkLdqQCdh56cm7HnoFlXU",
   },
 };
 
