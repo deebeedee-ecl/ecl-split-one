@@ -6,7 +6,7 @@ import "./globals.css";
 import MobileNav from "@/components/MobileNav";
 
 export const metadata: Metadata = {
-  title: "ECL – Expat China League | Competitive LoL for Expats in China",
+  title: "ECL - Expat China League | Competitive LoL for Expats in China",
   description:
     "ECL is a competitive League of Legends tournament for expats in China. Follow Split One standings, results, schedules, free agency, and more.",
   verification: {
@@ -51,6 +51,7 @@ export default function RootLayout({
                 <p className="truncate text-[0.5rem] font-semibold uppercase tracking-[0.28em] text-green-400/90 sm:text-[0.65rem] sm:tracking-[0.45em]">
                   Expat China League
                 </p>
+
                 <span className="block truncate bg-gradient-to-r from-white via-zinc-200 to-green-400 bg-clip-text text-lg font-black uppercase tracking-[0.14em] text-transparent drop-shadow-[0_0_12px_rgba(74,222,128,0.12)] transition duration-300 group-hover:from-green-300 group-hover:via-white group-hover:to-green-500 sm:text-2xl sm:tracking-[0.28em]">
                   Spring Split
                 </span>
@@ -85,7 +86,7 @@ export default function RootLayout({
                   className="flex items-center gap-2 rounded-md px-3 py-2 transition duration-200 hover:bg-green-500/10 hover:text-green-400"
                 >
                   Split One
-                  <span className="text-[0.65rem]">▼</span>
+                  <span className="text-[0.65rem]">v</span>
                 </button>
 
                 <div className="invisible absolute right-0 top-full z-50 mt-3 w-56 rounded-2xl border border-white/10 bg-zinc-950/95 p-2 opacity-0 shadow-[0_0_30px_rgba(0,0,0,0.45)] backdrop-blur-md transition-all duration-200 group-hover:visible group-hover:opacity-100">
@@ -101,7 +102,7 @@ export default function RootLayout({
                 </div>
               </div>
 
-              
+              <a
                 href="https://www.youtube.com/@ECL-LoL"
                 target="_blank"
                 rel="noopener noreferrer"
