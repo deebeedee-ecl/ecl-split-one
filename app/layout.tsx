@@ -6,8 +6,12 @@ import "./globals.css";
 import MobileNav from "@/components/MobileNav";
 
 export const metadata: Metadata = {
-  title: "ECL Spring Split",
-  description: "ECL tournament portal",
+  title: "ECL – Expat China League | Competitive LoL for Expats in China",
+  description:
+    "ECL is a competitive League of Legends tournament for expats in China. Follow Split One standings, results, schedules, free agency, and more.",
+  verification: {
+    google: "885e8d7c2ed47b99",
+  },
 };
 
 const splitOneLinks = [
@@ -36,7 +40,7 @@ export default function RootLayout({
             >
               <Image
                 src="/ecl-logo.png"
-                alt="ECL Logo"
+                alt="ECL Logo Expat China League"
                 width={95}
                 height={95}
                 className="h-12 w-12 shrink-0 drop-shadow-[0_0_12px_rgba(74,222,128,0.18)] transition duration-300 group-hover:scale-105 sm:h-[72px] sm:w-[72px]"
@@ -97,7 +101,7 @@ export default function RootLayout({
                 </div>
               </div>
 
-              <a
+              
                 href="https://www.youtube.com/@ECL-LoL"
                 target="_blank"
                 rel="noopener noreferrer"
