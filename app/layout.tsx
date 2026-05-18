@@ -31,7 +31,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="overflow-x-hidden bg-black text-white">
+      <body
+        suppressHydrationWarning
+        className="overflow-x-hidden bg-black text-white"
+      >
         <header className="relative z-[100] border-b border-white/10 bg-black/90 backdrop-blur-sm">
           <div className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
             <Link
