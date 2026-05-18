@@ -7,6 +7,7 @@ import { MatchStage, MatchStatus, Prisma } from "@prisma/client";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 const stageOptions = [
   { value: "REGULAR_SEASON", label: "Regular Season" },
@@ -992,14 +993,26 @@ async function saveGamePlayerRows(formData: FormData) {
             mvpName: selectedMvpName,
           },
         });
-
-        await recalculateAllPlayerStats(tx);
       },
       {
         maxWait: 10000,
         timeout: 30000,
       }
     );
+
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          await recalculateAllPlayerStats(tx);
+        },
+        {
+          maxWait: 10000,
+          timeout: 120000,
+        }
+      );
+    } catch (error) {
+      console.error("saveGamePlayerRows recalculateAllPlayerStats error:", error);
+    }
 
     revalidatePath("/admin");
     revalidatePath("/admin/matches");
