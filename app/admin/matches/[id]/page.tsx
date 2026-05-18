@@ -285,6 +285,13 @@ async function updateMatch(formData: FormData) {
         homeTeam: true,
         awayTeam: true,
         games: {
+          include: {
+            _count: {
+              select: {
+                playerStats: true,
+              },
+            },
+          },
           orderBy: {
             gameNumber: "asc",
           },
@@ -554,6 +561,9 @@ async function updateMatch(formData: FormData) {
           gameNumber: {
             gt: bestOf,
           },
+          playerStats: {
+            none: {},
+          },
         },
       });
 
@@ -564,11 +574,37 @@ async function updateMatch(formData: FormData) {
 
         if (game.isEmpty) {
           if (existingGame) {
-            await tx.matchGame.delete({
-              where: {
-                id: existingGame.id,
-              },
-            });
+            if (existingGame._count.playerStats === 0) {
+              await tx.matchGame.delete({
+                where: {
+                  id: existingGame.id,
+                },
+              });
+            } else {
+              await tx.matchGame.update({
+                where: {
+                  id: existingGame.id,
+                },
+                data: {
+                  winnerTeamId: null,
+                  durationSeconds: null,
+                  homeKills: null,
+                  awayKills: null,
+                  homeGold: null,
+                  awayGold: null,
+                  homeTowers: null,
+                  awayTowers: null,
+                  homeInhibitors: null,
+                  awayInhibitors: null,
+                  homeBarons: null,
+                  awayBarons: null,
+                  homeDrakes: null,
+                  awayDrakes: null,
+                  mvpName: null,
+                  notes: null,
+                },
+              });
+            }
           }
           continue;
         }
