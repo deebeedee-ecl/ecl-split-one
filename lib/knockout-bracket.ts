@@ -87,7 +87,7 @@ export const knockoutBracket: KnockoutMatchConfig[] = [
     id: "semifinal",
     stage: "SEMIFINALS",
     stageLabel: "Semifinal",
-    slotLabel: "Lower Remaining Seeds",
+    slotLabel: "Semi-Finals",
     homeTeam: null,
     awayTeam: null,
     homeScore: null,

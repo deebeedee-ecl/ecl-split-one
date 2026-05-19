@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import StandingsStageToggle from "@/components/StandingsStageToggle";
-import { buildKnockoutBracket } from "@/lib/knockout-bracket";
+import { knockoutBracket } from "@/lib/knockout-bracket";
 import { lockedStandings, standingsLocked } from "@/lib/locked-standings";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +44,7 @@ function getPoints(w: number, l: number) {
 }
 
 export default async function StandingsPage() {
-  const [teams, matches, knockoutMatches] = await Promise.all([
+  const [teams, matches] = await Promise.all([
     prisma.team.findMany({
       orderBy: {
         name: "asc",
@@ -60,42 +60,6 @@ export default async function StandingsPage() {
       include: {
         homeTeam: true,
         awayTeam: true,
-      },
-    }),
-    prisma.match.findMany({
-      where: {
-        stage: {
-          in: ["PLAYOFFS", "SEMIFINALS", "FINALS"],
-        },
-        matchLabel: {
-          in: [
-            "playoff-1v6",
-            "playoff-2v5",
-            "playoff-3v4",
-            "semifinal",
-            "final",
-          ],
-        },
-      },
-      include: {
-        homeTeam: {
-          select: {
-            name: true,
-            logoUrl: true,
-          },
-        },
-        awayTeam: {
-          select: {
-            name: true,
-            logoUrl: true,
-          },
-        },
-        winnerTeam: {
-          select: {
-            name: true,
-            logoUrl: true,
-          },
-        },
       },
     }),
   ]);
@@ -160,7 +124,7 @@ export default async function StandingsPage() {
 
       <StandingsStageToggle
         standings={standings}
-        bracketMatches={buildKnockoutBracket(knockoutMatches)}
+        bracketMatches={knockoutBracket}
       />
     </main>
   );

@@ -1,7 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, Trophy } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Crown,
+  Shield,
+  Swords,
+  Trophy,
+} from "lucide-react";
 import { useState } from "react";
 
 type StandingRow = {
@@ -73,18 +80,20 @@ function getRankTextClass(index: number, total: number) {
 function TeamMark({ team }: { team: BracketTeam }) {
   if (team.logoUrl) {
     return (
-      <Image
-        src={team.logoUrl}
-        alt={team.name}
-        width={36}
-        height={36}
-        className="h-8 w-8 object-contain"
-      />
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black p-1.5 shadow-[0_0_18px_rgba(0,0,0,0.35)]">
+        <Image
+          src={team.logoUrl}
+          alt={team.name}
+          width={36}
+          height={36}
+          className="h-8 w-8 object-contain"
+        />
+      </div>
     );
   }
 
   return (
-    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-[10px] font-black uppercase text-white/45">
+    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-[10px] font-black uppercase text-white/45">
       {team.name.slice(0, 3)}
     </div>
   );
@@ -95,22 +104,28 @@ function BracketTeamRow({
   score,
   isWinner,
   hasWinner,
+  isFinal = false,
 }: {
   team: BracketTeam | null;
   score: number | null;
   isWinner: boolean;
   hasWinner: boolean;
+  isFinal?: boolean;
 }) {
   const isEliminated = Boolean(team && hasWinner && !isWinner);
 
   return (
     <div
-      className={`grid min-h-14 grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl border px-3 py-2 ${
+      className={`grid min-h-16 grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl border px-3 py-2.5 ${
         isWinner
-          ? "border-green-400/35 bg-green-500/10"
+          ? isFinal
+            ? "border-yellow-300/45 bg-yellow-400/10 shadow-[0_0_24px_rgba(250,204,21,0.12)]"
+            : "border-green-400/35 bg-green-500/10"
           : isEliminated
             ? "border-white/5 bg-black/30 opacity-45"
-          : "border-white/10 bg-black/25"
+            : isFinal
+              ? "border-yellow-200/15 bg-black/35"
+              : "border-white/10 bg-black/25"
       }`}
     >
       {team ? (
@@ -129,7 +144,7 @@ function BracketTeamRow({
         </>
       ) : (
         <>
-          <div className="h-8 w-8 rounded-lg border border-dashed border-white/10 bg-white/[0.03]" />
+          <div className="h-10 w-10 rounded-xl border border-dashed border-white/10 bg-white/[0.03]" />
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-white/35">
             TBD
           </div>
@@ -152,10 +167,36 @@ function BracketCard({ match }: { match: BracketMatch }) {
   );
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_0_24px_rgba(0,0,0,0.22)]">
+    <div
+      className={`relative overflow-hidden rounded-2xl border p-4 shadow-[0_0_24px_rgba(0,0,0,0.22)] ${
+        match.stage === "FINALS"
+          ? "border-yellow-300/25 bg-[linear-gradient(180deg,rgba(250,204,21,0.12),rgba(24,24,27,0.88))] shadow-[0_0_34px_rgba(250,204,21,0.12)]"
+          : match.stage === "SEMIFINALS"
+            ? "border-emerald-300/18 bg-[linear-gradient(180deg,rgba(16,185,129,0.08),rgba(24,24,27,0.9))]"
+            : "border-white/10 bg-white/[0.04]"
+      }`}
+    >
+      {match.stage === "FINALS" && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-yellow-200/80 to-transparent" />
+      )}
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-green-400">
+          <div
+            className={`inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] ${
+              match.stage === "FINALS"
+                ? "text-yellow-200"
+                : match.stage === "SEMIFINALS"
+                  ? "text-emerald-300"
+                  : "text-green-400"
+            }`}
+          >
+            {match.stage === "FINALS" ? (
+              <Crown size={13} />
+            ) : match.stage === "SEMIFINALS" ? (
+              <Shield size={13} />
+            ) : (
+              <Swords size={13} />
+            )}
             {match.slotLabel}
           </div>
           <div className="mt-1 text-xs uppercase tracking-[0.14em] text-white/40">
@@ -163,11 +204,21 @@ function BracketCard({ match }: { match: BracketMatch }) {
           </div>
         </div>
 
-        {match.isPlaceholder && (
-          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">
-            Seeded
-          </span>
-        )}
+        <span
+          className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+            match.stage === "FINALS"
+              ? "border-yellow-300/25 bg-yellow-400/10 text-yellow-100"
+              : match.stage === "SEMIFINALS"
+                ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-200"
+                : "border-green-400/20 bg-green-500/10 text-green-300"
+          }`}
+        >
+          {match.stage === "FINALS"
+            ? "Title Match"
+            : match.stage === "SEMIFINALS"
+              ? "Final Berth"
+              : "Elimination"}
+        </span>
       </div>
 
       <div className="space-y-2">
@@ -176,20 +227,64 @@ function BracketCard({ match }: { match: BracketMatch }) {
           score={match.homeScore}
           isWinner={homeWinner}
           hasWinner={Boolean(match.winnerName)}
+          isFinal={match.stage === "FINALS"}
         />
         <BracketTeamRow
           team={match.awayTeam}
           score={match.awayScore}
           isWinner={awayWinner}
           hasWinner={Boolean(match.winnerName)}
+          isFinal={match.stage === "FINALS"}
         />
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-white/45">
-        <span>{match.scheduledLabel || "Date not set"}</span>
-        <span className="font-semibold text-white/60">
-          Winner: {match.winnerName || "TBD"}
+        <span>{match.scheduledLabel || "Scheduled in KOOK"}</span>
+        <span
+          className={`font-semibold ${
+            match.stage === "FINALS" ? "text-yellow-100" : "text-white/60"
+          }`}
+        >
+          {match.stage === "FINALS" ? "Champion" : "Winner"}:{" "}
+          {match.winnerName || "TBD"}
         </span>
+      </div>
+    </div>
+  );
+}
+
+function StageHeader({
+  icon: Icon,
+  title,
+  detail,
+  tone = "green",
+}: {
+  icon: typeof Trophy;
+  title: string;
+  detail: string;
+  tone?: "green" | "emerald" | "gold";
+}) {
+  const toneClass =
+    tone === "gold"
+      ? "border-yellow-300/25 bg-yellow-400/10 text-yellow-100"
+      : tone === "emerald"
+        ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-200"
+        : "border-green-400/20 bg-green-500/10 text-green-300";
+
+  return (
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <div>
+        <div className="text-xs font-bold uppercase tracking-[0.22em] text-white/45">
+          {title}
+        </div>
+        <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/30">
+          {detail}
+        </div>
+      </div>
+      <div
+        className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border ${toneClass}`}
+      >
+        <Icon size={18} />
       </div>
     </div>
   );
@@ -302,33 +397,46 @@ function KnockoutBracket({ matches }: { matches: BracketMatch[] }) {
   const finalMatches = matches.filter((match) => match.stage === "FINALS");
 
   return (
-    <div className="rounded-[2rem] border border-white/10 bg-zinc-950 p-5 shadow-[0_0_40px_rgba(0,0,0,0.3)] md:p-6">
-      <div className="mb-6 flex flex-col gap-4 border-b border-white/10 pb-5 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-green-400">
-            Single Elimination
-          </p>
-          <h2 className="mt-2 text-3xl font-black uppercase tracking-[0.06em]">
-            Knockout Stage
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
-            Seeds open as 1 vs 6, 2 vs 5, and 3 vs 4. After that, the highest
-            remaining seed moves straight to the final while the other two play
-            the semifinal.
-          </p>
-        </div>
+    <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(39,39,42,0.9),rgba(9,9,11,1))] shadow-[0_0_40px_rgba(0,0,0,0.3)]">
+      <div className="border-b border-white/10 bg-[linear-gradient(90deg,rgba(34,197,94,0.12),rgba(250,204,21,0.08),transparent)] px-5 py-6 md:px-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.25em] text-green-300">
+              <Trophy size={17} />
+              Single Elimination
+            </p>
+            <h2 className="mt-2 text-3xl font-black uppercase tracking-[0.06em] md:text-4xl">
+              Knockout Stage
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/60">
+              Seeds open as 1 vs 6, 2 vs 5, and 3 vs 4. The highest remaining
+              seed advances directly to finals while the other two fight for
+              the last title-match seat.
+            </p>
+          </div>
 
-        <div className="inline-flex items-center gap-2 rounded-full border border-green-400/20 bg-green-500/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-green-300">
-          <Trophy size={15} />
-          Split One
+          <div className="inline-flex items-center gap-2 rounded-full border border-yellow-300/25 bg-yellow-400/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-yellow-100">
+            <Crown size={15} />
+            Split One Crown
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.15fr_0.9fr_0.9fr]">
+      <div className="grid border-b border-white/10 bg-black/25 text-center text-xs font-bold uppercase tracking-[0.2em] text-white/50 md:grid-cols-3">
+        <div className="border-white/10 px-4 py-3 md:border-r">
+          Opening Round
+        </div>
+        <div className="border-white/10 px-4 py-3 md:border-r">Semifinal</div>
+        <div className="px-4 py-3">Finals</div>
+      </div>
+
+      <div className="grid gap-5 p-5 md:p-6 xl:grid-cols-[1.15fr_0.9fr_0.95fr]">
         <section>
-          <div className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-white/45">
-            Opening Round
-          </div>
+          <StageHeader
+            icon={Swords}
+            title="Opening Round"
+            detail="Three elimination series"
+          />
           <div className="grid gap-4">
             {playoffMatches.map((match) => (
               <BracketCard key={match.id} match={match} />
@@ -337,9 +445,12 @@ function KnockoutBracket({ matches }: { matches: BracketMatch[] }) {
         </section>
 
         <section className="xl:pt-16">
-          <div className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-white/45">
-            Semifinal
-          </div>
+          <StageHeader
+            icon={Shield}
+            title="Semifinal"
+            detail="One final berth"
+            tone="emerald"
+          />
           <div className="grid gap-4">
             {semifinalMatches.map((match) => (
               <BracketCard key={match.id} match={match} />
@@ -348,13 +459,21 @@ function KnockoutBracket({ matches }: { matches: BracketMatch[] }) {
         </section>
 
         <section className="xl:pt-32">
-          <div className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-white/45">
-            Final
-          </div>
+          <StageHeader
+            icon={Crown}
+            title="Finals"
+            detail="BO5 championship"
+            tone="gold"
+          />
           <div className="grid gap-4">
             {finalMatches.map((match) => (
               <BracketCard key={match.id} match={match} />
             ))}
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-yellow-300/20 bg-yellow-400/10 p-4 text-xs leading-5 text-yellow-50/75">
+            The Finals are the only BO5 in Split One and decide the season
+            champion.
           </div>
         </section>
       </div>
