@@ -44,16 +44,6 @@ export const lockedStandings: LockedStandingRow[] = [
     diff: 2,
   },
   {
-    teamId: "9011e35c-0268-4503-bd56-0ee86879ce5e",
-    teamName: "Zycope and friends",
-    logoUrl: "/logos/zaf.png",
-    played: 5,
-    points: 4,
-    gameW: 4,
-    gameL: 6,
-    diff: -2,
-  },
-  {
     teamId: "0ce4c650-b196-44ba-baf8-31928e1c48bc",
     teamName: "Flanmingos",
     logoUrl: "/logos/fla.png",
@@ -62,6 +52,16 @@ export const lockedStandings: LockedStandingRow[] = [
     gameW: 3,
     gameL: 7,
     diff: -4,
+  },
+  {
+    teamId: "9011e35c-0268-4503-bd56-0ee86879ce5e",
+    teamName: "Zycope and friends",
+    logoUrl: "/logos/zaf.png",
+    played: 5,
+    points: 2,
+    gameW: 4,
+    gameL: 6,
+    diff: -2,
   },
   {
     teamId: "4ec54c7e-3762-4336-a7fc-8be88688e26d",
