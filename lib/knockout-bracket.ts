@@ -1,3 +1,5 @@
+import { lockedStandings } from "@/lib/locked-standings";
+
 export type KnockoutTeam = {
   name: string;
   logoUrl: string | null;
@@ -35,65 +37,84 @@ type StoredKnockoutMatch = {
   winnerTeam: KnockoutTeam | null;
 };
 
-// Edit this file when the regular season locks and the bracket is ready.
+function getSeededTeam(seed: number): KnockoutTeam | null {
+  const team = lockedStandings[seed - 1];
+
+  if (!team) return null;
+
+  return {
+    name: team.teamName,
+    logoUrl: team.logoUrl,
+    seed,
+  };
+}
+
+function getPlaceholderTeam(name: string): KnockoutTeam {
+  return {
+    name,
+    logoUrl: null,
+  };
+}
+
+// Opening-round teams are seeded from the locked regular season standings.
 // Keep playoff/semifinal matches as BO3. The championship final is BO5.
 export const knockoutBracket: KnockoutMatchConfig[] = [
   {
     id: "playoff-1v6",
     stage: "PLAYOFFS",
-    stageLabel: "Opening Round",
+    stageLabel: "Quarterfinal",
     slotLabel: "Seed 1 vs Seed 6",
-    homeTeam: null,
-    awayTeam: null,
+    homeTeam: getSeededTeam(1),
+    awayTeam: getSeededTeam(6),
     homeScore: null,
     awayScore: null,
     winnerName: null,
-    status: "Seeded",
+    status: "Scheduled in KOOK",
     bestOf: 3,
     scheduledLabel: null,
-    isPlaceholder: true,
+    isPlaceholder: false,
   },
   {
     id: "playoff-2v5",
     stage: "PLAYOFFS",
-    stageLabel: "Opening Round",
+    stageLabel: "Quarterfinal",
     slotLabel: "Seed 2 vs Seed 5",
-    homeTeam: null,
-    awayTeam: null,
+    homeTeam: getSeededTeam(2),
+    awayTeam: getSeededTeam(5),
     homeScore: null,
     awayScore: null,
     winnerName: null,
-    status: "Seeded",
+    status: "Scheduled in KOOK",
     bestOf: 3,
     scheduledLabel: null,
-    isPlaceholder: true,
+    isPlaceholder: false,
   },
   {
     id: "playoff-3v4",
     stage: "PLAYOFFS",
-    stageLabel: "Opening Round",
+    stageLabel: "Quarterfinal",
     slotLabel: "Seed 3 vs Seed 4",
-    homeTeam: null,
-    awayTeam: null,
+    homeTeam: getSeededTeam(3),
+    awayTeam: getSeededTeam(4),
     homeScore: null,
     awayScore: null,
     winnerName: null,
-    status: "Seeded",
+    status: "Scheduled in KOOK",
     bestOf: 3,
     scheduledLabel: null,
-    isPlaceholder: true,
+    isPlaceholder: false,
   },
   {
     id: "semifinal",
     stage: "SEMIFINALS",
     stageLabel: "Semifinal",
-    slotLabel: "Semi-Finals",
-    homeTeam: null,
-    awayTeam: null,
+    slotLabel: "Semifinal",
+    homeTeam: getPlaceholderTeam("Lower remaining seed"),
+    awayTeam: getPlaceholderTeam("Middle remaining seed"),
     homeScore: null,
     awayScore: null,
     winnerName: null,
-    status: "TBD",
+    status: "Lowest remaining seeds",
     bestOf: 3,
     scheduledLabel: null,
     isPlaceholder: true,
@@ -103,12 +124,12 @@ export const knockoutBracket: KnockoutMatchConfig[] = [
     stage: "FINALS",
     stageLabel: "Final",
     slotLabel: "Championship Final",
-    homeTeam: null,
-    awayTeam: null,
+    homeTeam: getPlaceholderTeam("Highest remaining seed"),
+    awayTeam: getPlaceholderTeam("Semifinal winner"),
     homeScore: null,
     awayScore: null,
     winnerName: null,
-    status: "TBD",
+    status: "Highest seed vs semifinal winner",
     bestOf: 5,
     scheduledLabel: null,
     isPlaceholder: true,

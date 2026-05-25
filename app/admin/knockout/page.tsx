@@ -52,14 +52,14 @@ export default function AdminKnockoutPage() {
             Knockout Display
           </h1>
           <p className="mt-2 max-w-3xl text-white/60">
-            Knockout standings are hardcoded for the website display. This page
-            no longer creates scheduled matches.
+            Knockout pairings are seeded from the locked regular season
+            standings. This page no longer creates scheduled matches.
           </p>
           <div className="mt-5 max-w-4xl rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-sm leading-6 text-white/65">
-            Keep scheduling on the KOOK bot/platform. Update the public
-            knockout bracket by editing <span className="font-semibold text-white">lib/knockout-bracket.ts</span>;
+            Keep scheduling on the KOOK bot/platform. Update results or
+            advancement labels in <span className="font-semibold text-white">lib/knockout-bracket.ts</span>;
             uploaded screenshots can still be handled from the KOOK/Railway/OCR
-            flow against the match records created by the bot.
+            flow against match records created by the bot.
           </div>
         </div>
 

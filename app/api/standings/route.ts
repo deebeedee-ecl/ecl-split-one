@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { lockedStandings, standingsLocked } from "@/lib/locked-standings";
 
 type StandingRow = {
   teamId: string;
@@ -35,6 +36,20 @@ function getPoints(w: number, l: number) {
 
 export async function GET() {
   try {
+    if (standingsLocked) {
+      return NextResponse.json(
+        lockedStandings.map((team, index) => ({
+          rank: index + 1,
+          teamName: team.teamName,
+          played: team.played,
+          points: team.points,
+          gameW: team.gameW,
+          gameL: team.gameL,
+          diff: team.diff,
+        }))
+      );
+    }
+
     const [teams, matches] = await Promise.all([
       prisma.team.findMany({
         orderBy: { name: "asc" },

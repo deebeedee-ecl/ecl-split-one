@@ -44,64 +44,66 @@ function getPoints(w: number, l: number) {
 }
 
 export default async function StandingsPage() {
-  const [teams, matches] = await Promise.all([
-    prisma.team.findMany({
-      orderBy: {
-        name: "asc",
-      },
-    }),
-    prisma.match.findMany({
-      where: {
-        stage: "REGULAR_SEASON",
-        status: {
-          in: ["COMPLETED", "FORFEIT"],
+  let standings: StandingRow[] = lockedStandings;
+
+  if (!standingsLocked) {
+    const [teams, matches] = await Promise.all([
+      prisma.team.findMany({
+        orderBy: {
+          name: "asc",
         },
-      },
-      include: {
-        homeTeam: true,
-        awayTeam: true,
-      },
-    }),
-  ]);
+      }),
+      prisma.match.findMany({
+        where: {
+          stage: "REGULAR_SEASON",
+          status: {
+            in: ["COMPLETED", "FORFEIT"],
+          },
+        },
+        include: {
+          homeTeam: true,
+          awayTeam: true,
+        },
+      }),
+    ]);
 
-  const table = new Map<string, StandingRow>();
+    const table = new Map<string, StandingRow>();
 
-  for (const team of teams) {
-    table.set(team.id, createRow(team.id, team.name, team.logoUrl ?? null));
+    for (const team of teams) {
+      table.set(team.id, createRow(team.id, team.name, team.logoUrl ?? null));
+    }
+
+    for (const match of matches) {
+      const home = table.get(match.homeTeamId);
+      const away = table.get(match.awayTeamId);
+
+      if (!home || !away) continue;
+
+      home.played += 1;
+      away.played += 1;
+
+      home.gameW += match.homeScore;
+      home.gameL += match.awayScore;
+
+      away.gameW += match.awayScore;
+      away.gameL += match.homeScore;
+
+      home.points += getPoints(match.homeScore, match.awayScore);
+      away.points += getPoints(match.awayScore, match.homeScore);
+    }
+
+    standings = Array.from(table.values())
+      .map((team) => ({
+        ...team,
+        diff: team.gameW - team.gameL,
+      }))
+      .sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.diff !== a.diff) return b.diff - a.diff;
+        if (b.gameW !== a.gameW) return b.gameW - a.gameW;
+        return a.teamName.localeCompare(b.teamName);
+      });
   }
-
-  for (const match of matches) {
-    const home = table.get(match.homeTeamId);
-    const away = table.get(match.awayTeamId);
-
-    if (!home || !away) continue;
-
-    home.played += 1;
-    away.played += 1;
-
-    home.gameW += match.homeScore;
-    home.gameL += match.awayScore;
-
-    away.gameW += match.awayScore;
-    away.gameL += match.homeScore;
-
-    home.points += getPoints(match.homeScore, match.awayScore);
-    away.points += getPoints(match.awayScore, match.homeScore);
-  }
-
-  const liveStandings = Array.from(table.values())
-    .map((team) => ({
-      ...team,
-      diff: team.gameW - team.gameL,
-    }))
-    .sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.diff !== a.diff) return b.diff - a.diff;
-      if (b.gameW !== a.gameW) return b.gameW - a.gameW;
-      return a.teamName.localeCompare(b.teamName);
-    });
-
-  const standings = standingsLocked ? lockedStandings : liveStandings;
 
   return (
     <main className="min-h-screen bg-black text-white">
