@@ -1,6 +1,7 @@
 import { lockedStandings } from "@/lib/locked-standings";
 
 export type KnockoutTeam = {
+  teamId?: string;
   name: string;
   logoUrl: string | null;
   seed?: number;
@@ -43,6 +44,7 @@ function getSeededTeam(seed: number): KnockoutTeam | null {
   if (!team) return null;
 
   return {
+    teamId: team.teamId,
     name: team.teamName,
     logoUrl: team.logoUrl,
     seed,

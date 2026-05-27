@@ -1,77 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
+import { KnockoutBracket } from "@/components/StandingsStageToggle";
 import LeagueWireTicker from "@/components/LeagueWireTicker";
 import SplashVideo from "@/components/SplashVideo";
+import { buildKnockoutBracket } from "@/lib/knockout-bracket";
 import { prisma } from "@/lib/prisma";
 
-function formatDate(value?: Date | null) {
-  if (!value) return "Date not set";
-
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Shanghai",
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(value);
-}
-
-function getTeamTag(name: string) {
-  const words = name
-    .replace(/[^\w\s]/g, "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (words.length >= 2) {
-    return words
-      .slice(0, 3)
-      .map((word) => word[0])
-      .join("")
-      .toUpperCase();
-  }
-
-  return name.replace(/[^\w]/g, "").slice(0, 3).toUpperCase();
-}
-
-function TeamLogo({
-  src,
-  alt,
-  size = 72,
-}: {
-  src?: string | null;
-  alt: string;
-  size?: number;
-}) {
-  if (!src) {
-    return (
-      <div
-        className="flex items-center justify-center rounded-full border border-white/10 bg-white/5 text-xs font-black uppercase tracking-[0.18em] text-white/45"
-        style={{ width: size, height: size }}
-      >
-        LOGO
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="relative overflow-hidden rounded-full border border-white/10 bg-white/5"
-      style={{ width: size, height: size }}
-    >
-      <Image
-        src={src}
-        alt={alt}
-        fill
-        className="object-cover"
-        sizes={`${size}px`}
-      />
-    </div>
-  );
-}
-
 export default async function Home() {
-  const [leagueWireItems, nextMatch] = await Promise.all([
+  const [leagueWireItems, knockoutMatches] = await Promise.all([
     prisma.leagueWireItem.findMany({
       where: {
         isVisible: true,
@@ -79,36 +15,32 @@ export default async function Home() {
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
       take: 8,
     }),
-    prisma.match.findFirst({
+    prisma.match.findMany({
       where: {
-        status: "SCHEDULED",
-        scheduledAt: {
-          gte: new Date(),
+        stage: {
+          in: ["PLAYOFFS", "SEMIFINALS", "FINALS"],
         },
       },
       include: {
         homeTeam: true,
         awayTeam: true,
+        winnerTeam: true,
       },
-      orderBy: {
-        scheduledAt: "asc",
-      },
+      orderBy: [{ scheduledAt: "asc" }, { createdAt: "desc" }],
     }),
   ]);
 
-  const homeTag = nextMatch ? getTeamTag(nextMatch.homeTeam.name) : "";
-  const awayTag = nextMatch ? getTeamTag(nextMatch.awayTeam.name) : "";
+  const bracketMatches = buildKnockoutBracket(knockoutMatches);
 
   return (
     <>
       <SplashVideo />
 
       <main className="min-h-screen overflow-x-hidden bg-black text-white">
-        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
+        <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
           <LeagueWireTicker items={leagueWireItems} />
 
-          {/* HERO */}
-          <div className="mx-auto max-w-4xl pt-6 text-center sm:pt-10">
+          <div className="mx-auto max-w-5xl pt-6 text-center sm:pt-10">
             <div className="mb-6 flex justify-center">
               <Image
                 src="/ecl-logo.png"
@@ -125,180 +57,107 @@ export default async function Home() {
             </p>
 
             <h1 className="mt-4 text-5xl font-black uppercase tracking-tight text-white sm:text-6xl lg:text-7xl">
-              Split One
+              Split One Knockouts
             </h1>
 
             <p className="mx-auto mt-6 max-w-3xl text-base leading-7 text-zinc-400 sm:text-lg sm:leading-8">
-              A competitive League of Legends tournament featuring premade
-              teams, open free agency, and a structured split system with
-              standings, scheduling, and matchday play.
+              The regular season is locked. Six teams enter single elimination,
+              where every series can end a split and every win moves one step
+              closer to the crown.
             </p>
 
-            <div className="mt-10">
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link
-                href="/free-agents"
+                href="/schedule"
                 className="inline-flex items-center justify-center rounded-xl bg-green-400 px-8 py-4 font-bold uppercase tracking-wide text-black transition duration-200 hover:scale-[1.02] hover:bg-green-300"
               >
-                Join Free Agency
+                View Knockout Schedule
+              </Link>
+
+              <Link
+                href="/standings"
+                className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-8 py-4 font-bold uppercase tracking-wide text-white/75 transition duration-200 hover:scale-[1.02] hover:border-green-400/30 hover:bg-green-400/10 hover:text-white"
+              >
+                View Standings
+              </Link>
+            </div>
+
+            <div className="mt-5 text-sm text-zinc-400">
+              Still looking to play this split or future events?{" "}
+              <Link
+                href="/free-agents"
+                className="font-bold text-green-300 underline decoration-green-400/40 underline-offset-4 transition hover:text-green-200 hover:decoration-green-300"
+              >
+                Join free agency
               </Link>
             </div>
           </div>
 
-          {/* ROW 2 */}
-          <div className="mt-16 grid gap-6 lg:grid-cols-2">
-            {/* WATCH & LISTEN */}
-            <div className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-6 shadow-[0_0_40px_rgba(34,197,94,0.08)]">
-              <div className="mb-6">
-                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-green-400">
-                  League Media
-                </p>
-                <h2 className="mt-3 text-3xl font-black uppercase text-white">
-                  Watch & Listen
-                </h2>
-                <p className="mt-3 max-w-lg text-sm leading-6 text-zinc-400 sm:text-base">
-                  Rewatch the Split One hype video and tune into the official
-                  ECL podcast as the league story unfolds.
-                </p>
-              </div>
+          <div className="mt-10">
+            <KnockoutBracket matches={bracketMatches} />
+          </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="group rounded-[1.5rem] border border-white/10 bg-black/40 p-5 transition duration-200 hover:border-green-400/30 hover:bg-zinc-900">
-                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-green-400">
-                    Official Hype Video
-                  </p>
-                  <h3 className="mt-3 text-xl font-black uppercase text-white">
-                    Split One Cinematic
-                  </h3>
-                  <p className="mt-3 text-sm leading-6 text-zinc-400">
-                    Open the official hype video and relive the launch of Split
-                    One.
-                  </p>
-
-                  <Link
-                    href="/video/Hype.mp4"
-                    className="mt-5 inline-flex items-center justify-center rounded-xl bg-green-400 px-5 py-3 text-sm font-bold uppercase tracking-wide text-black transition duration-200 hover:scale-[1.02] hover:bg-green-300"
-                  >
-                    Watch Video
-                  </Link>
-                </div>
-
-                <div className="group rounded-[1.5rem] border border-white/10 bg-black/40 p-5 transition duration-200 hover:border-green-400/30 hover:bg-zinc-900">
-                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-green-400">
-                    ECL Podcast
-                  </p>
-                  <h3 className="mt-3 text-xl font-black uppercase text-white">
-                    League Talk
-                  </h3>
-                  <p className="mt-3 text-sm leading-6 text-zinc-400">
-                    Follow the latest podcast episodes covering matches,
-                    players, league stories, and community discussion.
-                  </p>
-
-                  <a
-                    href="https://www.youtube.com/playlist?list=PLdfbxhGWRe1pqOASdseItbXbCy6cLxri6"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-5 inline-flex items-center justify-center rounded-xl border border-green-400/40 bg-transparent px-5 py-3 text-sm font-bold uppercase tracking-wide text-green-400 transition duration-200 hover:scale-[1.02] hover:border-green-300 hover:bg-green-400/10 hover:text-green-300"
-                  >
-                    Listen on YouTube
-                  </a>
-                </div>
-              </div>
+          <div className="mt-16 rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-6 shadow-[0_0_40px_rgba(34,197,94,0.08)]">
+            <div className="mb-6">
+              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-green-400">
+                League Media
+              </p>
+              <h2 className="mt-3 text-3xl font-black uppercase text-white">
+                Watch & Listen
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400 sm:text-base">
+                Rewatch the Split One hype video and tune into the official ECL
+                podcast as the knockout story unfolds.
+              </p>
             </div>
 
-            {/* NEXT MATCH */}
-            <div className="relative">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(74,222,128,0.08),transparent_70%)] blur-2xl" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="group rounded-[1.5rem] border border-white/10 bg-black/40 p-5 transition duration-200 hover:border-green-400/30 hover:bg-zinc-900">
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-green-400">
+                  Official Hype Video
+                </p>
+                <h3 className="mt-3 text-xl font-black uppercase text-white">
+                  Split One Cinematic
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-zinc-400">
+                  Open the official hype video and relive the launch of Split
+                  One.
+                </p>
 
-              {nextMatch ? (
-                <div className="relative rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900 to-black p-6 shadow-[0_0_40px_rgba(34,197,94,0.08)]">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.3em] text-green-400">
-                      Next Match
-                    </p>
-                    <p className="mt-3 text-sm uppercase tracking-[0.18em] text-white/45">
-                      {formatDate(nextMatch.scheduledAt)} • BO{nextMatch.bestOf}
-                    </p>
-                  </div>
+                <Link
+                  href="/video/Hype.mp4"
+                  className="mt-5 inline-flex items-center justify-center rounded-xl bg-green-400 px-5 py-3 text-sm font-bold uppercase tracking-wide text-black transition duration-200 hover:scale-[1.02] hover:bg-green-300"
+                >
+                  Watch Video
+                </Link>
+              </div>
 
-                  <div className="mt-8 rounded-[1.5rem] border border-white/10 bg-black/30 px-5 py-6">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <TeamLogo
-                          src={nextMatch.homeTeam.logoUrl}
-                          alt={nextMatch.homeTeam.name}
-                          size={72}
-                        />
-                        <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-white sm:text-3xl">
-                          {homeTag}
-                        </h2>
-                      </div>
+              <div className="group rounded-[1.5rem] border border-white/10 bg-black/40 p-5 transition duration-200 hover:border-green-400/30 hover:bg-zinc-900">
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-green-400">
+                  ECL Podcast
+                </p>
+                <h3 className="mt-3 text-xl font-black uppercase text-white">
+                  League Talk
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-zinc-400">
+                  Follow the latest podcast episodes covering matches, players,
+                  league stories, and community discussion.
+                </p>
 
-                      <div className="shrink-0 text-2xl font-black uppercase tracking-[0.22em] text-white/75 sm:text-3xl">
-                        VS
-                      </div>
-
-                      <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
-                        <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-white sm:text-3xl">
-                          {awayTag}
-                        </h2>
-                        <TeamLogo
-                          src={nextMatch.awayTeam.logoUrl}
-                          alt={nextMatch.awayTeam.name}
-                          size={72}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <Link
-                      href="/schedule"
-                      className="inline-flex flex-1 items-center justify-center rounded-xl bg-green-400 px-5 py-3 text-sm font-bold uppercase tracking-wide text-black transition duration-200 hover:scale-[1.02] hover:bg-green-300"
-                    >
-                      View Schedule
-                    </Link>
-
-                    <Link
-                      href="/results"
-                      className="inline-flex flex-1 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold uppercase tracking-wide text-white/75 transition duration-200 hover:scale-[1.02] hover:border-green-400/30 hover:bg-green-400/10 hover:text-white"
-                    >
-                      View Results
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <div className="relative rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900 to-black p-6 shadow-[0_0_40px_rgba(34,197,94,0.06)]">
-                  <p className="text-sm font-semibold uppercase tracking-[0.3em] text-green-400">
-                    Next Match
-                  </p>
-
-                  <div className="mt-8 rounded-[1.5rem] border border-white/10 bg-black/30 px-5 py-10 text-center">
-                    <h2 className="text-2xl font-black uppercase text-white sm:text-3xl">
-                      Fixtures Coming Soon
-                    </h2>
-                    <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-zinc-400 sm:text-base">
-                      The next scheduled fixture will appear here once match
-                      times are locked in.
-                    </p>
-                  </div>
-
-                  <div className="mt-6">
-                    <Link
-                      href="/schedule"
-                      className="inline-flex w-full items-center justify-center rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold uppercase tracking-wide text-white/75 transition duration-200 hover:scale-[1.02] hover:border-green-400/30 hover:bg-green-400/10 hover:text-white"
-                    >
-                      View Schedule
-                    </Link>
-                  </div>
-                </div>
-              )}
+                <a
+                  href="https://www.youtube.com/playlist?list=PLdfbxhGWRe1pqOASdseItbXbCy6cLxri6"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-5 inline-flex items-center justify-center rounded-xl border border-green-400/40 bg-transparent px-5 py-3 text-sm font-bold uppercase tracking-wide text-green-400 transition duration-200 hover:scale-[1.02] hover:border-green-300 hover:bg-green-400/10 hover:text-green-300"
+                >
+                  Listen on YouTube
+                </a>
+              </div>
             </div>
           </div>
 
-          {/* ROW 3 */}
-          <div className="mt-20 grid gap-6 md:grid-cols-3">
-            <a
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            <Link
               href="/format"
               className="group rounded-[2rem] border border-white/10 bg-zinc-900 p-6 transition hover:scale-[1.02] hover:border-green-400/30 hover:bg-zinc-800"
             >
@@ -309,12 +168,11 @@ export default async function Home() {
                 Competition Format
               </h3>
               <p className="mt-4 text-zinc-300">
-                Understand the structure of Split One from regular season to
-                finals.
+                Understand the path from opening round to Split One champion.
               </p>
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/schedule"
               className="group rounded-[2rem] border border-white/10 bg-zinc-900 p-6 transition hover:scale-[1.02] hover:border-green-400/30 hover:bg-zinc-800"
             >
@@ -322,26 +180,29 @@ export default async function Home() {
                 Schedule
               </p>
               <h3 className="mt-4 text-2xl font-black uppercase">
-                Match Calendar
+                Knockout Fixtures
               </h3>
               <p className="mt-4 text-zinc-300">
-                Follow league dates, fixtures, and match windows.
+                Follow playoff series as captains confirm them through KOOK.
               </p>
-            </a>
+            </Link>
 
-            <a
-              href="/standings"
+            <Link
+              href="/results"
               className="group rounded-[2rem] border border-white/10 bg-zinc-900 p-6 transition hover:scale-[1.02] hover:border-green-400/30 hover:bg-zinc-800"
             >
               <p className="text-sm font-semibold uppercase tracking-[0.25em] text-green-400">
-                Standings
+                Results
               </p>
-              <h3 className="mt-4 text-2xl font-black uppercase">League Table</h3>
+              <h3 className="mt-4 text-2xl font-black uppercase">
+                Match Archive
+              </h3>
               <p className="mt-4 text-zinc-300">
-                Track records, rankings, and the race for playoffs.
+                Track completed series, winners, and game breakdowns.
               </p>
-            </a>
+            </Link>
           </div>
+
         </section>
       </main>
     </>

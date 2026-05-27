@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { knockoutBracket } from "@/lib/knockout-bracket";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
+import { buildKnockoutBracket } from "@/lib/knockout-bracket";
+import { syncKnockoutBracketToSchedule } from "@/lib/knockout-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +28,56 @@ function TeamName({
   );
 }
 
-export default function AdminKnockoutPage() {
+async function syncKnockoutSchedule() {
+  "use server";
+
+  const result = await syncKnockoutBracketToSchedule(prisma);
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/knockout");
+  revalidatePath("/admin/matches");
+  revalidatePath("/api/matches");
+  revalidatePath("/results");
+  revalidatePath("/schedule");
+  revalidatePath("/standings");
+
+  redirect(
+    `/admin/knockout?synced=1&created=${result.created}&updated=${result.updated}&skipped=${result.skipped}`
+  );
+}
+
+export default async function AdminKnockoutPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    synced?: string;
+    created?: string;
+    updated?: string;
+    skipped?: string;
+  }>;
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const showSyncBanner = resolvedSearchParams?.synced === "1";
+
+  const storedMatches = await prisma.match.findMany({
+    where: {
+      stage: {
+        in: ["PLAYOFFS", "SEMIFINALS", "FINALS"],
+      },
+    },
+    include: {
+      homeTeam: true,
+      awayTeam: true,
+      winnerTeam: true,
+    },
+    orderBy: [{ scheduledAt: "asc" }, { createdAt: "desc" }],
+  });
+
+  const bracketMatches = buildKnockoutBracket(storedMatches);
+  const scheduledKnockoutCount = storedMatches.filter(
+    (match) => match.status === "SCHEDULED"
+  ).length;
+
   return (
     <main className="min-h-screen bg-black px-6 py-10 text-white">
       <div className="mx-auto max-w-7xl">
@@ -53,18 +106,39 @@ export default function AdminKnockoutPage() {
           </h1>
           <p className="mt-2 max-w-3xl text-white/60">
             Knockout pairings are seeded from the locked regular season
-            standings. This page no longer creates scheduled matches.
+            standings. Sync the resolved slots into the match schedule so KOOK
+            can pick them up without needing a date or time.
           </p>
-          <div className="mt-5 max-w-4xl rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-sm leading-6 text-white/65">
-            Keep scheduling on the KOOK bot/platform. Update results or
-            advancement labels in <span className="font-semibold text-white">lib/knockout-bracket.ts</span>;
-            uploaded screenshots can still be handled from the KOOK/Railway/OCR
-            flow against match records created by the bot.
+
+          {showSyncBanner && (
+            <div className="mt-5 max-w-4xl rounded-2xl border border-green-400/30 bg-green-500/10 px-5 py-4 text-sm font-medium text-green-300">
+              Knockout schedule synced. Created {resolvedSearchParams?.created ?? 0},
+              updated {resolvedSearchParams?.updated ?? 0}, skipped{" "}
+              {resolvedSearchParams?.skipped ?? 0} placeholder slots.
+            </div>
+          )}
+
+          <div className="mt-5 flex max-w-4xl flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-sm leading-6 text-white/65 md:flex-row md:items-center md:justify-between">
+            <div>
+              <span className="font-semibold text-white">
+                {scheduledKnockoutCount}
+              </span>{" "}
+              knockout match records are currently scheduled. Placeholder
+              semifinal/final slots are skipped until their teams are known.
+            </div>
+            <form action={syncKnockoutSchedule}>
+              <button
+                type="submit"
+                className="rounded-xl bg-green-400 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-black transition hover:bg-green-300"
+              >
+                Sync to Schedule
+              </button>
+            </form>
           </div>
         </div>
 
         <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr_0.9fr]">
-          {knockoutBracket.map((slot) => (
+          {bracketMatches.map((slot) => (
             <div
               key={slot.id}
               className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"

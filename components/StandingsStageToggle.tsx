@@ -389,7 +389,7 @@ function StandingsTable({ standings }: { standings: StandingRow[] }) {
   );
 }
 
-function KnockoutBracket({ matches }: { matches: BracketMatch[] }) {
+export function KnockoutBracket({ matches }: { matches: BracketMatch[] }) {
   const playoffMatches = matches.filter((match) => match.stage === "PLAYOFFS");
   const semifinalMatches = matches.filter(
     (match) => match.stage === "SEMIFINALS"
