@@ -6,6 +6,8 @@ import SplashVideo from "@/components/SplashVideo";
 import { buildKnockoutBracket } from "@/lib/knockout-bracket";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const [leagueWireItems, knockoutMatches] = await Promise.all([
     prisma.leagueWireItem.findMany({

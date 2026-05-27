@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import DeleteTeamButton from "@/components/DeleteTeamButton";
 
+export const dynamic = "force-dynamic";
+
 type TeamPlayer = {
   playerName?: string;
   name?: string;
