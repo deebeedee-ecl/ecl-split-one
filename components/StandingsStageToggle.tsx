@@ -122,7 +122,7 @@ function BracketTeamRow({
             ? "border-yellow-300/45 bg-yellow-400/10 shadow-[0_0_24px_rgba(250,204,21,0.12)]"
             : "border-green-400/35 bg-green-500/10"
           : isEliminated
-            ? "border-white/5 bg-black/30 opacity-45"
+            ? "border-red-500/30 bg-red-950/25 opacity-70"
             : isFinal
               ? "border-yellow-200/15 bg-black/35"
               : "border-white/10 bg-black/25"
@@ -138,6 +138,11 @@ function BracketTeamRow({
             {team.seed && (
               <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
                 Seed {team.seed}
+              </div>
+            )}
+            {isEliminated && (
+              <div className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-red-300">
+                Knocked out
               </div>
             )}
           </div>
@@ -409,7 +414,7 @@ export function KnockoutBracket({ matches }: { matches: BracketMatch[] }) {
               Knockout Stage
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/60">
-              Seeds open as 1 vs 6, 2 vs 5, and 3 vs 4. The highest remaining
+              Quarterfinals open as 1 vs 6, 2 vs 5, and 3 vs 4. The highest remaining
               seed advances directly to finals while the other two fight for
               the last title-match seat.
             </p>
@@ -424,7 +429,7 @@ export function KnockoutBracket({ matches }: { matches: BracketMatch[] }) {
 
       <div className="grid border-b border-white/10 bg-black/25 text-center text-xs font-bold uppercase tracking-[0.2em] text-white/50 md:grid-cols-3">
         <div className="border-white/10 px-4 py-3 md:border-r">
-          Opening Round
+          Quarterfinals
         </div>
         <div className="border-white/10 px-4 py-3 md:border-r">Semifinal</div>
         <div className="px-4 py-3">Finals</div>
@@ -434,7 +439,7 @@ export function KnockoutBracket({ matches }: { matches: BracketMatch[] }) {
         <section>
           <StageHeader
             icon={Swords}
-            title="Opening Round"
+            title="Quarterfinals"
             detail="Three elimination series"
           />
           <div className="grid gap-4">

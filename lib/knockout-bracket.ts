@@ -33,9 +33,9 @@ type StoredKnockoutMatch = {
   status: string;
   homeScore: number;
   awayScore: number;
-  homeTeam: KnockoutTeam;
-  awayTeam: KnockoutTeam;
-  winnerTeam: KnockoutTeam | null;
+  homeTeam: KnockoutTeam & { id?: string };
+  awayTeam: KnockoutTeam & { id?: string };
+  winnerTeam: (KnockoutTeam & { id?: string }) | null;
 };
 
 function getSeededTeam(seed: number): KnockoutTeam | null {
@@ -58,7 +58,30 @@ function getPlaceholderTeam(name: string): KnockoutTeam {
   };
 }
 
-// Opening-round teams are seeded from the locked regular season standings.
+function getTeamSeed(team: KnockoutTeam & { id?: string }) {
+  const teamId = team.teamId ?? team.id;
+  const standingIndex = lockedStandings.findIndex(
+    (standing) =>
+      standing.teamId === teamId || standing.teamName === team.name
+  );
+
+  return standingIndex === -1 ? undefined : standingIndex + 1;
+}
+
+function normalizeTeam(
+  team: (KnockoutTeam & { id?: string }) | null
+): KnockoutTeam | null {
+  if (!team) return null;
+
+  return {
+    teamId: team.teamId ?? team.id,
+    name: team.name,
+    logoUrl: team.logoUrl,
+    seed: team.seed ?? getTeamSeed(team),
+  };
+}
+
+// Quarterfinal teams are seeded from the locked regular season standings.
 // Keep playoff/semifinal matches as BO3. The championship final is BO5.
 export const knockoutBracket: KnockoutMatchConfig[] = [
   {
@@ -170,22 +193,65 @@ export function buildKnockoutBracket(
       .map((match) => [match.matchLabel, match])
   );
 
-  return knockoutBracket.map((slot) => {
+  const bracketMatches: KnockoutMatchConfig[] = knockoutBracket.map((slot) => {
     const match = matchesBySlot.get(slot.id);
 
     if (!match) return slot;
 
+    const bestOf: 3 | 5 = match.bestOf === 5 ? 5 : 3;
+
     return {
       ...slot,
-      homeTeam: match.homeTeam,
-      awayTeam: match.awayTeam,
+      homeTeam: normalizeTeam(match.homeTeam),
+      awayTeam: normalizeTeam(match.awayTeam),
       homeScore: match.homeScore,
       awayScore: match.awayScore,
-      winnerName: match.winnerTeam?.name ?? null,
+      winnerName: normalizeTeam(match.winnerTeam)?.name ?? null,
       status: formatStatus(match.status),
-      bestOf: match.bestOf === 5 ? 5 : 3,
+      bestOf,
       scheduledLabel: formatScheduledLabel(match.scheduledAt),
       isPlaceholder: false,
     };
   });
+
+  const quarterfinalWinners = bracketMatches
+    .filter((match) => match.stage === "PLAYOFFS" && match.winnerName)
+    .map((match) =>
+      [match.homeTeam, match.awayTeam].find(
+        (team) => team?.name === match.winnerName
+      )
+    )
+    .filter((team): team is KnockoutTeam => Boolean(team?.seed))
+    .sort((a, b) => (a.seed ?? 99) - (b.seed ?? 99));
+
+  if (quarterfinalWinners.length >= 3) {
+    const [finalist, ...semifinalTeams] = quarterfinalWinners;
+    const semifinal = bracketMatches.find((match) => match.id === "semifinal");
+    const final = bracketMatches.find((match) => match.id === "final");
+
+    if (semifinal?.isPlaceholder) {
+      semifinal.homeTeam = semifinalTeams[0] ?? semifinal.homeTeam;
+      semifinal.awayTeam = semifinalTeams[1] ?? semifinal.awayTeam;
+      semifinal.status = "Ready to play";
+    }
+
+    if (final?.isPlaceholder) {
+      final.homeTeam = finalist;
+      final.status = "Awaiting semifinal winner";
+    }
+  }
+
+  const semifinal = bracketMatches.find((match) => match.id === "semifinal");
+  const final = bracketMatches.find((match) => match.id === "final");
+
+  if (semifinal?.winnerName && final?.isPlaceholder) {
+    const semifinalWinner = [semifinal.homeTeam, semifinal.awayTeam].find(
+      (team) => team?.name === semifinal.winnerName
+    );
+
+    final.awayTeam = semifinalWinner ?? final.awayTeam;
+    final.status = "Ready to play";
+  }
+
+  return bracketMatches;
 }
