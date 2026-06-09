@@ -47,6 +47,7 @@ type BracketMatch = {
 type Props = {
   standings: StandingRow[];
   bracketMatches: BracketMatch[];
+  initialView?: "standings" | "bracket";
 };
 
 function getRowClass(index: number, total: number) {
@@ -258,6 +259,51 @@ function BracketCard({ match }: { match: BracketMatch }) {
   );
 }
 
+function ChampionBanner({ match }: { match: BracketMatch }) {
+  const champion =
+    match.homeTeam?.name === match.winnerName ? match.homeTeam : match.awayTeam;
+  const runnerUp =
+    match.homeTeam?.name === match.winnerName ? match.awayTeam : match.homeTeam;
+
+  if (!champion || !match.winnerName) return null;
+
+  return (
+    <div className="border-b border-yellow-300/20 bg-[linear-gradient(90deg,rgba(250,204,21,0.16),rgba(34,197,94,0.08),transparent)] px-5 py-6 md:px-6">
+      <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-yellow-300/30 bg-black p-2 shadow-[0_0_28px_rgba(250,204,21,0.15)]">
+            <TeamMark team={champion} />
+          </div>
+          <div className="min-w-0">
+            <p className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.24em] text-yellow-200">
+              <Crown size={15} />
+              Split One Champion
+            </p>
+            <h3 className="mt-2 truncate text-3xl font-black uppercase tracking-[0.06em] text-white md:text-4xl">
+              {champion.name}
+            </h3>
+            <p className="mt-2 text-sm font-semibold uppercase tracking-[0.16em] text-white/55">
+              Finals win vs {runnerUp?.name ?? "TBD"}
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-yellow-300/25 bg-black/35 px-5 py-4 text-center">
+          <div className="text-xs font-bold uppercase tracking-[0.2em] text-yellow-100/70">
+            Final Score
+          </div>
+          <div className="mt-1 text-4xl font-black text-yellow-100">
+            {match.homeScore ?? "-"}-{match.awayScore ?? "-"}
+          </div>
+          <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
+            Best of {match.bestOf ?? 5}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StageHeader({
   icon: Icon,
   title,
@@ -400,6 +446,7 @@ export function KnockoutBracket({ matches }: { matches: BracketMatch[] }) {
     (match) => match.stage === "SEMIFINALS"
   );
   const finalMatches = matches.filter((match) => match.stage === "FINALS");
+  const championMatch = finalMatches.find((match) => match.winnerName);
 
   return (
     <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(39,39,42,0.9),rgba(9,9,11,1))] shadow-[0_0_40px_rgba(0,0,0,0.3)]">
@@ -408,15 +455,15 @@ export function KnockoutBracket({ matches }: { matches: BracketMatch[] }) {
           <div>
             <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.25em] text-green-300">
               <Trophy size={17} />
-              Single Elimination
+              {championMatch ? "Split Complete" : "Single Elimination"}
             </p>
             <h2 className="mt-2 text-3xl font-black uppercase tracking-[0.06em] md:text-4xl">
               Knockout Stage
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/60">
-              Quarterfinals open as 1 vs 6, 2 vs 5, and 3 vs 4. The highest remaining
-              seed advances directly to finals while the other two fight for
-              the last title-match seat.
+              {championMatch
+                ? `${championMatch.winnerName} closed Split One with a ${championMatch.homeScore}-${championMatch.awayScore} championship final win.`
+                : "Quarterfinals open as 1 vs 6, 2 vs 5, and 3 vs 4. The highest remaining seed advances directly to finals while the other two fight for the last title-match seat."}
             </p>
           </div>
 
@@ -426,6 +473,8 @@ export function KnockoutBracket({ matches }: { matches: BracketMatch[] }) {
           </div>
         </div>
       </div>
+
+      {championMatch ? <ChampionBanner match={championMatch} /> : null}
 
       <div className="grid border-b border-white/10 bg-black/25 text-center text-xs font-bold uppercase tracking-[0.2em] text-white/50 md:grid-cols-3">
         <div className="border-white/10 px-4 py-3 md:border-r">
@@ -489,8 +538,9 @@ export function KnockoutBracket({ matches }: { matches: BracketMatch[] }) {
 export default function StandingsStageToggle({
   standings,
   bracketMatches,
+  initialView = "standings",
 }: Props) {
-  const [view, setView] = useState<"standings" | "bracket">("standings");
+  const [view, setView] = useState<"standings" | "bracket">(initialView);
   const showingBracket = view === "bracket";
 
   return (

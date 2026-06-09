@@ -51,6 +51,24 @@ function getSeededTeam(seed: number): KnockoutTeam | null {
   };
 }
 
+const finalChampion = getSeededTeam(1);
+const finalRunnerUp = getSeededTeam(2);
+
+function applyFinalResult(bracketMatches: KnockoutMatchConfig[]) {
+  const final = bracketMatches.find((match) => match.id === "final");
+
+  if (!final || !finalChampion || !finalRunnerUp) return;
+
+  final.homeTeam = finalChampion;
+  final.awayTeam = finalRunnerUp;
+  final.homeScore = 3;
+  final.awayScore = 1;
+  final.winnerName = finalChampion.name;
+  final.status = "Completed";
+  final.bestOf = 5;
+  final.isPlaceholder = false;
+}
+
 function getPlaceholderTeam(name: string): KnockoutTeam {
   return {
     name,
@@ -78,6 +96,18 @@ function normalizeTeam(
     name: team.name,
     logoUrl: team.logoUrl,
     seed: team.seed ?? getTeamSeed(team),
+  };
+}
+
+function cloneTeam(team: KnockoutTeam | null): KnockoutTeam | null {
+  return team ? { ...team } : null;
+}
+
+function cloneSlot(slot: KnockoutMatchConfig): KnockoutMatchConfig {
+  return {
+    ...slot,
+    homeTeam: cloneTeam(slot.homeTeam),
+    awayTeam: cloneTeam(slot.awayTeam),
   };
 }
 
@@ -184,7 +214,9 @@ export function buildKnockoutBracket(
   matches: StoredKnockoutMatch[]
 ): KnockoutMatchConfig[] {
   if (matches.length === 0) {
-    return knockoutBracket;
+    const bracketMatches = knockoutBracket.map(cloneSlot);
+    applyFinalResult(bracketMatches);
+    return bracketMatches;
   }
 
   const matchesBySlot = new Map(
@@ -196,12 +228,12 @@ export function buildKnockoutBracket(
   const bracketMatches: KnockoutMatchConfig[] = knockoutBracket.map((slot) => {
     const match = matchesBySlot.get(slot.id);
 
-    if (!match) return slot;
+    if (!match) return cloneSlot(slot);
 
     const bestOf: 3 | 5 = match.bestOf === 5 ? 5 : 3;
 
     return {
-      ...slot,
+      ...cloneSlot(slot),
       homeTeam: normalizeTeam(match.homeTeam),
       awayTeam: normalizeTeam(match.awayTeam),
       homeScore: match.homeScore,
@@ -252,6 +284,8 @@ export function buildKnockoutBracket(
     final.awayTeam = semifinalWinner ?? final.awayTeam;
     final.status = "Ready to play";
   }
+
+  applyFinalResult(bracketMatches);
 
   return bracketMatches;
 }

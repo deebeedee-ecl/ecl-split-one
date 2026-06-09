@@ -1,5 +1,5 @@
 import { MatchStatus, PrismaClient } from "@prisma/client";
-import { knockoutBracket } from "@/lib/knockout-bracket";
+import { buildKnockoutBracket } from "@/lib/knockout-bracket";
 
 type SyncKnockoutScheduleResult = {
   created: number;
@@ -13,12 +13,26 @@ export async function syncKnockoutBracketToSchedule(
   let created = 0;
   let updated = 0;
   let skipped = 0;
+  const storedMatches = await prisma.match.findMany({
+    where: {
+      stage: {
+        in: ["PLAYOFFS", "SEMIFINALS", "FINALS"],
+      },
+    },
+    include: {
+      homeTeam: true,
+      awayTeam: true,
+      winnerTeam: true,
+    },
+    orderBy: [{ scheduledAt: "asc" }, { createdAt: "desc" }],
+  });
+  const resolvedBracket = buildKnockoutBracket(storedMatches);
 
-  for (const slot of knockoutBracket) {
+  for (const slot of resolvedBracket) {
     const homeTeamId = slot.homeTeam?.teamId;
     const awayTeamId = slot.awayTeam?.teamId;
 
-    if (!homeTeamId || !awayTeamId || slot.isPlaceholder) {
+    if (!homeTeamId || !awayTeamId) {
       skipped += 1;
       continue;
     }

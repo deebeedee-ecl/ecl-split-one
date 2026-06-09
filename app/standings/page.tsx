@@ -43,7 +43,16 @@ function getPoints(w: number, l: number) {
   return 0;
 }
 
-export default async function StandingsPage() {
+export default async function StandingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    view?: string;
+  }>;
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const initialView =
+    resolvedSearchParams?.view === "knockout" ? "bracket" : "standings";
   let standings: StandingRow[] = lockedStandings;
   const storedKnockoutMatches = await prisma.match.findMany({
     where: {
@@ -142,6 +151,7 @@ export default async function StandingsPage() {
       <StandingsStageToggle
         standings={standings}
         bracketMatches={bracketMatches}
+        initialView={initialView}
       />
     </main>
   );
