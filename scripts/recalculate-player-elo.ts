@@ -155,9 +155,7 @@ async function main() {
       })
     );
 
-    await prisma.$transaction(updates, {
-      timeout: 15_000,
-    });
+    await prisma.$transaction(updates);
 
     updatedPlayers += 1;
   }
