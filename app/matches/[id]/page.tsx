@@ -9,23 +9,26 @@ type PageProps = {
   params: Promise<{ id: string }>;
 };
 
+function empty(value?: number | null) {
+  return value === null || value === undefined ? "-" : value;
+}
+
 function formatDuration(seconds?: number | null) {
-  if (!seconds || seconds <= 0) return "—";
+  if (!seconds || seconds <= 0) return "-";
 
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
 
-  if (secs === 0) return `${mins}m`;
-  return `${mins}m ${secs}s`;
+  return secs === 0 ? `${mins}m` : `${mins}m ${secs}s`;
 }
 
 function formatGold(gold?: number | null) {
-  if (gold === null || gold === undefined) return "—";
+  if (gold === null || gold === undefined) return "-";
   return `${(gold / 1000).toFixed(1)}k`;
 }
 
 function formatDamage(value?: number | null) {
-  if (value === null || value === undefined) return "—";
+  if (value === null || value === undefined) return "-";
   return `${(value / 1000).toFixed(1)}k`;
 }
 
@@ -42,22 +45,28 @@ function getWinnerName(
   return "Unknown";
 }
 
-function getTeamTag(teamName: string) {
-  const words = teamName.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "ECL";
-  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
+function getTeamTag(name: string) {
+  const words = name
+    .replace(/[^\w\s]/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
 
-  return words
-    .slice(0, 3)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
+  if (words.length >= 2) {
+    return words
+      .slice(0, 3)
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase();
+  }
+
+  return name.replace(/[^\w]/g, "").slice(0, 3).toUpperCase();
 }
 
 function TeamLogo({
   src,
   alt,
-  size = 52,
+  size = 56,
 }: {
   src?: string | null;
   alt: string;
@@ -66,93 +75,40 @@ function TeamLogo({
   if (!src) {
     return (
       <div
-        className="flex items-center justify-center rounded-full border border-white/10 bg-white/5 text-[10px] font-black uppercase tracking-[0.18em] text-white/40"
+        className="flex shrink-0 items-center justify-center border border-[#1f1f1f] bg-[#0d0d0d] text-[10px] font-black uppercase tracking-[0.12em] text-[#9ca3af]"
         style={{ width: size, height: size }}
       >
-        LOGO
+        {getTeamTag(alt)}
       </div>
     );
   }
 
   return (
     <div
-      className="relative overflow-hidden rounded-full border border-white/10 bg-white/5"
+      className="relative shrink-0 overflow-hidden border border-[#1f1f1f] bg-[#0d0d0d]"
       style={{ width: size, height: size }}
     >
-      <Image
-        src={src}
-        alt={alt}
-        fill
-        className="object-cover"
-        sizes={`${size}px`}
-      />
+      <Image src={src} alt={alt} fill className="object-contain p-2" sizes={`${size}px`} />
     </div>
   );
 }
 
-function StatPill({
-  icon,
-  value,
-}: {
-  icon: string;
-  value: string | number;
-}) {
+function MiniStat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-      <span className="text-xs">{icon}</span>
-      <span className="text-xs font-bold text-white">{value}</span>
+    <div className="border border-[#1f1f1f] bg-black/30 px-4 py-3">
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#9ca3af]">
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-black text-white">{value}</p>
     </div>
   );
 }
 
-function FooterBadge({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent: "gold" | "standard" | "cyan";
-}) {
-  const styles =
-    accent === "gold"
-      ? "border-yellow-400/40 bg-yellow-400/15 text-yellow-300"
-      : accent === "cyan"
-        ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-300"
-        : "border-white/10 bg-white/[0.04] text-white/60";
-
+function PlayerBadge({ children }: { children: string }) {
   return (
-    <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 ${styles}`}>
-      <span className="text-[11px] font-black uppercase tracking-[0.18em]">{label}</span>
-      <span className="text-sm font-bold text-white">{value}</span>
-    </div>
-  );
-}
-
-function PlayerBadges({
-  isMVP,
-  isSVP,
-}: {
-  isMVP?: boolean;
-  isSVP?: boolean;
-}) {
-  if (!isMVP && !isSVP) {
-    return <span className="text-white/30">—</span>;
-  }
-
-  return (
-    <div className="flex items-center justify-end gap-2">
-      {isMVP && (
-        <span className="rounded-full border border-yellow-400/30 bg-yellow-500/15 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-yellow-300">
-          MVP
-        </span>
-      )}
-      {isSVP && (
-        <span className="rounded-full border border-cyan-400/30 bg-cyan-500/15 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">
-          SVP
-        </span>
-      )}
-    </div>
+    <span className="border border-[#b11226]/50 bg-[#b11226]/15 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white">
+      {children}
+    </span>
   );
 }
 
@@ -186,10 +142,8 @@ export default async function MatchPage({ params }: PageProps) {
 
   const home = match.homeTeam;
   const away = match.awayTeam;
-
   const homeTag = getTeamTag(home.name);
   const awayTag = getTeamTag(away.name);
-
   const seriesWinner = getWinnerName(
     match.winnerTeamId,
     home.id,
@@ -199,399 +153,201 @@ export default async function MatchPage({ params }: PageProps) {
   );
 
   return (
-    <main className="min-h-screen bg-black px-4 py-8 text-white">
-      <div className="mx-auto max-w-7xl">
-        <Link
-          href="/results"
-          className="mb-5 inline-flex items-center text-sm font-semibold text-white/60 transition hover:text-green-400"
-        >
-          ← Back to Results
-        </Link>
+    <main className="min-h-screen bg-[#050505] text-white">
+      <section className="relative isolate overflow-hidden border-b border-[#1f1f1f] px-4 py-10 sm:px-6 lg:py-16">
+        <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(177,18,38,0.18),transparent_38%),radial-gradient(circle_at_75%_25%,rgba(177,18,38,0.16),transparent_30%)]" />
+        <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(90deg,#fff_1px,transparent_1px),linear-gradient(#fff_1px,transparent_1px)] [background-size:76px_76px]" />
 
-        <div className="mb-6 rounded-[28px] border border-white/10 bg-gradient-to-b from-white/[0.04] to-white/[0.02] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_0_40px_rgba(0,255,150,0.08)]">
-          <div className="relative min-h-[150px]">
-            <div className="flex items-start justify-between gap-6">
-              <div className="flex max-w-[340px] items-center gap-3">
-                <TeamLogo src={home.logoUrl} alt={home.name} size={52} />
-                <div>
-                  <div className="max-w-[250px] text-base font-black uppercase leading-[1.05] tracking-[0.05em] text-white md:text-lg">
-                    {home.name}
-                  </div>
-                  <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                    [{homeTag}] • Home
-                  </div>
-                </div>
-              </div>
+        <div className="relative mx-auto max-w-7xl">
+          <Link
+            href="/tournaments/split-one"
+            className="inline-flex items-center border border-[#1f1f1f] bg-[#0d0d0d] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-[#9ca3af] transition hover:border-[#b11226] hover:text-white"
+          >
+            Back to Split One Archive
+          </Link>
 
-              <div className="flex max-w-[340px] items-center gap-3 text-right">
-                <div>
-                  <div className="max-w-[250px] text-base font-black uppercase leading-[1.05] tracking-[0.05em] text-white md:text-lg">
-                    {away.name}
-                  </div>
-                  <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                    [{awayTag}] • Away
-                  </div>
-                </div>
-                <TeamLogo src={away.logoUrl} alt={away.name} size={52} />
+          <p className="mt-10 text-sm font-black uppercase tracking-[0.24em] text-[#b11226]">
+            Match Archive
+          </p>
+          <h1 className="mt-3 text-5xl font-black uppercase leading-none [font-family:Anton,Impact,Arial_Black,Arial,sans-serif] md:text-7xl">
+            Match Detail
+          </h1>
+
+          <div className="mt-8 grid gap-4 border border-[#1f1f1f] bg-[#0d0d0d] p-5 md:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)] md:items-center">
+            <div className="flex min-w-0 items-center gap-4">
+              <TeamLogo src={home.logoUrl} alt={home.name} size={72} />
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#9ca3af]">
+                  {homeTag}
+                </p>
+                <h2 className="truncate text-2xl font-black text-white">{home.name}</h2>
               </div>
             </div>
 
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-[11px] font-bold uppercase tracking-[0.26em] text-white/35">
-                  BO{match.bestOf}
-                </div>
-                <div className="mt-1 text-5xl font-black tracking-tight text-white">
-                  {match.homeScore} - {match.awayScore}
-                </div>
-                <div className="mt-1 text-sm font-bold text-white/75">
-                  {seriesWinner}
-                </div>
+            <div className="border border-[#1f1f1f] bg-black/35 px-4 py-4 text-center">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#9ca3af]">
+                BO{match.bestOf}
+              </p>
+              <p className="mt-1 text-4xl font-black text-white">
+                {match.homeScore} - {match.awayScore}
+              </p>
+              <p className="mt-2 text-xs font-black uppercase tracking-[0.14em] text-[#b11226]">
+                {seriesWinner}
+              </p>
+            </div>
+
+            <div className="flex min-w-0 items-center gap-4 md:justify-end md:text-right">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#9ca3af]">
+                  {awayTag}
+                </p>
+                <h2 className="truncate text-2xl font-black text-white">{away.name}</h2>
               </div>
+              <TeamLogo src={away.logoUrl} alt={away.name} size={72} />
             </div>
           </div>
         </div>
+      </section>
 
-        <div className="space-y-5">
-          {match.games.map((game) => {
-            const winner = getWinnerName(
-              game.winnerTeamId,
-              home.id,
-              away.id,
-              home.name,
-              away.name
-            );
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+        <div className="space-y-6">
+          {match.games.length === 0 ? (
+            <div className="border border-[#1f1f1f] bg-[#0d0d0d] p-8 text-center text-[#9ca3af]">
+              No game data has been added for this match yet.
+            </div>
+          ) : (
+            match.games.map((game) => {
+              const winner = getWinnerName(
+                game.winnerTeamId,
+                home.id,
+                away.id,
+                home.name,
+                away.name
+              );
+              const homePlayers = game.playerStats.filter((stat) => stat.teamId === home.id);
+              const awayPlayers = game.playerStats.filter((stat) => stat.teamId === away.id);
 
-            const homePlayers = game.playerStats.filter(
-              (stat) => stat.teamId === home.id
-            );
-            const awayPlayers = game.playerStats.filter(
-              (stat) => stat.teamId === away.id
-            );
+              return (
+                <article key={game.id} className="border border-[#1f1f1f] bg-[#0d0d0d] p-5">
+                  <div className="grid gap-4 border-b border-[#1f1f1f] pb-5 lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b11226]">
+                        Game {game.gameNumber}
+                      </p>
+                      <h3 className="mt-2 text-3xl font-black uppercase text-white">
+                        {homeTag} vs {awayTag}
+                      </h3>
+                    </div>
 
-            const mvpStat =
-              game.playerStats.find((stat) => stat.isMVP) ?? null;
-            const svpStat =
-              game.playerStats.find((stat) => stat.isSVP) ?? null;
+                    <div className="border border-[#1f1f1f] bg-black/30 px-5 py-4 text-center">
+                      <p className="text-4xl font-black text-white">
+                        {empty(game.homeKills)} - {empty(game.awayKills)}
+                      </p>
+                      <p className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-[#9ca3af]">
+                        Kills
+                      </p>
+                    </div>
 
-            const mvpName =
-              game.mvpName ||
-              mvpStat?.player?.name ||
-              mvpStat?.riotName ||
-              "Not set";
-
-            const svpName =
-              svpStat?.player?.name ||
-              svpStat?.riotName ||
-              "Not set";
-
-            const hasPlayerStats = game.playerStats.length > 0;
-
-            return (
-              <section
-                key={game.id}
-                className="rounded-[28px] border border-white/10 bg-gradient-to-b from-white/[0.04] to-white/[0.02] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]"
-              >
-                <div className="mx-auto max-w-[420px] border-b border-white/10 pb-3 text-center">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.26em] text-white/35">
-                    Game {game.gameNumber} • {formatDuration(game.durationSeconds)}
-                  </div>
-
-                  <div className="mt-2 text-4xl font-black tracking-tight text-white">
-                    {(game.homeKills ?? 0)} - {(game.awayKills ?? 0)}
-                  </div>
-
-                  <div className="mt-1 text-sm font-bold text-white/70">
-                    [{homeTag}] <span className="text-white/35">vs</span> [{awayTag}]
-                  </div>
-
-                  <div className="mt-1 text-xs font-semibold text-green-400">
-                    Winner: {winner}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 py-4">
-                  <div className="flex items-center gap-4">
-                    <span className="text-2xl font-black uppercase tracking-[0.06em] text-white">
-                      [{homeTag}]
-                    </span>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatPill icon="⚔️" value={game.homeKills ?? "—"} />
-                      <StatPill icon="💰" value={formatGold(game.homeGold)} />
-                      <StatPill icon="🏰" value={game.homeTowers ?? "—"} />
-                      <StatPill icon="🐉" value={game.homeDrakes ?? "—"} />
+                    <div className="lg:text-right">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-[#9ca3af]">
+                        Winner
+                      </p>
+                      <p className="mt-2 text-xl font-black text-white">{winner}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatPill icon="⚔️" value={game.awayKills ?? "—"} />
-                      <StatPill icon="💰" value={formatGold(game.awayGold)} />
-                      <StatPill icon="🏰" value={game.awayTowers ?? "—"} />
-                      <StatPill icon="🐉" value={game.awayDrakes ?? "—"} />
-                    </div>
-
-                    <span className="text-2xl font-black uppercase tracking-[0.06em] text-white">
-                      [{awayTag}]
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
-                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
-                      <span>⚔️</span>
-                      <span>Kills</span>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-base font-bold">
-                      <span className="text-white/60">{homeTag}</span>
-                      <span className="text-xl font-black tracking-wide text-white">
-                        {game.homeKills != null && game.awayKills != null
-                          ? `${game.homeKills} - ${game.awayKills}`
-                          : "—"}
-                      </span>
-                      <span className="text-white/60">{awayTag}</span>
-                    </div>
+                  <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                    <MiniStat label="Duration" value={formatDuration(game.durationSeconds)} />
+                    <MiniStat label={`${homeTag} Gold`} value={formatGold(game.homeGold)} />
+                    <MiniStat label={`${awayTag} Gold`} value={formatGold(game.awayGold)} />
+                    <MiniStat label="Towers" value={`${empty(game.homeTowers)} - ${empty(game.awayTowers)}`} />
+                    <MiniStat label="Drakes" value={`${empty(game.homeDrakes)} - ${empty(game.awayDrakes)}`} />
+                    <MiniStat label="Barons" value={`${empty(game.homeBarons)} - ${empty(game.awayBarons)}`} />
                   </div>
 
-                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
-                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
-                      <span>💰</span>
-                      <span>Gold</span>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-base font-bold">
-                      <span className="text-white/60">{homeTag}</span>
-                      <span className="text-lg font-black tracking-wide text-white">
-                        {game.homeGold != null && game.awayGold != null
-                          ? `${formatGold(game.homeGold)} - ${formatGold(game.awayGold)}`
-                          : "—"}
-                      </span>
-                      <span className="text-white/60">{awayTag}</span>
-                    </div>
+                  <div className="mt-6 grid gap-5 xl:grid-cols-2">
+                    <PlayerTable title={home.name} players={homePlayers} />
+                    <PlayerTable title={away.name} players={awayPlayers} />
                   </div>
-
-                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
-                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
-                      <span>🏰</span>
-                      <span>Towers</span>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-base font-bold">
-                      <span className="text-white/60">{homeTag}</span>
-                      <span className="text-lg font-black tracking-wide text-white">
-                        {game.homeTowers != null && game.awayTowers != null
-                          ? `${game.homeTowers} - ${game.awayTowers}`
-                          : "—"}
-                      </span>
-                      <span className="text-white/60">{awayTag}</span>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
-                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
-                      <span>💥</span>
-                      <span>Inhibitors</span>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-base font-bold">
-                      <span className="text-white/60">{homeTag}</span>
-                      <span className="text-lg font-black tracking-wide text-white">
-                        {game.homeInhibitors != null && game.awayInhibitors != null
-                          ? `${game.homeInhibitors} - ${game.awayInhibitors}`
-                          : "—"}
-                      </span>
-                      <span className="text-white/60">{awayTag}</span>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
-                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
-                      <span>🟣</span>
-                      <span>Barons</span>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-base font-bold">
-                      <span className="text-white/60">{homeTag}</span>
-                      <span className="text-lg font-black tracking-wide text-white">
-                        {game.homeBarons != null && game.awayBarons != null
-                          ? `${game.homeBarons} - ${game.awayBarons}`
-                          : "—"}
-                      </span>
-                      <span className="text-white/60">{awayTag}</span>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] px-4 py-3">
-                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/55">
-                      <span>🐉</span>
-                      <span>Drakes</span>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-base font-bold">
-                      <span className="text-white/60">{homeTag}</span>
-                      <span className="text-lg font-black tracking-wide text-white">
-                        {game.homeDrakes != null && game.awayDrakes != null
-                          ? `${game.homeDrakes} - ${game.awayDrakes}`
-                          : "—"}
-                      </span>
-                      <span className="text-white/60">{awayTag}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5 flex flex-wrap items-center gap-3">
-                  <FooterBadge
-                    label="MVP"
-                    value={mvpName}
-                    accent="gold"
-                  />
-                  <FooterBadge
-                    label="SVP"
-                    value={svpName}
-                    accent="cyan"
-                  />
-                  <FooterBadge
-                    label="Players"
-                    value={String(game.playerStats.length)}
-                    accent="standard"
-                  />
-                </div>
-
-                <div className="mt-5 grid gap-5 xl:grid-cols-2">
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <h4 className="text-sm font-black uppercase tracking-[0.18em] text-white">
-                        {home.name}
-                      </h4>
-                      <span className="text-xs uppercase tracking-[0.18em] text-white/45">
-                        {homePlayers.length} Players
-                      </span>
-                    </div>
-
-                    {!hasPlayerStats || homePlayers.length === 0 ? (
-                      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-white/45">
-                        No player stats recorded.
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                          <thead>
-                            <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-[0.16em] text-white/45">
-                              <th className="px-2 py-2">Player</th>
-                              <th className="px-2 py-2">K / D / A</th>
-                              <th className="px-2 py-2">Gold</th>
-                              <th className="px-2 py-2">Damage</th>
-                              <th className="px-2 py-2 text-right">Badges</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {homePlayers.map((stat) => (
-                              <tr
-                                key={stat.id}
-                                className="border-b border-white/5 text-white/80 last:border-b-0"
-                              >
-                                <td className="px-2 py-3 font-semibold text-white">
-                                  {stat.player?.name || stat.riotName || "Unknown"}
-                                </td>
-                                <td className="px-2 py-3">
-                                  {stat.kills}/{stat.deaths}/{stat.assists}
-                                </td>
-                                <td className="px-2 py-3">
-                                  {formatGold(stat.gold)}
-                                </td>
-                                <td className="px-2 py-3">
-                                  {formatDamage(stat.damage)}
-                                </td>
-                                <td className="px-2 py-3 text-right">
-                                  <PlayerBadges
-                                    isMVP={stat.isMVP}
-                                    isSVP={stat.isSVP}
-                                  />
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <h4 className="text-sm font-black uppercase tracking-[0.18em] text-white">
-                        {away.name}
-                      </h4>
-                      <span className="text-xs uppercase tracking-[0.18em] text-white/45">
-                        {awayPlayers.length} Players
-                      </span>
-                    </div>
-
-                    {!hasPlayerStats || awayPlayers.length === 0 ? (
-                      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-white/45">
-                        No player stats recorded.
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                          <thead>
-                            <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-[0.16em] text-white/45">
-                              <th className="px-2 py-2">Player</th>
-                              <th className="px-2 py-2">K / D / A</th>
-                              <th className="px-2 py-2">Gold</th>
-                              <th className="px-2 py-2">Damage</th>
-                              <th className="px-2 py-2 text-right">Badges</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {awayPlayers.map((stat) => (
-                              <tr
-                                key={stat.id}
-                                className="border-b border-white/5 text-white/80 last:border-b-0"
-                              >
-                                <td className="px-2 py-3 font-semibold text-white">
-                                  {stat.player?.name || stat.riotName || "Unknown"}
-                                </td>
-                                <td className="px-2 py-3">
-                                  {stat.kills}/{stat.deaths}/{stat.assists}
-                                </td>
-                                <td className="px-2 py-3">
-                                  {formatGold(stat.gold)}
-                                </td>
-                                <td className="px-2 py-3">
-                                  {formatDamage(stat.damage)}
-                                </td>
-                                <td className="px-2 py-3 text-right">
-                                  <PlayerBadges
-                                    isMVP={stat.isMVP}
-                                    isSVP={stat.isSVP}
-                                  />
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                  {game.notes ? (
-                    <FooterBadge
-                      label="Note"
-                      value={game.notes}
-                      accent="standard"
-                    />
-                  ) : (
-                    <FooterBadge
-                      label="Status"
-                      value={hasPlayerStats ? "OCR stats recorded" : "Awaiting player stats"}
-                      accent="standard"
-                    />
-                  )}
-                </div>
-              </section>
-            );
-          })}
+                </article>
+              );
+            })
+          )}
         </div>
-      </div>
+      </section>
     </main>
+  );
+}
+
+function PlayerTable({
+  title,
+  players,
+}: {
+  title: string;
+  players: Array<{
+    id: string;
+    kills: number;
+    deaths: number;
+    assists: number;
+    gold: number | null;
+    damage: number | null;
+    isMVP: boolean;
+    isSVP: boolean;
+    riotName: string | null;
+    player: { name: string } | null;
+  }>;
+}) {
+  return (
+    <div className="border border-[#1f1f1f] bg-black/25 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h4 className="text-sm font-black uppercase tracking-[0.18em] text-white">
+          {title}
+        </h4>
+        <span className="text-xs uppercase tracking-[0.18em] text-[#9ca3af]">
+          {players.length} Players
+        </span>
+      </div>
+
+      {players.length === 0 ? (
+        <div className="border border-[#1f1f1f] bg-[#0d0d0d] px-4 py-4 text-sm text-[#9ca3af]">
+          No player stats recorded.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-[#1f1f1f] text-left text-[11px] uppercase tracking-[0.16em] text-[#9ca3af]">
+                <th className="px-2 py-2">Player</th>
+                <th className="px-2 py-2">K / D / A</th>
+                <th className="px-2 py-2">Gold</th>
+                <th className="px-2 py-2">Damage</th>
+                <th className="px-2 py-2 text-right">Badges</th>
+              </tr>
+            </thead>
+            <tbody>
+              {players.map((stat) => (
+                <tr key={stat.id} className="border-b border-[#1f1f1f] text-[#d1d5db] last:border-b-0">
+                  <td className="px-2 py-3 font-semibold text-white">
+                    {stat.player?.name || stat.riotName || "Unknown"}
+                  </td>
+                  <td className="px-2 py-3">
+                    {stat.kills}/{stat.deaths}/{stat.assists}
+                  </td>
+                  <td className="px-2 py-3">{formatGold(stat.gold)}</td>
+                  <td className="px-2 py-3">{formatDamage(stat.damage)}</td>
+                  <td className="px-2 py-3 text-right">
+                    <div className="flex justify-end gap-2">
+                      {stat.isMVP && <PlayerBadge>MVP</PlayerBadge>}
+                      {stat.isSVP && <PlayerBadge>SVP</PlayerBadge>}
+                      {!stat.isMVP && !stat.isSVP && <span className="text-[#9ca3af]">-</span>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

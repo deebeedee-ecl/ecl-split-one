@@ -361,25 +361,25 @@ export default async function TeamStatsDetailPage({
   return (
     <main className="min-h-screen bg-[#050505] text-white">
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(74,222,128,0.08),transparent_30%),radial-gradient(circle_at_center,rgba(93,74,185,0.08),transparent_40%),linear-gradient(to_bottom,rgba(10,10,10,0.98),rgba(0,0,0,1))]" />
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-green-400/50 to-transparent" />
+        <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(177,18,38,0.16),transparent_36%),radial-gradient(circle_at_72%_20%,rgba(177,18,38,0.14),transparent_32%),linear-gradient(to_bottom,rgba(5,5,5,0.98),rgba(0,0,0,1))]" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#b11226]/60 to-transparent" />
 
         <div className="relative mx-auto max-w-7xl px-6 py-8">
           <div className="mb-6">
             <Link
-              href="/stats/teams"
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-white/70 transition hover:border-green-400/40 hover:bg-green-500/10 hover:text-green-300"
+              href="/tournaments/split-one"
+              className="inline-flex items-center gap-2 border border-[#1f1f1f] bg-[#0d0d0d] px-4 py-3 text-xs font-black uppercase tracking-[0.2em] text-[#9ca3af] transition hover:border-[#b11226] hover:text-white"
             >
-              ← Back to Team Stats
+              Back to Split One Archive
             </Link>
           </div>
 
-          <section className="rounded-[32px] border border-white/10 bg-white/[0.03] px-6 py-8 md:px-8 md:py-10 shadow-[0_10px_50px_rgba(0,0,0,0.35)]">
-            <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-green-300/85">
+          <section className="border border-[#1f1f1f] bg-[#0d0d0d] px-6 py-8 shadow-[0_10px_50px_rgba(0,0,0,0.35)] md:px-8 md:py-10">
+            <p className="text-[11px] font-black uppercase tracking-[0.35em] text-[#b11226]">
               Split One
             </p>
 
-            <h1 className="mt-3 text-4xl font-black uppercase tracking-[0.08em] md:text-6xl">
+            <h1 className="mt-3 text-5xl font-black uppercase leading-none [font-family:Anton,Impact,Arial_Black,Arial,sans-serif] md:text-7xl">
               {team.name}
             </h1>
 
@@ -396,7 +396,7 @@ export default async function TeamStatsDetailPage({
             </div>
           </section>
 
-          <section className="mt-6 overflow-hidden rounded-[32px] border border-white/10 bg-[#0a0a0a] p-6 md:p-8 shadow-[0_16px_70px_rgba(0,0,0,0.45)]">
+          <section className="mt-6 overflow-hidden border border-[#1f1f1f] bg-[#0d0d0d] p-6 shadow-[0_16px_70px_rgba(0,0,0,0.45)] md:p-8">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.34em] text-white/40">
@@ -407,19 +407,19 @@ export default async function TeamStatsDetailPage({
                 </h2>
               </div>
 
-              <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-green-300">
-                Live Data
+              <div className="border border-[#1f1f1f] bg-black/35 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-[#b11226]">
+                Archive Data
               </div>
             </div>
 
             <div className="mt-10 flex justify-center">
               <div className="relative aspect-square w-full max-w-[640px]">
-                <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(250,204,21,0.06),transparent_38%)] blur-2xl" />
-                <div className="absolute inset-[12%] rounded-full bg-[radial-gradient(circle,rgba(93,74,185,0.12),transparent_62%)] blur-3xl" />
+                <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(177,18,38,0.1),transparent_38%)] blur-2xl" />
+                <div className="absolute inset-[12%] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.06),transparent_62%)] blur-3xl" />
 
                 <svg viewBox="0 0 560 560" className="relative z-10 h-full w-full">
                   <defs>
-                    <filter id="goldGlow" x="-50%" y="-50%" width="200%" height="200%">
+                    <filter id="redGlow" x="-50%" y="-50%" width="200%" height="200%">
                       <feGaussianBlur stdDeviation="4" result="coloredBlur" />
                       <feMerge>
                         <feMergeNode in="coloredBlur" />
@@ -458,24 +458,24 @@ export default async function TeamStatsDetailPage({
 
                   <polygon
                     points={buildGridPolygonPoints(6, 280, 280, 200)}
-                    fill="rgba(50,38,110,0.16)"
-                    stroke="rgba(50,38,110,0.10)"
+                    fill="rgba(177,18,38,0.08)"
+                    stroke="rgba(177,18,38,0.12)"
                     strokeWidth="1"
                   />
 
                   <polygon
                     points={ghostPolygonPoints}
-                    fill="rgba(93,74,185,0.14)"
-                    stroke="rgba(93,74,185,0.34)"
+                    fill="rgba(255,255,255,0.05)"
+                    stroke="rgba(255,255,255,0.18)"
                     strokeWidth="1.5"
                   />
 
                   <polygon
                     points={livePolygonPoints}
-                    fill="rgba(250,204,21,0.16)"
-                    stroke="rgba(250,204,21,0.98)"
+                    fill="rgba(177,18,38,0.22)"
+                    stroke="rgba(209,26,42,0.98)"
                     strokeWidth="3"
-                    filter="url(#goldGlow)"
+                    filter="url(#redGlow)"
                   />
 
                   {visualRadarValues.map((value, index) => {
@@ -491,8 +491,8 @@ export default async function TeamStatsDetailPage({
                         cx={point.x}
                         cy={point.y}
                         r="5"
-                        fill="rgba(250,204,21,1)"
-                        filter="url(#goldGlow)"
+                        fill="rgba(209,26,42,1)"
+                        filter="url(#redGlow)"
                       />
                     );
                   })}
@@ -507,7 +507,7 @@ export default async function TeamStatsDetailPage({
                   <circle cx="280" cy="280" r="38" fill="rgba(255,255,255,0.04)" />
                 </svg>
 
-                <div className="absolute left-1/2 top-1/2 z-20 h-[118px] w-[118px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-[radial-gradient(circle,rgba(255,255,255,0.14),rgba(255,255,255,0.03)_40%,rgba(0,0,0,0.9)_74%)] shadow-[0_0_40px_rgba(250,204,21,0.08)]" />
+                <div className="absolute left-1/2 top-1/2 z-20 h-[118px] w-[118px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#1f1f1f] bg-[radial-gradient(circle,rgba(255,255,255,0.12),rgba(255,255,255,0.03)_40%,rgba(0,0,0,0.9)_74%)] shadow-[0_0_40px_rgba(177,18,38,0.12)]" />
 
                 {radarMetrics.map((metric) => (
                   <RadarOrbitTag
@@ -522,8 +522,8 @@ export default async function TeamStatsDetailPage({
             </div>
           </section>
 
-          <section className="mt-6 overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.03] shadow-[0_10px_50px_rgba(0,0,0,0.35)]">
-            <div className="border-b border-white/10 px-6 py-5">
+          <section className="mt-6 overflow-hidden border border-[#1f1f1f] bg-[#0d0d0d] shadow-[0_10px_50px_rgba(0,0,0,0.35)]">
+            <div className="border-b border-[#1f1f1f] px-6 py-5">
               <p className="text-[10px] font-bold uppercase tracking-[0.34em] text-white/40">
                 Roster
               </p>
@@ -558,8 +558,8 @@ export default async function TeamStatsDetailPage({
                     rosterRows.map((player, index) => (
                       <tr
                         key={player.id}
-                        className={`border-t border-white/10 ${
-                          index === 0 ? "bg-green-500/8" : "hover:bg-white/[0.03]"
+                        className={`border-t border-[#1f1f1f] ${
+                          index === 0 ? "bg-[#b11226]/10" : "hover:bg-white/[0.03]"
                         }`}
                       >
                         <td className="px-4 py-4">
@@ -567,8 +567,8 @@ export default async function TeamStatsDetailPage({
                             <div
                               className={`flex h-9 w-9 items-center justify-center rounded-xl border text-xs font-black ${
                                 index === 0
-                                  ? "border-green-400/30 bg-green-500/10 text-green-300"
-                                  : "border-white/10 bg-white/5 text-white/70"
+                                  ? "border-[#b11226]/50 bg-[#b11226]/15 text-white"
+                                  : "border-[#1f1f1f] bg-white/5 text-white/70"
                               }`}
                             >
                               {index + 1}
@@ -594,7 +594,7 @@ export default async function TeamStatsDetailPage({
                           {player.gp > 0 ? formatPercent(player.wr) : "-"}
                         </td>
 
-                        <td className="px-4 py-4 text-yellow-300">
+                        <td className="px-4 py-4 text-[#d11a2a]">
                           {player.gp > 0 ? player.kda : "-"}
                         </td>
 
@@ -604,7 +604,7 @@ export default async function TeamStatsDetailPage({
                           <span
                             className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-[0.16em] ${
                               player.streak.startsWith("W")
-                                ? "border border-green-500/30 bg-green-500/10 text-green-300"
+                                ? "border border-[#b11226]/40 bg-[#b11226]/15 text-white"
                                 : player.streak.startsWith("L")
                                 ? "border border-red-500/30 bg-red-500/10 text-red-300"
                                 : "border border-white/10 bg-white/5 text-white/70"
@@ -637,15 +637,15 @@ function HeroPill({
 }) {
   return (
     <div
-      className={`rounded-2xl border px-4 py-3 ${
+      className={`border px-4 py-3 ${
         highlight
-          ? "border-green-400/25 bg-green-500/10"
-          : "border-white/10 bg-black/30"
+          ? "border-[#b11226]/50 bg-[#b11226]/15"
+          : "border-[#1f1f1f] bg-black/30"
       }`}
     >
       <p
         className={`text-[10px] font-bold uppercase tracking-[0.25em] ${
-          highlight ? "text-green-300/80" : "text-white/40"
+          highlight ? "text-[#d11a2a]" : "text-white/40"
         }`}
       >
         {label}
@@ -696,7 +696,7 @@ function RadarOrbitTag({
               : "flex-start",
         }}
       >
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#151229] text-[10px] font-black uppercase tracking-[0.18em] text-white/85 shadow-[0_0_20px_rgba(93,74,185,0.18)] transition duration-200 group-hover:border-yellow-300/40 group-hover:text-yellow-200 group-hover:shadow-[0_0_20px_rgba(250,204,21,0.18)]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#1f1f1f] bg-[#111] text-[10px] font-black uppercase tracking-[0.18em] text-white/85 shadow-[0_0_20px_rgba(177,18,38,0.14)] transition duration-200 group-hover:border-[#b11226]/60 group-hover:text-white group-hover:shadow-[0_0_20px_rgba(177,18,38,0.22)]">
           {short}
         </div>
         <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">

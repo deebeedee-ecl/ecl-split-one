@@ -1,0 +1,656 @@
+{
+  "code": 1,
+  "message": "近10把评分93.7,把均9.4(15分11秒,5.6杀)<br> 高玩认证-6胜4负，胜率(60.0%)<br><br>单排居多，共计8把，胜率：75.0%<br>使用偏法师型英雄较多，共计8把，胜率：62.5%<br>最大击杀：15<br>最高评分：11.97<br>最长时间：25分32秒",
+  "messageDetail": " 高玩认证-6胜4负，胜率(60.0%)<input id=\"getPlayerRecentStatBtn\" style=\"display:none;margin-left: 0.01rem;padding: 0.1rem;width: 1.3rem;background-color: #cdd8ff;border-radius: 0.1rem;cursor: pointer;color: #182f43;font-weight: 900;\" type=\"button\" onclick=\"showlolpanelDiv()\" value=\"光辉时刻\"><today id=\"getSuccDayStatBtn\" onclick=\"showsuccDayInfo()\" style=\"display: none;background-color: rgb(213, 213, 213);margin-left: 0.08rem;border-radius: 0.1rem;padding-left: 0.06rem;padding-right: 0.06rem;\">首胜<img id=\"getSuccDayStatBtnSuc\" style=\"display: none;width: 0.3rem;margin-left: 0.06rem;margin-top: -0.06rem;\" src=\"./image/todaysuc.png\"><img  id=\"getSuccDayStatBtnFail\" style=\"display: none;width: 0.3rem;margin-left: 0.06rem;margin-top: -0.06rem;\" src=\"./image/todayfail.png\"></today><br>①独闯天涯(75.0%):6/8 ② 双剑合璧(0%):0/0<br>③桃园三杰(0%):0/0 ④ 四大天王(0.0%):0/2<br>⑤五子登科(0%):0/0<img style=\"margin-left:0.1rem;width: 0.36rem;\" src=\"./image/zd.png\"> 一个人打撸嘎嘎爽<br>战士:1/1、<championRoleSps style=\"color: #040404;font-size: 0.36rem;\">法师:5/8</championRoleSps>、刺客:1/2、坦克:1/2<br>射手:1/1、辅助:3/4<championRoleSps style=\"color: #040404\"> ※A:全能法王,伤害如山(62.5%)※</championRoleSps>",
+  "publicInfo": "未知",
+  "onlineInfo": null,
+  "battleInfo": {
+    "iconId": 4510,
+    "ext": "",
+    "iconIdName": "暗星 奥莉安娜 万神殿之陷 图标",
+    "areaId": 1,
+    "loadingImg": "https://wegame.gtimg.com/g.26-r.c2d3c/helper/lol/assis/images/resources/skins/splash/1-000.jpg",
+    "level": 720,
+    "openId": "ZIw+mNLFwElvai3RS79B4gtLDPcKqTOR3mTW89J2kaQ=",
+    "mapOneInfoList": [
+      {
+        "wins": 1084,
+        "total": 2052,
+        "rate": 52.9,
+        "losses": 968,
+        "type": "经典对局"
+      },
+      {
+        "wins": 1093,
+        "total": 2195,
+        "rate": 49.8,
+        "losses": 1102,
+        "type": "大乱斗"
+      },
+      {
+        "wins": 18,
+        "total": 29,
+        "tier": "铂金Ⅱ",
+        "rate": 62.1,
+        "losses": 11,
+        "type": "S16第二赛段单双排",
+        "winPoint": 96
+      },
+      {
+        "wins": 4,
+        "total": 6,
+        "tier": "铂金Ⅱ",
+        "rate": 66.7,
+        "losses": 2,
+        "type": "S16第二赛段灵活排位",
+        "winPoint": 5
+      },
+      {
+        "wins": 32,
+        "total": 65,
+        "tier": "铂金Ⅳ",
+        "rate": 49.3,
+        "losses": 33,
+        "type": "S16第一赛段单双排",
+        "winPoint": 45
+      },
+      {
+        "wins": 4,
+        "total": 8,
+        "tier": "铂金Ⅲ",
+        "rate": 50,
+        "losses": 4,
+        "type": "S16第一赛段灵活排位",
+        "winPoint": 32
+      },
+      {
+        "wins": 30,
+        "total": 60,
+        "tier": "铂金Ⅳ",
+        "rate": 50,
+        "losses": 30,
+        "type": "S15第三赛段单双排",
+        "winPoint": 35
+      },
+      {
+        "wins": 13,
+        "total": 23,
+        "tier": "翡翠Ⅳ",
+        "rate": 56.6,
+        "losses": 10,
+        "type": "S15第三赛段灵活排位",
+        "winPoint": 56
+      },
+      {
+        "wins": 13,
+        "total": 32,
+        "tier": "铂金Ⅳ",
+        "rate": 40.7,
+        "losses": 19,
+        "type": "S15第二赛段单双排",
+        "winPoint": 0
+      },
+      {
+        "wins": 9,
+        "total": 18,
+        "tier": "翡翠Ⅳ",
+        "rate": 50,
+        "losses": 9,
+        "type": "S15第二赛段灵活排位",
+        "winPoint": 24
+      },
+      {
+        "wins": 12,
+        "total": 41,
+        "tier": "铂金Ⅳ",
+        "rate": 29.3,
+        "losses": 29,
+        "type": "S15第一赛段单双排",
+        "winPoint": 78
+      },
+      {
+        "wins": 27,
+        "total": 57,
+        "tier": "翡翠Ⅳ",
+        "rate": 47.4,
+        "losses": 30,
+        "type": "S15第一赛段灵活排位",
+        "winPoint": 41
+      },
+      {
+        "wins": 6,
+        "total": 12,
+        "tier": "翡翠Ⅳ",
+        "rate": 50,
+        "losses": 6,
+        "type": "S14第三赛段单双排",
+        "winPoint": 9
+      },
+      {
+        "wins": 43,
+        "total": 81,
+        "tier": "翡翠Ⅲ",
+        "rate": 53.1,
+        "losses": 38,
+        "type": "S14第三赛段灵活排位",
+        "winPoint": 49
+      },
+      {
+        "wins": 3,
+        "total": 6,
+        "tier": "翡翠Ⅳ",
+        "rate": 50,
+        "losses": 3,
+        "type": "S14第二赛段单双排",
+        "winPoint": 66
+      },
+      {
+        "wins": 46,
+        "total": 86,
+        "tier": "翡翠Ⅳ",
+        "rate": 53.5,
+        "losses": 40,
+        "type": "S14第二赛段灵活排位",
+        "winPoint": 0
+      },
+      {
+        "wins": 81,
+        "total": 134,
+        "tier": "翡翠Ⅱ",
+        "rate": 60.5,
+        "losses": 53,
+        "type": "S14第一赛段单双排",
+        "winPoint": 50
+      },
+      {
+        "wins": 30,
+        "total": 65,
+        "tier": "铂金Ⅳ",
+        "rate": 46.2,
+        "losses": 35,
+        "type": "S14第一赛段灵活排位",
+        "winPoint": 30
+      },
+      {
+        "wins": 15,
+        "total": 34,
+        "tier": "黄金Ⅳ",
+        "rate": 44.2,
+        "losses": 19,
+        "type": "S13第二赛段单双排",
+        "winPoint": 95
+      },
+      {
+        "wins": 60,
+        "total": 101,
+        "tier": "翡翠Ⅲ",
+        "rate": 59.5,
+        "losses": 41,
+        "type": "S13第二赛段灵活排位",
+        "winPoint": 0
+      },
+      {
+        "wins": 68,
+        "total": 142,
+        "tier": "黄金Ⅳ",
+        "rate": 47.9,
+        "losses": 74,
+        "type": "S13第一赛段单双排",
+        "winPoint": 64
+      },
+      {
+        "wins": 87,
+        "total": 185,
+        "tier": "黄金Ⅳ",
+        "rate": 47.1,
+        "losses": 98,
+        "type": "S13第一赛段灵活排位",
+        "winPoint": 81
+      },
+      {
+        "wins": 9,
+        "total": 17,
+        "tier": "黄金Ⅲ",
+        "rate": 53,
+        "losses": 8,
+        "type": "S13季前赛单双排",
+        "winPoint": 15
+      },
+      {
+        "wins": 33,
+        "total": 77,
+        "tier": "黄金Ⅳ",
+        "rate": 42.9,
+        "losses": 44,
+        "type": "S13季前赛灵活排位",
+        "winPoint": 37
+      },
+      {
+        "wins": 178,
+        "total": 343,
+        "tier": "黄金Ⅳ",
+        "rate": 51.9,
+        "losses": 165,
+        "type": "S12单双排",
+        "winPoint": 75
+      },
+      {
+        "wins": 121,
+        "total": 254,
+        "tier": "黄金Ⅲ",
+        "rate": 47.7,
+        "losses": 133,
+        "type": "S12灵活排位",
+        "winPoint": 78
+      },
+      {
+        "wins": 8,
+        "total": 26,
+        "tier": "黄金Ⅳ",
+        "rate": 30.8,
+        "losses": 18,
+        "type": "S12季前赛单双排",
+        "winPoint": 0
+      },
+      {
+        "wins": 6,
+        "total": 19,
+        "tier": "铂金Ⅳ",
+        "rate": 31.6,
+        "losses": 13,
+        "type": "S12季前赛灵活排位",
+        "winPoint": 0
+      },
+      {
+        "wins": 251,
+        "total": 507,
+        "tier": "黄金Ⅳ",
+        "rate": 49.6,
+        "losses": 256,
+        "type": "S11单双排",
+        "winPoint": 94
+      },
+      {
+        "wins": 251,
+        "total": 480,
+        "tier": "铂金Ⅳ",
+        "rate": 52.3,
+        "losses": 229,
+        "type": "S11灵活排位",
+        "winPoint": 49
+      },
+      {
+        "wins": 10,
+        "total": 24,
+        "tier": "黄金Ⅳ",
+        "rate": 41.7,
+        "losses": 14,
+        "type": "S11季前赛单双排",
+        "winPoint": 33
+      },
+      {
+        "wins": 23,
+        "total": 58,
+        "tier": "黄金Ⅳ",
+        "rate": 39.7,
+        "losses": 35,
+        "type": "S11季前赛灵活排位",
+        "winPoint": 14
+      },
+      {
+        "wins": 293,
+        "total": 578,
+        "tier": "黄金Ⅳ",
+        "rate": 50.7,
+        "losses": 285,
+        "type": "S10单双排",
+        "winPoint": 58
+      },
+      {
+        "wins": 152,
+        "total": 319,
+        "tier": "黄金Ⅳ",
+        "rate": 47.7,
+        "losses": 167,
+        "type": "S10灵活排位",
+        "winPoint": 99
+      },
+      {
+        "wins": 16,
+        "total": 36,
+        "tier": "白银Ⅳ",
+        "rate": 44.5,
+        "losses": 20,
+        "type": "S10季前赛单双排",
+        "winPoint": 60
+      },
+      {
+        "wins": 13,
+        "total": 28,
+        "tier": "白银Ⅱ",
+        "rate": 46.5,
+        "losses": 15,
+        "type": "S10季前赛灵活排位",
+        "winPoint": 85
+      },
+      {
+        "wins": 0,
+        "total": 1,
+        "tier": "青铜Ⅲ",
+        "rate": 0,
+        "losses": 1,
+        "type": "S9单双排",
+        "winPoint": 0
+      },
+      {
+        "wins": 3,
+        "total": 3,
+        "tier": "白银Ⅳ",
+        "rate": 100,
+        "losses": 0,
+        "type": "S9灵活排位",
+        "winPoint": 84
+      },
+      {
+        "wins": 0,
+        "total": 0,
+        "tier": "-",
+        "rate": 0,
+        "losses": 0,
+        "type": "S9季前赛单双排",
+        "winPoint": 0
+      },
+      {
+        "wins": 0,
+        "total": 0,
+        "tier": "-",
+        "rate": 0,
+        "losses": 0,
+        "type": "S9季前赛灵活排位",
+        "winPoint": 0
+      },
+      {
+        "wins": 0,
+        "total": 0,
+        "tier": "-",
+        "rate": 0,
+        "losses": 0,
+        "type": "S8单双排",
+        "winPoint": 0
+      },
+      {
+        "wins": 0,
+        "total": 0,
+        "tier": "-",
+        "rate": 0,
+        "losses": 0,
+        "type": "S8灵活排位",
+        "winPoint": 0
+      },
+      {
+        "wins": 0,
+        "total": 0,
+        "tier": "-",
+        "rate": 0,
+        "losses": 0,
+        "type": "S7单双排",
+        "winPoint": 0
+      },
+      {
+        "wins": 0,
+        "total": 0,
+        "tier": "-",
+        "rate": 0,
+        "losses": 0,
+        "type": "S7灵活排位",
+        "winPoint": 0
+      },
+      {
+        "wins": 0,
+        "total": 0,
+        "tier": "-",
+        "rate": 0,
+        "losses": 0,
+        "type": "S7季前赛",
+        "winPoint": 0
+      },
+      {
+        "wins": 0,
+        "total": 0,
+        "tier": "-",
+        "rate": 0,
+        "losses": 0,
+        "type": "S6季前赛",
+        "winPoint": 0
+      },
+      {
+        "wins": 0,
+        "total": 0,
+        "tier": "-",
+        "rate": 0,
+        "losses": 0,
+        "type": "S5排位赛",
+        "winPoint": 0
+      },
+      {
+        "wins": 0,
+        "total": 0,
+        "tier": "-",
+        "rate": 0,
+        "losses": 0,
+        "type": "S4排位赛",
+        "winPoint": 0
+      },
+      {
+        "wins": 0,
+        "total": 0,
+        "tier": "-",
+        "rate": 0,
+        "losses": 0,
+        "type": "S3排位赛",
+        "winPoint": 0
+      }
+    ],
+    "nameInfoNew": "deebeedee#34323",
+    "seasonInfoMap": {
+      "maxPoint": "50点",
+      "totalRate": "50.5%",
+      "maxQueue": "Ⅱ",
+      "totalGames": 8291,
+      "nowSeason": {
+        "wins": 18,
+        "rateArm": 49.8,
+        "lossesMatch": 968,
+        "teamWinPoint": 5,
+        "lossesArm": 1102,
+        "rateMatch": 52.9,
+        "losses": 11,
+        "teamLosses": 2,
+        "teamTotal": 6,
+        "winsMatch": 1084,
+        "totalArm": 2195,
+        "totalMatch": 2052,
+        "winsArm": 1093,
+        "total": 29,
+        "tierId": 2,
+        "teamTierId": 2,
+        "tier": "铂金Ⅱ",
+        "teamTier": "铂金Ⅱ",
+        "teamQueue": "Ⅱ",
+        "rate": "62.1%",
+        "teamRate": "66.7%",
+        "teamWins": 4,
+        "winPoint": 96,
+        "queue": "Ⅱ"
+      },
+      "maxTier": "翡翠"
+    },
+    "experience": 437,
+    "praise": 2846
+  },
+  "isHaveCurry": 0,
+  "curryMap": null,
+  "dbazdinfo": "9#60#2#1",
+  "data": [
+    {
+      "gameId": "8MSpUiJXcHTUFW96QN56Ug==",
+      "skinIndex": "001",
+      "wasMvp": "",
+      "championId": "516",
+      "skinIndexName": "雷霆领主 奥恩",
+      "wasSurrenderStr": "<gotype  style=\"position: relative;color: rgb(185 49 255);font-weight: 900;\">破晶</gotype>",
+      "battleTypeStr": "",
+      "title": "海斗(面包车)- 用时16分8秒<br>5.60(2-14-22)",
+      "skinUrl": "",
+      "battleTypeInfo": "0",
+      "isWin": 2,
+      "titleTime": "06-14 14:22:02   败",
+      "wasSvp": "",
+      "perkStyleUrl": ""
+    },
+    {
+      "gameId": "WCER9zVWtPhHEmLrohGWzg==",
+      "skinIndex": "049",
+      "wasMvp": "",
+      "championId": "518",
+      "skinIndexName": "小蜜蜂 妮蔻",
+      "wasSurrenderStr": "<gotype style=\"position: relative;color: rgb(255 93 238);font-weight: 900;\">投票</gotype>",
+      "battleTypeStr": "",
+      "title": "海斗(面包车)- 用时10分55秒<br>10.99(12-5-20)",
+      "skinUrl": "",
+      "battleTypeInfo": "7",
+      "isWin": 2,
+      "titleTime": "06-14 14:08:25   败",
+      "wasSvp": "",
+      "perkStyleUrl": ""
+    },
+    {
+      "gameId": "z2biA0W2wHTEeFDtVeiNSA==",
+      "skinIndex": "000",
+      "wasMvp": "",
+      "championId": "147",
+      "skinIndexName": "星籁歌姬 萨勒芬妮<br>（原皮）",
+      "wasSurrenderStr": "<gotype  style=\"position: relative;color: rgb(185 49 255);font-weight: 900;\">破晶</gotype>",
+      "battleTypeStr": " <i style=\"position: relative;left: 0.16rem;\" class=\"honor16 honor16-attack\"></i>",
+      "title": "海斗(独闯天涯)- 用时13分59秒<br>9.99(3-3-57)",
+      "skinUrl": "",
+      "battleTypeInfo": "9",
+      "isWin": 1,
+      "titleTime": "06-09 19:37:25   胜",
+      "wasSvp": "",
+      "perkStyleUrl": ""
+    },
+    {
+      "gameId": "g8ssyoFyMWydH6vgNJKUIA==",
+      "skinIndex": "043",
+      "wasMvp": "",
+      "championId": "142",
+      "skinIndexName": "至臻 永恒星灵 佐伊<br>（神话）",
+      "wasSurrenderStr": "<gotype style=\"position: relative;color: rgb(255 93 238);font-weight: 900;\">投票</gotype>",
+      "battleTypeStr": "",
+      "title": "海斗(独轮车)- 用时22分30秒<br>9.07(5-8-17)",
+      "skinUrl": "",
+      "battleTypeInfo": "10",
+      "isWin": 2,
+      "titleTime": "06-09 19:10:26   败",
+      "wasSvp": "",
+      "perkStyleUrl": ""
+    },
+    {
+      "gameId": "G5qFDxFZBYW/+gAel3jccA==",
+      "skinIndex": "027",
+      "wasMvp": "",
+      "championId": "103",
+      "skinIndexName": "灵魂莲华 阿狸<br>（传说）",
+      "wasSurrenderStr": "<gotype style=\"position: relative;color: rgb(255 93 238);font-weight: 900;\">投票</gotype>",
+      "battleTypeStr": "",
+      "title": "单双(独轮车)- 用时17分1秒<br>9.93(2-1-1)",
+      "skinUrl": "",
+      "battleTypeInfo": "10",
+      "isWin": 2,
+      "titleTime": "06-09 18:47:59【中】   败",
+      "wasSvp": "svp",
+      "perkStyleUrl": ""
+    },
+    {
+      "gameId": "kbr+TZBicw8/84c3I8bicw==",
+      "skinIndex": "006",
+      "wasMvp": "",
+      "championId": "236",
+      "skinIndexName": "源计划：雷 卢锡安<br>（史诗）",
+      "wasSurrenderStr": "<gotype style=\"position: relative;color: rgb(255 93 238);font-weight: 900;\">投票</gotype>",
+      "battleTypeStr": "",
+      "title": "海斗(独闯天涯)- 用时11分5秒<br>11.67(15-7-15)",
+      "skinUrl": "",
+      "battleTypeInfo": "9",
+      "isWin": 1,
+      "titleTime": "06-08 00:11:29   胜",
+      "wasSvp": "",
+      "perkStyleUrl": ""
+    },
+    {
+      "gameId": "CaRQ7e32j/j8VOo2rD8Ufw==",
+      "skinIndex": "008",
+      "wasMvp": "",
+      "championId": "79",
+      "skinIndexName": "Fnatic 古拉加斯<br>（限定）",
+      "wasSurrenderStr": "<gotype  style=\"position: relative;color: rgb(185 49 255);font-weight: 900;\">破晶</gotype>",
+      "battleTypeStr": "",
+      "title": "海斗(独闯天涯)- 用时17分18秒<br>7.80(5-11-32)",
+      "skinUrl": "",
+      "battleTypeInfo": "9",
+      "isWin": 1,
+      "titleTime": "06-07 23:46:29   胜",
+      "wasSvp": "",
+      "perkStyleUrl": ""
+    },
+    {
+      "gameId": "KbmL0/f5EChdTqbehBTMag==",
+      "skinIndex": "005",
+      "wasMvp": "",
+      "championId": "143",
+      "skinIndexName": "魔女 婕拉",
+      "wasSurrenderStr": "<gotype style=\"position: relative;color: rgb(255 93 238);font-weight: 900;\">投票</gotype>",
+      "battleTypeStr": " <i style=\"position: relative;left: 0.16rem;\" class=\"honor16 honor16-pull\"></i>",
+      "title": "海斗(独闯天涯)- 用时16分0秒<br>10.96(9-6-26)",
+      "skinUrl": "",
+      "battleTypeInfo": "9",
+      "isWin": 1,
+      "titleTime": "06-07 12:38:47   胜",
+      "wasSvp": "",
+      "perkStyleUrl": ""
+    },
+    {
+      "gameId": "Yf12pV2tas1zh3tzSU4c2w==",
+      "skinIndex": "040",
+      "wasMvp": "",
+      "championId": "518",
+      "skinIndexName": "超级COSPLAY粉丝 妮蔻<br>（神话）",
+      "wasSurrenderStr": "<gotype style=\"position: relative;color: rgb(255 93 238);font-weight: 900;\">投票</gotype>",
+      "battleTypeStr": " <i style=\"position: relative;left: 0.16rem;\" class=\"honor16 honor16-attack\"></i>",
+      "title": "单双(独闯天涯)- 用时25分32秒<br>5.68(3-6-10)",
+      "skinUrl": "",
+      "battleTypeInfo": "11",
+      "isWin": 1,
+      "titleTime": "06-07 12:10:01【辅】   胜",
+      "wasSvp": "",
+      "perkStyleUrl": ""
+    },
+    {
+      "gameId": "L+irXPfyibd9DER77YRsWQ==",
+      "skinIndex": "005",
+      "wasMvp": "mvp",
+      "championId": "3",
+      "skinIndexName": "风执事 加里奥",
+      "wasSurrenderStr": "<gotype style=\"position: relative;color: rgb(255 93 238);font-weight: 900;\">投票</gotype>",
+      "battleTypeStr": " <i style=\"position: relative;left: 0.16rem;\" class=\"honor16 honor16-money\"></i> <i style=\"position: relative;left: 0.16rem;\" class=\"honor16 honor16-soldier\"></i> <i style=\"position: relative;left: 0.16rem;\" class=\"honor16 honor16-hurt2\"></i>",
+      "title": "单双(独闯天涯)- 用时1分25秒(重开局)<br>11.97(0-0-0)",
+      "skinUrl": "",
+      "battleTypeInfo": "9",
+      "isWin": 1,
+      "titleTime": "06-07 11:55:52【中】   胜",
+      "wasSvp": "",
+      "perkStyleUrl": ""
+    }
+  ]
+}

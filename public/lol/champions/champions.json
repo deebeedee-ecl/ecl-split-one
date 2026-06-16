@@ -1,0 +1,1034 @@
+﻿[
+    {
+        "id":  1,
+        "name":  "Annie",
+        "alias":  "Annie",
+        "icon":  "/lol/champions/1.png"
+    },
+    {
+        "id":  2,
+        "name":  "Olaf",
+        "alias":  "Olaf",
+        "icon":  "/lol/champions/2.png"
+    },
+    {
+        "id":  3,
+        "name":  "Galio",
+        "alias":  "Galio",
+        "icon":  "/lol/champions/3.png"
+    },
+    {
+        "id":  4,
+        "name":  "Twisted Fate",
+        "alias":  "TwistedFate",
+        "icon":  "/lol/champions/4.png"
+    },
+    {
+        "id":  5,
+        "name":  "Xin Zhao",
+        "alias":  "XinZhao",
+        "icon":  "/lol/champions/5.png"
+    },
+    {
+        "id":  6,
+        "name":  "Urgot",
+        "alias":  "Urgot",
+        "icon":  "/lol/champions/6.png"
+    },
+    {
+        "id":  7,
+        "name":  "LeBlanc",
+        "alias":  "Leblanc",
+        "icon":  "/lol/champions/7.png"
+    },
+    {
+        "id":  8,
+        "name":  "Vladimir",
+        "alias":  "Vladimir",
+        "icon":  "/lol/champions/8.png"
+    },
+    {
+        "id":  9,
+        "name":  "Fiddlesticks",
+        "alias":  "FiddleSticks",
+        "icon":  "/lol/champions/9.png"
+    },
+    {
+        "id":  10,
+        "name":  "Kayle",
+        "alias":  "Kayle",
+        "icon":  "/lol/champions/10.png"
+    },
+    {
+        "id":  11,
+        "name":  "Master Yi",
+        "alias":  "MasterYi",
+        "icon":  "/lol/champions/11.png"
+    },
+    {
+        "id":  12,
+        "name":  "Alistar",
+        "alias":  "Alistar",
+        "icon":  "/lol/champions/12.png"
+    },
+    {
+        "id":  13,
+        "name":  "Ryze",
+        "alias":  "Ryze",
+        "icon":  "/lol/champions/13.png"
+    },
+    {
+        "id":  14,
+        "name":  "Sion",
+        "alias":  "Sion",
+        "icon":  "/lol/champions/14.png"
+    },
+    {
+        "id":  15,
+        "name":  "Sivir",
+        "alias":  "Sivir",
+        "icon":  "/lol/champions/15.png"
+    },
+    {
+        "id":  16,
+        "name":  "Soraka",
+        "alias":  "Soraka",
+        "icon":  "/lol/champions/16.png"
+    },
+    {
+        "id":  17,
+        "name":  "Teemo",
+        "alias":  "Teemo",
+        "icon":  "/lol/champions/17.png"
+    },
+    {
+        "id":  18,
+        "name":  "Tristana",
+        "alias":  "Tristana",
+        "icon":  "/lol/champions/18.png"
+    },
+    {
+        "id":  19,
+        "name":  "Warwick",
+        "alias":  "Warwick",
+        "icon":  "/lol/champions/19.png"
+    },
+    {
+        "id":  20,
+        "name":  "Nunu \u0026 Willump",
+        "alias":  "Nunu",
+        "icon":  "/lol/champions/20.png"
+    },
+    {
+        "id":  21,
+        "name":  "Miss Fortune",
+        "alias":  "MissFortune",
+        "icon":  "/lol/champions/21.png"
+    },
+    {
+        "id":  22,
+        "name":  "Ashe",
+        "alias":  "Ashe",
+        "icon":  "/lol/champions/22.png"
+    },
+    {
+        "id":  23,
+        "name":  "Tryndamere",
+        "alias":  "Tryndamere",
+        "icon":  "/lol/champions/23.png"
+    },
+    {
+        "id":  24,
+        "name":  "Jax",
+        "alias":  "Jax",
+        "icon":  "/lol/champions/24.png"
+    },
+    {
+        "id":  25,
+        "name":  "Morgana",
+        "alias":  "Morgana",
+        "icon":  "/lol/champions/25.png"
+    },
+    {
+        "id":  26,
+        "name":  "Zilean",
+        "alias":  "Zilean",
+        "icon":  "/lol/champions/26.png"
+    },
+    {
+        "id":  27,
+        "name":  "Singed",
+        "alias":  "Singed",
+        "icon":  "/lol/champions/27.png"
+    },
+    {
+        "id":  28,
+        "name":  "Evelynn",
+        "alias":  "Evelynn",
+        "icon":  "/lol/champions/28.png"
+    },
+    {
+        "id":  29,
+        "name":  "Twitch",
+        "alias":  "Twitch",
+        "icon":  "/lol/champions/29.png"
+    },
+    {
+        "id":  30,
+        "name":  "Karthus",
+        "alias":  "Karthus",
+        "icon":  "/lol/champions/30.png"
+    },
+    {
+        "id":  31,
+        "name":  "Cho\u0027Gath",
+        "alias":  "Chogath",
+        "icon":  "/lol/champions/31.png"
+    },
+    {
+        "id":  32,
+        "name":  "Amumu",
+        "alias":  "Amumu",
+        "icon":  "/lol/champions/32.png"
+    },
+    {
+        "id":  33,
+        "name":  "Rammus",
+        "alias":  "Rammus",
+        "icon":  "/lol/champions/33.png"
+    },
+    {
+        "id":  34,
+        "name":  "Anivia",
+        "alias":  "Anivia",
+        "icon":  "/lol/champions/34.png"
+    },
+    {
+        "id":  35,
+        "name":  "Shaco",
+        "alias":  "Shaco",
+        "icon":  "/lol/champions/35.png"
+    },
+    {
+        "id":  36,
+        "name":  "Dr. Mundo",
+        "alias":  "DrMundo",
+        "icon":  "/lol/champions/36.png"
+    },
+    {
+        "id":  37,
+        "name":  "Sona",
+        "alias":  "Sona",
+        "icon":  "/lol/champions/37.png"
+    },
+    {
+        "id":  38,
+        "name":  "Kassadin",
+        "alias":  "Kassadin",
+        "icon":  "/lol/champions/38.png"
+    },
+    {
+        "id":  39,
+        "name":  "Irelia",
+        "alias":  "Irelia",
+        "icon":  "/lol/champions/39.png"
+    },
+    {
+        "id":  40,
+        "name":  "Janna",
+        "alias":  "Janna",
+        "icon":  "/lol/champions/40.png"
+    },
+    {
+        "id":  41,
+        "name":  "Gangplank",
+        "alias":  "Gangplank",
+        "icon":  "/lol/champions/41.png"
+    },
+    {
+        "id":  42,
+        "name":  "Corki",
+        "alias":  "Corki",
+        "icon":  "/lol/champions/42.png"
+    },
+    {
+        "id":  43,
+        "name":  "Karma",
+        "alias":  "Karma",
+        "icon":  "/lol/champions/43.png"
+    },
+    {
+        "id":  44,
+        "name":  "Taric",
+        "alias":  "Taric",
+        "icon":  "/lol/champions/44.png"
+    },
+    {
+        "id":  45,
+        "name":  "Veigar",
+        "alias":  "Veigar",
+        "icon":  "/lol/champions/45.png"
+    },
+    {
+        "id":  48,
+        "name":  "Trundle",
+        "alias":  "Trundle",
+        "icon":  "/lol/champions/48.png"
+    },
+    {
+        "id":  50,
+        "name":  "Swain",
+        "alias":  "Swain",
+        "icon":  "/lol/champions/50.png"
+    },
+    {
+        "id":  51,
+        "name":  "Caitlyn",
+        "alias":  "Caitlyn",
+        "icon":  "/lol/champions/51.png"
+    },
+    {
+        "id":  53,
+        "name":  "Blitzcrank",
+        "alias":  "Blitzcrank",
+        "icon":  "/lol/champions/53.png"
+    },
+    {
+        "id":  54,
+        "name":  "Malphite",
+        "alias":  "Malphite",
+        "icon":  "/lol/champions/54.png"
+    },
+    {
+        "id":  55,
+        "name":  "Katarina",
+        "alias":  "Katarina",
+        "icon":  "/lol/champions/55.png"
+    },
+    {
+        "id":  56,
+        "name":  "Nocturne",
+        "alias":  "Nocturne",
+        "icon":  "/lol/champions/56.png"
+    },
+    {
+        "id":  57,
+        "name":  "Maokai",
+        "alias":  "Maokai",
+        "icon":  "/lol/champions/57.png"
+    },
+    {
+        "id":  58,
+        "name":  "Renekton",
+        "alias":  "Renekton",
+        "icon":  "/lol/champions/58.png"
+    },
+    {
+        "id":  59,
+        "name":  "Jarvan IV",
+        "alias":  "JarvanIV",
+        "icon":  "/lol/champions/59.png"
+    },
+    {
+        "id":  60,
+        "name":  "Elise",
+        "alias":  "Elise",
+        "icon":  "/lol/champions/60.png"
+    },
+    {
+        "id":  61,
+        "name":  "Orianna",
+        "alias":  "Orianna",
+        "icon":  "/lol/champions/61.png"
+    },
+    {
+        "id":  62,
+        "name":  "Wukong",
+        "alias":  "MonkeyKing",
+        "icon":  "/lol/champions/62.png"
+    },
+    {
+        "id":  63,
+        "name":  "Brand",
+        "alias":  "Brand",
+        "icon":  "/lol/champions/63.png"
+    },
+    {
+        "id":  64,
+        "name":  "Lee Sin",
+        "alias":  "LeeSin",
+        "icon":  "/lol/champions/64.png"
+    },
+    {
+        "id":  67,
+        "name":  "Vayne",
+        "alias":  "Vayne",
+        "icon":  "/lol/champions/67.png"
+    },
+    {
+        "id":  68,
+        "name":  "Rumble",
+        "alias":  "Rumble",
+        "icon":  "/lol/champions/68.png"
+    },
+    {
+        "id":  69,
+        "name":  "Cassiopeia",
+        "alias":  "Cassiopeia",
+        "icon":  "/lol/champions/69.png"
+    },
+    {
+        "id":  72,
+        "name":  "Skarner",
+        "alias":  "Skarner",
+        "icon":  "/lol/champions/72.png"
+    },
+    {
+        "id":  74,
+        "name":  "Heimerdinger",
+        "alias":  "Heimerdinger",
+        "icon":  "/lol/champions/74.png"
+    },
+    {
+        "id":  75,
+        "name":  "Nasus",
+        "alias":  "Nasus",
+        "icon":  "/lol/champions/75.png"
+    },
+    {
+        "id":  76,
+        "name":  "Nidalee",
+        "alias":  "Nidalee",
+        "icon":  "/lol/champions/76.png"
+    },
+    {
+        "id":  77,
+        "name":  "Udyr",
+        "alias":  "Udyr",
+        "icon":  "/lol/champions/77.png"
+    },
+    {
+        "id":  78,
+        "name":  "Poppy",
+        "alias":  "Poppy",
+        "icon":  "/lol/champions/78.png"
+    },
+    {
+        "id":  79,
+        "name":  "Gragas",
+        "alias":  "Gragas",
+        "icon":  "/lol/champions/79.png"
+    },
+    {
+        "id":  80,
+        "name":  "Pantheon",
+        "alias":  "Pantheon",
+        "icon":  "/lol/champions/80.png"
+    },
+    {
+        "id":  81,
+        "name":  "Ezreal",
+        "alias":  "Ezreal",
+        "icon":  "/lol/champions/81.png"
+    },
+    {
+        "id":  82,
+        "name":  "Mordekaiser",
+        "alias":  "Mordekaiser",
+        "icon":  "/lol/champions/82.png"
+    },
+    {
+        "id":  83,
+        "name":  "Yorick",
+        "alias":  "Yorick",
+        "icon":  "/lol/champions/83.png"
+    },
+    {
+        "id":  84,
+        "name":  "Akali",
+        "alias":  "Akali",
+        "icon":  "/lol/champions/84.png"
+    },
+    {
+        "id":  85,
+        "name":  "Kennen",
+        "alias":  "Kennen",
+        "icon":  "/lol/champions/85.png"
+    },
+    {
+        "id":  86,
+        "name":  "Garen",
+        "alias":  "Garen",
+        "icon":  "/lol/champions/86.png"
+    },
+    {
+        "id":  89,
+        "name":  "Leona",
+        "alias":  "Leona",
+        "icon":  "/lol/champions/89.png"
+    },
+    {
+        "id":  90,
+        "name":  "Malzahar",
+        "alias":  "Malzahar",
+        "icon":  "/lol/champions/90.png"
+    },
+    {
+        "id":  91,
+        "name":  "Talon",
+        "alias":  "Talon",
+        "icon":  "/lol/champions/91.png"
+    },
+    {
+        "id":  92,
+        "name":  "Riven",
+        "alias":  "Riven",
+        "icon":  "/lol/champions/92.png"
+    },
+    {
+        "id":  96,
+        "name":  "Kog\u0027Maw",
+        "alias":  "KogMaw",
+        "icon":  "/lol/champions/96.png"
+    },
+    {
+        "id":  98,
+        "name":  "Shen",
+        "alias":  "Shen",
+        "icon":  "/lol/champions/98.png"
+    },
+    {
+        "id":  99,
+        "name":  "Lux",
+        "alias":  "Lux",
+        "icon":  "/lol/champions/99.png"
+    },
+    {
+        "id":  101,
+        "name":  "Xerath",
+        "alias":  "Xerath",
+        "icon":  "/lol/champions/101.png"
+    },
+    {
+        "id":  102,
+        "name":  "Shyvana",
+        "alias":  "Shyvana",
+        "icon":  "/lol/champions/102.png"
+    },
+    {
+        "id":  103,
+        "name":  "Ahri",
+        "alias":  "Ahri",
+        "icon":  "/lol/champions/103.png"
+    },
+    {
+        "id":  104,
+        "name":  "Graves",
+        "alias":  "Graves",
+        "icon":  "/lol/champions/104.png"
+    },
+    {
+        "id":  105,
+        "name":  "Fizz",
+        "alias":  "Fizz",
+        "icon":  "/lol/champions/105.png"
+    },
+    {
+        "id":  106,
+        "name":  "Volibear",
+        "alias":  "Volibear",
+        "icon":  "/lol/champions/106.png"
+    },
+    {
+        "id":  107,
+        "name":  "Rengar",
+        "alias":  "Rengar",
+        "icon":  "/lol/champions/107.png"
+    },
+    {
+        "id":  110,
+        "name":  "Varus",
+        "alias":  "Varus",
+        "icon":  "/lol/champions/110.png"
+    },
+    {
+        "id":  111,
+        "name":  "Nautilus",
+        "alias":  "Nautilus",
+        "icon":  "/lol/champions/111.png"
+    },
+    {
+        "id":  112,
+        "name":  "Viktor",
+        "alias":  "Viktor",
+        "icon":  "/lol/champions/112.png"
+    },
+    {
+        "id":  113,
+        "name":  "Sejuani",
+        "alias":  "Sejuani",
+        "icon":  "/lol/champions/113.png"
+    },
+    {
+        "id":  114,
+        "name":  "Fiora",
+        "alias":  "Fiora",
+        "icon":  "/lol/champions/114.png"
+    },
+    {
+        "id":  115,
+        "name":  "Ziggs",
+        "alias":  "Ziggs",
+        "icon":  "/lol/champions/115.png"
+    },
+    {
+        "id":  117,
+        "name":  "Lulu",
+        "alias":  "Lulu",
+        "icon":  "/lol/champions/117.png"
+    },
+    {
+        "id":  119,
+        "name":  "Draven",
+        "alias":  "Draven",
+        "icon":  "/lol/champions/119.png"
+    },
+    {
+        "id":  120,
+        "name":  "Hecarim",
+        "alias":  "Hecarim",
+        "icon":  "/lol/champions/120.png"
+    },
+    {
+        "id":  121,
+        "name":  "Kha\u0027Zix",
+        "alias":  "Khazix",
+        "icon":  "/lol/champions/121.png"
+    },
+    {
+        "id":  122,
+        "name":  "Darius",
+        "alias":  "Darius",
+        "icon":  "/lol/champions/122.png"
+    },
+    {
+        "id":  126,
+        "name":  "Jayce",
+        "alias":  "Jayce",
+        "icon":  "/lol/champions/126.png"
+    },
+    {
+        "id":  127,
+        "name":  "Lissandra",
+        "alias":  "Lissandra",
+        "icon":  "/lol/champions/127.png"
+    },
+    {
+        "id":  131,
+        "name":  "Diana",
+        "alias":  "Diana",
+        "icon":  "/lol/champions/131.png"
+    },
+    {
+        "id":  133,
+        "name":  "Quinn",
+        "alias":  "Quinn",
+        "icon":  "/lol/champions/133.png"
+    },
+    {
+        "id":  134,
+        "name":  "Syndra",
+        "alias":  "Syndra",
+        "icon":  "/lol/champions/134.png"
+    },
+    {
+        "id":  136,
+        "name":  "Aurelion Sol",
+        "alias":  "AurelionSol",
+        "icon":  "/lol/champions/136.png"
+    },
+    {
+        "id":  141,
+        "name":  "Kayn",
+        "alias":  "Kayn",
+        "icon":  "/lol/champions/141.png"
+    },
+    {
+        "id":  142,
+        "name":  "Zoe",
+        "alias":  "Zoe",
+        "icon":  "/lol/champions/142.png"
+    },
+    {
+        "id":  143,
+        "name":  "Zyra",
+        "alias":  "Zyra",
+        "icon":  "/lol/champions/143.png"
+    },
+    {
+        "id":  145,
+        "name":  "Kai\u0027Sa",
+        "alias":  "Kaisa",
+        "icon":  "/lol/champions/145.png"
+    },
+    {
+        "id":  147,
+        "name":  "Seraphine",
+        "alias":  "Seraphine",
+        "icon":  "/lol/champions/147.png"
+    },
+    {
+        "id":  150,
+        "name":  "Gnar",
+        "alias":  "Gnar",
+        "icon":  "/lol/champions/150.png"
+    },
+    {
+        "id":  154,
+        "name":  "Zac",
+        "alias":  "Zac",
+        "icon":  "/lol/champions/154.png"
+    },
+    {
+        "id":  157,
+        "name":  "Yasuo",
+        "alias":  "Yasuo",
+        "icon":  "/lol/champions/157.png"
+    },
+    {
+        "id":  161,
+        "name":  "Vel\u0027Koz",
+        "alias":  "Velkoz",
+        "icon":  "/lol/champions/161.png"
+    },
+    {
+        "id":  163,
+        "name":  "Taliyah",
+        "alias":  "Taliyah",
+        "icon":  "/lol/champions/163.png"
+    },
+    {
+        "id":  164,
+        "name":  "Camille",
+        "alias":  "Camille",
+        "icon":  "/lol/champions/164.png"
+    },
+    {
+        "id":  166,
+        "name":  "Akshan",
+        "alias":  "Akshan",
+        "icon":  "/lol/champions/166.png"
+    },
+    {
+        "id":  200,
+        "name":  "Bel\u0027Veth",
+        "alias":  "Belveth",
+        "icon":  "/lol/champions/200.png"
+    },
+    {
+        "id":  201,
+        "name":  "Braum",
+        "alias":  "Braum",
+        "icon":  "/lol/champions/201.png"
+    },
+    {
+        "id":  202,
+        "name":  "Jhin",
+        "alias":  "Jhin",
+        "icon":  "/lol/champions/202.png"
+    },
+    {
+        "id":  203,
+        "name":  "Kindred",
+        "alias":  "Kindred",
+        "icon":  "/lol/champions/203.png"
+    },
+    {
+        "id":  221,
+        "name":  "Zeri",
+        "alias":  "Zeri",
+        "icon":  "/lol/champions/221.png"
+    },
+    {
+        "id":  222,
+        "name":  "Jinx",
+        "alias":  "Jinx",
+        "icon":  "/lol/champions/222.png"
+    },
+    {
+        "id":  223,
+        "name":  "Tahm Kench",
+        "alias":  "TahmKench",
+        "icon":  "/lol/champions/223.png"
+    },
+    {
+        "id":  233,
+        "name":  "Briar",
+        "alias":  "Briar",
+        "icon":  "/lol/champions/233.png"
+    },
+    {
+        "id":  234,
+        "name":  "Viego",
+        "alias":  "Viego",
+        "icon":  "/lol/champions/234.png"
+    },
+    {
+        "id":  235,
+        "name":  "Senna",
+        "alias":  "Senna",
+        "icon":  "/lol/champions/235.png"
+    },
+    {
+        "id":  236,
+        "name":  "Lucian",
+        "alias":  "Lucian",
+        "icon":  "/lol/champions/236.png"
+    },
+    {
+        "id":  238,
+        "name":  "Zed",
+        "alias":  "Zed",
+        "icon":  "/lol/champions/238.png"
+    },
+    {
+        "id":  240,
+        "name":  "Kled",
+        "alias":  "Kled",
+        "icon":  "/lol/champions/240.png"
+    },
+    {
+        "id":  245,
+        "name":  "Ekko",
+        "alias":  "Ekko",
+        "icon":  "/lol/champions/245.png"
+    },
+    {
+        "id":  246,
+        "name":  "Qiyana",
+        "alias":  "Qiyana",
+        "icon":  "/lol/champions/246.png"
+    },
+    {
+        "id":  254,
+        "name":  "Vi",
+        "alias":  "Vi",
+        "icon":  "/lol/champions/254.png"
+    },
+    {
+        "id":  266,
+        "name":  "Aatrox",
+        "alias":  "Aatrox",
+        "icon":  "/lol/champions/266.png"
+    },
+    {
+        "id":  267,
+        "name":  "Nami",
+        "alias":  "Nami",
+        "icon":  "/lol/champions/267.png"
+    },
+    {
+        "id":  268,
+        "name":  "Azir",
+        "alias":  "Azir",
+        "icon":  "/lol/champions/268.png"
+    },
+    {
+        "id":  350,
+        "name":  "Yuumi",
+        "alias":  "Yuumi",
+        "icon":  "/lol/champions/350.png"
+    },
+    {
+        "id":  360,
+        "name":  "Samira",
+        "alias":  "Samira",
+        "icon":  "/lol/champions/360.png"
+    },
+    {
+        "id":  412,
+        "name":  "Thresh",
+        "alias":  "Thresh",
+        "icon":  "/lol/champions/412.png"
+    },
+    {
+        "id":  420,
+        "name":  "Illaoi",
+        "alias":  "Illaoi",
+        "icon":  "/lol/champions/420.png"
+    },
+    {
+        "id":  421,
+        "name":  "Rek\u0027Sai",
+        "alias":  "RekSai",
+        "icon":  "/lol/champions/421.png"
+    },
+    {
+        "id":  427,
+        "name":  "Ivern",
+        "alias":  "Ivern",
+        "icon":  "/lol/champions/427.png"
+    },
+    {
+        "id":  429,
+        "name":  "Kalista",
+        "alias":  "Kalista",
+        "icon":  "/lol/champions/429.png"
+    },
+    {
+        "id":  432,
+        "name":  "Bard",
+        "alias":  "Bard",
+        "icon":  "/lol/champions/432.png"
+    },
+    {
+        "id":  497,
+        "name":  "Rakan",
+        "alias":  "Rakan",
+        "icon":  "/lol/champions/497.png"
+    },
+    {
+        "id":  498,
+        "name":  "Xayah",
+        "alias":  "Xayah",
+        "icon":  "/lol/champions/498.png"
+    },
+    {
+        "id":  516,
+        "name":  "Ornn",
+        "alias":  "Ornn",
+        "icon":  "/lol/champions/516.png"
+    },
+    {
+        "id":  517,
+        "name":  "Sylas",
+        "alias":  "Sylas",
+        "icon":  "/lol/champions/517.png"
+    },
+    {
+        "id":  518,
+        "name":  "Neeko",
+        "alias":  "Neeko",
+        "icon":  "/lol/champions/518.png"
+    },
+    {
+        "id":  523,
+        "name":  "Aphelios",
+        "alias":  "Aphelios",
+        "icon":  "/lol/champions/523.png"
+    },
+    {
+        "id":  526,
+        "name":  "Rell",
+        "alias":  "Rell",
+        "icon":  "/lol/champions/526.png"
+    },
+    {
+        "id":  555,
+        "name":  "Pyke",
+        "alias":  "Pyke",
+        "icon":  "/lol/champions/555.png"
+    },
+    {
+        "id":  711,
+        "name":  "Vex",
+        "alias":  "Vex",
+        "icon":  "/lol/champions/711.png"
+    },
+    {
+        "id":  777,
+        "name":  "Yone",
+        "alias":  "Yone",
+        "icon":  "/lol/champions/777.png"
+    },
+    {
+        "id":  799,
+        "name":  "Ambessa",
+        "alias":  "Ambessa",
+        "icon":  "/lol/champions/799.png"
+    },
+    {
+        "id":  800,
+        "name":  "Mel",
+        "alias":  "Mel",
+        "icon":  "/lol/champions/800.png"
+    },
+    {
+        "id":  804,
+        "name":  "Yunara",
+        "alias":  "Yunara",
+        "icon":  "/lol/champions/804.png"
+    },
+    {
+        "id":  875,
+        "name":  "Sett",
+        "alias":  "Sett",
+        "icon":  "/lol/champions/875.png"
+    },
+    {
+        "id":  876,
+        "name":  "Lillia",
+        "alias":  "Lillia",
+        "icon":  "/lol/champions/876.png"
+    },
+    {
+        "id":  887,
+        "name":  "Gwen",
+        "alias":  "Gwen",
+        "icon":  "/lol/champions/887.png"
+    },
+    {
+        "id":  888,
+        "name":  "Renata Glasc",
+        "alias":  "Renata",
+        "icon":  "/lol/champions/888.png"
+    },
+    {
+        "id":  893,
+        "name":  "Aurora",
+        "alias":  "Aurora",
+        "icon":  "/lol/champions/893.png"
+    },
+    {
+        "id":  895,
+        "name":  "Nilah",
+        "alias":  "Nilah",
+        "icon":  "/lol/champions/895.png"
+    },
+    {
+        "id":  897,
+        "name":  "K\u0027Sante",
+        "alias":  "KSante",
+        "icon":  "/lol/champions/897.png"
+    },
+    {
+        "id":  901,
+        "name":  "Smolder",
+        "alias":  "Smolder",
+        "icon":  "/lol/champions/901.png"
+    },
+    {
+        "id":  902,
+        "name":  "Milio",
+        "alias":  "Milio",
+        "icon":  "/lol/champions/902.png"
+    },
+    {
+        "id":  904,
+        "name":  "Zaahen",
+        "alias":  "Zaahen",
+        "icon":  "/lol/champions/904.png"
+    },
+    {
+        "id":  910,
+        "name":  "Hwei",
+        "alias":  "Hwei",
+        "icon":  "/lol/champions/910.png"
+    },
+    {
+        "id":  950,
+        "name":  "Naafiri",
+        "alias":  "Naafiri",
+        "icon":  "/lol/champions/950.png"
+    }
+]

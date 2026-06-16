@@ -1,0 +1,52 @@
+﻿[
+    {
+        "name":  "baron",
+        "icon":  "/lol/objectives/baron.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-match-history/global/default/baron-200.png"
+    },
+    {
+        "name":  "dragon",
+        "icon":  "/lol/objectives/dragon.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-match-history/global/default/dragon-200.png"
+    },
+    {
+        "name":  "dragon-air",
+        "icon":  "/lol/objectives/dragon-air.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-match-history/global/default/air-200.png"
+    },
+    {
+        "name":  "dragon-earth",
+        "icon":  "/lol/objectives/dragon-earth.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-match-history/global/default/earth-200.png"
+    },
+    {
+        "name":  "dragon-fire",
+        "icon":  "/lol/objectives/dragon-fire.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-match-history/global/default/fire-200.png"
+    },
+    {
+        "name":  "dragon-water",
+        "icon":  "/lol/objectives/dragon-water.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-match-history/global/default/water-200.png"
+    },
+    {
+        "name":  "elder",
+        "icon":  "/lol/objectives/elder.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-match-history/global/default/elder-200.png"
+    },
+    {
+        "name":  "herald",
+        "icon":  "/lol/objectives/herald.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-match-history/global/default/herald-200.png"
+    },
+    {
+        "name":  "tower",
+        "icon":  "/lol/objectives/tower.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-match-history/global/default/tower-200.png"
+    },
+    {
+        "name":  "void-grub",
+        "icon":  "/lol/objectives/void-grub.png",
+        "source":  "https://raw.communitydragon.org/latest/game/assets/ux/announcements/sru_voidgrub_circle.png"
+    }
+]

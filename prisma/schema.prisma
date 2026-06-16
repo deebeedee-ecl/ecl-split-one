@@ -11,6 +11,68 @@ model User {
   id        String   @id @default(uuid())
   email     String   @unique
   createdAt DateTime @default(now())
+
+  profile AccountProfile?
+}
+
+model AccountProfile {
+  id                  String              @id @default(uuid())
+  userId              String              @unique
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName         String
+  email               String
+  riotName            String
+  riotTag             String
+  chinaServerId       Int?
+  chinaServerName     String?
+  openId              String?
+  lzyumiVerifiedAt    DateTime?
+  lzyumiLastLookupAt  DateTime?
+  lzyumiRawProfile    Json?
+  kookUsername        String
+  kookId              String?
+  wechatId            String?
+  primaryRole         String
+  secondaryRole       String?
+  currentRank         String?
+  nationality         String?
+  timezone            String?
+  bio                 String?
+  avatarStyle         String              @default("crest")
+  avatarUrl           String?
+  dashboardTheme      String              @default("crimson")
+  championPool        Json?
+  privacySettings     Json?
+  verificationStatus  VerificationStatus  @default(PENDING_KOOK)
+  accountStatus       AccountStatus       @default(PENDING)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  kookVerifications   KookVerification[]
+
+  @@index([email])
+  @@index([riotName, riotTag])
+  @@index([chinaServerId, riotName, riotTag])
+  @@index([openId])
+  @@index([kookUsername])
+  @@index([verificationStatus])
+  @@index([accountStatus])
+}
+
+model KookVerification {
+  id          String                 @id @default(uuid())
+  profileId   String
+  profile     AccountProfile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  code        String                 @unique
+  status      KookVerificationStatus @default(PENDING)
+  kookUserId  String?
+  confirmedAt DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@index([profileId])
+  @@index([code])
+  @@index([status])
 }
 
 model Team {
@@ -210,4 +272,22 @@ enum MatchStatus {
   FORFEIT
   POSTPONED
   CANCELLED
+}
+
+enum VerificationStatus {
+  PENDING_KOOK
+  VERIFIED
+  REJECTED
+}
+
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum KookVerificationStatus {
+  PENDING
+  CONFIRMED
+  EXPIRED
 }

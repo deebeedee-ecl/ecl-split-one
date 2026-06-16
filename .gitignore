@@ -29,6 +29,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+.next-start.*.log
+.tmp/
+m\[1\])
+public/videos/split-one.mp4
 
 # env files (can opt-in for committing if needed)
 .env*

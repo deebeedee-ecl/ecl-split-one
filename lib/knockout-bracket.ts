@@ -178,7 +178,7 @@ export const knockoutBracket: KnockoutMatchConfig[] = [
     id: "final",
     stage: "FINALS",
     stageLabel: "Final",
-    slotLabel: "Championship Final",
+    slotLabel: "Final",
     homeTeam: getPlaceholderTeam("Highest remaining seed"),
     awayTeam: getPlaceholderTeam("Semifinal winner"),
     homeScore: null,

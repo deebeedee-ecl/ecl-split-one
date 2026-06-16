@@ -1,515 +1,584 @@
+"use client";
+
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import SyncPlayersButton from "@/components/admin/SyncPlayersButton";
+import {
+  Activity,
+  CalendarDays,
+  Edit3,
+  FileText,
+  Gauge,
+  Home,
+  KeyRound,
+  Mail,
+  Newspaper,
+  PenSquare,
+  Plus,
+  Search,
+  ShieldCheck,
+  Trash2,
+  Trophy,
+  UserCog,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 
-export const dynamic = "force-dynamic";
+type AdminSection =
+  | "dashboard"
+  | "users"
+  | "matches"
+  | "elo"
+  | "admins"
+  | "news";
 
-const rankOrder = [
-  "CHALLENGER",
-  "GRANDMASTER",
-  "MASTER",
-  "DIAMOND",
-  "EMERALD",
-  "PLATINUM",
-  "GOLD",
-  "SILVER",
-  "BRONZE",
-  "IRON",
-  "UNRANKED",
+const sections: Array<{ id: AdminSection; label: string; icon: LucideIcon }> = [
+  { id: "dashboard", label: "Dashboard", icon: Activity },
+  { id: "users", label: "Users", icon: Users },
+  { id: "matches", label: "Match History", icon: CalendarDays },
+  { id: "elo", label: "ELO / LP", icon: Gauge },
+  { id: "admins", label: "Admin Users", icon: UserCog },
+  { id: "news", label: "News Drafts", icon: Newspaper },
 ];
 
-type SortKey = "rank" | "player" | "source" | "team" | "status";
-type SortDirection = "asc" | "desc";
+const users = [
+  {
+    id: "usr-1",
+    player: "Jade Falcon",
+    email: "jade@ecl.gg",
+    kook: "jade.falcon",
+    riot: "JadeFalcon#2209",
+    wechat: "jadewx",
+    role: "Mid",
+    elo: 1984,
+  },
+  {
+    id: "usr-2",
+    player: "NightKiller",
+    email: "night@ecl.gg",
+    kook: "nightkiller",
+    riot: "NightKiller#1190",
+    wechat: "nightcn",
+    role: "Jungle",
+    elo: 1907,
+  },
+  {
+    id: "usr-3",
+    player: "ShadowHex",
+    email: "shadow@ecl.gg",
+    kook: "shadow.hex",
+    riot: "ShadowHex#0445",
+    wechat: "shadowlol",
+    role: "Bot",
+    elo: 1842,
+  },
+  {
+    id: "usr-4",
+    player: "GhostHunter",
+    email: "ghost@ecl.gg",
+    kook: "ghosthunter",
+    riot: "GhostHunter#3320",
+    wechat: "ghostsup",
+    role: "Support",
+    elo: 1729,
+  },
+];
 
-function normalizeRank(rank?: string | null) {
-  if (!rank) return "UNRANKED";
+const matches = [
+  {
+    id: "M-1042",
+    date: "Jun 15",
+    time: "21:04",
+    blue: "Jade Stack",
+    red: "Night Squad",
+    score: "32 - 24",
+    duration: "34:12",
+    status: "Reported",
+  },
+  {
+    id: "M-1041",
+    date: "Jun 15",
+    time: "20:12",
+    blue: "Shadow Lane",
+    red: "Ghost Peel",
+    score: "18 - 29",
+    duration: "31:08",
+    status: "Needs Review",
+  },
+  {
+    id: "M-1040",
+    date: "Jun 14",
+    time: "22:38",
+    blue: "Mid Gap",
+    red: "River Control",
+    score: "41 - 35",
+    duration: "39:44",
+    status: "Reported",
+  },
+];
 
-  const upper = rank.trim().toUpperCase();
+const newsDrafts = [
+  {
+    type: "Patch Notes",
+    title: "Hub v1 is under development",
+    status: "Draft",
+  },
+  {
+    type: "Event",
+    title: "Ranked inhouse test night",
+    status: "Ready",
+  },
+  {
+    type: "Announcement",
+    title: "KOOK queue flow preview",
+    status: "Draft",
+  },
+];
 
-  if (upper.includes("CHALLENGER")) return "CHALLENGER";
-  if (upper.includes("GRANDMASTER")) return "GRANDMASTER";
-  if (upper.includes("MASTER")) return "MASTER";
-  if (upper.includes("DIAMOND")) return "DIAMOND";
-  if (upper.includes("EMERALD")) return "EMERALD";
-  if (upper.includes("PLATINUM")) return "PLATINUM";
-  if (upper.includes("GOLD")) return "GOLD";
-  if (upper.includes("SILVER")) return "SILVER";
-  if (upper.includes("BRONZE")) return "BRONZE";
-  if (upper.includes("IRON")) return "IRON";
-
-  return "UNRANKED";
-}
-
-function getRankValue(rank?: string | null) {
-  const normalized = normalizeRank(rank);
-  const index = rankOrder.indexOf(normalized);
-  return index === -1 ? 999 : index;
-}
-
-function getStatusValue(status?: string | null) {
-  const value = (status || "").trim().toLowerCase();
-
-  if (value === "approved") return 0;
-  if (value === "signed") return 1;
-  if (value === "pending") return 2;
-  if (value === "rejected") return 3;
-
-  return 999;
-}
-
-type CombinedPlayer = {
-  id: string;
-  playerName: string;
-  riotName?: string;
-  riotTag?: string;
-  primaryRole?: string;
-  secondaryRole?: string;
-  currentRank?: string;
-  status: string;
-  source: "Free Agent" | "Team";
-  teamName?: string;
-  submittedAt: Date;
-};
-
-type TeamPlayerJson = {
-  freeAgentId?: string;
-  playerName?: string;
-  name?: string;
-  riotName?: string;
-  riotTag?: string;
-  primaryRole?: string;
-  secondaryRole?: string;
-  currentRank?: string;
-  rank?: string;
-  email?: string;
-  notes?: string;
-};
-
-function cleanText(value?: string | null) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function isRealTeamPlayer(player: TeamPlayerJson) {
-  return Boolean(
-    cleanText(player.playerName) ||
-      cleanText(player.name) ||
-      cleanText(player.riotName) ||
-      cleanText(player.riotTag) ||
-      cleanText(player.primaryRole) ||
-      cleanText(player.secondaryRole) ||
-      cleanText(player.currentRank) ||
-      cleanText(player.rank)
+export default function AdminPage() {
+  const [active, setActive] = useState<AdminSection>("dashboard");
+  const activeLabel = useMemo(
+    () => sections.find((section) => section.id === active)?.label ?? "Dashboard",
+    [active]
   );
-}
-
-function compareText(a: string, b: string, direction: SortDirection) {
-  return direction === "asc" ? a.localeCompare(b) : b.localeCompare(a);
-}
-
-function compareNumber(a: number, b: number, direction: SortDirection) {
-  return direction === "asc" ? a - b : b - a;
-}
-
-function getNextDirection(
-  currentSort: SortKey,
-  currentDir: SortDirection,
-  clickedSort: SortKey
-): SortDirection {
-  if (currentSort === clickedSort) {
-    return currentDir === "asc" ? "desc" : "asc";
-  }
-
-  return "asc";
-}
-
-function SortLink({
-  label,
-  sortKey,
-  currentSort,
-  currentDir,
-}: {
-  label: string;
-  sortKey: SortKey;
-  currentSort: SortKey;
-  currentDir: SortDirection;
-}) {
-  const isActive = currentSort === sortKey;
-  const nextDir = getNextDirection(currentSort, currentDir, sortKey);
 
   return (
-    <Link
-      href={`/admin?sort=${sortKey}&dir=${nextDir}`}
-      className={`inline-flex items-center gap-1 transition ${
-        isActive ? "text-green-300" : "text-white/70 hover:text-white"
-      }`}
-    >
-      <span>{label}</span>
-      {isActive && <span>{currentDir === "asc" ? "↑" : "↓"}</span>}
-    </Link>
-  );
-}
-
-export default async function AdminPage({
-  searchParams,
-}: {
-  searchParams?: Promise<{ sort?: string; dir?: string }>;
-}) {
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
-
-  const requestedSort = resolvedSearchParams?.sort;
-  const requestedDir = resolvedSearchParams?.dir;
-
-  const sort: SortKey =
-    requestedSort === "player" ||
-    requestedSort === "source" ||
-    requestedSort === "team" ||
-    requestedSort === "status" ||
-    requestedSort === "rank"
-      ? requestedSort
-      : "rank";
-
-  const dir: SortDirection =
-    requestedDir === "desc" || requestedDir === "asc" ? requestedDir : "asc";
-
-  // IMPORTANT:
-  // These are sequential on purpose to avoid hammering Supabase local pool.
-  const freeAgents = await prisma.freeAgentRegistration.findMany({
-    orderBy: { submittedAt: "desc" },
-  });
-
-  const teams = await prisma.teamRegistration.findMany({
-    orderBy: { submittedAt: "desc" },
-  });
-
-  const leagueWireItems = await prisma.leagueWireItem.findMany({
-    select: {
-      id: true,
-      isVisible: true,
-    },
-  });
-
-  const matches = await prisma.match.findMany({
-    select: {
-      id: true,
-      status: true,
-    },
-  });
-
-  const leagueWireCount = leagueWireItems.length;
-  const visibleLeagueWireCount = leagueWireItems.filter(
-    (item) => item.isVisible
-  ).length;
-
-  const totalMatches = matches.length;
-  const scheduledMatches = matches.filter(
-    (match) => match.status === "SCHEDULED"
-  ).length;
-  const completedMatches = matches.filter(
-    (match) => match.status === "COMPLETED"
-  ).length;
-
-  const freeAgentPlayers: CombinedPlayer[] = freeAgents
-    .filter(
-      (player) =>
-        player.status !== "signed" &&
-        (cleanText(player.playerName) ||
-          cleanText(player.riotName) ||
-          cleanText(player.riotTag))
-    )
-    .map((player) => ({
-      id: player.id,
-      playerName:
-        cleanText(player.playerName) ||
-        cleanText(player.riotName) ||
-        "Unknown Player",
-      riotName: cleanText(player.riotName),
-      riotTag: cleanText(player.riotTag),
-      primaryRole: cleanText(player.primaryRole),
-      secondaryRole: cleanText(player.secondaryRole),
-      currentRank: normalizeRank(player.currentRank),
-      status: player.status,
-      source: "Free Agent",
-      teamName: cleanText(player.signedToTeamName),
-      submittedAt: player.submittedAt,
-    }));
-
-  const teamPlayers: CombinedPlayer[] = teams.flatMap((team) => {
-    const players = Array.isArray(team.players)
-      ? (team.players as TeamPlayerJson[])
-      : [];
-
-    return players.filter(isRealTeamPlayer).map((player, index) => ({
-      id: `${team.id}-${index}`,
-      playerName:
-        cleanText(player.playerName) ||
-        cleanText(player.name) ||
-        cleanText(player.riotName) ||
-        "Unknown Player",
-      riotName: cleanText(player.riotName),
-      riotTag: cleanText(player.riotTag),
-      primaryRole: cleanText(player.primaryRole),
-      secondaryRole: cleanText(player.secondaryRole),
-      currentRank: normalizeRank(player.currentRank || player.rank),
-      status: team.status,
-      source: "Team" as const,
-      teamName: team.teamName,
-      submittedAt: team.submittedAt,
-    }));
-  });
-
-  const allPlayers = [...freeAgentPlayers, ...teamPlayers].sort((a, b) => {
-    if (sort === "rank") {
-      const diff = compareNumber(
-        getRankValue(a.currentRank),
-        getRankValue(b.currentRank),
-        dir
-      );
-      if (diff !== 0) return diff;
-      return a.playerName.localeCompare(b.playerName);
-    }
-
-    if (sort === "player") {
-      const diff = compareText(a.playerName, b.playerName, dir);
-      if (diff !== 0) return diff;
-      return getRankValue(a.currentRank) - getRankValue(b.currentRank);
-    }
-
-    if (sort === "source") {
-      const diff = compareText(a.source, b.source, dir);
-      if (diff !== 0) return diff;
-      return a.playerName.localeCompare(b.playerName);
-    }
-
-    if (sort === "team") {
-      const diff = compareText(a.teamName || "", b.teamName || "", dir);
-      if (diff !== 0) return diff;
-      return a.playerName.localeCompare(b.playerName);
-    }
-
-    if (sort === "status") {
-      const diff = compareNumber(
-        getStatusValue(a.status),
-        getStatusValue(b.status),
-        dir
-      );
-      if (diff !== 0) return diff;
-      return a.playerName.localeCompare(b.playerName);
-    }
-
-    return a.playerName.localeCompare(b.playerName);
-  });
-
-  const approvedFreeAgents = freeAgents.filter(
-    (p) => p.status === "approved"
-  ).length;
-
-  const pendingFreeAgents = freeAgents.filter(
-    (p) => p.status === "pending"
-  ).length;
-
-  const approvedTeams = teams.filter((t) => t.status === "approved").length;
-
-  return (
-    <main className="min-h-screen bg-black px-6 py-10 text-white">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-black uppercase tracking-[0.08em]">
-            Admin Dashboard
-          </h1>
-          <p className="mt-2 text-white/60">
-            Manage registrations, homepage updates, and view all players in one
-            place.
-          </p>
-        </div>
-
-        <div className="mb-8">
-          <SyncPlayersButton />
-        </div>
-
-        <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Free Agents" value={freeAgents.length} />
-          <StatCard label="Approved Free Agents" value={approvedFreeAgents} />
-          <StatCard label="Pending Free Agents" value={pendingFreeAgents} />
-          <StatCard label="Approved Teams" value={approvedTeams} />
-        </div>
-
-        <div className="mb-8 grid gap-4 sm:grid-cols-3">
-          <StatCard label="Matches" value={totalMatches} />
-          <StatCard label="Scheduled Matches" value={scheduledMatches} />
-          <StatCard label="Completed Matches" value={completedMatches} />
-        </div>
-
-        <div className="mb-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Link
-            href="/admin/free-agents"
-            className="rounded-2xl border border-white/10 bg-white/5 p-6 transition hover:border-green-400/40 hover:bg-green-400/10"
-          >
-            <h2 className="text-2xl font-bold">Free Agents</h2>
-            <p className="mt-2 text-sm text-white/65">
-              Approve, reject, sign, and delete solo registrations.
-            </p>
-          </Link>
-
-          <Link
-            href="/admin/teams"
-            className="rounded-2xl border border-white/10 bg-white/5 p-6 transition hover:border-green-400/40 hover:bg-green-400/10"
-          >
-            <h2 className="text-2xl font-bold">Teams</h2>
-            <p className="mt-2 text-sm text-white/65">
-              Review team registrations and manage full rosters.
-            </p>
-          </Link>
-
-          <Link
-            href="/admin/matches"
-            className="rounded-2xl border border-white/10 bg-white/5 p-6 transition hover:border-green-400/40 hover:bg-green-400/10"
-          >
-            <h2 className="text-2xl font-bold">Matches</h2>
-            <p className="mt-2 text-sm text-white/65">
-              Create fixtures and manage match records for schedule and results.
-            </p>
-          </Link>
-
-          <Link
-            href="/admin/league-wire"
-            className="rounded-2xl border border-green-400/20 bg-green-500/10 p-6 transition hover:border-green-400/50 hover:bg-green-400/15"
-          >
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-2xl font-bold">League Wire</h2>
-              <span className="rounded-full border border-green-400/30 bg-green-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-green-300">
-                {visibleLeagueWireCount}/{leagueWireCount}
-              </span>
+    <main className="fixed inset-0 z-[300] overflow-auto bg-[#050505] text-white">
+      <div className="grid min-h-screen lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <aside className="flex min-h-screen flex-col border-r border-[#211216] bg-[#090909] p-5">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#b11226] text-white">
+              <ShieldCheck size={20} />
+            </span>
+            <div>
+              <p className="text-lg font-black tracking-normal">ECL Admin</p>
+              <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-[#8d8d8d]">
+                Operations
+              </p>
             </div>
-            <p className="mt-2 text-sm text-white/65">
-              Manage homepage ticker updates and control which items are live.
-            </p>
-          </Link>
-        </div>
-
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-          <div className="border-b border-white/10 px-6 py-4">
-            <h2 className="text-2xl font-bold">All Players</h2>
-            <p className="mt-1 text-sm text-white/60">
-              Click a header to sort the table.
-            </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-white/5 text-left text-white/70">
-                <tr>
-                  <th className="px-4 py-3">
-                    <SortLink
-                      label="Player"
-                      sortKey="player"
-                      currentSort={sort}
-                      currentDir={dir}
-                    />
-                  </th>
-                  <th className="px-4 py-3">Riot ID</th>
-                  <th className="px-4 py-3">Tag</th>
-                  <th className="px-4 py-3">
-                    <SortLink
-                      label="Rank"
-                      sortKey="rank"
-                      currentSort={sort}
-                      currentDir={dir}
-                    />
-                  </th>
-                  <th className="px-4 py-3">Primary</th>
-                  <th className="px-4 py-3">Secondary</th>
-                  <th className="px-4 py-3">
-                    <SortLink
-                      label="Source"
-                      sortKey="source"
-                      currentSort={sort}
-                      currentDir={dir}
-                    />
-                  </th>
-                  <th className="px-4 py-3">
-                    <SortLink
-                      label="Team"
-                      sortKey="team"
-                      currentSort={sort}
-                      currentDir={dir}
-                    />
-                  </th>
-                  <th className="px-4 py-3">
-                    <SortLink
-                      label="Status"
-                      sortKey="status"
-                      currentSort={sort}
-                      currentDir={dir}
-                    />
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {allPlayers.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={9}
-                      className="px-4 py-8 text-center text-white/50"
-                    >
-                      No players found.
-                    </td>
-                  </tr>
-                ) : (
-                  allPlayers.map((player) => (
-                    <tr
-                      key={player.id}
-                      className="border-t border-white/10 hover:bg-white/5"
-                    >
-                      <td className="px-4 py-3 font-medium">
-                        {player.playerName}
-                      </td>
-                      <td className="px-4 py-3 text-white/80">
-                        {player.riotName || "-"}
-                      </td>
-                      <td className="px-4 py-3 text-white/80">
-                        {player.riotTag || "-"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="rounded-full border border-green-400/30 bg-green-400/10 px-2 py-1 text-xs font-semibold text-green-300">
-                          {player.currentRank || "UNRANKED"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-white/80">
-                        {player.primaryRole || "-"}
-                      </td>
-                      <td className="px-4 py-3 text-white/80">
-                        {player.secondaryRole || "-"}
-                      </td>
-                      <td className="px-4 py-3 text-white/80">
-                        {player.source}
-                      </td>
-                      <td className="px-4 py-3 text-white/80">
-                        {player.teamName || "-"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-xs uppercase tracking-wide text-white/80">
-                          {player.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <nav className="mt-9 space-y-2">
+            {sections.map((section) => (
+              <AdminNavButton
+                key={section.id}
+                active={active === section.id}
+                icon={section.icon}
+                label={section.label}
+                onClick={() => setActive(section.id)}
+              />
+            ))}
+          </nav>
+
+          <div className="mt-auto pt-8">
+            <Link
+              href="/"
+              className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#2b2b2b] bg-[#101010] text-xs font-black uppercase tracking-[0.08em] text-white transition hover:border-[#b11226] hover:bg-[#b11226]"
+            >
+              <Home size={15} />
+              Return to Website
+            </Link>
           </div>
-        </div>
+        </aside>
+
+        <section className="min-w-0 p-5 lg:p-7">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-[#b11226]">
+                Control Room
+              </p>
+              <h1 className="mt-1 text-3xl font-black tracking-normal text-white">
+                {activeLabel}
+              </h1>
+            </div>
+            <label className="flex h-11 w-full max-w-sm items-center gap-3 rounded-xl border border-[#202020] bg-[#0d0d0d] px-4 text-xs font-semibold text-[#7f7f7f]">
+              <Search size={15} />
+              Search admin records...
+            </label>
+          </div>
+
+          <div className="mt-6">
+            {active === "dashboard" && <DashboardSection />}
+            {active === "users" && <UsersSection />}
+            {active === "matches" && <MatchesSection />}
+            {active === "elo" && <EloSection />}
+            {active === "admins" && <AdminsSection />}
+            {active === "news" && <NewsSection />}
+          </div>
+        </section>
       </div>
     </main>
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function DashboardSection() {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-      <div className="text-sm uppercase tracking-[0.18em] text-white/45">
-        {label}
+    <div className="space-y-5">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Players" value="124" note="+9 this week" icon={Users} />
+        <MetricCard label="Games Played" value="86" note="12 today" icon={Trophy} />
+        <MetricCard label="New Signups" value="18" note="Needs review" icon={Mail} />
+        <MetricCard label="Open Reports" value="3" note="Possible duplicates" icon={FileText} />
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <Panel title="Activity Overview" icon={Activity}>
+          <ActivityChart />
+        </Panel>
+        <Panel title="Recent Admin Notes" icon={PenSquare}>
+          <div className="space-y-3">
+            {[
+              "Match M-1041 marked for review",
+              "Hub v1 patch notes saved as draft",
+              "ShadowHex ELO override queued",
+              "Two new KOOK IDs need verification",
+            ].map((item) => (
+              <div key={item} className="rounded-xl border border-[#242424] bg-[#101010] p-3 text-sm font-bold text-[#d8d8d8]">
+                {item}
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </section>
+    </div>
+  );
+}
+
+function UsersSection() {
+  return (
+    <Panel title="Users" icon={Users}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-[#8d8d8d]">
+          Player, email, KOOK ID, Riot ID, WeChat, and quick admin actions.
+        </p>
+        <button className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#b11226] px-4 text-xs font-black uppercase tracking-[0.08em]">
+          <Plus size={15} />
+          Add Player
+        </button>
       </div>
-      <div className="mt-2 text-3xl font-black text-white">{value}</div>
+      <div className="overflow-x-auto rounded-xl border border-[#242424]">
+        <table className="min-w-full text-left text-sm">
+          <thead className="bg-[#111111] text-[0.68rem] font-black uppercase tracking-[0.12em] text-[#8d8d8d]">
+            <tr>
+              <th className="px-4 py-3">Player</th>
+              <th className="px-4 py-3">Email</th>
+              <th className="px-4 py-3">KOOK ID</th>
+              <th className="px-4 py-3">Riot ID</th>
+              <th className="px-4 py-3">WeChat</th>
+              <th className="px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user.id} className="border-t border-[#242424]">
+                <td className="px-4 py-4">
+                  <p className="font-black text-white">{user.player}</p>
+                  <p className="text-xs text-[#8d8d8d]">
+                    {user.role} / {user.elo} ELO
+                  </p>
+                </td>
+                <td className="px-4 py-4 text-[#cfcfcf]">{user.email}</td>
+                <td className="px-4 py-4 text-[#cfcfcf]">{user.kook}</td>
+                <td className="px-4 py-4 text-[#cfcfcf]">{user.riot}</td>
+                <td className="px-4 py-4 text-[#cfcfcf]">{user.wechat}</td>
+                <td className="px-4 py-4">
+                  <div className="flex gap-2">
+                    <ActionButton label="Edit" icon={Edit3} />
+                    <ActionButton label="Remove" icon={Trash2} danger />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+}
+
+function MatchesSection() {
+  return (
+    <div className="grid gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]">
+      <Panel title="Report Calendar" icon={CalendarDays}>
+        <div className="grid grid-cols-7 gap-2">
+          {Array.from({ length: 28 }).map((_, index) => (
+            <button
+              key={index}
+              className={`aspect-square rounded-xl text-xs font-black ${
+                [3, 8, 14, 18, 22].includes(index)
+                  ? "bg-[#b11226] text-white"
+                  : "bg-[#111111] text-[#777]"
+              }`}
+            >
+              {index + 1}
+            </button>
+          ))}
+        </div>
+      </Panel>
+      <Panel title="Match Reports" icon={FileText}>
+        <div className="space-y-3">
+          {matches.map((match) => (
+            <div key={match.id} className="rounded-xl border border-[#242424] bg-[#101010] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-base font-black text-white">
+                    {match.blue} {match.score} {match.red}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-[#8d8d8d]">
+                    {match.id} / {match.date} {match.time} / {match.duration}
+                  </p>
+                </div>
+                <span className="rounded-full bg-[#b11226]/15 px-3 py-1 text-xs font-black text-[#ff5b70]">
+                  {match.status}
+                </span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <ActionButton label="Open Report" icon={FileText} />
+                <ActionButton label="Edit" icon={PenSquare} />
+                <ActionButton label="Delete Duplicate" icon={Trash2} danger />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function EloSection() {
+  return (
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <Panel title="ELO / LP Rules" icon={Gauge}>
+        <div className="grid gap-3 md:grid-cols-2">
+          <ConfigCard label="Base win LP" value="+24" />
+          <ConfigCard label="Base loss LP" value="-18" />
+          <ConfigCard label="MVP bonus" value="+4" />
+          <ConfigCard label="SVP protection" value="+3 loss reduction" />
+          <ConfigCard label="Streak bonus" value="+2 after 3 wins" />
+          <ConfigCard label="Rating floor" value="800 ELO" />
+        </div>
+      </Panel>
+      <Panel title="Manual ELO Override" icon={Edit3}>
+        <div className="space-y-3">
+          <MockInput label="Player" value="ShadowHex" />
+          <MockInput label="New ELO" value="1865" />
+          <MockInput label="Admin Reason" value="Corrected duplicate match report" />
+          <button className="min-h-11 w-full rounded-xl bg-[#b11226] text-xs font-black uppercase tracking-[0.08em]">
+            Save Override
+          </button>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function AdminsSection() {
+  return (
+    <Panel title="Admin Users" icon={UserCog}>
+      <div className="grid gap-4 lg:grid-cols-3">
+        {["owner@ecl.gg", "ops@ecl.gg", "matchadmin@ecl.gg"].map((email, index) => (
+          <div key={email} className="rounded-xl border border-[#242424] bg-[#101010] p-4">
+            <p className="flex items-center gap-2 text-sm font-black">
+              <Mail size={15} />
+              {email}
+            </p>
+            <p className="mt-2 text-xs font-semibold text-[#8d8d8d]">
+              {index === 0 ? "Owner Admin" : "Admin"}
+            </p>
+            <div className="mt-4 flex gap-2">
+              <ActionButton label="Reset Password" icon={KeyRound} />
+              <ActionButton label="Remove" icon={Trash2} danger />
+            </div>
+          </div>
+        ))}
+      </div>
+      <button className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#b11226] px-4 text-xs font-black uppercase tracking-[0.08em]">
+        <Plus size={15} />
+        Add Admin by Email
+      </button>
+    </Panel>
+  );
+}
+
+function NewsSection() {
+  return (
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <Panel title="News Drafts" icon={Newspaper}>
+        <div className="space-y-3">
+          {newsDrafts.map((draft) => (
+            <div key={draft.title} className="rounded-xl border border-[#242424] bg-[#101010] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#b11226]">
+                    {draft.type}
+                  </p>
+                  <h3 className="mt-2 text-base font-black">{draft.title}</h3>
+                </div>
+                <span className="rounded-full bg-white/[0.06] px-3 py-1 text-xs font-black text-[#cfcfcf]">
+                  {draft.status}
+                </span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <ActionButton label="Edit Draft" icon={PenSquare} />
+                <ActionButton label="Upload Image" icon={FileText} />
+                <ActionButton label="Delete" icon={Trash2} danger />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+      <Panel title="Create News Item" icon={Plus}>
+        <div className="space-y-3">
+          <MockInput label="Template" value="Patch Notes / Event / Announcement" />
+          <MockInput label="Title" value="Hub v1 Update" />
+          <MockInput label="Image" value="Upload hero image" />
+          <button className="min-h-11 w-full rounded-xl bg-[#b11226] text-xs font-black uppercase tracking-[0.08em]">
+            Save Draft
+          </button>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function AdminNavButton({
+  active,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-bold transition ${
+        active
+          ? "bg-[#b11226] text-white"
+          : "text-[#8d8d8d] hover:bg-[#151515] hover:text-white"
+      }`}
+    >
+      <Icon size={17} />
+      {label}
+    </button>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  note,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <article className="rounded-xl border border-[#242424] bg-[#101010] p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold text-[#9b9b9b]">{label}</p>
+        <Icon size={17} className="text-[#b11226]" />
+      </div>
+      <p className="mt-5 text-3xl font-black">{value}</p>
+      <p className="mt-1 text-xs font-bold text-[#b11226]">{note}</p>
+    </article>
+  );
+}
+
+function Panel({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-[#242424] bg-[#0b0b0b] p-5 shadow-[0_20px_70px_rgba(0,0,0,0.25)]">
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <h2 className="text-lg font-black tracking-normal">{title}</h2>
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#b11226]/15 text-[#ff5b70]">
+          <Icon size={17} />
+        </span>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ActionButton({
+  label,
+  icon: Icon,
+  danger = false,
+}: {
+  label: string;
+  icon: LucideIcon;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-xl px-3 text-xs font-black ${
+        danger
+          ? "bg-[#b11226]/15 text-[#ff5b70]"
+          : "bg-white/[0.06] text-[#d8d8d8]"
+      }`}
+    >
+      <Icon size={14} />
+      {label}
+    </button>
+  );
+}
+
+function ConfigCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[#242424] bg-[#101010] p-4">
+      <p className="text-xs font-bold text-[#8d8d8d]">{label}</p>
+      <p className="mt-2 text-xl font-black text-white">{value}</p>
+    </div>
+  );
+}
+
+function MockInput({ label, value }: { label: string; value: string }) {
+  return (
+    <label className="block">
+      <span className="text-xs font-black uppercase tracking-[0.12em] text-[#8d8d8d]">
+        {label}
+      </span>
+      <span className="mt-2 block rounded-xl border border-[#242424] bg-[#101010] px-4 py-3 text-sm font-bold text-[#cfcfcf]">
+        {value}
+      </span>
+    </label>
+  );
+}
+
+function ActivityChart() {
+  const values = [7, 11, 18, 13, 9, 5, 10, 15, 4, 12, 8, 10];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  return (
+    <div className="h-72">
+      <div className="flex h-56 items-end gap-3 border-b border-[#242424] px-1">
+        {values.map((value, index) => (
+          <div key={months[index]} className="flex flex-1 flex-col items-center gap-3">
+            <div
+              className={`w-full max-w-12 rounded-t-2xl ${
+                index === 2 ? "bg-[#b11226]" : "bg-[#292929]"
+              }`}
+              style={{ height: `${value * 9}px` }}
+            />
+            <span className="text-[0.68rem] font-semibold text-[#777]">
+              {months[index]}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

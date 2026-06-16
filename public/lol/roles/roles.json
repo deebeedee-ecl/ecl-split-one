@@ -1,0 +1,32 @@
+﻿[
+    {
+        "name":  "top",
+        "icon":  "/lol/roles/top.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-parties/global/default/icon-position-top.png"
+    },
+    {
+        "name":  "jungle",
+        "icon":  "/lol/roles/jungle.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-parties/global/default/icon-position-jungle.png"
+    },
+    {
+        "name":  "mid",
+        "icon":  "/lol/roles/mid.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-parties/global/default/icon-position-middle.png"
+    },
+    {
+        "name":  "bot",
+        "icon":  "/lol/roles/bot.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-parties/global/default/icon-position-bottom.png"
+    },
+    {
+        "name":  "support",
+        "icon":  "/lol/roles/support.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-parties/global/default/icon-position-utility.png"
+    },
+    {
+        "name":  "fill",
+        "icon":  "/lol/roles/fill.png",
+        "source":  "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-parties/global/default/icon-position-fill.png"
+    }
+]

@@ -2,571 +2,268 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
-  Crown,
-  Flame,
+  BarChart3,
+  CheckCircle2,
   Medal,
+  Search,
   ShieldCheck,
-  Sparkles,
-  Star,
   Swords,
-  Target,
   Trophy,
 } from "lucide-react";
-import LeagueWireTicker from "@/components/LeagueWireTicker";
-import SplashVideo from "@/components/SplashVideo";
-import { prisma } from "@/lib/prisma";
+import AggressiveHubPreview from "@/components/AggressiveHubPreview";
 
-export const dynamic = "force-dynamic";
+const howItWorks = [
+  "Link your player profile",
+  "Join inhouses through KOOK",
+  "Play games with the community",
+  "Report results after the lobby",
+  "Track stats in the Hub",
+];
 
-type PlayerAwardStats = {
-  id: string;
-  name: string;
-  riotLine: string | null;
-  teamName: string | null;
-  elo: number;
-  gamesPlayed: number;
-  wins: number;
-  kills: number;
-  deaths: number;
-  assists: number;
-  damage: number;
-  mvpCount: number;
-};
-
-type Award = {
-  title: string;
-  label: string;
-  player: PlayerAwardStats;
-  value: string;
-  note: string;
-  icon: typeof Trophy;
-};
-
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("en-US").format(value);
-}
-
-function formatKDA(player: PlayerAwardStats) {
-  if (player.kills === 0 && player.deaths === 0 && player.assists === 0) {
-    return "0.00";
-  }
-
-  return ((player.kills + player.assists) / Math.max(1, player.deaths)).toFixed(
-    2
-  );
-}
-
-function formatAverage(value: number, gamesPlayed: number) {
-  if (gamesPlayed === 0) return "0.0";
-  return (value / gamesPlayed).toFixed(1);
-}
-
-function formatWinRate(wins: number, gamesPlayed: number) {
-  if (gamesPlayed === 0) return "0%";
-  return `${Math.round((wins / gamesPlayed) * 100)}%`;
-}
-
-function getRiotLine(player: {
-  riotName: string | null;
-  riotTag: string | null;
-}) {
-  const parts = [player.riotName, player.riotTag].filter(Boolean);
-  return parts.length > 0 ? parts.join("#") : null;
-}
-
-function pickAward(
-  title: string,
-  label: string,
-  players: PlayerAwardStats[],
-  sorter: (a: PlayerAwardStats, b: PlayerAwardStats) => number,
-  value: (player: PlayerAwardStats) => string,
-  note: string,
-  icon: typeof Trophy
-): Award | null {
-  const player = [...players].sort(sorter)[0];
-
-  if (!player) return null;
-
-  return {
-    title,
-    label,
-    player,
-    value: value(player),
-    note,
-    icon,
-  };
-}
-
-function ChampionHero({
-  champion,
-  runnerUpName,
-  finalScore,
-}: {
-  champion: { name: string; logoUrl: string | null } | null;
-  runnerUpName: string;
-  finalScore: string;
-}) {
-  const championName = champion?.name ?? "Exiled Bunzz";
-
+export default function Home() {
   return (
-    <section className="relative isolate overflow-hidden rounded-lg border border-yellow-300/20 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.24),transparent_34%),linear-gradient(135deg,rgba(24,24,27,0.98),rgba(8,8,8,1)_48%,rgba(21,128,61,0.22))] px-5 py-8 shadow-[0_0_48px_rgba(250,204,21,0.12)] sm:px-8 lg:px-10">
-      <div className="grid gap-8 lg:grid-cols-[0.88fr_1.12fr] lg:items-center">
-        <div className="flex items-center justify-center">
-          <div className="relative flex aspect-square w-full max-w-[22rem] items-center justify-center rounded-lg border border-yellow-300/30 bg-black/60 p-8 shadow-[0_0_52px_rgba(250,204,21,0.18)]">
-            <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-md border border-yellow-300/25 bg-yellow-300 px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-black">
-              <Crown size={16} />
-              Champions
-            </div>
+    <main className="min-h-screen bg-[#050505] text-white">
+      <section className="relative isolate overflow-hidden border-b border-[#1f1f1f] bg-[#050505]">
+        <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(177,18,38,0.18),transparent_34%),radial-gradient(circle_at_72%_18%,rgba(209,26,42,0.2),transparent_26%)]" />
+        <div className="absolute inset-0 opacity-[0.055] [background-image:linear-gradient(90deg,#fff_1px,transparent_1px),linear-gradient(#fff_1px,transparent_1px)] [background-size:76px_76px]" />
+        <div className="absolute left-0 top-0 h-full w-1/3 bg-[linear-gradient(100deg,rgba(177,18,38,0.28),transparent)] [clip-path:polygon(0_0,74%_0,36%_100%,0_100%)]" />
 
-            {champion?.logoUrl ? (
+        <div className="relative mx-auto grid min-h-[calc(100vh-73px)] max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[0.56fr_0.44fr] lg:items-center lg:py-16">
+          <div className="max-w-2xl">
+            <h1 className="flex max-w-4xl flex-col items-start text-[clamp(4.8rem,10.8vw,9.8rem)] font-black uppercase leading-[0.78] tracking-normal text-white [font-family:Anton,Impact,Arial_Black,Arial,sans-serif]">
+              <span className="block">Expat</span>
+              <span className="block text-[#b11226]">China</span>
+              <span className="block">League</span>
+            </h1>
+
+            <div className="mt-6 h-1 w-28 bg-[#b11226] [clip-path:polygon(0_0,100%_0,86%_100%,0_100%)]" />
+
+            <p className="mt-7 max-w-xl text-lg leading-8 text-[#9ca3af]">
+              Ranked inhouses, player stats, tournaments and community League
+              of Legends in China.
+            </p>
+
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/hub"
+                className="inline-flex items-center justify-center gap-2 bg-[#b11226] px-6 py-4 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#d11a2a] [clip-path:polygon(0_0,94%_0,100%_28%,100%_100%,6%_100%,0_72%)]"
+              >
+                Enter the Hub
+                <ArrowRight size={18} />
+              </Link>
+              <Link
+                href="/how-to-play"
+                className="inline-flex items-center justify-center gap-2 border border-[#1f1f1f] bg-[#0d0d0d] px-6 py-4 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:border-[#b11226]"
+              >
+                Guide to playing in China
+                <ArrowRight size={18} />
+              </Link>
+            </div>
+          </div>
+
+          <div className="relative flex min-h-[32rem] items-center justify-center overflow-visible lg:min-h-[48rem]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.05),transparent_52%)]" />
+            <div className="relative w-full max-w-[92rem] lg:translate-x-24">
               <Image
-                src={champion.logoUrl}
-                alt={`${championName} logo`}
-                width={320}
-                height={320}
-                className="h-56 w-56 object-contain sm:h-64 sm:w-64"
+                src="/ecl-logo.png"
+                alt="ECL logo"
+                width={900}
+                height={900}
+                className="mx-auto aspect-square w-full max-w-[88rem] scale-[2.2] object-contain opacity-90 mix-blend-screen drop-shadow-[0_0_46px_rgba(255,255,255,0.16)]"
                 priority
               />
-            ) : (
-              <div className="text-7xl font-black uppercase text-yellow-100">
-                EB
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <p className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.28em] text-yellow-200">
-            <Trophy size={18} />
-            Spring Split Champions
-          </p>
-
-          <h1 className="mt-4 text-5xl font-black uppercase tracking-tight text-white sm:text-6xl lg:text-7xl">
-            {championName}
-          </h1>
-
-          <p className="mt-5 max-w-3xl text-lg leading-8 text-zinc-200">
-            EB are the Spring Split Champions after a {finalScore} finals win
-            over {runnerUpName}. NN struck first, then EB answered with three
-            straight games to close the split.
-          </p>
-
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border border-white/10 bg-black/35 p-4">
-              <div className="text-xs font-bold uppercase tracking-[0.18em] text-white/45">
-                Finals
-              </div>
-              <div className="mt-2 text-3xl font-black text-yellow-100">
-                {finalScore}
-              </div>
-            </div>
-            <div className="rounded-lg border border-white/10 bg-black/35 p-4">
-              <div className="text-xs font-bold uppercase tracking-[0.18em] text-white/45">
-                Run
-              </div>
-              <div className="mt-2 text-3xl font-black text-white">
-                3 Wins
-              </div>
-            </div>
-            <div className="rounded-lg border border-white/10 bg-black/35 p-4">
-              <div className="text-xs font-bold uppercase tracking-[0.18em] text-white/45">
-                Crown
-              </div>
-              <div className="mt-2 text-3xl font-black text-green-300">
-                Split 1
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              href="/results"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-yellow-300 px-6 py-3 text-sm font-black uppercase tracking-[0.14em] text-black transition hover:bg-yellow-200"
-            >
-              Finals Archive
-              <ArrowRight size={17} />
-            </Link>
-            <Link
-              href="/stats/leaderboard"
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-6 py-3 text-sm font-black uppercase tracking-[0.14em] text-white/75 transition hover:border-green-300/30 hover:bg-green-400/10 hover:text-white"
-            >
-              Player Leaderboard
-              <ArrowRight size={17} />
-            </Link>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function MvpSpotlight({ player }: { player: PlayerAwardStats | undefined }) {
-  if (!player) return null;
-
-  return (
-    <section className="mt-6 rounded-lg border border-white/10 bg-zinc-950/90 p-5 sm:p-6">
-      <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
-        <div>
-          <p className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.24em] text-green-300">
-            <Star size={15} />
-            Split MVP
-          </p>
-          <h2 className="mt-2 text-3xl font-black uppercase tracking-[0.05em] text-white sm:text-4xl">
-            {player.name}
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">
-            Top of the ELO board with {player.gamesPlayed} recorded games for{" "}
-            {player.teamName ?? "Free Agency"}.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[24rem]">
-          <div className="rounded-lg border border-white/10 bg-black/40 p-3">
-            <div className="text-xs font-bold uppercase tracking-[0.16em] text-white/40">
-              ELO
-            </div>
-            <div className="mt-1 text-2xl font-black text-green-300">
-              {player.elo}
-            </div>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-black/40 p-3">
-            <div className="text-xs font-bold uppercase tracking-[0.16em] text-white/40">
-              KDA
-            </div>
-            <div className="mt-1 text-2xl font-black text-white">
-              {formatKDA(player)}
-            </div>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-black/40 p-3">
-            <div className="text-xs font-bold uppercase tracking-[0.16em] text-white/40">
-              WR
-            </div>
-            <div className="mt-1 text-2xl font-black text-yellow-100">
-              {formatWinRate(player.wins, player.gamesPlayed)}
             </div>
           </div>
         </div>
-      </div>
-    </section>
-  );
-}
+      </section>
 
-function AwardCard({ award }: { award: Award }) {
-  const Icon = award.icon;
-
-  return (
-    <div className="rounded-lg border border-white/10 bg-zinc-950 p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-white/40">
-            {award.label}
-          </p>
-          <h3 className="mt-2 text-xl font-black uppercase text-white">
-            {award.title}
-          </h3>
-        </div>
-        <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-green-300/20 bg-green-400/10 text-green-300">
-          <Icon size={20} />
-        </div>
-      </div>
-
-      <div className="mt-6 text-3xl font-black text-yellow-100">
-        {award.value}
-      </div>
-      <div className="mt-2 font-bold text-white">{award.player.name}</div>
-      <div className="mt-1 text-sm text-white/45">
-        {award.player.riotLine ?? award.player.teamName ?? "ECL player"}
-      </div>
-      <p className="mt-4 text-sm leading-6 text-zinc-400">{award.note}</p>
-    </div>
-  );
-}
-
-export default async function Home() {
-  const [leagueWireItems, finalMatch, players] = await Promise.all([
-    prisma.leagueWireItem.findMany({
-      where: {
-        isVisible: true,
-      },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-      take: 8,
-    }),
-    prisma.match.findFirst({
-      where: {
-        stage: "FINALS",
-      },
-      include: {
-        homeTeam: true,
-        awayTeam: true,
-        winnerTeam: true,
-      },
-      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
-    }),
-    prisma.player.findMany({
-      include: {
-        team: true,
-        gameStats: true,
-      },
-    }),
-  ]);
-
-  const playerStats: PlayerAwardStats[] = players.map((player) => {
-    const gamesPlayed = player.gameStats.length;
-    const wins = player.gameStats.filter((stat) => stat.isWin).length;
-
-    return {
-      id: player.id,
-      name: player.name,
-      riotLine: getRiotLine(player),
-      teamName: player.team?.name ?? null,
-      elo: player.elo,
-      gamesPlayed,
-      wins,
-      kills: player.gameStats.reduce((sum, stat) => sum + stat.kills, 0),
-      deaths: player.gameStats.reduce((sum, stat) => sum + stat.deaths, 0),
-      assists: player.gameStats.reduce((sum, stat) => sum + stat.assists, 0),
-      damage: player.gameStats.reduce(
-        (sum, stat) => sum + (stat.damage ?? 0),
-        0
-      ),
-      mvpCount: player.gameStats.filter((stat) => stat.isMVP).length,
-    };
-  });
-
-  const qualifiedPlayers = playerStats.filter(
-    (player) => player.gamesPlayed >= 8
-  );
-  const eloLeader = [...playerStats].sort((a, b) => {
-    if (b.elo !== a.elo) return b.elo - a.elo;
-    if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
-    return a.name.localeCompare(b.name);
-  })[0];
-
-  const championTeam = finalMatch?.winnerTeam ?? finalMatch?.homeTeam ?? null;
-  const runnerUpName =
-    finalMatch?.winnerTeamId === finalMatch?.homeTeamId
-      ? finalMatch?.awayTeam.name ?? "niuniupower"
-      : finalMatch?.homeTeam.name ?? "niuniupower";
-  const finalScore = finalMatch
-    ? `${finalMatch.homeScore}-${finalMatch.awayScore}`
-    : "3-1";
-
-  const awards = [
-    pickAward(
-      "Best KDA",
-      "Minimum 8 games",
-      qualifiedPlayers,
-      (a, b) => Number(formatKDA(b)) - Number(formatKDA(a)),
-      formatKDA,
-      "The cleanest blend of kills, assists, and survival across the split.",
-      Target
-    ),
-    pickAward(
-      "Least Deaths",
-      "Minimum 8 games",
-      qualifiedPlayers,
-      (a, b) => {
-        const deathDiff =
-          a.deaths / Math.max(1, a.gamesPlayed) -
-          b.deaths / Math.max(1, b.gamesPlayed);
-        if (deathDiff !== 0) return deathDiff;
-        return b.gamesPlayed - a.gamesPlayed;
-      },
-      (player) => `${formatAverage(player.deaths, player.gamesPlayed)} / game`,
-      "Low deaths, high discipline, and a lot of denied reset timers.",
-      ShieldCheck
-    ),
-    pickAward(
-      "Damage Engine",
-      "Minimum 8 games",
-      qualifiedPlayers,
-      (a, b) =>
-        b.damage / Math.max(1, b.gamesPlayed) -
-        a.damage / Math.max(1, a.gamesPlayed),
-      (player) =>
-        `${formatNumber(Math.round(player.damage / player.gamesPlayed))} / game`,
-      "The most reliable pressure source in recorded games.",
-      Flame
-    ),
-    pickAward(
-      "MVP Magnet",
-      "All recorded games",
-      playerStats,
-      (a, b) => {
-        if (b.mvpCount !== a.mvpCount) return b.mvpCount - a.mvpCount;
-        return b.elo - a.elo;
-      },
-      (player) => `${player.mvpCount} MVPs`,
-      "The player most often tagged as the standout performer.",
-      Medal
-    ),
-    pickAward(
-      "Assist Machine",
-      "Minimum 8 games",
-      qualifiedPlayers,
-      (a, b) =>
-        b.assists / Math.max(1, b.gamesPlayed) -
-        a.assists / Math.max(1, a.gamesPlayed),
-      (player) => `${formatAverage(player.assists, player.gamesPlayed)} / game`,
-      "Always nearby when the map breaks open.",
-      Sparkles
-    ),
-    pickAward(
-      "Kill Leader",
-      "Minimum 8 games",
-      qualifiedPlayers,
-      (a, b) =>
-        b.kills / Math.max(1, b.gamesPlayed) -
-        a.kills / Math.max(1, a.gamesPlayed),
-      (player) => `${formatAverage(player.kills, player.gamesPlayed)} / game`,
-      "The split's sharpest finisher by average kills.",
-      Swords
-    ),
-  ].filter((award): award is Award => Boolean(award));
-
-  return (
-    <>
-      <SplashVideo />
-
-      <main className="min-h-screen overflow-x-hidden bg-black text-white">
-        <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-          <LeagueWireTicker items={leagueWireItems} />
-
-          <div className="mx-auto mb-8 flex max-w-5xl flex-col items-center pt-6 text-center sm:pt-10">
-            <Image
-              src="/ecl-logo.png"
-              alt="ECL Logo"
-              width={200}
-              height={200}
-              className="h-auto w-20 opacity-90 sm:w-24"
-              priority
-            />
-
-            <p className="mt-5 text-sm font-semibold uppercase tracking-[0.35em] text-green-400">
-              Expat China League
+      <section className="border-b border-[#1f1f1f] bg-[#050505]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.65fr_1.35fr] lg:items-start">
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.22em] text-[#b11226]">
+              How It Works
+            </p>
+            <h2 className="mt-4 text-5xl font-black uppercase leading-none text-white [font-family:Impact,Anton,Arial_Black,Arial,sans-serif]">
+              Play.
+              <br />
+              Report.
+              <br />
+              Climb.
+            </h2>
+            <p className="mt-5 text-base leading-7 text-[#9ca3af]">
+              ECL turns community inhouses into a ranked season. Players join
+              through KOOK, lobbies are balanced by ELO, and each result feeds a
+              player-first stat hub.
             </p>
           </div>
 
-          <ChampionHero
-            champion={championTeam}
-            runnerUpName={runnerUpName}
-            finalScore={finalScore}
-          />
-
-          <MvpSpotlight player={eloLeader} />
-
-          <section className="mt-12">
-            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-green-400">
-                  Split Awards
-                </p>
-                <h2 className="mt-3 text-3xl font-black uppercase text-white">
-                  Season Standouts
-                </h2>
-              </div>
-              <Link
-                href="/stats/leaderboard"
-                className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-yellow-100 transition hover:text-yellow-200"
+          <div className="grid gap-3 sm:grid-cols-2">
+            {howItWorks.map((step, index) => (
+              <div
+                key={step}
+                className="group relative overflow-hidden border border-[#1f1f1f] bg-[#0d0d0d] p-5 transition hover:border-[#b11226]"
               >
-                Full Leaderboard
-                <ArrowRight size={17} />
-              </Link>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {awards.map((award) => (
-                <AwardCard key={award.title} award={award} />
-              ))}
-            </div>
-          </section>
-
-          <section className="mt-12 rounded-lg border border-green-300/20 bg-[linear-gradient(135deg,rgba(34,197,94,0.14),rgba(24,24,27,0.96)_44%,rgba(250,204,21,0.08))] p-6 sm:p-8">
-            <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-green-300">
-                  Next Chapter
-                </p>
-                <h2 className="mt-3 text-3xl font-black uppercase text-white sm:text-4xl">
-                  New Inhouse Ranked Coming Soon
-                </h2>
-                <p className="mt-3 max-w-3xl text-base leading-7 text-zinc-300">
-                  The Spring Split is wrapped. A fresh inhouse ranked format is
-                  coming soon with a new ladder, new storylines, and more room
-                  for players to climb.
-                </p>
+                <div className="absolute right-0 top-0 h-full w-16 bg-[#b11226]/10 [clip-path:polygon(45%_0,100%_0,100%_100%,0_100%)]" />
+                <div className="relative flex items-center gap-4">
+                  <div className="flex h-10 w-10 items-center justify-center bg-[#b11226] text-sm font-black text-white">
+                    {index + 1}
+                  </div>
+                  <p className="font-black uppercase tracking-[0.04em] text-white">
+                    {step}
+                  </p>
+                </div>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-              <Link
-                href="/free-agents"
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-400 px-6 py-3 text-sm font-black uppercase tracking-[0.14em] text-black transition hover:bg-green-300"
+      <section className="border-b border-[#1f1f1f] bg-[#080808]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.48fr_0.52fr] lg:items-center">
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.22em] text-[#b11226]">
+              The Hub
+            </p>
+            <h2 className="mt-4 text-5xl font-black uppercase leading-none text-white [font-family:Impact,Anton,Arial_Black,Arial,sans-serif]">
+              Your ECL
+              <br />
+              stat centre.
+            </h2>
+            <p className="mt-5 text-base leading-7 text-[#9ca3af]">
+              The Hub is where the league becomes personal: player profiles,
+              ranked inhouse form, champion pools, match history, ladder
+              movement, and the experimental ECL.gg search path all live in one
+              place.
+            </p>
+            <Link
+              href="/hub"
+              className="mt-8 inline-flex items-center justify-center gap-2 bg-[#b11226] px-6 py-4 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#d11a2a] [clip-path:polygon(0_0,94%_0,100%_28%,100%_100%,6%_100%,0_72%)]"
+            >
+              View the Hub
+              <ArrowRight size={18} />
+            </Link>
+          </div>
+
+          <AggressiveHubPreview />
+        </div>
+      </section>
+
+      <section className="border-b border-[#1f1f1f] bg-[#080808]">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-16 sm:px-6 lg:grid-cols-3">
+          {[
+            {
+              icon: Swords,
+              title: "Ranked Inhouses",
+              text: "The KOOK bot command creates a lobby, players join, teams are auto-balanced by ELO, and the captain reports the result after the game.",
+            },
+            {
+              icon: BarChart3,
+              title: "Player Progression",
+              text: "Every profile can show ELO, win/loss record, champion pool, MVPs, weekly awards, recent form, and match history.",
+            },
+            {
+              icon: Search,
+              title: "Future Imports",
+              text: "The long-term path is a China server match search and import engine that helps connect real games to public ECL stats.",
+            },
+          ].map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <div
+                key={item.title}
+                className="border border-[#1f1f1f] bg-[#0d0d0d] p-6"
               >
-                Join Free Agency
-                <ArrowRight size={17} />
-              </Link>
-            </div>
-          </section>
-
-          <div className="mt-16 rounded-lg border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-6 shadow-[0_0_40px_rgba(34,197,94,0.08)]">
-            <div className="mb-6">
-              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-green-400">
-                League Media
-              </p>
-              <h2 className="mt-3 text-3xl font-black uppercase text-white">
-                Watch & Listen
-              </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400 sm:text-base">
-                Rewatch the Split One hype video and tune into official ECL
-                podcast episodes from the season.
-              </p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="group rounded-lg border border-white/10 bg-black/40 p-5 transition duration-200 hover:border-green-400/30 hover:bg-zinc-900">
-                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-green-400">
-                  Official Hype Video
+                <Icon className="text-[#b11226]" size={30} />
+                <h2 className="mt-6 text-3xl font-black uppercase leading-none text-white">
+                  {item.title}
+                </h2>
+                <p className="mt-4 text-sm leading-6 text-[#9ca3af]">
+                  {item.text}
                 </p>
-                <h3 className="mt-3 text-xl font-black uppercase text-white">
-                  Split One Cinematic
-                </h3>
-                <p className="mt-3 text-sm leading-6 text-zinc-400">
-                  Open the official hype video and relive the launch of Split
-                  One.
-                </p>
-
-                <Link
-                  href="/video/Hype.mp4"
-                  className="mt-5 inline-flex items-center justify-center rounded-lg bg-green-400 px-5 py-3 text-sm font-bold uppercase tracking-wide text-black transition duration-200 hover:scale-[1.02] hover:bg-green-300"
-                >
-                  Watch Video
-                </Link>
               </div>
+            );
+          })}
+        </div>
+      </section>
 
-              <div className="group rounded-lg border border-white/10 bg-black/40 p-5 transition duration-200 hover:border-green-400/30 hover:bg-zinc-900">
-                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-green-400">
-                  ECL Podcast
+      <section className="border-b border-[#1f1f1f] bg-[#050505]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="border border-[#1f1f1f] bg-[#0d0d0d] p-6">
+            <div className="flex items-start gap-4">
+              <Medal className="mt-1 text-[#b11226]" size={28} />
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.22em] text-[#9ca3af]">
+                  Account System
                 </p>
-                <h3 className="mt-3 text-xl font-black uppercase text-white">
-                  League Talk
-                </h3>
-                <p className="mt-3 text-sm leading-6 text-zinc-400">
-                  Follow podcast episodes covering matches, players, league
-                  stories, and community discussion.
+                <h2 className="mt-3 text-4xl font-black uppercase leading-none text-white [font-family:Impact,Anton,Arial_Black,Arial,sans-serif]">
+                  Public profiles.
+                  <br />
+                  Private account details.
+                </h2>
+                <p className="mt-5 text-base leading-7 text-[#9ca3af]">
+                  Players will eventually log in to manage their linked KOOK
+                  account, Riot ID, internal OpenID, ELO, match history,
+                  champion pool, awards, and tournament history. Other users
+                  get the public profile view.
                 </p>
-
-                <a
-                  href="https://www.youtube.com/playlist?list=PLdfbxhGWRe1pqOASdseItbXbCy6cLxri6"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-5 inline-flex items-center justify-center rounded-lg border border-green-400/40 bg-transparent px-5 py-3 text-sm font-bold uppercase tracking-wide text-green-400 transition duration-200 hover:scale-[1.02] hover:border-green-300 hover:bg-green-400/10 hover:text-green-300"
-                >
-                  Listen on YouTube
-                </a>
               </div>
             </div>
           </div>
-        </section>
-      </main>
-    </>
+
+          <div className="border border-[#1f1f1f] bg-[#0d0d0d] p-6">
+            <ShieldCheck className="text-[#b11226]" size={28} />
+            <h2 className="mt-5 text-4xl font-black uppercase leading-none text-white [font-family:Impact,Anton,Arial_Black,Arial,sans-serif]">
+              Teams stay historical.
+            </h2>
+            <p className="mt-5 text-sm leading-6 text-[#9ca3af]">
+              Teams belong to tournament rosters, historical memberships, and
+              past archives. The core identity is the player ladder.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-[#080808]">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
+          <div className="mb-7 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-black uppercase tracking-[0.22em] text-[#b11226]">
+                Past Tournaments
+              </p>
+              <h2 className="mt-3 text-5xl font-black uppercase leading-none text-white [font-family:Impact,Anton,Arial_Black,Arial,sans-serif]">
+                Archive, not the whole identity.
+              </h2>
+            </div>
+            <Link
+              href="/tournaments"
+              className="hidden items-center gap-2 border border-[#1f1f1f] bg-[#0d0d0d] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:border-[#b11226] sm:inline-flex"
+            >
+              Open Archive
+              <ArrowRight size={17} />
+            </Link>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {["Winter Cup", "Split One", "Future Events"].map((event) => (
+              <div
+                key={event}
+                className="border border-[#1f1f1f] bg-[#0d0d0d] p-5"
+              >
+                <CheckCircle2 className="text-[#b11226]" size={22} />
+                <h3 className="mt-5 text-2xl font-black uppercase text-white">
+                  {event}
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-[#9ca3af]">
+                  Tournament context, rosters, brackets, results, and
+                  historical player storylines live here.
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+    </main>
   );
 }
