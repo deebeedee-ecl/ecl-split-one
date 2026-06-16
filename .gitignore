@@ -33,6 +33,7 @@ yarn-error.log*
 .tmp/
 m\[1\])
 public/videos/split-one.mp4
+backups/
 
 # env files (can opt-in for committing if needed)
 .env*
