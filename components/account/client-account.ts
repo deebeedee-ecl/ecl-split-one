@@ -83,6 +83,29 @@ export async function loadProfile() {
   return data.profile ?? null;
 }
 
+export async function requestKookVerificationCode() {
+  const token = await getAccessToken();
+
+  if (!token) {
+    throw new Error("You need to be logged in before requesting a KOOK code.");
+  }
+
+  const response = await fetch("/api/account/kook-verification", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message ?? "Could not create a KOOK verification code.");
+  }
+
+  return data.verification;
+}
+
 export async function uploadAvatar(file: File) {
   const token = await getAccessToken();
 

@@ -11,12 +11,19 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     code?: string;
     kookUserId?: string;
+    kookUsername?: string;
   };
 
   const code = body.code?.trim().toUpperCase();
+  const kookUserId = body.kookUserId?.trim();
+  const kookUsername = body.kookUsername?.trim();
 
   if (!code) {
     return NextResponse.json({ message: "Verification code is required" }, { status: 400 });
+  }
+
+  if (!kookUserId) {
+    return NextResponse.json({ message: "KOOK user ID is required" }, { status: 400 });
   }
 
   const verification = await prisma.kookVerification.findUnique({
@@ -36,29 +43,60 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Code is not active" }, { status: 409 });
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
-    await tx.kookVerification.update({
-      where: {
-        id: verification.id,
-      },
-      data: {
-        status: "CONFIRMED",
-        kookUserId: body.kookUserId?.trim() || null,
-        confirmedAt: new Date(),
-      },
-    });
+  let updated;
 
-    return tx.accountProfile.update({
-      where: {
-        id: verification.profileId,
-      },
-      data: {
-        verificationStatus: "VERIFIED",
-        accountStatus: "ACTIVE",
-        kookId: body.kookUserId?.trim() || verification.profile.kookId,
-      },
+  try {
+    updated = await prisma.$transaction(async (tx) => {
+      const existingLinkedProfile = await tx.accountProfile.findFirst({
+        where: {
+          kookId: kookUserId,
+          verificationStatus: "VERIFIED",
+          NOT: {
+            id: verification.profileId,
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (existingLinkedProfile) {
+        throw new Error("KOOK account already linked to another ECL profile");
+      }
+
+      await tx.kookVerification.update({
+        where: {
+          id: verification.id,
+        },
+        data: {
+          status: "CONFIRMED",
+          kookUserId,
+          confirmedAt: new Date(),
+        },
+      });
+
+      return tx.accountProfile.update({
+        where: {
+          id: verification.profileId,
+        },
+        data: {
+          verificationStatus: "VERIFIED",
+          accountStatus: "ACTIVE",
+          kookId: kookUserId,
+          kookUsername: kookUsername || verification.profile.kookUsername,
+        },
+      });
     });
-  });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "KOOK account already linked to another ECL profile"
+    ) {
+      return NextResponse.json({ message: error.message }, { status: 409 });
+    }
+
+    throw error;
+  }
 
   return NextResponse.json({
     message: "KOOK verification confirmed",

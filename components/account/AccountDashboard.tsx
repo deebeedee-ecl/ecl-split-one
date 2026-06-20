@@ -14,6 +14,7 @@ import {
 import {
   flushPendingProfile,
   loadProfile,
+  requestKookVerificationCode,
   saveProfile,
   type SignupProfilePayload,
   uploadAvatar,
@@ -71,6 +72,7 @@ export default function AccountDashboard() {
   const [loading, setLoading] = useState(true);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [bannerUploading, setBannerUploading] = useState(false);
+  const [codeRequesting, setCodeRequesting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -229,6 +231,29 @@ export default function AccountDashboard() {
     }
   }
 
+  async function requestKookCode() {
+    setError("");
+    setMessage("");
+    setCodeRequesting(true);
+
+    try {
+      const nextVerification = await requestKookVerificationCode();
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              kookVerifications: [nextVerification],
+            }
+          : current,
+      );
+      setMessage("KOOK verification code is ready.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not request KOOK verification code.");
+    } finally {
+      setCodeRequesting(false);
+    }
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -296,6 +321,14 @@ export default function AccountDashboard() {
               <div className="mt-4 border border-[#b11226]/50 bg-[#b11226]/15 px-4 py-3 text-2xl font-black tracking-[0.12em] text-white">
                 {verification?.code ?? "Code pending"}
               </div>
+              <button
+                type="button"
+                onClick={requestKookCode}
+                disabled={!profile || codeRequesting}
+                className="mt-3 w-full border border-[#1f1f1f] px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:border-[#b11226] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {codeRequesting ? "Preparing code..." : verification?.code ? "Refresh KOOK code" : "Get KOOK code"}
+              </button>
             </>
           )}
         </div>

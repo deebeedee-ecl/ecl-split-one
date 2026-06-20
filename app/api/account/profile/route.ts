@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAccountFromRequest } from "@/lib/account-auth";
+import { createUniqueKookVerification, getKookVerificationExpiresAt } from "@/lib/kook-verification";
 import { getChinaServer, fetchLzyumiRecentStat, fetchLzyumiRankedGames, lookupLzyumiIdentity } from "@/lib/lzyumi";
 
 type ProfilePayload = {
@@ -39,11 +40,6 @@ function required(value: unknown) {
 function cleanNumber(value: unknown) {
   const parsed = typeof value === "number" ? value : Number(clean(value));
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
-function generateKookCode() {
-  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `ECL-${suffix}`;
 }
 
 function jsonField(value: unknown) {
@@ -182,7 +178,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
+  const expiresAt = getKookVerificationExpiresAt();
 
   const profile = await prisma.$transaction(async (tx) => {
     const user = await tx.user.upsert({
@@ -275,13 +271,7 @@ export async function POST(request: Request) {
     });
 
     if (!existingPending && savedProfile.verificationStatus !== "VERIFIED") {
-      await tx.kookVerification.create({
-        data: {
-          profileId: savedProfile.id,
-          code: generateKookCode(),
-          expiresAt,
-        },
-      });
+      await createUniqueKookVerification(tx, savedProfile.id, expiresAt);
     }
 
     return tx.accountProfile.findUnique({
