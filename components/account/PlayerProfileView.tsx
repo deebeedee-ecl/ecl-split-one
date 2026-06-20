@@ -221,7 +221,30 @@ function formatRank(row: LzyumiRankRow | null) {
   return { label: translateTier(row.tier), lp: row.winPoint ?? 0 };
 }
 
-const STATS_REFRESH_INTERVAL_MS = 1000 * 60 * 15;
+const STATS_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 12;
+
+function getNextStatsRefreshAt(profile: AccountProfile) {
+  if (!profile.lzyumiLastLookupAt) return null;
+
+  const lastLookupAt = new Date(profile.lzyumiLastLookupAt).getTime();
+  if (Number.isNaN(lastLookupAt)) return null;
+
+  return new Date(lastLookupAt + STATS_REFRESH_INTERVAL_MS);
+}
+
+function formatRefreshCountdown(nextRefreshAt: Date | null, now: number) {
+  if (!nextRefreshAt) return "Refresh pending";
+
+  const remainingMs = nextRefreshAt.getTime() - now;
+  if (remainingMs <= 0) return "Refresh queued";
+
+  const totalMinutes = Math.ceil(remainingMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) return `${minutes}m`;
+  return `${hours}h ${minutes}m`;
+}
 
 function shouldRefreshStats(profile: AccountProfile) {
   if (!profile.lzyumiRankedGames || !profile.lzyumiRecentStat) return true;
@@ -237,6 +260,7 @@ export default function PlayerProfileView() {
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [hasSession, setHasSession] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     async function boot() {
@@ -273,6 +297,11 @@ export default function PlayerProfileView() {
     }
 
     boot();
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 60000);
+    return () => window.clearInterval(interval);
   }, []);
 
   if (loading) {
@@ -320,6 +349,8 @@ export default function PlayerProfileView() {
   );
   const bannerPositionY = profile.privacySettings?.bannerPositionY ?? 50;
   const isKookVerified = profile.verificationStatus === "VERIFIED";
+  const nextStatsRefreshAt = getNextStatsRefreshAt(profile);
+  const nextStatsRefreshLabel = formatRefreshCountdown(nextStatsRefreshAt, now);
 
   const soloRank = formatRank(ranks.solo);
   const flexRank = formatRank(ranks.flex);
@@ -429,6 +460,15 @@ export default function PlayerProfileView() {
             <Metric label="Rank" value="-" accent="text-[#ff1728]" />
             <Metric label="W/L" value="0-0" />
             <Metric label="MVPs" value="0" />
+          </div>
+          <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#aeb5da]">
+              Next stat update
+            </p>
+            <p className="mt-1 text-lg font-black text-[#48f0df]">{nextStatsRefreshLabel}</p>
+            <p className="mt-1 text-[11px] font-semibold text-[#6b7280]">
+              ecl.gg refreshes every 12 hours.
+            </p>
           </div>
         </aside>
       </section>

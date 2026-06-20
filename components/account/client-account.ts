@@ -41,6 +41,67 @@ export async function getAccessToken() {
   return data.session?.access_token ?? null;
 }
 
+type ImageUploadOptions = {
+  maxWidth: number;
+  maxHeight: number;
+  quality: number;
+};
+
+function loadImage(file: File) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new window.Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Image could not be loaded."));
+    };
+    image.src = objectUrl;
+  });
+}
+
+async function prepareImageUpload(file: File, options: ImageUploadOptions) {
+  if (typeof window === "undefined" || !file.type.startsWith("image/")) {
+    return file;
+  }
+
+  try {
+    const image = await loadImage(file);
+    const scale = Math.min(
+      1,
+      options.maxWidth / image.naturalWidth,
+      options.maxHeight / image.naturalHeight,
+    );
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    if (!context) return file;
+
+    canvas.width = width;
+    canvas.height = height;
+    context.drawImage(image, 0, 0, width, height);
+
+    const outputType = file.type === "image/png" && file.size < 300_000 ? "image/png" : "image/webp";
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, outputType, options.quality);
+    });
+
+    if (!blob) return file;
+
+    const extension = outputType === "image/webp" ? "webp" : "png";
+    const name = file.name.replace(/\.[^.]+$/, "") || "ecl-upload";
+    return new File([blob], `${name}.${extension}`, { type: blob.type || outputType });
+  } catch {
+    return file;
+  }
+}
+
 export async function saveProfile(payload: Partial<SignupProfilePayload>, method: "POST" | "PATCH") {
   const token = await getAccessToken();
 
@@ -113,8 +174,13 @@ export async function uploadAvatar(file: File) {
     throw new Error("You need to be logged in before uploading an avatar.");
   }
 
+  const preparedFile = await prepareImageUpload(file, {
+    maxWidth: 512,
+    maxHeight: 512,
+    quality: 0.86,
+  });
   const body = new FormData();
-  body.set("avatar", file);
+  body.set("avatar", preparedFile);
 
   const response = await fetch("/api/account/avatar", {
     method: "POST",
@@ -140,8 +206,13 @@ export async function uploadBanner(file: File) {
     throw new Error("You need to be logged in before uploading a banner.");
   }
 
+  const preparedFile = await prepareImageUpload(file, {
+    maxWidth: 1800,
+    maxHeight: 560,
+    quality: 0.84,
+  });
   const body = new FormData();
-  body.set("banner", file);
+  body.set("banner", preparedFile);
 
   const response = await fetch("/api/account/banner", {
     method: "POST",

@@ -1,6 +1,32 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+function confirmedProfileResponse(
+  message: string,
+  profile: {
+    id: string;
+    displayName: string;
+    riotName: string;
+    riotTag: string;
+    chinaServerId: number | null;
+    chinaServerName: string | null;
+    openId: string | null;
+    lzyumiVerifiedAt: Date | null;
+  },
+) {
+  return NextResponse.json({
+    message,
+    profileId: profile.id,
+    displayName: profile.displayName,
+    riotName: profile.riotName,
+    riotTag: profile.riotTag,
+    chinaServerId: profile.chinaServerId,
+    chinaServerName: profile.chinaServerName,
+    openId: profile.openId,
+    lzyumiVerifiedAt: profile.lzyumiVerifiedAt,
+  });
+}
+
 export async function POST(request: Request) {
   const secret = request.headers.get("x-ecl-kook-secret");
 
@@ -37,6 +63,17 @@ export async function POST(request: Request) {
 
   if (!verification) {
     return NextResponse.json({ message: "Code not found" }, { status: 404 });
+  }
+
+  if (verification.status === "CONFIRMED") {
+    const sameKookAccount =
+      verification.kookUserId === kookUserId || verification.profile.kookId === kookUserId;
+
+    if (sameKookAccount && verification.profile.verificationStatus === "VERIFIED") {
+      return confirmedProfileResponse("KOOK verification already confirmed", verification.profile);
+    }
+
+    return NextResponse.json({ message: "Code already used" }, { status: 409 });
   }
 
   if (verification.status !== "PENDING" || verification.expiresAt < new Date()) {
@@ -98,15 +135,5 @@ export async function POST(request: Request) {
     throw error;
   }
 
-  return NextResponse.json({
-    message: "KOOK verification confirmed",
-    profileId: updated.id,
-    displayName: updated.displayName,
-    riotName: updated.riotName,
-    riotTag: updated.riotTag,
-    chinaServerId: updated.chinaServerId,
-    chinaServerName: updated.chinaServerName,
-    openId: updated.openId,
-    lzyumiVerifiedAt: updated.lzyumiVerifiedAt,
-  });
+  return confirmedProfileResponse("KOOK verification confirmed", updated);
 }
