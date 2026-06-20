@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { calculateLpChange } from "@/lib/elo";
+import { STARTING_ELO, calculateLpChange } from "@/lib/elo";
 import { MatchStage, MatchStatus, Prisma } from "@prisma/client";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 
@@ -148,7 +148,7 @@ type TxClient = Prisma.TransactionClient;
 async function recalculateAllPlayerStats(tx: TxClient) {
   await tx.player.updateMany({
     data: {
-      elo: 1000,
+      elo: STARTING_ELO,
       winStreak: 0,
       lossStreak: 0,
     },
@@ -167,9 +167,10 @@ async function recalculateAllPlayerStats(tx: TxClient) {
     players.map((player) => [
       player.id,
       {
-        elo: 1000,
+        elo: STARTING_ELO,
         winStreak: 0,
         lossStreak: 0,
+        gamesPlayed: 0,
       },
     ])
   );
@@ -214,9 +215,10 @@ async function recalculateAllPlayerStats(tx: TxClient) {
 
   for (const stat of relevantStats) {
     const current = playerState.get(stat.playerId) ?? {
-      elo: 1000,
+      elo: STARTING_ELO,
       winStreak: 0,
       lossStreak: 0,
+      gamesPlayed: 0,
     };
 
     const { lpChange } = calculateLpChange({
@@ -228,6 +230,8 @@ async function recalculateAllPlayerStats(tx: TxClient) {
       isSVP: stat.isSVP,
       gold: stat.gold ?? 0,
       damage: stat.damage ?? 0,
+      currentElo: current.elo,
+      gamesPlayed: current.gamesPlayed,
       winStreak: current.winStreak,
       lossStreak: current.lossStreak,
     });
@@ -240,11 +244,13 @@ async function recalculateAllPlayerStats(tx: TxClient) {
           elo: eloAfter,
           winStreak: current.winStreak + 1,
           lossStreak: 0,
+          gamesPlayed: current.gamesPlayed + 1,
         }
       : {
           elo: eloAfter,
           winStreak: 0,
           lossStreak: current.lossStreak + 1,
+          gamesPlayed: current.gamesPlayed + 1,
         };
 
     await tx.matchGamePlayerStat.update({

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { calculateLpChange } from "@/lib/elo";
+import { STARTING_ELO, calculateLpChange } from "@/lib/elo";
 
 export async function resetGameStats(matchId: string, gameNumber: number) {
   const match = await prisma.match.findUnique({
@@ -53,7 +53,7 @@ export async function resetGameStats(matchId: string, gameNumber: number) {
         },
       },
       data: {
-        elo: 1000,
+        elo: STARTING_ELO,
         winStreak: 0,
         lossStreak: 0,
       },
@@ -70,9 +70,10 @@ export async function resetGameStats(matchId: string, gameNumber: number) {
         },
       });
 
-      let currentElo = 1000;
+      let currentElo = STARTING_ELO;
       let currentWinStreak = 0;
       let currentLossStreak = 0;
+      let gamesPlayed = 0;
 
       for (const stat of remainingStats) {
         const { lpChange } = calculateLpChange({
@@ -81,6 +82,9 @@ export async function resetGameStats(matchId: string, gameNumber: number) {
           deaths: stat.deaths,
           assists: stat.assists,
           isMVP: stat.isMVP,
+          isSVP: stat.isSVP,
+          currentElo,
+          gamesPlayed,
           winStreak: currentWinStreak,
           lossStreak: currentLossStreak,
         });
@@ -106,6 +110,7 @@ export async function resetGameStats(matchId: string, gameNumber: number) {
           currentLossStreak += 1;
           currentWinStreak = 0;
         }
+        gamesPlayed += 1;
       }
 
       await tx.player.update({

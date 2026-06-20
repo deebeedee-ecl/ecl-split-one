@@ -1,3 +1,4 @@
+import { STARTING_ELO } from "@/lib/elo";
 import { prisma } from "@/lib/prisma";
 
 async function main() {
@@ -5,7 +6,7 @@ async function main() {
 
   await prisma.player.updateMany({
     data: {
-      elo: 1000,
+      elo: STARTING_ELO,
       winStreak: 0,
       lossStreak: 0,
     },

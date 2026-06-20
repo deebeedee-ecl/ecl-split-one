@@ -8,6 +8,7 @@ export default function InhousesPage() {
       eyebrow="Gameplay System"
       title="Inhouses"
       description="Match history, drafts, player stats, objectives, and post-game reports for ranked inhouses."
+      hideHeader
     >
       <InhouseMatchHistoryClient />
     </HubShell>

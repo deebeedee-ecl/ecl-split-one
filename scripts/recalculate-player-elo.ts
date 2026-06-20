@@ -1,4 +1,4 @@
-import { calculateLpChange } from "../lib/elo";
+import { STARTING_ELO, calculateLpChange } from "../lib/elo";
 import { prisma } from "../lib/prisma";
 
 async function main() {
@@ -95,9 +95,10 @@ async function main() {
       return a.createdAt.getTime() - b.createdAt.getTime();
     });
 
-    let elo = 1000;
+    let elo = STARTING_ELO;
     let winStreak = 0;
     let lossStreak = 0;
+    let gamesPlayed = 0;
     const updates = [];
 
     for (const stat of stats) {
@@ -110,6 +111,8 @@ async function main() {
         isSVP: stat.isSVP,
         gold: stat.gold ?? undefined,
         damage: stat.damage ?? undefined,
+        currentElo: elo,
+        gamesPlayed,
         winStreak,
         lossStreak,
       });
@@ -140,6 +143,7 @@ async function main() {
         lossStreak += 1;
         winStreak = 0;
       }
+      gamesPlayed += 1;
     }
 
     updates.push(

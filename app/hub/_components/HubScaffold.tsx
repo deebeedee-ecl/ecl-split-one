@@ -29,10 +29,10 @@ type Feature = {
 };
 
 export const hubStats: Stat[] = [
-  { label: "Active players", value: "128", note: "mock community size" },
-  { label: "Inhouse games", value: "342", note: "planned tracked matches" },
-  { label: "Champion picks", value: "89", note: "future champion database" },
-  { label: "Weekly awards", value: "12", note: "seasonal progression hooks" },
+  { label: "Active players", value: "0", note: "opens with verified signups" },
+  { label: "Inhouse games", value: "0", note: "opens with KOOK match records" },
+  { label: "Champion picks", value: "0", note: "opens with recorded match stats" },
+  { label: "Weekly awards", value: "0", note: "opens with inhouse results" },
 ];
 
 export const hubFeatures: Feature[] = [
@@ -68,17 +68,10 @@ export const hubFeatures: Feature[] = [
   },
   {
     title: "Search Engine",
-    description: "Experimental China server search and import workflow.",
+    description: "China server search and import workflow.",
     href: "/hub/search-engine",
     icon: Search,
   },
-];
-
-const mockLeaderboard = [
-  { rank: "01", player: "Jade Falcon", elo: "1,724", record: "22-9" },
-  { rank: "02", player: "Mango Mid", elo: "1,681", record: "19-10" },
-  { rank: "03", player: "River Warden", elo: "1,655", record: "17-8" },
-  { rank: "12", player: "deebeedee", elo: "1,612", record: "18-11" },
 ];
 
 export function HubPage({
@@ -195,8 +188,8 @@ export function FeatureGrid({ features = hubFeatures }: { features?: Feature[] }
 }
 
 export function SearchPanel({
-  label = "Search",
-  placeholder = "Search players, champions, or match IDs",
+  label = "ECL.GG Search",
+  placeholder = "Ionia and Super Server search opens in a later beta release",
 }: {
   label?: string;
   placeholder?: string;
@@ -216,16 +209,21 @@ export function SearchPanel({
             id="hub-search"
             type="search"
             placeholder={placeholder}
+            disabled
             className="w-full bg-transparent py-3 text-sm text-stone-900 outline-none placeholder:text-stone-400"
           />
         </div>
         <button
           type="button"
-          className="inline-flex min-h-12 items-center justify-center rounded-md bg-stone-950 px-5 text-sm font-bold uppercase tracking-[0.08em] text-white transition hover:bg-stone-800"
+          disabled
+          className="inline-flex min-h-12 cursor-not-allowed items-center justify-center rounded-md bg-stone-400 px-5 text-sm font-bold uppercase tracking-[0.08em] text-white"
         >
-          Search
+          Soon
         </button>
       </div>
+      <p className="mt-3 text-sm font-semibold text-stone-600">
+        Ionia and Super Server search coverage is scheduled for September 2026.
+      </p>
     </div>
   );
 }
@@ -244,22 +242,10 @@ export function LeaderboardPreview() {
         </div>
         <Medal className="text-stone-700" size={24} />
       </div>
-      <div className="divide-y divide-stone-200">
-        {mockLeaderboard.map((player) => (
-          <div
-            key={player.rank}
-            className="grid grid-cols-[3rem_1fr_auto] items-center gap-3 px-5 py-4"
-          >
-            <span className="font-black text-stone-400">{player.rank}</span>
-            <div>
-              <p className="font-bold text-stone-950">{player.player}</p>
-              <p className="text-sm text-stone-500">{player.record}</p>
-            </div>
-            <span className="rounded-md bg-stone-100 px-3 py-2 text-sm font-black text-stone-800">
-              {player.elo}
-            </span>
-          </div>
-        ))}
+      <div className="px-5 py-8 text-center">
+        <p className="text-sm font-semibold text-stone-500">
+          Ranked inhouse standings open when KOOK-linked games are recorded.
+        </p>
       </div>
     </div>
   );

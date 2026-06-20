@@ -9,12 +9,12 @@ export default function UpcomingTournamentsPage() {
     <HubPage
       eyebrow="Tournament Queue"
       title="Upcoming Tournaments"
-      description="A placeholder for future ECL cups, registration windows, formats, rosters, and schedules."
+      description="Upcoming ECL events, registration windows, formats, rosters, and schedules will be announced here."
       icon={Trophy}
     >
       <EmptyState
-        title="Upcoming tournament shell"
-        description="No production tournament data is connected here yet. This page is ready for future event planning."
+        title="No upcoming events announced"
+        description="Tournament announcements will be posted here when registration dates, formats, and schedules are confirmed."
       />
     </HubPage>
   );

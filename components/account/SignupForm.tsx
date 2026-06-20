@@ -10,16 +10,7 @@ import {
   saveProfile,
   type SignupProfilePayload,
 } from "./client-account";
-
-const chinaServers = [
-  { id: "1", name: "艾欧尼亚" },
-  { id: "14", name: "黑色玫瑰" },
-  { id: "31", name: "峡谷之巅" },
-  { id: "30", name: "男爵领域" },
-  { id: "3", name: "祖安" },
-  { id: "4", name: "诺克萨斯" },
-  { id: "16", name: "恕瑞玛" },
-];
+import { chinaServerOptions } from "./account-options";
 
 const initialForm: SignupProfilePayload & { email: string; password: string } = {
   email: "",
@@ -28,7 +19,7 @@ const initialForm: SignupProfilePayload & { email: string; password: string } = 
   riotName: "",
   riotTag: "",
   chinaServerId: "1",
-  chinaServerName: "艾欧尼亚",
+  chinaServerName: "Ionia",
   openId: "",
   kookUsername: "",
   kookId: "",
@@ -41,6 +32,7 @@ const initialForm: SignupProfilePayload & { email: string; password: string } = 
   bio: "",
   avatarStyle: "crest",
   avatarUrl: "",
+  bannerUrl: "",
   dashboardTheme: "crimson",
   championPool: {
     main: [],
@@ -50,6 +42,7 @@ const initialForm: SignupProfilePayload & { email: string; password: string } = 
     showWechat: false,
     showEmail: false,
     showRiotId: true,
+    bannerPositionY: 50,
   },
 };
 
@@ -86,6 +79,7 @@ export default function SignupForm() {
             display_name: form.displayName,
             riot_id: `${form.riotName}#${form.riotTag}`,
             kook_username: form.kookUsername,
+            ecl_profile: profilePayload,
           },
         },
       });
@@ -141,7 +135,7 @@ export default function SignupForm() {
             <ServerField
               value={form.chinaServerId}
               onChange={(value) => {
-                const server = chinaServers.find((item) => item.id === value) ?? chinaServers[0];
+                const server = chinaServerOptions.find((item) => item.id === value) ?? chinaServerOptions[0];
                 update("chinaServerId", server.id);
                 update("chinaServerName", server.name);
               }}
@@ -188,7 +182,7 @@ function ServerField({
         onChange={(event) => onChange(event.target.value)}
         className="w-full border border-[#1f1f1f] bg-[#050505] px-3 py-3 text-white outline-none transition focus:border-[#b11226]"
       >
-        {chinaServers.map((server) => (
+        {chinaServerOptions.map((server) => (
           <option key={server.id} value={server.id}>
             {server.name}
           </option>

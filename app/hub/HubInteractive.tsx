@@ -43,12 +43,6 @@ export default function HubInteractive() {
             </div>
           </div>
 
-          <div className="pb-10">
-            <div className="mx-auto flex max-w-xl items-center justify-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-bold text-stone-400">
-              Enter the Hub for your dashboard, ranked leaderboard, players,
-              champions, match history, and ECL.gg tools.
-            </div>
-          </div>
         </div>
       </section>
     </main>

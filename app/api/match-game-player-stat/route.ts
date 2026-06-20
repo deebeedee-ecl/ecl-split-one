@@ -14,6 +14,7 @@ export async function POST(req: Request) {
       deaths,
       assists,
       isMVP = false,
+      isSVP = false,
     } = body;
 
     // Basic validation
@@ -53,6 +54,13 @@ export async function POST(req: Request) {
     // Get player
     const player = await prisma.player.findUnique({
       where: { id: playerId },
+      include: {
+        _count: {
+          select: {
+            gameStats: true,
+          },
+        },
+      },
     });
 
     if (!player) {
@@ -103,6 +111,9 @@ export async function POST(req: Request) {
       deaths: numericDeaths,
       assists: numericAssists,
       isMVP,
+      isSVP,
+      currentElo: player.elo,
+      gamesPlayed: player._count.gameStats,
       winStreak: player.winStreak,
       lossStreak: player.lossStreak,
     });
@@ -130,6 +141,7 @@ export async function POST(req: Request) {
         deaths: numericDeaths,
         assists: numericAssists,
         isMVP,
+        isSVP,
         isWin,
         lpChange,
         eloBefore: player.elo,

@@ -20,6 +20,7 @@ export type SignupProfilePayload = {
   bio: string;
   avatarStyle: string;
   avatarUrl: string;
+  bannerUrl: string;
   dashboardTheme: string;
   championPool: {
     main: string[];
@@ -29,6 +30,7 @@ export type SignupProfilePayload = {
     showWechat: boolean;
     showEmail: boolean;
     showRiotId: boolean;
+    bannerPositionY?: number;
   };
 };
 
@@ -106,6 +108,33 @@ export async function uploadAvatar(file: File) {
   }
 
   return data.avatarUrl as string;
+}
+
+export async function uploadBanner(file: File) {
+  const token = await getAccessToken();
+
+  if (!token) {
+    throw new Error("You need to be logged in before uploading a banner.");
+  }
+
+  const body = new FormData();
+  body.set("banner", file);
+
+  const response = await fetch("/api/account/banner", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body,
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message ?? "Banner upload failed.");
+  }
+
+  return data.bannerUrl as string;
 }
 
 export async function flushPendingProfile() {

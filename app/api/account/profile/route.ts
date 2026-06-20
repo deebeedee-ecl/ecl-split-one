@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAccountFromRequest } from "@/lib/account-auth";
-import { getChinaServer, lookupLzyumiIdentity } from "@/lib/lzyumi";
+import { getChinaServer, fetchLzyumiRecentStat, fetchLzyumiRankedGames, lookupLzyumiIdentity } from "@/lib/lzyumi";
 
 type ProfilePayload = {
   displayName?: string;
@@ -22,6 +22,7 @@ type ProfilePayload = {
   bio?: string;
   avatarStyle?: string;
   avatarUrl?: string;
+  bannerUrl?: string;
   dashboardTheme?: string;
   championPool?: unknown;
   privacySettings?: unknown;
@@ -58,24 +59,46 @@ async function resolveLzyumiIdentity(body: ProfilePayload) {
   if (!riotName || !riotTag) return null;
 
   try {
-    return await lookupLzyumiIdentity({
+    const identity = await lookupLzyumiIdentity({
       riotName,
       riotTag,
       areaId: server.id,
     });
+
+    // Fetch recent stat and ranked games in parallel if we have an openId
+    const openId = identity.status === "matched" ? identity.openId : identity.rawProfile?.battleInfo?.openId;
+    let recentStat = null;
+    let rankedGames = null;
+    if (openId) {
+      try {
+        recentStat = await fetchLzyumiRecentStat({ openId, areaId: server.id });
+      } catch (err) {
+        console.warn("Lzyumi recent stat fetch failed:", err);
+      }
+    }
+    try {
+      rankedGames = await fetchLzyumiRankedGames({ riotName, areaId: server.id });
+    } catch (err) {
+      console.warn("Lzyumi ranked games fetch failed:", err);
+    }
+
+    return { identity, recentStat, rankedGames };
   } catch (error) {
     console.warn("Lzyumi identity lookup failed:", error);
     return null;
   }
 }
 
-function lzyumiData(body: ProfilePayload, identity: Awaited<ReturnType<typeof resolveLzyumiIdentity>>) {
+function lzyumiData(body: ProfilePayload, result: Awaited<ReturnType<typeof resolveLzyumiIdentity>>) {
   const server = getChinaServer(cleanNumber(body.chinaServerId), clean(body.chinaServerName));
   const now = new Date();
+  const identity = result?.identity ?? null;
+  const recentStat = result?.recentStat ?? null;
+  const rankedGames = result?.rankedGames ?? null;
 
   if (identity?.status === "mismatch") {
     throw new Error(
-      `Lzyumi resolved ${identity.resolvedName ?? "another account"} instead of ${clean(
+      `ecl.gg resolved ${identity.resolvedName ?? "another account"} instead of ${clean(
         body.riotName,
       )}#${clean(body.riotTag)}.`,
     );
@@ -92,6 +115,10 @@ function lzyumiData(body: ProfilePayload, identity: Awaited<ReturnType<typeof re
     lzyumiLastLookupAt: identity ? now : undefined,
     lzyumiRawProfile:
       identity && identity.rawProfile ? (identity.rawProfile as Prisma.InputJsonValue) : undefined,
+    lzyumiRecentStat:
+      recentStat && recentStat.data ? (recentStat as Prisma.InputJsonValue) : undefined,
+    lzyumiRankedGames:
+      rankedGames ? (rankedGames as Prisma.InputJsonValue) : undefined,
   };
 }
 
@@ -134,7 +161,7 @@ export async function POST(request: Request) {
     lzyumi = lzyumiData(body, identity);
   } catch (error) {
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Lzyumi identity mismatch." },
+      { message: error instanceof Error ? error.message : "ecl.gg identity mismatch." },
       { status: 409 },
     );
   }
@@ -145,7 +172,6 @@ export async function POST(request: Request) {
     ["riotTag", body.riotTag],
     ["kookUsername", body.kookUsername],
     ["primaryRole", body.primaryRole],
-    ["currentRank", body.currentRank],
     ["timezone", body.timezone],
   ].filter(([, value]) => !required(value));
 
@@ -187,6 +213,8 @@ export async function POST(request: Request) {
         lzyumiVerifiedAt: lzyumi.lzyumiVerifiedAt,
         lzyumiLastLookupAt: lzyumi.lzyumiLastLookupAt,
         lzyumiRawProfile: lzyumi.lzyumiRawProfile,
+        lzyumiRecentStat: lzyumi.lzyumiRecentStat,
+        lzyumiRankedGames: lzyumi.lzyumiRankedGames,
         kookUsername: clean(body.kookUsername),
         kookId: clean(body.kookId) || null,
         wechatId: clean(body.wechatId) || null,
@@ -214,6 +242,8 @@ export async function POST(request: Request) {
         lzyumiVerifiedAt: lzyumi.lzyumiVerifiedAt,
         lzyumiLastLookupAt: lzyumi.lzyumiLastLookupAt,
         lzyumiRawProfile: lzyumi.lzyumiRawProfile,
+        lzyumiRecentStat: lzyumi.lzyumiRecentStat,
+        lzyumiRankedGames: lzyumi.lzyumiRankedGames,
         kookUsername: clean(body.kookUsername),
         kookId: clean(body.kookId) || null,
         wechatId: clean(body.wechatId) || null,
@@ -304,7 +334,7 @@ export async function PATCH(request: Request) {
     lzyumi = shouldResolveLzyumi ? lzyumiData(mergedForLookup, identity) : null;
   } catch (error) {
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Lzyumi identity mismatch." },
+      { message: error instanceof Error ? error.message : "ecl.gg identity mismatch." },
       { status: 409 },
     );
   }
@@ -325,6 +355,8 @@ export async function PATCH(request: Request) {
       lzyumiVerifiedAt: lzyumi?.lzyumiVerifiedAt,
       lzyumiLastLookupAt: lzyumi?.lzyumiLastLookupAt,
       lzyumiRawProfile: lzyumi?.lzyumiRawProfile,
+      lzyumiRecentStat: lzyumi?.lzyumiRecentStat,
+      lzyumiRankedGames: lzyumi?.lzyumiRankedGames,
       kookUsername: body.kookUsername === undefined ? undefined : clean(body.kookUsername),
       kookId: body.kookId === undefined ? undefined : clean(body.kookId) || null,
       wechatId: body.wechatId === undefined ? undefined : clean(body.wechatId) || null,
@@ -336,6 +368,7 @@ export async function PATCH(request: Request) {
       bio: body.bio === undefined ? undefined : clean(body.bio) || null,
       avatarStyle: body.avatarStyle === undefined ? undefined : clean(body.avatarStyle) || "crest",
       avatarUrl: body.avatarUrl === undefined ? undefined : clean(body.avatarUrl) || null,
+      bannerUrl: body.bannerUrl === undefined ? undefined : clean(body.bannerUrl) || null,
       dashboardTheme: body.dashboardTheme === undefined ? undefined : clean(body.dashboardTheme) || "crimson",
       championPool: jsonField(body.championPool),
       privacySettings: jsonField(body.privacySettings),

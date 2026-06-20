@@ -4,16 +4,16 @@ import { ArrowRight, CalendarDays, Megaphone, Newspaper, Sparkles } from "lucide
 const featured = {
   label: "Patch Notes",
   date: "Jun 15, 2026",
-  title: "Hub v1 is now in development",
-  text: "The first Hub build is focused on player profiles, ranked ladder views, champion intelligence, and inhouse match history mockups before live data is connected.",
+  title: "ECL Hub beta is opening",
+  text: "The first Hub release brings player profiles, ranked ladder views, champion intelligence, and inhouse match history into one home for the community.",
 };
 
 const posts = [
   {
     type: "Event",
     title: "Ranked inhouse test nights",
-    date: "Coming soon",
-    text: "Small queue tests will help tune ELO ranges, role demand, reporting flow, and KOOK bot commands.",
+    date: "Beta window",
+    text: "Queue tests will help tune ELO ranges, role demand, reporting flow, and KOOK bot commands.",
   },
   {
     type: "Patch Notes",
@@ -23,9 +23,9 @@ const posts = [
   },
   {
     type: "Announcement",
-    title: "Player profiles are being redesigned",
+    title: "Player profiles enter beta",
     date: "Jun 15, 2026",
-    text: "Profiles now include banner/avatar placeholders, titles, role identity, champion pools, awards, and analytics cards.",
+    text: "Profiles include banners, avatars, titles, role identity, champion pools, awards, and analytics cards.",
   },
 ];
 

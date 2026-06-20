@@ -88,6 +88,43 @@ export type LzyumiDetailResponse = {
   [key: string]: unknown;
 };
 
+export type LzyumiRecentStatResponse = {
+  code?: number | string;
+  message?: string;
+  data?: {
+    recentState?: {
+      kda?: number;
+      win_times?: number;
+      play_times?: number;
+      kill_30days?: number;
+      death_30days?: number;
+      assist_30days?: number;
+      last_game_time?: string;
+      common_position?: Array<{ Key: string; Value: number }>;
+      common_use_champions?: Array<{ key: number; value: number }>;
+      [key: string]: unknown;
+    };
+    gameCareer?: {
+      total_mvp_times?: number;
+      total_svp_times?: number;
+      total_triple_kills?: number;
+      total_quadra_kills?: number;
+      total_penta_kills?: number;
+      total_kills?: number;
+      total_assists?: number;
+      kda?: number;
+      [key: string]: unknown;
+    };
+    commonPositionInfo?: Array<{
+      Key: string;
+      Value: number;
+      rate: number;
+    }>;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+};
+
 export type LzyumiIdentityResult =
   | {
       status: "matched";
@@ -281,6 +318,61 @@ export async function lookupLzyumiIdentity({
     areaName: server.name,
     rawProfile,
   };
+}
+
+export async function fetchLzyumiRankedGames({
+  riotName,
+  areaId,
+  baseUrl = defaultBaseUrl,
+}: {
+  riotName: string;
+  areaId: number;
+  baseUrl?: string;
+}): Promise<{ soloGames: LzyumiRecentMatch[]; flexGames: LzyumiRecentMatch[] }> {
+  const server = getChinaServer(areaId);
+
+  async function fetchFilter(filter: number) {
+    const { lzyumiSign, signStr } = createLzyumiSignature();
+    const params = [
+      `nickname=${encodeURIComponent(riotName.trim())}`,
+      "allCount=20",
+      `areaId=${server.id}`,
+      `areaName=${encodeURIComponent(server.name)}`,
+      "seleMe=1",
+      `filter=${filter}`,
+      "openId=",
+      `lzyumiSign=${lzyumiSign}`,
+      `signStr=${signStr}`,
+    ];
+    const url = `${baseUrl}?${params.join("&")}`;
+    const res = await lzyumiFetch<LzyumiLookupResponse>(url);
+    return Array.isArray(res.data) ? res.data : [];
+  }
+
+  const [soloGames, flexGames] = await Promise.all([
+    fetchFilter(2), // Solo/Duo ranked
+    fetchFilter(3), // Flex ranked
+  ]);
+
+  return { soloGames, flexGames };
+}
+
+export async function fetchLzyumiRecentStat({
+  openId,
+  areaId,
+  baseUrl = defaultBaseUrl,
+}: {
+  openId: string;
+  areaId: number;
+  baseUrl?: string;
+}): Promise<LzyumiRecentStatResponse> {
+  const { lzyumiSign, signStr } = createLzyumiSignature();
+  const url = new URL(`${baseUrl}/getPlayerRecentStat`);
+  url.searchParams.set("openId", openId);
+  url.searchParams.set("areaId", String(areaId));
+  url.searchParams.set("lzyumiSign", lzyumiSign);
+  url.searchParams.set("signStr", signStr);
+  return lzyumiFetch<LzyumiRecentStatResponse>(url.toString());
 }
 
 export async function fetchLzyumiMatchDetail({

@@ -253,8 +253,7 @@ export default function DownloadLolChinaPage() {
             </h2>
             <p className="mt-5 text-base leading-7 text-[#9ca3af]">
               Send a setup question and include a WeChat ID or email so an ECL
-              admin can reply. This is a local visual form for now; the admin
-              inbox can be wired after we add message storage.
+              admin can reply. Messages are routed to the ECL admin inbox.
             </p>
           </div>
 

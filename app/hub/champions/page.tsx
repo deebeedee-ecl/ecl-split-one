@@ -7,7 +7,7 @@ export default function ChampionsPage() {
       active="champions"
       eyebrow="Champion Intelligence"
       title="Champions"
-      description="Champion tiers, usage, and which ECL inhouse players are playing each pick."
+      description="Champion stats for ECL inhouse games, player pools, MVP picks, and matchup trends."
     >
       <ChampionsClient />
     </HubShell>

@@ -34,6 +34,10 @@ yarn-error.log*
 m\[1\])
 public/videos/split-one.mp4
 backups/
+public/uploads/
+scripts/*-output.txt
+scripts/filter-*.json
+scripts/snapshot-*.json
 
 # env files (can opt-in for committing if needed)
 .env*

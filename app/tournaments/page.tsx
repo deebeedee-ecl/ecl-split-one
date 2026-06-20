@@ -102,10 +102,9 @@ export default function TournamentsPage() {
           <div className="border border-[#1f1f1f] bg-[#0d0d0d] p-6">
             <CalendarClock className="text-[#b11226]" size={28} />
             <p className="mt-5 text-base leading-7 text-[#9ca3af]">
-              These pages are static archive views. They should not recalculate
-              ELO, mutate Supabase, or change live records. The goal is to make
-              old events readable while the Hub becomes the main ECL stat
-              centre.
+              These archive pages preserve previous ECL events as historical
+              records: rosters, brackets, awards, match results, and standout
+              player performances.
             </p>
           </div>
         </div>

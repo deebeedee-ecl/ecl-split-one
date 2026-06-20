@@ -1,18 +1,45 @@
 "use client";
 
 import { useState } from "react";
+import type { FormEvent } from "react";
 import { Send } from "lucide-react";
 
 export default function SupportMessageForm() {
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [error, setError] = useState("");
+
+  async function submitSupportMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setStatus("sending");
+    setError("");
+
+    const formData = new FormData(event.currentTarget);
+    const res = await fetch("/api/contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: String(formData.get("name") ?? ""),
+        contact: String(formData.get("contact") ?? ""),
+        topic: "technical",
+        message: String(formData.get("message") ?? ""),
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      setError(body?.error ?? "Message failed to send. Please try again.");
+      setStatus("error");
+      return;
+    }
+
+    event.currentTarget.reset();
+    setStatus("sent");
+  }
 
   return (
     <form
       className="mt-6 space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-        setSent(true);
-      }}
+      onSubmit={submitSupportMessage}
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -57,16 +84,22 @@ export default function SupportMessageForm() {
 
       <button
         type="submit"
-        className="inline-flex items-center justify-center gap-2 bg-[#b11226] px-6 py-4 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#d11a2a] [clip-path:polygon(0_0,94%_0,100%_28%,100%_100%,6%_100%,0_72%)]"
+        disabled={status === "sending"}
+        className="inline-flex items-center justify-center gap-2 bg-[#b11226] px-6 py-4 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#d11a2a] disabled:cursor-not-allowed disabled:opacity-60 [clip-path:polygon(0_0,94%_0,100%_28%,100%_100%,6%_100%,0_72%)]"
       >
-        Leave a Message
+        {status === "sending" ? "Sending..." : "Leave a Message"}
         <Send size={17} />
       </button>
 
-      {sent && (
+      {status === "sent" && (
         <p className="border border-[#1f1f1f] bg-[#0d0d0d] px-4 py-3 text-sm leading-6 text-[#9ca3af]">
-          Message form preview saved. Admin inbox storage can be wired next when
-          we add the database model.
+          Message sent. An ECL admin will review it from the admin inbox.
+        </p>
+      )}
+
+      {status === "error" && (
+        <p className="border border-[#b11226]/40 bg-[#b11226]/10 px-4 py-3 text-sm leading-6 text-red-200">
+          {error}
         </p>
       )}
     </form>

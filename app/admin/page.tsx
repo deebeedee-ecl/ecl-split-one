@@ -10,6 +10,7 @@ import {
   Home,
   KeyRound,
   Mail,
+  MessageSquareText,
   Newspaper,
   PenSquare,
   Plus,
@@ -22,6 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useEffect } from "react";
 
 type AdminSection =
   | "dashboard"
@@ -29,6 +31,7 @@ type AdminSection =
   | "matches"
   | "elo"
   | "admins"
+  | "messages"
   | "news";
 
 const sections: Array<{ id: AdminSection; label: string; icon: LucideIcon }> = [
@@ -37,8 +40,19 @@ const sections: Array<{ id: AdminSection; label: string; icon: LucideIcon }> = [
   { id: "matches", label: "Match History", icon: CalendarDays },
   { id: "elo", label: "ELO / LP", icon: Gauge },
   { id: "admins", label: "Admin Users", icon: UserCog },
+  { id: "messages", label: "Messages", icon: MessageSquareText },
   { id: "news", label: "News Drafts", icon: Newspaper },
 ];
+
+type ContactMessage = {
+  id: string;
+  name: string;
+  contact: string;
+  topic: string;
+  message: string;
+  status: string;
+  createdAt: string;
+};
 
 const users = [
   {
@@ -202,6 +216,7 @@ export default function AdminPage() {
             {active === "matches" && <MatchesSection />}
             {active === "elo" && <EloSection />}
             {active === "admins" && <AdminsSection />}
+            {active === "messages" && <MessagesSection />}
             {active === "news" && <NewsSection />}
           </div>
         </section>
@@ -395,6 +410,125 @@ function AdminsSection() {
         <Plus size={15} />
         Add Admin by Email
       </button>
+    </Panel>
+  );
+}
+
+function MessagesSection() {
+  const [messages, setMessages] = useState<ContactMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function loadMessages() {
+    setLoading(true);
+    setError("");
+
+    const res = await fetch("/api/admin/contact-messages", { cache: "no-store" });
+
+    if (!res.ok) {
+      setError("Could not load contact messages.");
+      setLoading(false);
+      return;
+    }
+
+    setMessages(await res.json());
+    setLoading(false);
+  }
+
+  async function setMessageStatus(id: string, status: "new" | "resolved") {
+    const res = await fetch("/api/admin/contact-messages", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status }),
+    });
+
+    if (res.ok) {
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === id ? { ...message, status } : message,
+        ),
+      );
+    }
+  }
+
+  useEffect(() => {
+    loadMessages();
+  }, []);
+
+  return (
+    <Panel title="Contact Messages" icon={MessageSquareText}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-[#8d8d8d]">
+          Messages submitted from the public Contact page.
+        </p>
+        <button
+          type="button"
+          onClick={loadMessages}
+          className="inline-flex min-h-10 items-center rounded-xl bg-white/[0.06] px-4 text-xs font-black uppercase tracking-[0.08em] text-[#d8d8d8]"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {loading && (
+        <p className="rounded-xl border border-[#242424] bg-[#101010] p-4 text-sm font-bold text-[#8d8d8d]">
+          Loading messages...
+        </p>
+      )}
+
+      {error && (
+        <p className="rounded-xl border border-[#b11226]/40 bg-[#b11226]/10 p-4 text-sm font-bold text-[#ff8c9a]">
+          {error}
+        </p>
+      )}
+
+      {!loading && !error && messages.length === 0 && (
+        <p className="rounded-xl border border-[#242424] bg-[#101010] p-4 text-sm font-bold text-[#8d8d8d]">
+          No contact messages have been submitted.
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {messages.map((message) => (
+          <article key={message.id} className="rounded-xl border border-[#242424] bg-[#101010] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#b11226]">
+                  {message.topic.replaceAll("-", " ")}
+                </p>
+                <h3 className="mt-2 text-base font-black text-white">{message.name}</h3>
+                <p className="mt-1 text-xs font-semibold text-[#8d8d8d]">
+                  {message.contact} / {new Date(message.createdAt).toLocaleString()}
+                </p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-black ${
+                message.status === "resolved"
+                  ? "bg-emerald-400/10 text-emerald-300"
+                  : "bg-[#b11226]/15 text-[#ff5b70]"
+              }`}>
+                {message.status}
+              </span>
+            </div>
+            <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-[#d8d8d8]">
+              {message.message}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setMessageStatus(
+                    message.id,
+                    message.status === "resolved" ? "new" : "resolved",
+                  )
+                }
+                className="inline-flex min-h-9 items-center justify-center rounded-xl bg-white/[0.06] px-3 text-xs font-black text-[#d8d8d8]"
+              >
+                {message.status === "resolved" ? "Reopen" : "Mark Resolved"}
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
     </Panel>
   );
 }

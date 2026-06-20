@@ -17,7 +17,7 @@ const howItWorks = [
   "Join inhouses through KOOK",
   "Play games with the community",
   "Report results after the lobby",
-  "Track stats in the Hub",
+  "Track profiles, ranks, and match records",
 ];
 
 export default function Home() {
@@ -130,10 +130,10 @@ export default function Home() {
               stat centre.
             </h2>
             <p className="mt-5 text-base leading-7 text-[#9ca3af]">
-              The Hub is where the league becomes personal: player profiles,
-              ranked inhouse form, champion pools, match history, ladder
-              movement, and the experimental ECL.gg search path all live in one
-              place.
+              The beta Hub now connects ECL accounts, public player profiles,
+              China-server profile lookup, solo and flex rank context,
+              champion pools, match history spaces, contact messages, and the
+              KOOK-ready inhouse flow.
             </p>
             <Link
               href="/hub"
@@ -163,8 +163,8 @@ export default function Home() {
             },
             {
               icon: Search,
-              title: "Future Imports",
-              text: "The long-term path is a China server match search and import engine that helps connect real games to public ECL stats.",
+              title: "ecl.gg Lookup",
+              text: "China server profile lookup is already feeding profile data, ranked context, recent games, and champion information into the beta Hub.",
             },
           ].map((item) => {
             const Icon = item.icon;
@@ -202,10 +202,9 @@ export default function Home() {
                   Private account details.
                 </h2>
                 <p className="mt-5 text-base leading-7 text-[#9ca3af]">
-                  Players will eventually log in to manage their linked KOOK
-                  account, Riot ID, internal OpenID, ELO, match history,
-                  champion pool, awards, and tournament history. Other users
-                  get the public profile view.
+                  Players can sign up, verify email, manage account settings,
+                  upload profile images, link Riot identity, and keep private
+                  verification details separate from the public profile view.
                 </p>
               </div>
             </div>

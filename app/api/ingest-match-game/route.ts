@@ -31,6 +31,9 @@ type RosterPlayer = {
   elo: number;
   winStreak: number;
   lossStreak: number;
+  _count: {
+    gameStats: number;
+  };
 };
 
 function normalizeRiotNameParts(rawName: string) {
@@ -177,8 +180,16 @@ export async function POST(req: Request) {
     const match = await prisma.match.findUnique({
       where: { id: matchId },
       include: {
-        homeTeam: { include: { players: true } },
-        awayTeam: { include: { players: true } },
+        homeTeam: {
+          include: {
+            players: { include: { _count: { select: { gameStats: true } } } },
+          },
+        },
+        awayTeam: {
+          include: {
+            players: { include: { _count: { select: { gameStats: true } } } },
+          },
+        },
       },
     });
 
@@ -410,6 +421,8 @@ export async function POST(req: Request) {
           isSVP: Boolean(p.isSVP),
           gold: safeNumber(p.gold),
           damage: safeNumber(p.damage),
+          currentElo: player.elo,
+          gamesPlayed: player._count.gameStats,
           winStreak: player.winStreak,
           lossStreak: player.lossStreak,
         });
