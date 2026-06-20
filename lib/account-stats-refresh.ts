@@ -11,6 +11,17 @@ type RefreshableProfile = {
   riotName: string;
 };
 
+function hasRankedGames(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+
+  const rankedGames = value as { soloGames?: unknown; flexGames?: unknown };
+
+  return (
+    (Array.isArray(rankedGames.soloGames) && rankedGames.soloGames.length > 0) ||
+    (Array.isArray(rankedGames.flexGames) && rankedGames.flexGames.length > 0)
+  );
+}
+
 export async function refreshAccountProfileStats(profile: RefreshableProfile) {
   if (!profile.chinaServerId || !profile.riotName) {
     return {
@@ -31,7 +42,7 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
     lzyumiLastLookupAt: new Date(),
   };
 
-  if (rankedGames.status === "fulfilled") {
+  if (rankedGames.status === "fulfilled" && hasRankedGames(rankedGames.value)) {
     updateData.lzyumiRankedGames = rankedGames.value as Prisma.InputJsonValue;
   }
 

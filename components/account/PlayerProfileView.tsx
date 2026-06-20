@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { BarChart3, Crown, Sparkles, Trophy, UserCircle } from "lucide-react";
+import { BarChart3, CheckCircle2, Crown, Sparkles, Trophy, UserCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getChinaServerDisplayName, getCountryOption } from "./account-options";
@@ -319,6 +319,7 @@ export default function PlayerProfileView() {
     profile.chinaServerName,
   );
   const bannerPositionY = profile.privacySettings?.bannerPositionY ?? 50;
+  const isKookVerified = profile.verificationStatus === "VERIFIED";
 
   const soloRank = formatRank(ranks.solo);
   const flexRank = formatRank(ranks.flex);
@@ -354,6 +355,14 @@ export default function PlayerProfileView() {
                 <h2 className="text-4xl font-black tracking-normal text-white md:text-5xl">
                   {profile.displayName}
                 </h2>
+                {isKookVerified && (
+                  <span
+                    title="KOOK verified"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#19d27f]/12 text-[#19d27f] ring-1 ring-[#19d27f]/35"
+                  >
+                    <CheckCircle2 size={21} strokeWidth={3} />
+                  </span>
+                )}
                 {nationality?.code && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -416,7 +425,7 @@ export default function PlayerProfileView() {
             Inhouse Record
           </p>
           <div className="mt-5 grid grid-cols-2 gap-4">
-            <Metric label="ELO" value="-" accent="text-[#ffd84d]" />
+            <Metric label="ELO" value="800" accent="text-[#ffd84d]" />
             <Metric label="Rank" value="-" accent="text-[#ff1728]" />
             <Metric label="W/L" value="0-0" />
             <Metric label="MVPs" value="0" />

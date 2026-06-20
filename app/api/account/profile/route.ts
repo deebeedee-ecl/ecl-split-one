@@ -47,6 +47,17 @@ function jsonField(value: unknown) {
   return value === null ? Prisma.JsonNull : value;
 }
 
+function hasRankedGames(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+
+  const rankedGames = value as { soloGames?: unknown; flexGames?: unknown };
+
+  return (
+    (Array.isArray(rankedGames.soloGames) && rankedGames.soloGames.length > 0) ||
+    (Array.isArray(rankedGames.flexGames) && rankedGames.flexGames.length > 0)
+  );
+}
+
 async function resolveLzyumiIdentity(body: ProfilePayload) {
   const riotName = clean(body.riotName);
   const riotTag = clean(body.riotTag);
@@ -114,7 +125,7 @@ function lzyumiData(body: ProfilePayload, result: Awaited<ReturnType<typeof reso
     lzyumiRecentStat:
       recentStat && recentStat.data ? (recentStat as Prisma.InputJsonValue) : undefined,
     lzyumiRankedGames:
-      rankedGames ? (rankedGames as Prisma.InputJsonValue) : undefined,
+      hasRankedGames(rankedGames) ? (rankedGames as Prisma.InputJsonValue) : undefined,
   };
 }
 

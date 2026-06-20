@@ -1,6 +1,3 @@
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
-import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { getAccountFromRequest } from "@/lib/account-auth";
 
@@ -12,6 +9,13 @@ const allowedTypes = new Map([
   ["image/png", "png"],
   ["image/webp", "webp"],
 ]);
+
+async function fileToDataUrl(file: File) {
+  const bytes = await file.arrayBuffer();
+  const base64 = Buffer.from(bytes).toString("base64");
+
+  return `data:${file.type};base64,${base64}`;
+}
 
 export async function POST(request: Request) {
   const account = await getAccountFromRequest(request);
@@ -37,14 +41,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Avatar must be 2MB or smaller." }, { status: 400 });
   }
 
-  const bytes = await file.arrayBuffer();
-  const uploadsDir = path.join(process.cwd(), "public", "uploads", "avatars");
-  const filename = `${account.id}-${randomUUID()}.${extension}`;
-
-  await mkdir(uploadsDir, { recursive: true });
-  await writeFile(path.join(uploadsDir, filename), Buffer.from(bytes));
-
   return NextResponse.json({
-    avatarUrl: `/uploads/avatars/${filename}`,
+    avatarUrl: await fileToDataUrl(file),
   });
 }
