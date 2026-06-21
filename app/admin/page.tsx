@@ -31,7 +31,8 @@ type AdminSection =
   | "dashboard"
   | "users"
   | "matches"
-  | "settings"
+  | "elo"
+  | "admins"
   | "messages"
   | "news";
 
@@ -39,9 +40,10 @@ const sections: Array<{ id: AdminSection; label: string; icon: LucideIcon }> = [
   { id: "dashboard", label: "Dashboard", icon: Activity },
   { id: "users", label: "Users", icon: Users },
   { id: "matches", label: "Match History", icon: CalendarDays },
+  { id: "elo", label: "ELO / LP", icon: Gauge },
+  { id: "admins", label: "Admin Users", icon: UserCog },
   { id: "messages", label: "Messages", icon: MessageSquareText },
   { id: "news", label: "News Drafts", icon: Newspaper },
-  { id: "settings", label: "Admin Settings", icon: UserCog },
 ];
 
 type ContactMessage = {
@@ -227,9 +229,10 @@ export default function AdminPage() {
             {active === "dashboard" && <DashboardSection overview={overview} loading={overviewLoading} setActive={setActive} />}
             {active === "users" && <UsersSection users={overview.users} loading={overviewLoading} />}
             {active === "matches" && <MatchesSection matches={overview.matches} loading={overviewLoading} />}
+            {active === "elo" && <EloSection />}
+            {active === "admins" && <AdminsSection admins={overview.adminUsers} loading={overviewLoading} />}
             {active === "messages" && <MessagesSection />}
             {active === "news" && <NewsSection drafts={overview.newsDrafts} loading={overviewLoading} />}
-            {active === "settings" && <AdminSettingsSection admins={overview.adminUsers} loading={overviewLoading} />}
           </div>
         </section>
       </div>
@@ -501,30 +504,29 @@ function MatchesSection({
   );
 }
 
-function LpToolsSection() {
+function EloSection() {
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
       <Panel title="ELO / LP Rules" icon={Gauge}>
-        <EmptyAdminState text="ELO rule configuration is not stored in the database yet." />
+        <div className="grid gap-3 md:grid-cols-2">
+          <ConfigCard label="Base win LP" value="+24" />
+          <ConfigCard label="Base loss LP" value="-18" />
+          <ConfigCard label="MVP bonus" value="+4" />
+          <ConfigCard label="SVP protection" value="+3 loss reduction" />
+          <ConfigCard label="Streak bonus" value="+2 after 3 wins" />
+          <ConfigCard label="Rating floor" value="800 ELO" />
+        </div>
       </Panel>
       <Panel title="Manual ELO Override" icon={Edit3}>
-        <EmptyAdminState text="Manual ELO overrides need an audit-log model before they can be enabled." />
+        <div className="space-y-3">
+          <MockInput label="Player" value="Select a player" />
+          <MockInput label="New ELO" value="Enter new ELO" />
+          <MockInput label="Admin Reason" value="Required before saving" />
+          <button className="min-h-11 w-full rounded-xl bg-[#b11226] text-xs font-black uppercase tracking-[0.08em]">
+            Save Override
+          </button>
+        </div>
       </Panel>
-    </div>
-  );
-}
-
-function AdminSettingsSection({
-  admins,
-  loading,
-}: {
-  admins: AdminOverview["adminUsers"];
-  loading: boolean;
-}) {
-  return (
-    <div className="space-y-5">
-      <LpToolsSection />
-      <AdminsSection admins={admins} loading={loading} />
     </div>
   );
 }
@@ -835,6 +837,28 @@ function EmptyAdminState({ text }: { text: string }) {
     <div className="rounded-xl border border-[#242424] bg-[#101010] p-4 text-sm font-bold text-[#8d8d8d]">
       {text}
     </div>
+  );
+}
+
+function ConfigCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[#242424] bg-[#101010] p-4">
+      <p className="text-xs font-bold text-[#8d8d8d]">{label}</p>
+      <p className="mt-2 text-xl font-black text-white">{value}</p>
+    </div>
+  );
+}
+
+function MockInput({ label, value }: { label: string; value: string }) {
+  return (
+    <label className="block">
+      <span className="text-xs font-black uppercase tracking-[0.12em] text-[#8d8d8d]">
+        {label}
+      </span>
+      <span className="mt-2 block rounded-xl border border-[#242424] bg-[#101010] px-4 py-3 text-sm font-bold text-[#cfcfcf]">
+        {value}
+      </span>
+    </label>
   );
 }
 
