@@ -12,6 +12,92 @@ The KOOK bot should call it with the same shared secret header used by the other
 x-ecl-kook-secret: <ECL_KOOK_BOT_SECRET>
 ```
 
+## General Commands
+
+For general text commands, the KOOK bot can call:
+
+```txt
+POST /api/kook/commands
+```
+
+Body:
+
+```json
+{
+  "command": "!me",
+  "kookUserId": "kook-user-id"
+}
+```
+
+Supported commands:
+
+```txt
+!welcome     Returns the bilingual ECL welcome/onboarding message.
+!help        Lists all player commands.
+!verify      Explains where to find the verification code and how to use it.
+!me          Shows whether the user is verified and their ECL profile summary.
+!rank        Shows the user's ECL leaderboard rank.
+!leaderboard Shows the ECL top 10.
+!status      Shows active inhouse status, or current queue count if voice members are included.
+!cancel      Admin only. Cancels the active saved inhouse session.
+```
+
+For admin-only commands, the KOOK bot should verify the user's KOOK role first,
+then include `"isAdmin": true` in the request body.
+
+Actual code confirmation still uses the existing verification endpoint:
+
+```txt
+POST /api/kook/verify
+```
+
+Body:
+
+```json
+{
+  "code": "AB12CD",
+  "kookUserId": "kook-user-id",
+  "kookUsername": "KOOK display name"
+}
+```
+
+## Welcome Message
+
+Use this when someone joins KOOK, or when someone types `!welcome`:
+
+```txt
+Welcome to the Expat China League (ECL)
+欢迎来到 Expat China League（ECL）
+
+We're a League of Legends community in China, active since 2016 - mixing expats and local players.
+我们是一个在中国活跃的英雄联盟社区，成立于2016年，汇聚来自世界各地的玩家与中国本地玩家。
+
+━━━━━━━━━━━━━━━
+
+Start here / 新手指南:
+- Jump into any channel
+- DM an admin if you need help
+- Check the guide if you're new to CN servers
+
+- 可以加入任意频道交流
+- 有问题可以私信管理员
+- 新玩家请查看新手指南
+
+━━━━━━━━━━━━━━━
+
+Want to play? / 想参加比赛？
+
+Find a team, sign up as a free agent, or verify your account for ranked inhouses:
+寻找队伍、以自由人身份报名，或验证账号参加排位内战：
+
+https://eclchina.lol
+
+To play ranked inhouses, create/log in to your ECL account, open your Hub/profile, copy your KOOK verification code, then type:
+如果想参加排位内战，请登录 ECL 账号，进入 Hub / 个人资料页面，复制 KOOK 验证码，然后输入：
+
+!verify YOURCODE
+```
+
 ## Channel IDs
 
 ```txt
