@@ -101,14 +101,16 @@ To play ranked inhouses, create/log in to your ECL account, open your Hub/profil
 ## Channel IDs
 
 ```txt
-Ranked IH:   8024346698320304
-Blue Side:   3522831675586808
-Red Side:    9801310073341652
+Ranked Inhouse category: 8024346698320304
+Ranked IH #1 voice:     4175549527235352
+Blue Side:              3522831675586808
+Red Side:               9801310073341652
 ```
 
 These can be overridden with:
 
 ```txt
+KOOK_RANKED_INHOUSE_CATEGORY_ID
 KOOK_RANKED_INHOUSE_CHANNEL_ID
 KOOK_BLUE_SIDE_CHANNEL_ID
 KOOK_RED_SIDE_CHANNEL_ID
@@ -121,7 +123,7 @@ For `!inhouse`, the KOOK bot sends the current Ranked IH 1 voice members:
 ```json
 {
   "command": "!inhouse",
-  "channelId": "8024346698320304",
+  "channelId": "4175549527235352",
   "members": [
     { "id": "kook-user-id-1", "username": "Player 1" }
   ]
