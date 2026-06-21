@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { fetchLzyumiRankedGames, fetchLzyumiRecentStat } from "@/lib/lzyumi";
+import { fetchLzyumiRankedGames, fetchLzyumiRecentStat, lookupLzyumiProfile } from "@/lib/lzyumi";
 import { prisma } from "@/lib/prisma";
 
 export const LZYUMI_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 12;
@@ -22,6 +22,20 @@ function hasRankedGames(value: unknown) {
   );
 }
 
+function hasRankRows(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+
+  const profile = value as { battleInfo?: { mapOneInfoList?: unknown } };
+  const rows = profile.battleInfo?.mapOneInfoList;
+
+  return Array.isArray(rows) && rows.some((row) => {
+    if (!row || typeof row !== "object") return false;
+
+    const tier = (row as { tier?: unknown }).tier;
+    return typeof tier === "string" && tier.trim().length > 0 && tier !== "-";
+  });
+}
+
 export async function refreshAccountProfileStats(profile: RefreshableProfile) {
   if (!profile.chinaServerId || !profile.riotName) {
     return {
@@ -31,16 +45,34 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
     };
   }
 
-  const [rankedGames, recentStat] = await Promise.allSettled([
+  const [rawProfile, rankedGames] = await Promise.allSettled([
+    lookupLzyumiProfile({ riotName: profile.riotName, areaId: profile.chinaServerId }),
     fetchLzyumiRankedGames({ riotName: profile.riotName, areaId: profile.chinaServerId }),
-    profile.openId
-      ? fetchLzyumiRecentStat({ openId: profile.openId, areaId: profile.chinaServerId })
-      : Promise.resolve(null),
   ]);
 
-  const updateData: Record<string, unknown> = {
+  const freshOpenId =
+    rawProfile.status === "fulfilled" ? rawProfile.value.battleInfo?.openId ?? null : null;
+  const openId = freshOpenId ?? profile.openId;
+  const recentStat = openId
+    ? await fetchLzyumiRecentStat({ openId, areaId: profile.chinaServerId }).then(
+        (value) => ({ status: "fulfilled" as const, value }),
+        (reason) => ({ status: "rejected" as const, reason }),
+      )
+    : ({ status: "fulfilled" as const, value: null } as const);
+
+  const updateData: Prisma.AccountProfileUpdateInput = {
     lzyumiLastLookupAt: new Date(),
   };
+
+  if (rawProfile.status === "fulfilled") {
+    if (hasRankRows(rawProfile.value)) {
+      updateData.lzyumiRawProfile = rawProfile.value as Prisma.InputJsonValue;
+    }
+
+    if (freshOpenId) {
+      updateData.openId = freshOpenId;
+    }
+  }
 
   if (rankedGames.status === "fulfilled" && hasRankedGames(rankedGames.value)) {
     updateData.lzyumiRankedGames = rankedGames.value as Prisma.InputJsonValue;
@@ -50,11 +82,15 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
     updateData.lzyumiRecentStat = recentStat.value as Prisma.InputJsonValue;
   }
 
-  if (rankedGames.status === "rejected" && recentStat.status === "rejected") {
+  if (
+    rawProfile.status === "rejected" &&
+    rankedGames.status === "rejected" &&
+    recentStat.status === "rejected"
+  ) {
     return {
       ok: false,
       profileId: profile.id,
-      message: "Both ranked games and recent stats failed.",
+      message: "Raw profile, ranked games, and recent stats failed.",
     };
   }
 
@@ -66,8 +102,10 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
   return {
     ok: true,
     profileId: profile.id,
+    rawProfile: rawProfile.status,
     rankedGames: rankedGames.status,
     recentStat: recentStat.status,
+    rankRows: rawProfile.status === "fulfilled" && hasRankRows(rawProfile.value),
   };
 }
 

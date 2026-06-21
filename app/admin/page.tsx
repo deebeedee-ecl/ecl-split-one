@@ -14,6 +14,7 @@ import {
   Newspaper,
   PenSquare,
   Plus,
+  RefreshCw,
   Search,
   ShieldCheck,
   Trash2,
@@ -235,6 +236,8 @@ function DashboardSection() {
         <MetricCard label="Open Reports" value="3" note="Possible duplicates" icon={FileText} />
       </section>
 
+      <LzyumiRefreshPanel />
+
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Panel title="Activity Overview" icon={Activity}>
           <ActivityChart />
@@ -255,6 +258,68 @@ function DashboardSection() {
         </Panel>
       </section>
     </div>
+  );
+}
+
+function LzyumiRefreshPanel() {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [message, setMessage] = useState("Manual refresh updates verified player ranks, recent games, and profile snapshots.");
+  const [isError, setIsError] = useState(false);
+
+  async function refreshStats() {
+    setIsRefreshing(true);
+    setIsError(false);
+    setMessage("Refreshing verified player data from ecl.gg...");
+
+    try {
+      const response = await fetch("/api/admin/refresh-lzyumi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 100 }),
+      });
+      const data = (await response.json()) as {
+        selected?: number;
+        refreshed?: number;
+        failed?: number;
+        success?: boolean;
+        error?: string;
+      };
+
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error ?? `${data.failed ?? 0} profiles failed to refresh.`);
+      }
+
+      setMessage(`Refreshed ${data.refreshed ?? 0}/${data.selected ?? 0} verified profiles.`);
+    } catch (error) {
+      setIsError(true);
+      setMessage(error instanceof Error ? error.message : "Refresh failed.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
+
+  return (
+    <Panel title="ecl.gg Stat Refresh" icon={RefreshCw}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[#cfcfcf]">
+            Pull fresh profile snapshots for verified users so solo/flex ranks and recent games stay current.
+          </p>
+          <p className={`mt-2 text-xs font-black uppercase tracking-[0.12em] ${isError ? "text-[#ff3046]" : "text-[#8d8d8d]"}`}>
+            {message}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={refreshStats}
+          disabled={isRefreshing}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#ff1731] px-5 text-xs font-black uppercase tracking-[0.1em] text-white transition hover:bg-[#ff3046] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
+          {isRefreshing ? "Refreshing" : "Refresh ecl.gg Data"}
+        </button>
+      </div>
+    </Panel>
   );
 }
 
