@@ -58,6 +58,19 @@ function hasRankedGames(value: unknown) {
   );
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function hasLzyumiRankRows(value: unknown) {
+  const root = asRecord(value);
+  const data = asRecord(root?.data);
+  const battleInfo = asRecord(root?.battleInfo) ?? asRecord(data?.battleInfo);
+  const rows = battleInfo?.mapOneInfoList ?? data?.mapOneInfoList;
+
+  return Array.isArray(rows) && rows.length > 0;
+}
+
 async function resolveLzyumiIdentity(body: ProfilePayload) {
   const riotName = clean(body.riotName);
   const riotTag = clean(body.riotTag);
@@ -119,9 +132,11 @@ function lzyumiData(body: ProfilePayload, result: Awaited<ReturnType<typeof reso
         ? identity.openId
         : clean(body.openId) || undefined,
     lzyumiVerifiedAt: identity?.status === "matched" ? now : undefined,
-    lzyumiLastLookupAt: identity ? now : undefined,
+    lzyumiLastLookupAt: identity?.status === "matched" ? now : undefined,
     lzyumiRawProfile:
-      identity && identity.rawProfile ? (identity.rawProfile as Prisma.InputJsonValue) : undefined,
+      identity?.status === "matched" && identity.rawProfile
+        ? (identity.rawProfile as Prisma.InputJsonValue)
+        : undefined,
     lzyumiRecentStat:
       recentStat && recentStat.data ? (recentStat as Prisma.InputJsonValue) : undefined,
     lzyumiRankedGames:
@@ -233,6 +248,7 @@ export async function POST(request: Request) {
         bio: clean(body.bio) || null,
         avatarStyle: clean(body.avatarStyle) || "crest",
         avatarUrl: clean(body.avatarUrl) || null,
+        bannerUrl: clean(body.bannerUrl) || null,
         dashboardTheme: clean(body.dashboardTheme) || "crimson",
         championPool: jsonField(body.championPool),
         privacySettings: jsonField(body.privacySettings),
@@ -262,6 +278,7 @@ export async function POST(request: Request) {
         bio: clean(body.bio) || null,
         avatarStyle: clean(body.avatarStyle) || "crest",
         avatarUrl: clean(body.avatarUrl) || null,
+        bannerUrl: clean(body.bannerUrl) || null,
         dashboardTheme: clean(body.dashboardTheme) || "crimson",
         championPool: jsonField(body.championPool) ?? {},
         privacySettings: jsonField(body.privacySettings) ?? {},
@@ -355,7 +372,12 @@ export async function PATCH(request: Request) {
         (body.openId === undefined ? undefined : clean(body.openId) || null),
       lzyumiVerifiedAt: lzyumi?.lzyumiVerifiedAt,
       lzyumiLastLookupAt: lzyumi?.lzyumiLastLookupAt,
-      lzyumiRawProfile: lzyumi?.lzyumiRawProfile,
+      lzyumiRawProfile:
+        lzyumi?.lzyumiRawProfile === undefined
+          ? undefined
+          : hasLzyumiRankRows(lzyumi.lzyumiRawProfile) || !hasLzyumiRankRows(existing?.lzyumiRawProfile)
+            ? lzyumi.lzyumiRawProfile
+            : undefined,
       lzyumiRecentStat: lzyumi?.lzyumiRecentStat,
       lzyumiRankedGames: lzyumi?.lzyumiRankedGames,
       kookUsername: body.kookUsername === undefined ? undefined : clean(body.kookUsername),

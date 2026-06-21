@@ -77,6 +77,14 @@ export async function POST(request: Request) {
   }
 
   if (verification.status !== "PENDING" || verification.expiresAt < new Date()) {
+    const alreadyLinkedToThisKook =
+      verification.profile.kookId === kookUserId &&
+      verification.profile.verificationStatus === "VERIFIED";
+
+    if (alreadyLinkedToThisKook) {
+      return confirmedProfileResponse("KOOK verification already confirmed", verification.profile);
+    }
+
     return NextResponse.json({ message: "Code is not active" }, { status: 409 });
   }
 

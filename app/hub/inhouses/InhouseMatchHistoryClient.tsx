@@ -311,17 +311,19 @@ const statLabels = [
   ["Barons", "barons"],
 ] as const;
 
+const visibleMatches = matches.filter((match) => match.id === "IH - 001");
+
 function getMatchSlug(matchId: string) {
   return matchId.toLowerCase().replace(/\s*-\s*/g, "-").replace(/\s+/g, "-");
 }
 
 function findMatchBySlug(matchId: string) {
-  return matches.find((match) => getMatchSlug(match.id) === matchId) ?? matches[0];
+  return visibleMatches.find((match) => getMatchSlug(match.id) === matchId) ?? visibleMatches[0];
 }
 
 export function InhouseMatchHistoryClient() {
-  const recentMatches = matches.slice(0, 5);
-  const [selectedId, setSelectedId] = useState(matches[0].id);
+  const recentMatches = visibleMatches.slice(0, 5);
+  const [selectedId, setSelectedId] = useState(visibleMatches[0].id);
   const selected = useMemo(
     () => recentMatches.find((match) => match.id === selectedId) ?? recentMatches[0],
     [selectedId],
@@ -416,7 +418,7 @@ export function InhouseArchiveClient() {
           <span>Duration</span>
           <span />
         </div>
-        {matches.map((match) => (
+        {visibleMatches.map((match) => (
           <Link
             key={match.id}
             href={`/hub/inhouses/${getMatchSlug(match.id)}`}

@@ -14,12 +14,7 @@ export function middleware(req: NextRequest) {
     const basicAuth = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
 
     if (authHeader !== basicAuth) {
-      return new NextResponse("Auth required", {
-        status: 401,
-        headers: {
-          "WWW-Authenticate": 'Basic realm="Secure Area"',
-        },
-      });
+      return new NextResponse("Admin access required", { status: 403 });
     }
   }
 

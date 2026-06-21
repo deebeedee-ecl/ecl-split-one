@@ -144,6 +144,7 @@ export default function RootLayout({
               </Link>
               <Link
                 href="/admin"
+                prefetch={false}
                 className="transition duration-200 hover:text-white"
               >
                 Admin Login

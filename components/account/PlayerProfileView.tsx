@@ -6,6 +6,12 @@ import type { ReactNode } from "react";
 import { BarChart3, CheckCircle2, Crown, Sparkles, Trophy, UserCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import {
+  formatLzyumiRank as formatSharedLzyumiRank,
+  getLzyumiRankRows as getSharedLzyumiRankRows,
+  isSafeProfileImageUrl,
+  lzyumiTierColor as getSharedLzyumiTierColor,
+} from "@/lib/hub-profile";
 import { getChinaServerDisplayName, getCountryOption } from "./account-options";
 import { flushPendingProfile, getAccessToken, loadProfile, type SignupProfilePayload } from "./client-account";
 
@@ -338,7 +344,7 @@ export default function PlayerProfileView() {
     .slice(0, 2)
     .toUpperCase();
   const showRiotId = profile.privacySettings?.showRiotId ?? true;
-  const ranks = getRankRows(profile.lzyumiRawProfile);
+  const ranks = getSharedLzyumiRankRows(profile.lzyumiRawProfile, profile.currentRank);
   const recentGames = getCombinedRankedGames(profile.lzyumiRankedGames);
   const seasonChamps = getSeasonChampStats(profile.lzyumiRecentStat);
   const seasonStats = getSeasonStats(profile.lzyumiRawProfile, profile.lzyumiRecentStat);
@@ -348,22 +354,24 @@ export default function PlayerProfileView() {
     profile.chinaServerName,
   );
   const bannerPositionY = profile.privacySettings?.bannerPositionY ?? 50;
+  const safeBannerUrl = isSafeProfileImageUrl(profile.bannerUrl) ? profile.bannerUrl : null;
+  const safeAvatarUrl = isSafeProfileImageUrl(profile.avatarUrl) ? profile.avatarUrl : null;
   const isKookVerified = profile.verificationStatus === "VERIFIED";
   const nextStatsRefreshAt = getNextStatsRefreshAt(profile);
   const nextStatsRefreshLabel = formatRefreshCountdown(nextStatsRefreshAt, now);
 
-  const soloRank = formatRank(ranks.solo);
-  const flexRank = formatRank(ranks.flex);
+  const soloRank = formatSharedLzyumiRank(ranks.solo);
+  const flexRank = formatSharedLzyumiRank(ranks.flex);
 
   return (
     <div className="space-y-5">
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
         {/* Hero card */}
         <div className="relative overflow-hidden rounded-[1.7rem] border border-white/[0.08] bg-[#191a1f] shadow-[0_24px_70px_rgba(0,0,0,0.42)]">
-          {profile.bannerUrl ? (
+          {safeBannerUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={profile.bannerUrl}
+              src={safeBannerUrl}
               alt=""
               className="h-44 w-full object-cover"
               style={{ objectPosition: `50% ${bannerPositionY}%` }}
@@ -373,9 +381,9 @@ export default function PlayerProfileView() {
           )}
           <div className="-mt-14 flex flex-col gap-6 px-7 pb-7 md:flex-row md:items-end">
             <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-[1.7rem] bg-[#24262d] text-4xl font-black text-white ring-4 ring-[#191a1f]">
-              {profile.avatarUrl ? (
+              {safeAvatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
+                <img src={safeAvatarUrl} alt="" className="h-full w-full object-cover" />
               ) : (
                 initials
               )}
@@ -430,7 +438,7 @@ export default function PlayerProfileView() {
                     label="Solo/Duo"
                     tier={soloRank.label}
                     lp={soloRank.lp}
-                    color={getTierColor(ranks.solo?.tier)}
+                    color={getSharedLzyumiTierColor(ranks.solo?.tier)}
                   />
                 )}
                 {ranks.flex && (
@@ -438,7 +446,7 @@ export default function PlayerProfileView() {
                     label="Flex"
                     tier={flexRank.label}
                     lp={flexRank.lp}
-                    color={getTierColor(ranks.flex?.tier)}
+                    color={getSharedLzyumiTierColor(ranks.flex?.tier)}
                   />
                 )}
                 {!ranks.solo && !ranks.flex && (
