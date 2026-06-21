@@ -15,7 +15,7 @@ import {
 import { getChinaServerDisplayName, getCountryOption } from "./account-options";
 import { flushPendingProfile, getAccessToken, loadProfile, type SignupProfilePayload } from "./client-account";
 
-type AccountProfile = SignupProfilePayload & {
+export type AccountProfile = SignupProfilePayload & {
   id: string;
   email: string;
   verificationStatus: string;
@@ -262,13 +262,21 @@ function shouldRefreshStats(profile: AccountProfile) {
   return Date.now() - lastLookupAt > STATS_REFRESH_INTERVAL_MS;
 }
 
-export default function PlayerProfileView() {
-  const [profile, setProfile] = useState<AccountProfile | null>(null);
-  const [hasSession, setHasSession] = useState(false);
-  const [loading, setLoading] = useState(true);
+export default function PlayerProfileView({
+  initialProfile,
+  showPersonalMatchPreview = true,
+}: {
+  initialProfile?: AccountProfile;
+  showPersonalMatchPreview?: boolean;
+} = {}) {
+  const [loadedProfile, setLoadedProfile] = useState<AccountProfile | null>(initialProfile ?? null);
+  const [hasSession, setHasSession] = useState(Boolean(initialProfile));
+  const [loading, setLoading] = useState(!initialProfile);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
+    if (initialProfile) return;
+
     async function boot() {
       setLoading(true);
 
@@ -278,7 +286,7 @@ export default function PlayerProfileView() {
       if (data.session) {
         await flushPendingProfile().catch(() => null);
         const loaded = await loadProfile();
-        setProfile(loaded);
+        setLoadedProfile(loaded);
 
         // Auto-refresh when stats are missing or the cached ecl.gg snapshot is stale.
         if (loaded && shouldRefreshStats(loaded)) {
@@ -290,7 +298,7 @@ export default function PlayerProfileView() {
                 headers: { Authorization: `Bearer ${token}` },
               });
               if (res.ok) {
-                setProfile(await loadProfile());
+                setLoadedProfile(await loadProfile());
               }
             }
           } catch {
@@ -303,12 +311,14 @@ export default function PlayerProfileView() {
     }
 
     boot();
-  }, []);
+  }, [initialProfile]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 60000);
     return () => window.clearInterval(interval);
   }, []);
+
+  const profile = initialProfile ?? loadedProfile;
 
   if (loading) {
     return (
@@ -498,7 +508,7 @@ export default function PlayerProfileView() {
         recentGames={recentGames}
       />
 
-      <ProfileMatchHistoryPreview />
+      {showPersonalMatchPreview && <ProfileMatchHistoryPreview />}
     </div>
   );
 }
