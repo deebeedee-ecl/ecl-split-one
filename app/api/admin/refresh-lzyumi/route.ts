@@ -48,6 +48,7 @@ export async function POST(request: Request) {
       id: true,
       displayName: true,
       riotName: true,
+      riotTag: true,
       openId: true,
       chinaServerId: true,
     },

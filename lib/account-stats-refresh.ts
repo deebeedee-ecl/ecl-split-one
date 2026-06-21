@@ -1,5 +1,11 @@
 import { Prisma } from "@prisma/client";
-import { fetchLzyumiRankedGames, fetchLzyumiRecentStat, lookupLzyumiProfile } from "@/lib/lzyumi";
+import {
+  fetchLzyumiRankedGames,
+  fetchLzyumiRecentStat,
+  lookupLzyumiIdentity,
+  lookupLzyumiProfile,
+} from "@/lib/lzyumi";
+import { formatLzyumiRank, getLzyumiRankRows } from "@/lib/hub-profile";
 import { prisma } from "@/lib/prisma";
 
 export const LZYUMI_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 12;
@@ -9,6 +15,7 @@ type RefreshableProfile = {
   openId: string | null;
   chinaServerId: number | null;
   riotName: string;
+  riotTag?: string | null;
 };
 
 function hasRankedGames(value: unknown) {
@@ -23,17 +30,36 @@ function hasRankedGames(value: unknown) {
 }
 
 function hasRankRows(value: unknown) {
-  if (!value || typeof value !== "object") return false;
+  const ranks = getLzyumiRankRows(value);
+  return Boolean(ranks.solo || ranks.flex);
+}
 
-  const profile = value as { battleInfo?: { mapOneInfoList?: unknown } };
-  const rows = profile.battleInfo?.mapOneInfoList;
+function getCurrentRankFromRawProfile(value: unknown) {
+  const ranks = getLzyumiRankRows(value);
+  const rank = ranks.solo ?? ranks.flex;
+  const formatted = formatLzyumiRank(rank);
 
-  return Array.isArray(rows) && rows.some((row) => {
-    if (!row || typeof row !== "object") return false;
+  return formatted.label === "Unranked" ? null : formatted.label;
+}
 
-    const tier = (row as { tier?: unknown }).tier;
-    return typeof tier === "string" && tier.trim().length > 0 && tier !== "-";
-  });
+async function lookupProfileForRefresh(profile: RefreshableProfile) {
+  if (profile.riotTag) {
+    const identity = await lookupLzyumiIdentity({
+      riotName: profile.riotName,
+      riotTag: profile.riotTag,
+      areaId: profile.chinaServerId!,
+    });
+
+    if (identity.status === "mismatch") {
+      throw new Error(
+        `ecl.gg resolved ${identity.resolvedName ?? "another account"} instead of ${profile.riotName}#${profile.riotTag}.`,
+      );
+    }
+
+    return identity.rawProfile;
+  }
+
+  return lookupLzyumiProfile({ riotName: profile.riotName, areaId: profile.chinaServerId! });
 }
 
 export async function refreshAccountProfileStats(profile: RefreshableProfile) {
@@ -45,9 +71,12 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
     };
   }
 
+  const lookupName = profile.riotTag
+    ? `${profile.riotName}#${profile.riotTag}`
+    : profile.riotName;
   const [rawProfile, rankedGames] = await Promise.allSettled([
-    lookupLzyumiProfile({ riotName: profile.riotName, areaId: profile.chinaServerId }),
-    fetchLzyumiRankedGames({ riotName: profile.riotName, areaId: profile.chinaServerId }),
+    lookupProfileForRefresh(profile),
+    fetchLzyumiRankedGames({ riotName: lookupName, areaId: profile.chinaServerId }),
   ]);
 
   const freshOpenId =
@@ -67,6 +96,7 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
   if (rawProfile.status === "fulfilled") {
     if (hasRankRows(rawProfile.value)) {
       updateData.lzyumiRawProfile = rawProfile.value as Prisma.InputJsonValue;
+      updateData.currentRank = getCurrentRankFromRawProfile(rawProfile.value);
     }
 
     if (freshOpenId) {

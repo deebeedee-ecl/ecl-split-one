@@ -12,7 +12,7 @@ export async function POST(request: Request) {
 
   const profile = await prisma.accountProfile.findUnique({
     where: { userId: account.id },
-    select: { id: true, openId: true, chinaServerId: true, riotName: true },
+    select: { id: true, openId: true, chinaServerId: true, riotName: true, riotTag: true },
   });
 
   if (!profile?.chinaServerId || !profile.riotName) {

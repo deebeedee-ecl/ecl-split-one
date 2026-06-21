@@ -287,22 +287,40 @@ export async function lookupLzyumiIdentity({
   baseUrl?: string;
 }): Promise<LzyumiIdentityResult> {
   const server = getChinaServer(areaId);
-  const rawProfile = await lookupLzyumiProfile({ riotName, areaId, baseUrl });
-  const resolvedName = rawProfile.battleInfo?.nameInfoNew;
-  const openId = rawProfile.battleInfo?.openId;
+  const lookupNames = Array.from(
+    new Set([riotName.trim(), `${riotName.trim()}#${riotTag.trim()}`]),
+  ).filter(Boolean);
+  let fallback: LzyumiIdentityResult | null = null;
 
-  if (!rawProfile.battleInfo || !openId || !resolvedName) {
-    return {
-      status: "not_found",
-      areaId: server.id,
-      areaName: server.name,
-      rawProfile,
-    };
-  }
+  for (const lookupName of lookupNames) {
+    const rawProfile = await lookupLzyumiProfile({ riotName: lookupName, areaId, baseUrl });
+    const resolvedName = rawProfile.battleInfo?.nameInfoNew;
+    const openId = rawProfile.battleInfo?.openId;
 
-  if (!isResolvedRiotIdMatch(resolvedName, riotName, riotTag)) {
+    if (!rawProfile.battleInfo || !openId || !resolvedName) {
+      fallback ??= {
+        status: "not_found",
+        areaId: server.id,
+        areaName: server.name,
+        rawProfile,
+      };
+      continue;
+    }
+
+    if (!isResolvedRiotIdMatch(resolvedName, riotName, riotTag)) {
+      fallback ??= {
+        status: "mismatch",
+        resolvedName,
+        areaId: server.id,
+        areaName: server.name,
+        rawProfile,
+      };
+      continue;
+    }
+
     return {
-      status: "mismatch",
+      status: "matched",
+      openId,
       resolvedName,
       areaId: server.id,
       areaName: server.name,
@@ -310,14 +328,7 @@ export async function lookupLzyumiIdentity({
     };
   }
 
-  return {
-    status: "matched",
-    openId,
-    resolvedName,
-    areaId: server.id,
-    areaName: server.name,
-    rawProfile,
-  };
+  return fallback!;
 }
 
 export async function fetchLzyumiRankedGames({

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAccountFromRequest } from "@/lib/account-auth";
 import { createUniqueKookVerification, getKookVerificationExpiresAt } from "@/lib/kook-verification";
+import { formatLzyumiRank, getLzyumiRankRows } from "@/lib/hub-profile";
 import { getChinaServer, fetchLzyumiRecentStat, fetchLzyumiRankedGames, lookupLzyumiIdentity } from "@/lib/lzyumi";
 
 type ProfilePayload = {
@@ -69,6 +70,14 @@ function hasLzyumiRankRows(value: unknown) {
   const rows = battleInfo?.mapOneInfoList ?? data?.mapOneInfoList;
 
   return Array.isArray(rows) && rows.length > 0;
+}
+
+function getCurrentRankFromRawProfile(value: unknown) {
+  const ranks = getLzyumiRankRows(value);
+  const rank = ranks.solo ?? ranks.flex;
+  const formatted = formatLzyumiRank(rank);
+
+  return formatted.label === "Unranked" ? null : formatted.label;
 }
 
 async function resolveLzyumiIdentity(body: ProfilePayload) {
@@ -141,6 +150,10 @@ function lzyumiData(body: ProfilePayload, result: Awaited<ReturnType<typeof reso
       recentStat && recentStat.data ? (recentStat as Prisma.InputJsonValue) : undefined,
     lzyumiRankedGames:
       hasRankedGames(rankedGames) ? (rankedGames as Prisma.InputJsonValue) : undefined,
+    currentRank:
+      identity?.status === "matched"
+        ? getCurrentRankFromRawProfile(identity.rawProfile)
+        : undefined,
   };
 }
 
@@ -242,7 +255,7 @@ export async function POST(request: Request) {
         wechatId: clean(body.wechatId) || null,
         primaryRole: clean(body.primaryRole),
         secondaryRole: clean(body.secondaryRole) || null,
-        currentRank: clean(body.currentRank) || null,
+        currentRank: lzyumi.currentRank ?? (clean(body.currentRank) || null),
         nationality: clean(body.nationality) || null,
         timezone: clean(body.timezone) || null,
         bio: clean(body.bio) || null,
@@ -272,7 +285,7 @@ export async function POST(request: Request) {
         wechatId: clean(body.wechatId) || null,
         primaryRole: clean(body.primaryRole),
         secondaryRole: clean(body.secondaryRole) || null,
-        currentRank: clean(body.currentRank) || null,
+        currentRank: lzyumi.currentRank ?? (clean(body.currentRank) || null),
         nationality: clean(body.nationality) || null,
         timezone: clean(body.timezone) || null,
         bio: clean(body.bio) || null,
@@ -385,7 +398,9 @@ export async function PATCH(request: Request) {
       wechatId: body.wechatId === undefined ? undefined : clean(body.wechatId) || null,
       primaryRole: body.primaryRole === undefined ? undefined : clean(body.primaryRole),
       secondaryRole: body.secondaryRole === undefined ? undefined : clean(body.secondaryRole) || null,
-      currentRank: body.currentRank === undefined ? undefined : clean(body.currentRank) || null,
+      currentRank:
+        lzyumi?.currentRank ??
+        (body.currentRank === undefined ? undefined : clean(body.currentRank) || null),
       nationality: body.nationality === undefined ? undefined : clean(body.nationality) || null,
       timezone: body.timezone === undefined ? undefined : clean(body.timezone) || null,
       bio: body.bio === undefined ? undefined : clean(body.bio) || null,
