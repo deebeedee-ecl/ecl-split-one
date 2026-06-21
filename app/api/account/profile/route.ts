@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAccountFromRequest } from "@/lib/account-auth";
+import { refreshAccountProfileStats } from "@/lib/account-stats-refresh";
 import { createUniqueKookVerification, getKookVerificationExpiresAt } from "@/lib/kook-verification";
 import { formatLzyumiRank, getLzyumiRankRows } from "@/lib/hub-profile";
 import { getChinaServer, fetchLzyumiRecentStat, fetchLzyumiRankedGames, lookupLzyumiIdentity } from "@/lib/lzyumi";
@@ -78,6 +79,33 @@ function getCurrentRankFromRawProfile(value: unknown) {
   const formatted = formatLzyumiRank(rank);
 
   return formatted.label === "Unranked" ? null : formatted.label;
+}
+
+function needsInitialLzyumiRefresh(profile: {
+  lzyumiRawProfile?: unknown;
+  lzyumiRecentStat?: unknown;
+  lzyumiRankedGames?: unknown;
+}) {
+  return !profile.lzyumiRawProfile || !profile.lzyumiRecentStat || !profile.lzyumiRankedGames;
+}
+
+async function runInitialLzyumiRefresh(profile: {
+  id: string;
+  openId: string | null;
+  chinaServerId: number | null;
+  riotName: string;
+  riotTag: string | null;
+  lzyumiRawProfile?: unknown;
+  lzyumiRecentStat?: unknown;
+  lzyumiRankedGames?: unknown;
+}) {
+  if (!needsInitialLzyumiRefresh(profile)) return;
+
+  try {
+    await refreshAccountProfileStats(profile);
+  } catch (error) {
+    console.warn("Initial Lzyumi refresh failed:", error);
+  }
 }
 
 async function resolveLzyumiIdentity(body: ProfilePayload) {
@@ -219,7 +247,7 @@ export async function POST(request: Request) {
 
   const expiresAt = getKookVerificationExpiresAt();
 
-  const profile = await prisma.$transaction(async (tx) => {
+  let profile = await prisma.$transaction(async (tx) => {
     const user = await tx.user.upsert({
       where: {
         id: account.id,
@@ -329,6 +357,23 @@ export async function POST(request: Request) {
       },
     });
   });
+
+  if (profile) {
+    await runInitialLzyumiRefresh(profile);
+    profile = await prisma.accountProfile.findUnique({
+      where: {
+        id: profile.id,
+      },
+      include: {
+        kookVerifications: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+        },
+      },
+    });
+  }
 
   return NextResponse.json({ profile });
 }

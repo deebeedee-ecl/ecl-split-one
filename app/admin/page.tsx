@@ -9,6 +9,7 @@ import {
   Gauge,
   Home,
   KeyRound,
+  LogOut,
   Mail,
   MessageSquareText,
   Newspaper,
@@ -55,106 +56,103 @@ type ContactMessage = {
   createdAt: string;
 };
 
-const users = [
-  {
-    id: "usr-1",
-    player: "Jade Falcon",
-    email: "jade@ecl.gg",
-    kook: "jade.falcon",
-    riot: "JadeFalcon#2209",
-    wechat: "jadewx",
-    role: "Mid",
-    elo: 1984,
-  },
-  {
-    id: "usr-2",
-    player: "NightKiller",
-    email: "night@ecl.gg",
-    kook: "nightkiller",
-    riot: "NightKiller#1190",
-    wechat: "nightcn",
-    role: "Jungle",
-    elo: 1907,
-  },
-  {
-    id: "usr-3",
-    player: "ShadowHex",
-    email: "shadow@ecl.gg",
-    kook: "shadow.hex",
-    riot: "ShadowHex#0445",
-    wechat: "shadowlol",
-    role: "Bot",
-    elo: 1842,
-  },
-  {
-    id: "usr-4",
-    player: "GhostHunter",
-    email: "ghost@ecl.gg",
-    kook: "ghosthunter",
-    riot: "GhostHunter#3320",
-    wechat: "ghostsup",
-    role: "Support",
-    elo: 1729,
-  },
-];
+type AdminOverview = {
+  metrics: {
+    players: number;
+    gamesPlayed: number;
+    newSignups: number;
+    openReports: number;
+  };
+  users: Array<{
+    id: string;
+    player: string;
+    email: string;
+    kook: string;
+    riot: string;
+    wechat: string;
+    role: string;
+    rank: string;
+    accountStatus: string;
+    verificationStatus: string;
+  }>;
+  matches: Array<{
+    id: string;
+    date: string;
+    blue: string;
+    red: string;
+    score: string;
+    duration: string;
+    status: string;
+    label: string;
+  }>;
+  recentNotes: Array<{
+    id: string;
+    text: string;
+    createdAt: string;
+  }>;
+  adminUsers: Array<{
+    email: string;
+    role: string;
+  }>;
+  newsDrafts: Array<{
+    type: string;
+    title: string;
+    status: string;
+  }>;
+};
 
-const matches = [
-  {
-    id: "M-1042",
-    date: "Jun 15",
-    time: "21:04",
-    blue: "Jade Stack",
-    red: "Night Squad",
-    score: "32 - 24",
-    duration: "34:12",
-    status: "Reported",
+const emptyOverview: AdminOverview = {
+  metrics: {
+    players: 0,
+    gamesPlayed: 0,
+    newSignups: 0,
+    openReports: 0,
   },
-  {
-    id: "M-1041",
-    date: "Jun 15",
-    time: "20:12",
-    blue: "Shadow Lane",
-    red: "Ghost Peel",
-    score: "18 - 29",
-    duration: "31:08",
-    status: "Needs Review",
-  },
-  {
-    id: "M-1040",
-    date: "Jun 14",
-    time: "22:38",
-    blue: "Mid Gap",
-    red: "River Control",
-    score: "41 - 35",
-    duration: "39:44",
-    status: "Reported",
-  },
-];
-
-const newsDrafts = [
-  {
-    type: "Patch Notes",
-    title: "Hub v1 is under development",
-    status: "Draft",
-  },
-  {
-    type: "Event",
-    title: "Ranked inhouse test night",
-    status: "Ready",
-  },
-  {
-    type: "Announcement",
-    title: "KOOK queue flow preview",
-    status: "Draft",
-  },
-];
+  users: [],
+  matches: [],
+  recentNotes: [],
+  adminUsers: [],
+  newsDrafts: [],
+};
 
 export default function AdminPage() {
   const [active, setActive] = useState<AdminSection>("dashboard");
+  const [overview, setOverview] = useState<AdminOverview>(emptyOverview);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [overviewError, setOverviewError] = useState("");
   const activeLabel = useMemo(
     () => sections.find((section) => section.id === active)?.label ?? "Dashboard",
     [active]
   );
+
+  async function loadOverview() {
+    setOverviewLoading(true);
+    setOverviewError("");
+
+    try {
+      const response = await fetch("/api/admin/overview", { cache: "no-store" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not load admin overview.");
+      }
+
+      setOverview(data);
+    } catch (error) {
+      setOverviewError(error instanceof Error ? error.message : "Could not load admin overview.");
+    } finally {
+      setOverviewLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadOverview();
+  }, []);
+
+  async function logout() {
+    await fetch("/api/admin/logout", { method: "POST" });
+    window.location.href = "/admin/login";
+  }
 
   return (
     <main className="fixed inset-0 z-[300] overflow-auto bg-[#050505] text-white">
@@ -185,6 +183,14 @@ export default function AdminPage() {
           </nav>
 
           <div className="mt-auto pt-8">
+            <button
+              type="button"
+              onClick={logout}
+              className="mb-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#2b2b2b] bg-[#101010] text-xs font-black uppercase tracking-[0.08em] text-white transition hover:border-[#b11226] hover:bg-[#b11226]"
+            >
+              <LogOut size={15} />
+              Sign Out
+            </button>
             <Link
               href="/"
               className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#2b2b2b] bg-[#101010] text-xs font-black uppercase tracking-[0.08em] text-white transition hover:border-[#b11226] hover:bg-[#b11226]"
@@ -212,13 +218,18 @@ export default function AdminPage() {
           </div>
 
           <div className="mt-6">
-            {active === "dashboard" && <DashboardSection />}
-            {active === "users" && <UsersSection />}
-            {active === "matches" && <MatchesSection />}
+            {overviewError && (
+              <p className="mb-4 rounded-xl border border-[#b11226]/40 bg-[#b11226]/10 p-4 text-sm font-bold text-[#ff8c9a]">
+                {overviewError}
+              </p>
+            )}
+            {active === "dashboard" && <DashboardSection overview={overview} loading={overviewLoading} />}
+            {active === "users" && <UsersSection users={overview.users} loading={overviewLoading} />}
+            {active === "matches" && <MatchesSection matches={overview.matches} loading={overviewLoading} />}
             {active === "elo" && <EloSection />}
-            {active === "admins" && <AdminsSection />}
+            {active === "admins" && <AdminsSection admins={overview.adminUsers} loading={overviewLoading} />}
             {active === "messages" && <MessagesSection />}
-            {active === "news" && <NewsSection />}
+            {active === "news" && <NewsSection drafts={overview.newsDrafts} loading={overviewLoading} />}
           </div>
         </section>
       </div>
@@ -226,32 +237,37 @@ export default function AdminPage() {
   );
 }
 
-function DashboardSection() {
+function DashboardSection({
+  overview,
+  loading,
+}: {
+  overview: AdminOverview;
+  loading: boolean;
+}) {
   return (
     <div className="space-y-5">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Players" value="124" note="+9 this week" icon={Users} />
-        <MetricCard label="Games Played" value="86" note="12 today" icon={Trophy} />
-        <MetricCard label="New Signups" value="18" note="Needs review" icon={Mail} />
-        <MetricCard label="Open Reports" value="3" note="Possible duplicates" icon={FileText} />
+        <MetricCard label="Players" value={loading ? "..." : String(overview.metrics.players)} note="Registered profiles" icon={Users} />
+        <MetricCard label="Games Played" value={loading ? "..." : String(overview.metrics.gamesPlayed)} note="Recorded games" icon={Trophy} />
+        <MetricCard label="New Signups" value={loading ? "..." : String(overview.metrics.newSignups)} note="Last 7 days" icon={Mail} />
+        <MetricCard label="Open Messages" value={loading ? "..." : String(overview.metrics.openReports)} note="Needs reply" icon={FileText} />
       </section>
 
       <LzyumiRefreshPanel />
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Panel title="Activity Overview" icon={Activity}>
-          <ActivityChart />
+          <ActivityChart metrics={overview.metrics} />
         </Panel>
         <Panel title="Recent Admin Notes" icon={PenSquare}>
           <div className="space-y-3">
-            {[
-              "Match M-1041 marked for review",
-              "Hub v1 patch notes saved as draft",
-              "ShadowHex ELO override queued",
-              "Two new KOOK IDs need verification",
-            ].map((item) => (
-              <div key={item} className="rounded-xl border border-[#242424] bg-[#101010] p-3 text-sm font-bold text-[#d8d8d8]">
-                {item}
+            {loading && <EmptyAdminState text="Loading recent activity..." />}
+            {!loading && overview.recentNotes.length === 0 && (
+              <EmptyAdminState text="No recent admin activity is available yet." />
+            )}
+            {overview.recentNotes.map((item) => (
+              <div key={item.id} className="rounded-xl border border-[#242424] bg-[#101010] p-3 text-sm font-bold text-[#d8d8d8]">
+                {item.text}
               </div>
             ))}
           </div>
@@ -323,7 +339,13 @@ function LzyumiRefreshPanel() {
   );
 }
 
-function UsersSection() {
+function UsersSection({
+  users,
+  loading,
+}: {
+  users: AdminOverview["users"];
+  loading: boolean;
+}) {
   return (
     <Panel title="Users" icon={Users}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -348,12 +370,26 @@ function UsersSection() {
             </tr>
           </thead>
           <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={6} className="px-4 py-4 text-[#8d8d8d]">
+                  Loading players...
+                </td>
+              </tr>
+            )}
+            {!loading && users.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-4 text-[#8d8d8d]">
+                  No registered player profiles yet.
+                </td>
+              </tr>
+            )}
             {users.map((user) => (
               <tr key={user.id} className="border-t border-[#242424]">
                 <td className="px-4 py-4">
                   <p className="font-black text-white">{user.player}</p>
                   <p className="text-xs text-[#8d8d8d]">
-                    {user.role} / {user.elo} ELO
+                    {user.role} / {user.rank} / {user.accountStatus} / {user.verificationStatus}
                   </p>
                 </td>
                 <td className="px-4 py-4 text-[#cfcfcf]">{user.email}</td>
@@ -375,7 +411,13 @@ function UsersSection() {
   );
 }
 
-function MatchesSection() {
+function MatchesSection({
+  matches,
+  loading,
+}: {
+  matches: AdminOverview["matches"];
+  loading: boolean;
+}) {
   return (
     <div className="grid gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]">
       <Panel title="Report Calendar" icon={CalendarDays}>
@@ -396,6 +438,10 @@ function MatchesSection() {
       </Panel>
       <Panel title="Match Reports" icon={FileText}>
         <div className="space-y-3">
+          {loading && <EmptyAdminState text="Loading matches..." />}
+          {!loading && matches.length === 0 && (
+            <EmptyAdminState text="No matches have been recorded yet." />
+          )}
           {matches.map((match) => (
             <div key={match.id} className="rounded-xl border border-[#242424] bg-[#101010] p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -404,7 +450,7 @@ function MatchesSection() {
                     {match.blue} {match.score} {match.red}
                   </p>
                   <p className="mt-1 text-xs font-semibold text-[#8d8d8d]">
-                    {match.id} / {match.date} {match.time} / {match.duration}
+                    {match.label} / {new Date(match.date).toLocaleString()} / {match.duration}
                   </p>
                 </div>
                 <span className="rounded-full bg-[#b11226]/15 px-3 py-1 text-xs font-black text-[#ff5b70]">
@@ -428,41 +474,37 @@ function EloSection() {
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
       <Panel title="ELO / LP Rules" icon={Gauge}>
-        <div className="grid gap-3 md:grid-cols-2">
-          <ConfigCard label="Base win LP" value="+24" />
-          <ConfigCard label="Base loss LP" value="-18" />
-          <ConfigCard label="MVP bonus" value="+4" />
-          <ConfigCard label="SVP protection" value="+3 loss reduction" />
-          <ConfigCard label="Streak bonus" value="+2 after 3 wins" />
-          <ConfigCard label="Rating floor" value="800 ELO" />
-        </div>
+        <EmptyAdminState text="ELO rule configuration is not stored in the database yet." />
       </Panel>
       <Panel title="Manual ELO Override" icon={Edit3}>
-        <div className="space-y-3">
-          <MockInput label="Player" value="ShadowHex" />
-          <MockInput label="New ELO" value="1865" />
-          <MockInput label="Admin Reason" value="Corrected duplicate match report" />
-          <button className="min-h-11 w-full rounded-xl bg-[#b11226] text-xs font-black uppercase tracking-[0.08em]">
-            Save Override
-          </button>
-        </div>
+        <EmptyAdminState text="Manual ELO overrides need an audit-log model before they can be enabled." />
       </Panel>
     </div>
   );
 }
 
-function AdminsSection() {
+function AdminsSection({
+  admins,
+  loading,
+}: {
+  admins: AdminOverview["adminUsers"];
+  loading: boolean;
+}) {
   return (
     <Panel title="Admin Users" icon={UserCog}>
       <div className="grid gap-4 lg:grid-cols-3">
-        {["owner@ecl.gg", "ops@ecl.gg", "matchadmin@ecl.gg"].map((email, index) => (
-          <div key={email} className="rounded-xl border border-[#242424] bg-[#101010] p-4">
+        {loading && <EmptyAdminState text="Loading admin users..." />}
+        {!loading && admins.length === 0 && (
+          <EmptyAdminState text="Admin users are controlled by environment variables and no display email is configured." />
+        )}
+        {admins.map((admin) => (
+          <div key={admin.email} className="rounded-xl border border-[#242424] bg-[#101010] p-4">
             <p className="flex items-center gap-2 text-sm font-black">
               <Mail size={15} />
-              {email}
+              {admin.email}
             </p>
             <p className="mt-2 text-xs font-semibold text-[#8d8d8d]">
-              {index === 0 ? "Owner Admin" : "Admin"}
+              {admin.role}
             </p>
             <div className="mt-4 flex gap-2">
               <ActionButton label="Reset Password" icon={KeyRound} />
@@ -598,12 +640,22 @@ function MessagesSection() {
   );
 }
 
-function NewsSection() {
+function NewsSection({
+  drafts,
+  loading,
+}: {
+  drafts: AdminOverview["newsDrafts"];
+  loading: boolean;
+}) {
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
       <Panel title="News Drafts" icon={Newspaper}>
         <div className="space-y-3">
-          {newsDrafts.map((draft) => (
+          {loading && <EmptyAdminState text="Loading news drafts..." />}
+          {!loading && drafts.length === 0 && (
+            <EmptyAdminState text="No news draft data source exists yet." />
+          )}
+          {drafts.map((draft) => (
             <div key={draft.title} className="rounded-xl border border-[#242424] bg-[#101010] p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -626,14 +678,7 @@ function NewsSection() {
         </div>
       </Panel>
       <Panel title="Create News Item" icon={Plus}>
-        <div className="space-y-3">
-          <MockInput label="Template" value="Patch Notes / Event / Announcement" />
-          <MockInput label="Title" value="Hub v1 Update" />
-          <MockInput label="Image" value="Upload hero image" />
-          <button className="min-h-11 w-full rounded-xl bg-[#b11226] text-xs font-black uppercase tracking-[0.08em]">
-            Save Draft
-          </button>
-        </div>
+        <EmptyAdminState text="News drafts need a database model before publishing tools can be enabled." />
       </Panel>
     </div>
   );
@@ -735,45 +780,36 @@ function ActionButton({
   );
 }
 
-function ConfigCard({ label, value }: { label: string; value: string }) {
+function EmptyAdminState({ text }: { text: string }) {
   return (
-    <div className="rounded-xl border border-[#242424] bg-[#101010] p-4">
-      <p className="text-xs font-bold text-[#8d8d8d]">{label}</p>
-      <p className="mt-2 text-xl font-black text-white">{value}</p>
+    <div className="rounded-xl border border-[#242424] bg-[#101010] p-4 text-sm font-bold text-[#8d8d8d]">
+      {text}
     </div>
   );
 }
 
-function MockInput({ label, value }: { label: string; value: string }) {
-  return (
-    <label className="block">
-      <span className="text-xs font-black uppercase tracking-[0.12em] text-[#8d8d8d]">
-        {label}
-      </span>
-      <span className="mt-2 block rounded-xl border border-[#242424] bg-[#101010] px-4 py-3 text-sm font-bold text-[#cfcfcf]">
-        {value}
-      </span>
-    </label>
-  );
-}
-
-function ActivityChart() {
-  const values = [7, 11, 18, 13, 9, 5, 10, 15, 4, 12, 8, 10];
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function ActivityChart({ metrics }: { metrics: AdminOverview["metrics"] }) {
+  const values = [
+    { label: "Players", value: metrics.players },
+    { label: "Games", value: metrics.gamesPlayed },
+    { label: "Signups", value: metrics.newSignups },
+    { label: "Open", value: metrics.openReports },
+  ];
+  const maxValue = Math.max(...values.map((item) => item.value), 1);
 
   return (
     <div className="h-72">
       <div className="flex h-56 items-end gap-3 border-b border-[#242424] px-1">
-        {values.map((value, index) => (
-          <div key={months[index]} className="flex flex-1 flex-col items-center gap-3">
+        {values.map((item, index) => (
+          <div key={item.label} className="flex flex-1 flex-col items-center gap-3">
             <div
               className={`w-full max-w-12 rounded-t-2xl ${
                 index === 2 ? "bg-[#b11226]" : "bg-[#292929]"
               }`}
-              style={{ height: `${value * 9}px` }}
+              style={{ height: `${Math.max(10, (item.value / maxValue) * 180)}px` }}
             />
             <span className="text-[0.68rem] font-semibold text-[#777]">
-              {months[index]}
+              {item.label}
             </span>
           </div>
         ))}

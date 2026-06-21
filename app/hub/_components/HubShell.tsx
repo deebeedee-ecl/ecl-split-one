@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { HubLogoutButton } from "./HubLogoutButton";
+import { HubAccessGate } from "./HubAccessGate";
 
 type HubSection =
   | "dashboard"
@@ -85,7 +86,9 @@ export function HubShell({
               </div>
             </div>
           )}
-          {children}
+          <HubAccessGate allowProfileSetup={active === "settings"}>
+            {children}
+          </HubAccessGate>
         </section>
       </div>
     </main>

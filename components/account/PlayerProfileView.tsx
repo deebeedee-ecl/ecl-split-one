@@ -309,6 +309,7 @@ export default function PlayerProfileView({
 
     async function boot() {
       setLoading(true);
+      setLoadedProfile(null);
 
       const { data } = await supabase.auth.getSession();
       setHasSession(Boolean(data.session));
