@@ -130,7 +130,10 @@ export default function AdminPage() {
     setOverviewError("");
 
     try {
-      const response = await fetch("/api/admin/overview", { cache: "no-store" });
+      const response = await fetch("/api/admin/overview", {
+        cache: "no-store",
+        credentials: "include",
+      });
       const data = await response.json();
 
       if (!response.ok) {
@@ -223,7 +226,7 @@ export default function AdminPage() {
                 {overviewError}
               </p>
             )}
-            {active === "dashboard" && <DashboardSection overview={overview} loading={overviewLoading} />}
+            {active === "dashboard" && <DashboardSection overview={overview} loading={overviewLoading} setActive={setActive} />}
             {active === "users" && <UsersSection users={overview.users} loading={overviewLoading} />}
             {active === "matches" && <MatchesSection matches={overview.matches} loading={overviewLoading} />}
             {active === "elo" && <EloSection />}
@@ -240,10 +243,14 @@ export default function AdminPage() {
 function DashboardSection({
   overview,
   loading,
+  setActive,
 }: {
   overview: AdminOverview;
   loading: boolean;
+  setActive: (section: AdminSection) => void;
 }) {
+  const recentUsers = overview.users.slice(0, 5);
+
   return (
     <div className="space-y-5">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -255,24 +262,50 @@ function DashboardSection({
 
       <LzyumiRefreshPanel />
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_26rem]">
         <Panel title="Activity Overview" icon={Activity}>
           <ActivityChart metrics={overview.metrics} />
         </Panel>
-        <Panel title="Recent Admin Notes" icon={PenSquare}>
+        <Panel title="Recent Users" icon={Users}>
           <div className="space-y-3">
-            {loading && <EmptyAdminState text="Loading recent activity..." />}
-            {!loading && overview.recentNotes.length === 0 && (
-              <EmptyAdminState text="No recent admin activity is available yet." />
+            {loading && <EmptyAdminState text="Loading users..." />}
+            {!loading && recentUsers.length === 0 && (
+              <EmptyAdminState text="No registered player profiles yet." />
             )}
-            {overview.recentNotes.map((item) => (
-              <div key={item.id} className="rounded-xl border border-[#242424] bg-[#101010] p-3 text-sm font-bold text-[#d8d8d8]">
-                {item.text}
+            {recentUsers.map((user) => (
+              <div key={user.id} className="rounded-xl border border-[#242424] bg-[#101010] p-3">
+                <p className="text-sm font-black text-white">{user.player}</p>
+                <p className="mt-1 text-xs font-semibold text-[#8d8d8d]">
+                  {user.riot} / {user.accountStatus} / {user.verificationStatus}
+                </p>
               </div>
             ))}
+            {recentUsers.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setActive("users")}
+                className="w-full rounded-xl bg-white/[0.06] px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#d8d8d8] transition hover:bg-[#b11226]"
+              >
+                View all users
+              </button>
+            )}
           </div>
         </Panel>
       </section>
+
+      <Panel title="Recent Admin Notes" icon={PenSquare}>
+        <div className="space-y-3">
+          {loading && <EmptyAdminState text="Loading recent activity..." />}
+          {!loading && overview.recentNotes.length === 0 && (
+            <EmptyAdminState text="No recent admin activity is available yet." />
+          )}
+          {overview.recentNotes.map((item) => (
+            <div key={item.id} className="rounded-xl border border-[#242424] bg-[#101010] p-3 text-sm font-bold text-[#d8d8d8]">
+              {item.text}
+            </div>
+          ))}
+        </div>
+      </Panel>
     </div>
   );
 }
@@ -290,6 +323,7 @@ function LzyumiRefreshPanel() {
     try {
       const response = await fetch("/api/admin/refresh-lzyumi", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ limit: 100 }),
       });
@@ -530,7 +564,10 @@ function MessagesSection() {
     setLoading(true);
     setError("");
 
-    const res = await fetch("/api/admin/contact-messages", { cache: "no-store" });
+    const res = await fetch("/api/admin/contact-messages", {
+      cache: "no-store",
+      credentials: "include",
+    });
 
     if (!res.ok) {
       setError("Could not load contact messages.");
@@ -545,6 +582,7 @@ function MessagesSection() {
   async function setMessageStatus(id: string, status: "new" | "resolved") {
     const res = await fetch("/api/admin/contact-messages", {
       method: "PATCH",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, status }),
     });
