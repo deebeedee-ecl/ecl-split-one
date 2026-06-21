@@ -2,7 +2,7 @@ import { STARTING_ELO } from "@/lib/elo";
 import { prisma } from "@/lib/prisma";
 
 export const RANKED_INHOUSE_CHANNEL_ID =
-  process.env.KOOK_RANKED_INHOUSE_CHANNEL_ID || "4175549527235352";
+  process.env.KOOK_RANKED_INHOUSE_CHANNEL_ID || "8024346698320304";
 export const BLUE_SIDE_CHANNEL_ID =
   process.env.KOOK_BLUE_SIDE_CHANNEL_ID || "3522831675586808";
 export const RED_SIDE_CHANNEL_ID =

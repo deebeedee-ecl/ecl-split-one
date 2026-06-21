@@ -15,7 +15,7 @@ x-ecl-kook-secret: <ECL_KOOK_BOT_SECRET>
 ## Channel IDs
 
 ```txt
-Ranked IH 1: 4175549527235352
+Ranked IH:   8024346698320304
 Blue Side:   3522831675586808
 Red Side:    9801310073341652
 ```
@@ -35,7 +35,7 @@ For `!inhouse`, the KOOK bot sends the current Ranked IH 1 voice members:
 ```json
 {
   "command": "!inhouse",
-  "channelId": "4175549527235352",
+  "channelId": "8024346698320304",
   "members": [
     { "id": "kook-user-id-1", "username": "Player 1" }
   ]
