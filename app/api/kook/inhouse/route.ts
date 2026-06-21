@@ -4,6 +4,7 @@ import {
   RANKED_INHOUSE_CHANNEL_ID,
   RED_SIDE_CHANNEL_ID,
   balanceInhouseTeams,
+  createInhouseSession,
   formatInhouseRoster,
   formatTeamList,
   normalizeInhouseMembers,
@@ -119,6 +120,11 @@ export async function POST(request: Request) {
   }
 
   const { blueTeam, redTeam } = balanceInhouseTeams(players);
+  const session = await createInhouseSession({
+    sourceChannelId: channelId,
+    blueTeam,
+    redTeam,
+  });
   const moveInstructions = [
     ...blueTeam.players.map((player) => ({
       kookUserId: player.kookUserId,
@@ -141,6 +147,7 @@ export async function POST(request: Request) {
       `Red Side (${redTeam.eloTotal} LP)\n${formatTeamList(redTeam)}`,
     blueTeam,
     redTeam,
+    session,
     moveInstructions,
   });
 }

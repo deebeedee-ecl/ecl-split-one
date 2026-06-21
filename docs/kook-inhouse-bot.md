@@ -58,11 +58,52 @@ The response includes:
 ```txt
 blueTeam
 redTeam
+session
 moveInstructions
 ```
 
 The KOOK bot should move every `moveInstructions[].kookUserId` to the matching
 `targetChannelId`.
+
+## Report Flow
+
+After the game, any player from that inhouse can type `!report`.
+
+The KOOK bot should call:
+
+```txt
+POST /api/kook/inhouse/report
+```
+
+Body:
+
+```json
+{
+  "command": "!report",
+  "reporterKookUserId": "kook-user-id"
+}
+```
+
+The site will:
+
+```txt
+1. Find the most recent active inhouse session containing that KOOK user.
+2. Look up the reporter's verified ECL profile.
+3. Fetch the reporter's latest Lzyumi match.
+4. Compare that match against the 10 players saved from !ready.
+5. Ingest the match only if the latest game matches the inhouse lobby.
+6. Apply LP changes and mark the inhouse session completed.
+```
+
+Responses:
+
+```txt
+INGESTED            Match was accepted and LP was applied.
+NO_ACTIVE_SESSION   Reporter was not found in an active saved inhouse.
+NO_LATEST_MATCH     Lzyumi has not exposed the latest match yet.
+MATCH_NOT_CONFIRMED Latest Lzyumi game did not match enough inhouse players.
+ALREADY_REPORTED    That Lzyumi game was already ingested.
+```
 
 ## ELO Source
 

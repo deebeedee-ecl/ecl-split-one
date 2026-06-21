@@ -27,6 +27,9 @@ export type ResolvedInhousePlayer = {
   kookUserId: string;
   displayName: string;
   riotId: string | null;
+  riotName: string | null;
+  riotTag: string | null;
+  email: string | null;
   elo: number;
   profileId: string | null;
   playerId: string | null;
@@ -182,6 +185,9 @@ export async function resolveInhousePlayers(
         kookUserId: member.id,
         displayName: member.username || member.id,
         riotId: null,
+        riotName: null,
+        riotTag: null,
+        email: null,
         elo: STARTING_ELO,
         profileId: null,
         playerId: null,
@@ -199,6 +205,9 @@ export async function resolveInhousePlayers(
       kookUserId: member.id,
       displayName: profile.displayName || member.username || member.id,
       riotId: formatRiotId(profile.riotName, profile.riotTag),
+      riotName: profile.riotName,
+      riotTag: cleanTag(profile.riotTag) || null,
+      email: profile.email,
       elo: player?.elo ?? STARTING_ELO,
       profileId: profile.id,
       playerId: player?.id ?? null,
@@ -268,4 +277,52 @@ export function formatTeamList(team: BalancedInhouseTeam) {
       return `- ${player.displayName}${riotId} - ${player.elo} LP`;
     })
     .join("\n");
+}
+
+export async function createInhouseSession({
+  sourceChannelId,
+  blueTeam,
+  redTeam,
+}: {
+  sourceChannelId: string;
+  blueTeam: BalancedInhouseTeam;
+  redTeam: BalancedInhouseTeam;
+}) {
+  return prisma.inhouseSession.create({
+    data: {
+      sourceChannelId,
+      blueChannelId: BLUE_SIDE_CHANNEL_ID,
+      redChannelId: RED_SIDE_CHANNEL_ID,
+      players: {
+        create: [
+          ...blueTeam.players.map((player) => ({
+            kookUserId: player.kookUserId,
+            profileId: player.profileId,
+            playerId: player.playerId,
+            displayName: player.displayName,
+            riotName: player.riotName,
+            riotTag: player.riotTag,
+            email: player.email,
+            side: "BLUE",
+            eloAtReady: player.elo,
+          })),
+          ...redTeam.players.map((player) => ({
+            kookUserId: player.kookUserId,
+            profileId: player.profileId,
+            playerId: player.playerId,
+            displayName: player.displayName,
+            riotName: player.riotName,
+            riotTag: player.riotTag,
+            email: player.email,
+            side: "RED",
+            eloAtReady: player.elo,
+          })),
+        ],
+      },
+    },
+    select: {
+      id: true,
+      createdAt: true,
+    },
+  });
 }

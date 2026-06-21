@@ -276,6 +276,51 @@ model MatchGamePlayerStat {
   @@index([isMVP])
 }
 
+model InhouseSession {
+  id               String                 @id @default(uuid())
+  status           String                 @default("ASSIGNED")
+  sourceChannelId  String
+  blueChannelId    String
+  redChannelId     String
+  blueTeamId       String?
+  redTeamId        String?
+  matchId          String?
+  matchGameId      String?
+  lzyumiGameId     String?                @unique
+  reportedByKookId String?
+  reportRawJson    Json?
+  createdAt        DateTime               @default(now())
+  completedAt      DateTime?
+  updatedAt        DateTime               @updatedAt
+  players          InhouseSessionPlayer[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([reportedByKookId])
+}
+
+model InhouseSessionPlayer {
+  id          String   @id @default(uuid())
+  sessionId   String
+  kookUserId  String
+  profileId   String?
+  playerId    String?
+  displayName String
+  riotName    String?
+  riotTag     String?
+  email       String?
+  side        String
+  eloAtReady  Int
+  createdAt   DateTime @default(now())
+
+  session InhouseSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, kookUserId])
+  @@index([sessionId])
+  @@index([kookUserId])
+  @@index([playerId])
+}
+
 enum MatchStage {
   REGULAR_SEASON
   PLAYOFFS
