@@ -21,6 +21,7 @@ export type LzyumiPlayerDetail = {
   detailChampionId?: string;
   nickName?: string;
   nickNameStr?: string;
+  duanweiInfo?: string;
   wasSvp?: string;
   wasMvp?: string;
   win?: string;
@@ -406,8 +407,100 @@ export function findPlayerInDetail(detail: LzyumiDetailResponse, openId: string)
   return detail.data?.wgBattleDetailInfo?.find((player) => player.openIdNow === openId) ?? null;
 }
 
+export function findPlayerInDetailByRiotId(
+  detail: LzyumiDetailResponse,
+  riotName: string,
+  riotTag: string,
+) {
+  const target = normalizeRiotId(riotName, riotTag);
+
+  return (
+    detail.data?.wgBattleDetailInfo?.find((player) => {
+      const names = [player.nickNameStr, player.nickName]
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.trim().toLowerCase());
+
+      return names.includes(target);
+    }) ?? null
+  );
+}
+
 export function firstRecentGame(profile: LzyumiLookupResponse) {
   return profile.data?.find((match) => typeof match.gameId === "string" && match.gameId) ?? null;
+}
+
+export type LzyumiRecoveredRank = {
+  tier: string;
+  winPoint?: number;
+  type: "Solo/Duo" | "Flex";
+};
+
+export type LzyumiRecoveredPlayer = {
+  openId: string;
+  queue: "solo" | "flex";
+  game: LzyumiRecentMatch;
+  player: LzyumiPlayerDetail;
+  rank: LzyumiRecoveredRank | null;
+};
+
+function parseDuanweiInfo(value: string | undefined, queue: "solo" | "flex") {
+  if (!value || value.includes("\u65e0\u6bb5\u4f4d")) return null;
+
+  const match = value.match(/^(.+?)\s*(\d+)\s*\u70b9/);
+
+  return {
+    tier: (match?.[1] ?? value).trim(),
+    winPoint: match?.[2] ? Number(match[2]) : undefined,
+    type: queue === "solo" ? "Solo/Duo" : "Flex",
+  } satisfies LzyumiRecoveredRank;
+}
+
+export async function recoverLzyumiPlayersFromRankedGames({
+  riotName,
+  riotTag,
+  areaId,
+  rankedGames,
+  baseUrl = defaultBaseUrl,
+}: {
+  riotName: string;
+  riotTag: string;
+  areaId: number;
+  rankedGames: { soloGames?: LzyumiRecentMatch[]; flexGames?: LzyumiRecentMatch[] };
+  baseUrl?: string;
+}) {
+  const recovered: LzyumiRecoveredPlayer[] = [];
+  const candidates: Array<{ queue: "solo" | "flex"; games: LzyumiRecentMatch[] }> = [
+    { queue: "solo", games: rankedGames.soloGames ?? [] },
+    { queue: "flex", games: rankedGames.flexGames ?? [] },
+  ];
+
+  for (const { queue, games } of candidates) {
+    for (const game of games.slice(0, 4)) {
+      if (!game.gameId) continue;
+
+      const detail = await fetchLzyumiMatchDetail({
+        openId: "",
+        gameId: game.gameId,
+        areaId,
+        baseUrl,
+      });
+      const player = findPlayerInDetailByRiotId(detail, riotName, riotTag);
+      const openId = player?.openIdNow;
+
+      if (!player || !openId) continue;
+
+      recovered.push({
+        openId,
+        queue,
+        game,
+        player,
+        rank: parseDuanweiInfo(player.duanweiInfo, queue),
+      });
+      break;
+    }
+  }
+
+  return recovered;
 }
 
 export async function fetchLatestLzyumiMatch({

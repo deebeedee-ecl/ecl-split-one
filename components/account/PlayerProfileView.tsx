@@ -103,6 +103,22 @@ function getCombinedRankedGames(rankedGamesRaw: unknown): LzyumiRecentGame[] {
   return all.slice(0, 10);
 }
 
+function parseRecentGameRole(titleTime: string | undefined): string | null {
+  if (!titleTime) return null;
+  const match = titleTime.match(/【([^】]+)】/);
+  if (!match) return null;
+
+  const map: Record<string, string> = {
+    "\u4e0a": "TOP",
+    "\u6253\u91ce": "JGL",
+    "\u4e2d": "MID",
+    "\u4e0b": "ADC",
+    "\u8f85": "SUP",
+  };
+
+  return map[match[1]] ?? null;
+}
+
 /** Get season champion stats from lzyumiRecentStat.data.recentState.common_use_champions */
 function getSeasonChampStats(recentStatRaw: unknown): SeasonChampStat[] {
   if (!recentStatRaw || typeof recentStatRaw !== "object") return [];
@@ -716,7 +732,7 @@ function ChampionsPanel({
                 const isSvp = game.wasSvp === "svp";
                 const title = game.title ?? "";
                 const mode = title.startsWith("单双") ? "Solo" : title.startsWith("灵活") ? "Flex" : "Ranked";
-                const role = parseRoleFromTitleTime(game.titleTime);
+                const role = parseRecentGameRole(game.titleTime) ?? parseRoleFromTitleTime(game.titleTime);
                 return (
                   <div key={i} className="flex flex-col items-center gap-1">
                     <div className="relative">

@@ -4,6 +4,9 @@ import {
   fetchLzyumiRecentStat,
   lookupLzyumiIdentity,
   lookupLzyumiProfile,
+  recoverLzyumiPlayersFromRankedGames,
+  type LzyumiLookupResponse,
+  type LzyumiRecoveredPlayer,
 } from "@/lib/lzyumi";
 import { formatLzyumiRank, getLzyumiRankRows } from "@/lib/hub-profile";
 import { prisma } from "@/lib/prisma";
@@ -40,6 +43,37 @@ function getCurrentRankFromRawProfile(value: unknown) {
   const formatted = formatLzyumiRank(rank);
 
   return formatted.label === "Unranked" ? null : formatted.label;
+}
+
+function withRecoveredProfileData({
+  rawProfile,
+  recovered,
+  riotName,
+  riotTag,
+  areaId,
+}: {
+  rawProfile: LzyumiLookupResponse;
+  recovered: LzyumiRecoveredPlayer[];
+  riotName: string;
+  riotTag: string;
+  areaId: number;
+}) {
+  const rankedRows = recovered
+    .map((item) => item.rank)
+    .filter((rank): rank is NonNullable<typeof rank> => Boolean(rank));
+
+  if (!recovered.length && !rankedRows.length) return rawProfile;
+
+  return {
+    ...rawProfile,
+    battleInfo: {
+      ...(rawProfile.battleInfo ?? {}),
+      nameInfoNew: `${riotName}#${riotTag}`,
+      openId: recovered[0]?.openId ?? rawProfile.battleInfo?.openId,
+      areaId,
+      mapOneInfoList: rankedRows,
+    },
+  } satisfies LzyumiLookupResponse;
 }
 
 async function lookupProfileForRefresh(profile: RefreshableProfile) {
@@ -81,7 +115,17 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
 
   const freshOpenId =
     rawProfile.status === "fulfilled" ? rawProfile.value.battleInfo?.openId ?? null : null;
-  const openId = freshOpenId ?? profile.openId;
+  const recoveredPlayers =
+    !freshOpenId && profile.riotTag && rankedGames.status === "fulfilled"
+      ? await recoverLzyumiPlayersFromRankedGames({
+          riotName: profile.riotName,
+          riotTag: profile.riotTag,
+          areaId: profile.chinaServerId,
+          rankedGames: rankedGames.value,
+        }).catch(() => [])
+      : [];
+  const recoveredOpenId = recoveredPlayers[0]?.openId ?? null;
+  const openId = freshOpenId ?? recoveredOpenId ?? profile.openId;
   const recentStat = openId
     ? await fetchLzyumiRecentStat({ openId, areaId: profile.chinaServerId }).then(
         (value) => ({ status: "fulfilled" as const, value }),
@@ -92,15 +136,28 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
   const updateData: Prisma.AccountProfileUpdateInput = {
     lzyumiLastLookupAt: new Date(),
   };
+  let storedRankRows = false;
 
   if (rawProfile.status === "fulfilled") {
-    if (hasRankRows(rawProfile.value)) {
-      updateData.lzyumiRawProfile = rawProfile.value as Prisma.InputJsonValue;
-      updateData.currentRank = getCurrentRankFromRawProfile(rawProfile.value);
+    const profileForStorage =
+      !hasRankRows(rawProfile.value) && profile.riotTag
+        ? withRecoveredProfileData({
+            rawProfile: rawProfile.value,
+            recovered: recoveredPlayers,
+            riotName: profile.riotName,
+            riotTag: profile.riotTag,
+            areaId: profile.chinaServerId,
+          })
+        : rawProfile.value;
+
+    if (hasRankRows(profileForStorage)) {
+      storedRankRows = true;
+      updateData.lzyumiRawProfile = profileForStorage as Prisma.InputJsonValue;
+      updateData.currentRank = getCurrentRankFromRawProfile(profileForStorage);
     }
 
-    if (freshOpenId) {
-      updateData.openId = freshOpenId;
+    if (freshOpenId || recoveredOpenId) {
+      updateData.openId = freshOpenId ?? recoveredOpenId;
     }
   }
 
@@ -135,7 +192,7 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
     rawProfile: rawProfile.status,
     rankedGames: rankedGames.status,
     recentStat: recentStat.status,
-    rankRows: rawProfile.status === "fulfilled" && hasRankRows(rawProfile.value),
+    rankRows: storedRankRows,
   };
 }
 
