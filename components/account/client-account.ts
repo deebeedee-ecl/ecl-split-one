@@ -36,6 +36,11 @@ export type SignupProfilePayload = {
 
 export const pendingProfileKey = "ecl.pendingSignupProfile";
 
+export function cleanSignupProfilePayload(payload: Partial<SignupProfilePayload> & Record<string, unknown>) {
+  const { email: _email, password: _password, ...profile } = payload;
+  return profile as Partial<SignupProfilePayload>;
+}
+
 export async function getAccessToken() {
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
@@ -235,7 +240,7 @@ export async function flushPendingProfile() {
   const raw = window.localStorage.getItem(pendingProfileKey);
   if (!raw) return null;
 
-  const payload = JSON.parse(raw) as SignupProfilePayload;
+  const payload = cleanSignupProfilePayload(JSON.parse(raw)) as SignupProfilePayload;
   const profile = await saveProfile(payload, "POST");
   window.localStorage.removeItem(pendingProfileKey);
   return profile;

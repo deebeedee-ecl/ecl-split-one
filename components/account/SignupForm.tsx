@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { AuthMediaPanel } from "./AuthMediaPanel";
 import {
+  cleanSignupProfilePayload,
   pendingProfileKey,
   saveProfile,
   type SignupProfilePayload,
@@ -46,6 +47,19 @@ const initialForm: SignupProfilePayload & { email: string; password: string } = 
   },
 };
 
+type SignupFormState = typeof initialForm;
+
+function getSignupErrorMessage(err: unknown) {
+  const message = err instanceof Error ? err.message : "Signup failed.";
+  const lowerMessage = message.toLowerCase();
+
+  if (lowerMessage.includes("email rate limit") || lowerMessage.includes("rate limit")) {
+    return "Email signup is temporarily busy. Please try again later or contact an ECL admin.";
+  }
+
+  return message;
+}
+
 export default function SignupForm() {
   const [form, setForm] = useState(initialForm);
   const [message, setMessage] = useState("");
@@ -53,14 +67,15 @@ export default function SignupForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const profilePayload = useMemo<SignupProfilePayload>(
-    () => ({
-      ...form,
-      championPool: initialForm.championPool,
-    }),
+    () =>
+      cleanSignupProfilePayload({
+        ...form,
+        championPool: initialForm.championPool,
+      }) as SignupProfilePayload,
     [form]
   );
 
-  function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+  function update<K extends keyof SignupFormState>(key: K, value: SignupFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -101,7 +116,7 @@ export default function SignupForm() {
         );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Signup failed.");
+      setError(getSignupErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }

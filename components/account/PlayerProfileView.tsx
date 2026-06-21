@@ -13,7 +13,13 @@ import {
   lzyumiTierColor as getSharedLzyumiTierColor,
 } from "@/lib/hub-profile";
 import { getChinaServerDisplayName, getCountryOption } from "./account-options";
-import { flushPendingProfile, getAccessToken, loadProfile, type SignupProfilePayload } from "./client-account";
+import {
+  flushPendingProfile,
+  getAccessToken,
+  loadProfile,
+  requestKookVerificationCode,
+  type SignupProfilePayload,
+} from "./client-account";
 
 export type AccountProfile = SignupProfilePayload & {
   id: string;
@@ -25,6 +31,11 @@ export type AccountProfile = SignupProfilePayload & {
   lzyumiRecentStat?: unknown;
   lzyumiRankedGames?: unknown;
   bannerUrl?: string | null;
+  kookVerifications?: Array<{
+    code: string;
+    status: string;
+    expiresAt: string;
+  }>;
 };
 
 type LzyumiRankRow = {
@@ -288,6 +299,9 @@ export default function PlayerProfileView({
   const [loadedProfile, setLoadedProfile] = useState<AccountProfile | null>(initialProfile ?? null);
   const [hasSession, setHasSession] = useState(Boolean(initialProfile));
   const [loading, setLoading] = useState(!initialProfile);
+  const [codeRequesting, setCodeRequesting] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState("");
+  const [verificationError, setVerificationError] = useState("");
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -383,14 +397,51 @@ export default function PlayerProfileView({
   const safeBannerUrl = isSafeProfileImageUrl(profile.bannerUrl) ? profile.bannerUrl : null;
   const safeAvatarUrl = isSafeProfileImageUrl(profile.avatarUrl) ? profile.avatarUrl : null;
   const isKookVerified = profile.verificationStatus === "VERIFIED";
+  const verification = profile.kookVerifications?.[0] ?? null;
   const nextStatsRefreshAt = getNextStatsRefreshAt(profile);
   const nextStatsRefreshLabel = formatRefreshCountdown(nextStatsRefreshAt, now);
 
   const soloRank = formatSharedLzyumiRank(ranks.solo);
   const flexRank = formatSharedLzyumiRank(ranks.flex);
 
+  async function requestFreshKookCode() {
+    setCodeRequesting(true);
+    setVerificationMessage("");
+    setVerificationError("");
+
+    try {
+      const nextVerification = await requestKookVerificationCode();
+      setLoadedProfile((current) =>
+        current
+          ? {
+              ...current,
+              kookVerifications: [nextVerification],
+            }
+          : current,
+      );
+      setVerificationMessage("New KOOK verification code is ready.");
+    } catch (err) {
+      setVerificationError(
+        err instanceof Error ? err.message : "Could not request a KOOK verification code.",
+      );
+    } finally {
+      setCodeRequesting(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
+      {!isKookVerified && (
+        <KookVerificationNotice
+          code={verification?.code ?? null}
+          expiresAt={verification?.expiresAt ?? null}
+          requesting={codeRequesting}
+          message={verificationMessage}
+          error={verificationError}
+          onRequestCode={requestFreshKookCode}
+        />
+      )}
+
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
         {/* Hero card */}
         <div className="relative overflow-hidden rounded-[1.7rem] border border-white/[0.08] bg-[#191a1f] shadow-[0_24px_70px_rgba(0,0,0,0.42)]">
@@ -855,6 +906,84 @@ function EmptyProfile({
       >
         {actionLabel}
       </Link>
+    </section>
+  );
+}
+
+function KookVerificationNotice({
+  code,
+  expiresAt,
+  requesting,
+  message,
+  error,
+  onRequestCode,
+}: {
+  code: string | null;
+  expiresAt: string | null;
+  requesting: boolean;
+  message: string;
+  error: string;
+  onRequestCode: () => void;
+}) {
+  const expiresAtMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+  const isExpired = Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now();
+  const expiryLabel =
+    expiresAt && Number.isFinite(expiresAtMs)
+      ? new Intl.DateTimeFormat(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(new Date(expiresAtMs))
+      : null;
+  const usableCode = code && !isExpired ? code : null;
+
+  return (
+    <section className="rounded-[1.4rem] border border-[#ffd84d]/35 bg-[#2a2110] p-5 shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#ffd84d]">
+            KOOK verification required
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-white">
+            Your profile is hidden until KOOK is linked.
+          </h2>
+          <div className="mt-4 grid gap-2 text-sm font-semibold leading-6 text-[#f2dfad]">
+            <p>1. Open KOOK and message the ECL verification bot.</p>
+            <p>
+              2. Send your code:
+              <span className="ml-2 inline-flex rounded-lg border border-[#ffd84d]/35 bg-black/25 px-2 py-1 font-black tracking-[0.12em] text-white">
+                {usableCode ?? "Request a fresh code"}
+              </span>
+            </p>
+            <p>3. Return to the Hub after the bot confirms your account.</p>
+          </div>
+          {expiryLabel && (
+            <p className="mt-3 text-xs font-bold text-[#cdbf95]">
+              {isExpired ? "This code expired" : "Code expires"} {expiryLabel}.
+            </p>
+          )}
+          {message && <p className="mt-3 text-sm font-bold text-[#ffd84d]">{message}</p>}
+          {error && <p className="mt-3 text-sm font-bold text-red-200">{error}</p>}
+        </div>
+
+        <div className="shrink-0">
+          <button
+            type="button"
+            onClick={onRequestCode}
+            disabled={requesting}
+            className="w-full rounded-xl bg-[#ff1728] px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#d91524] disabled:cursor-not-allowed disabled:opacity-60 lg:w-auto"
+          >
+            {requesting ? "Preparing code..." : usableCode ? "Refresh code" : "Get KOOK code"}
+          </button>
+          <Link
+            href="/hub/settings"
+            className="mt-3 block rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-black uppercase tracking-[0.12em] text-white transition hover:border-[#ffd84d]/45"
+          >
+            Profile settings
+          </Link>
+        </div>
+      </div>
     </section>
   );
 }
