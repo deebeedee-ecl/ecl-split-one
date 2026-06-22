@@ -245,15 +245,24 @@ function signedDetailUrl({
 }
 
 async function lzyumiFetch<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    cache: "no-store",
-    headers: {
-      Accept: "application/json, text/plain, */*",
-      Referer: "https://a.2025lol.top/",
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    },
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      signal: controller.signal,
+      cache: "no-store",
+      headers: {
+        Accept: "application/json, text/plain, */*",
+        Referer: "https://a.2025lol.top/",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!response.ok) {
     throw new Error(`Lzyumi request failed with HTTP ${response.status}`);
