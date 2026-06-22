@@ -472,26 +472,40 @@ export default function PlayerProfileView({
       const areaId = profile.chinaServerId;
 
       // Step 1: fetch reporter's profile from lzyumi (browser IP, bypasses block)
-      // filter=3 = Flex queue — ECL inhouses are played in Flex (灵活/满载SUV mode)
-      const signRes = await fetch(
-        `/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=3&allCount=10`,
+      // Try all known filters in parallel — inhouses are "新模式" (New Mode) which may
+      // appear in a different filter than ranked/ARAM. Use whichever returns a game first.
+      const LZYUMI_FILTERS = [1, 2, 3, 4, 5];
+      const signedUrls = await Promise.all(
+        LZYUMI_FILTERS.map((f) =>
+          fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=${f}&allCount=5`)
+            .then((r) => r.json())
+            .then(({ url }: { url: string }) => url),
+        ),
       );
-      const { url: profileUrl } = await signRes.json();
-      const rawProfile = await fetch(profileUrl).then((r) => r.json());
+      const filterResponses = await Promise.all(
+        signedUrls.map((url) => fetch(url).then((r) => r.json()).catch(() => null)),
+      );
 
-      const openId: string = rawProfile?.battleInfo?.openId ?? "";
+      // openId comes from battleInfo — any filter response will have it
+      const profileData = filterResponses.find((r) => r?.battleInfo?.openId);
+      const openId: string = profileData?.battleInfo?.openId ?? "";
 
-      // Search through all recent Flex games for one with a gameId
-      const recentGames: Array<{ gameId?: string }> = Array.isArray(rawProfile?.data) ? rawProfile.data : [];
-      const targetGame = recentGames.find((g) => g.gameId);
-      const gameId: string = targetGame?.gameId ?? "";
+      // Find the most recent game across all filters that has a gameId
+      let gameId = "";
+      let rawProfile = profileData;
+      for (const resp of filterResponses) {
+        const games: Array<{ gameId?: string }> = Array.isArray(resp?.data) ? resp.data : [];
+        const found = games.find((g) => g.gameId);
+        if (found?.gameId) {
+          gameId = found.gameId;
+          rawProfile = resp;
+          break;
+        }
+      }
 
       if (!openId || !gameId) {
-        const gamesReturned = recentGames.length;
         throw new Error(
-          gamesReturned === 0
-            ? "No recent Flex games found on lzyumi. Make sure you just finished an inhouse match."
-            : "Could not find a game ID in your recent games. Try again in a moment.",
+          "Could not find a recent game on lzyumi. Make sure you just finished an inhouse match.",
         );
       }
 
