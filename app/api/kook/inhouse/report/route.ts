@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { calculateLpChange } from "@/lib/elo";
-import { fetchLatestLzyumiMatch, getChinaServer, type LzyumiPlayerDetail } from "@/lib/lzyumi";
+import {
+  fetchLatestLzyumiMatch,
+  fetchLzyumiMatchDetail,
+  getChinaServer,
+  type LzyumiDetailResponse,
+  type LzyumiLookupResponse,
+  type LzyumiPlayerDetail,
+  type LzyumiRecentMatch,
+} from "@/lib/lzyumi";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -9,11 +17,18 @@ export const dynamic = "force-dynamic";
 const ACTIVE_SESSION_HOURS = 8;
 const REQUIRED_MATCHED_PLAYERS = 8;
 
+type RawMatchData = {
+  profile: LzyumiLookupResponse;
+  gameId: string;
+  detail: LzyumiDetailResponse;
+};
+
 type ReportBody = {
   command?: string;
   action?: string;
   kookUserId?: string;
   reporterKookUserId?: string;
+  rawMatchData?: RawMatchData;
 };
 
 type SessionPlayer = Awaited<ReturnType<typeof findActiveSessionForReporter>>["players"][number];
@@ -283,24 +298,63 @@ export async function POST(request: Request) {
   }
 
   const server = getChinaServer(reporterProfile.chinaServerId);
-  const latest = await fetchLatestLzyumiMatch({
-    riotName: reporterProfile.riotName,
-    areaId: server.id,
-  });
 
-  if (latest.status !== "found" || !latest.recentMatch?.gameId || !latest.detail) {
-    return NextResponse.json(
-      {
-        status: "NO_LATEST_MATCH",
-        reply: "I could not find a recent Lzyumi match for the reporter yet. Try again shortly.",
-      },
-      { status: 404 },
-    );
+  let recentMatch: LzyumiRecentMatch;
+  let matchDetail: LzyumiDetailResponse;
+
+  if (body.rawMatchData?.profile && body.rawMatchData?.gameId && body.rawMatchData?.detail) {
+    // Bot pre-fetched lzyumi data from residential IP — use it directly.
+    const { profile, gameId, detail } = body.rawMatchData;
+    const openId = profile.battleInfo?.openId;
+
+    if (!openId) {
+      return NextResponse.json(
+        {
+          status: "NO_LATEST_MATCH",
+          reply: "Pre-fetched lzyumi data is missing the player openId.",
+        },
+        { status: 404 },
+      );
+    }
+
+    // Fetch detail if not provided or incomplete
+    const detailPlayers = detail.data?.wgBattleDetailInfo;
+    if (!detailPlayers || detailPlayers.length === 0) {
+      const freshDetail = await fetchLzyumiMatchDetail({
+        openId,
+        gameId,
+        areaId: server.id,
+      });
+      matchDetail = freshDetail;
+    } else {
+      matchDetail = detail;
+    }
+
+    recentMatch = { gameId };
+  } else {
+    // Fall back to server-side fetch (works if not IP-blocked).
+    const latest = await fetchLatestLzyumiMatch({
+      riotName: reporterProfile.riotName,
+      areaId: server.id,
+    });
+
+    if (latest.status !== "found" || !latest.recentMatch?.gameId || !latest.detail) {
+      return NextResponse.json(
+        {
+          status: "NO_LATEST_MATCH",
+          reply: "I could not find a recent Lzyumi match for the reporter. If the bot supports it, ensure it passes match data directly.",
+        },
+        { status: 404 },
+      );
+    }
+
+    recentMatch = latest.recentMatch;
+    matchDetail = latest.detail;
   }
 
   const alreadyReported = await prisma.inhouseSession.findUnique({
     where: {
-      lzyumiGameId: latest.recentMatch.gameId,
+      lzyumiGameId: recentMatch.gameId,
     },
     select: {
       id: true,
@@ -319,7 +373,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const detailPlayers = latest.detail.data?.wgBattleDetailInfo ?? [];
+  const detailPlayers = matchDetail.data?.wgBattleDetailInfo ?? [];
   const detailByRiotKey = new Map<string, LzyumiPlayerDetail>();
 
   for (const player of detailPlayers) {
@@ -425,8 +479,8 @@ export async function POST(request: Request) {
       mvpName,
       ocrRawJson: toJson({
         source: "kook-inhouse-report",
-        recentMatch: latest.recentMatch,
-        detail: latest.detail,
+        recentMatch,
+        detail: matchDetail,
       }),
     },
   });
@@ -509,10 +563,10 @@ export async function POST(request: Request) {
       redTeamId: redTeam.id,
       matchId: match.id,
       matchGameId: game.id,
-      lzyumiGameId: latest.recentMatch.gameId,
+      lzyumiGameId: recentMatch.gameId,
       reportedByKookId: reporterKookUserId,
       reportRawJson: toJson({
-        recentMatch: latest.recentMatch,
+        recentMatch,
         reporterProfile,
       }),
       completedAt: new Date(),
@@ -528,7 +582,7 @@ export async function POST(request: Request) {
     sessionId: session.id,
     matchId: match.id,
     matchGameId: game.id,
-    lzyumiGameId: latest.recentMatch.gameId,
+    lzyumiGameId: recentMatch.gameId,
     appliedPlayers,
   });
 }

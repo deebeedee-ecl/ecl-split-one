@@ -256,27 +256,17 @@ function formatRank(row: LzyumiRankRow | null) {
 
 const STATS_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 12;
 
-function getNextStatsRefreshAt(profile: AccountProfile) {
-  if (!profile.lzyumiLastLookupAt) return null;
-
+function formatLastUpdated(profile: AccountProfile, now: number): string {
+  if (!profile.lzyumiLastLookupAt) return "Never";
   const lastLookupAt = new Date(profile.lzyumiLastLookupAt).getTime();
-  if (Number.isNaN(lastLookupAt)) return null;
-
-  return new Date(lastLookupAt + STATS_REFRESH_INTERVAL_MS);
-}
-
-function formatRefreshCountdown(nextRefreshAt: Date | null, now: number) {
-  if (!nextRefreshAt) return "Refresh pending";
-
-  const remainingMs = nextRefreshAt.getTime() - now;
-  if (remainingMs <= 0) return "Refresh queued";
-
-  const totalMinutes = Math.ceil(remainingMs / 60000);
+  if (Number.isNaN(lastLookupAt)) return "Unknown";
+  const diffMs = now - lastLookupAt;
+  const totalMinutes = Math.floor(diffMs / 60000);
+  if (totalMinutes < 1) return "Just now";
+  if (totalMinutes < 60) return `${totalMinutes}m ago`;
   const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (hours <= 0) return `${minutes}m`;
-  return `${hours}h ${minutes}m`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 function shouldRefreshStats(profile: AccountProfile) {
@@ -299,6 +289,8 @@ export default function PlayerProfileView({
   const [loadedProfile, setLoadedProfile] = useState<AccountProfile | null>(initialProfile ?? null);
   const [hasSession, setHasSession] = useState(Boolean(initialProfile));
   const [loading, setLoading] = useState(!initialProfile);
+  const [refreshingStats, setRefreshingStats] = useState(false);
+  const [statRefreshError, setStatRefreshError] = useState("");
   const [codeRequesting, setCodeRequesting] = useState(false);
   const [verificationMessage, setVerificationMessage] = useState("");
   const [verificationError, setVerificationError] = useState("");
@@ -319,21 +311,57 @@ export default function PlayerProfileView({
         const loaded = await loadProfile();
         setLoadedProfile(loaded);
 
-        // Auto-refresh when stats are missing or the cached ecl.gg snapshot is stale.
-        if (loaded && shouldRefreshStats(loaded)) {
+        // Auto-refresh when stats are missing or the cached snapshot is stale.
+        // Uses browser-based lzyumi fetch (user's residential IP, bypasses cloud IP block).
+        if (loaded && shouldRefreshStats(loaded) && loaded.riotName && loaded.chinaServerId) {
+          setRefreshingStats(true);
+          setStatRefreshError("");
           try {
             const token = await getAccessToken();
-            if (token) {
-              const res = await fetch("/api/account/refresh-stats", {
+            if (!token) throw new Error("no token");
+
+            const nickname = loaded.riotTag
+              ? `${loaded.riotName}#${loaded.riotTag}`
+              : loaded.riotName;
+            const areaId = loaded.chinaServerId;
+
+            // Get signed URLs for all three filters in parallel
+            const [signRes1, signRes2, signRes3] = await Promise.all([
+              fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=1&allCount=10`),
+              fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=2&allCount=20`),
+              fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=3&allCount=20`),
+            ]);
+
+            const [{ url: url1 }, { url: url2 }, { url: url3 }] = await Promise.all([
+              signRes1.json(), signRes2.json(), signRes3.json(),
+            ]);
+
+            // Fetch directly from lzyumi using browser IP
+            const [raw1, raw2, raw3] = await Promise.all([
+              fetch(url1).then((r) => r.json()),
+              fetch(url2).then((r) => r.json()),
+              fetch(url3).then((r) => r.json()),
+            ]);
+
+            const soloGames = Array.isArray(raw2?.data) ? raw2.data : [];
+            const flexGames = Array.isArray(raw3?.data) ? raw3.data : [];
+
+            if (raw1?.battleInfo) {
+              await fetch("/api/hub/refresh-my-profile", {
                 method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ rawProfile: raw1, soloGames, flexGames }),
               });
-              if (res.ok) {
-                setLoadedProfile(await loadProfile());
-              }
+              setLoadedProfile(await loadProfile());
             }
-          } catch {
-            // Non-critical — silently ignore
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : "Stats refresh failed";
+            setStatRefreshError(msg);
+          } finally {
+            setRefreshingStats(false);
           }
         }
       }
@@ -399,8 +427,7 @@ export default function PlayerProfileView({
   const safeAvatarUrl = isSafeProfileImageUrl(profile.avatarUrl) ? profile.avatarUrl : null;
   const isKookVerified = profile.verificationStatus === "VERIFIED";
   const verification = profile.kookVerifications?.[0] ?? null;
-  const nextStatsRefreshAt = getNextStatsRefreshAt(profile);
-  const nextStatsRefreshLabel = formatRefreshCountdown(nextStatsRefreshAt, now);
+  const lastUpdatedLabel = formatLastUpdated(profile, now);
 
   const soloRank = formatSharedLzyumiRank(ranks.solo);
   const flexRank = formatSharedLzyumiRank(ranks.flex);
@@ -549,11 +576,17 @@ export default function PlayerProfileView({
           </div>
           <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#aeb5da]">
-              Next stat update
+              Last updated
             </p>
-            <p className="mt-1 text-lg font-black text-[#48f0df]">{nextStatsRefreshLabel}</p>
+            {refreshingStats ? (
+              <p className="mt-1 text-sm font-black text-[#ffd84d] animate-pulse">Fetching stats…</p>
+            ) : statRefreshError ? (
+              <p className="mt-1 text-sm font-black text-[#ff6b6b]" title={statRefreshError}>Update failed</p>
+            ) : (
+              <p className="mt-1 text-lg font-black text-[#48f0df]">{lastUpdatedLabel}</p>
+            )}
             <p className="mt-1 text-[11px] font-semibold text-[#6b7280]">
-              ecl.gg refreshes every 12 hours.
+              {statRefreshError ? statRefreshError : "Updates on visit."}
             </p>
           </div>
         </aside>
