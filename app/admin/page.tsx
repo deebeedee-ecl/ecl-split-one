@@ -318,28 +318,70 @@ function LzyumiRefreshPanel() {
   async function refreshStats() {
     setIsRefreshing(true);
     setIsError(false);
-    setMessage("Refreshing verified player data from ecl.gg...");
+    setMessage("Loading player list...");
 
     try {
-      const response = await fetch("/api/admin/refresh-lzyumi", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 100 }),
-      });
-      const data = (await response.json()) as {
-        selected?: number;
-        refreshed?: number;
-        failed?: number;
-        success?: boolean;
-        error?: string;
+      // Step 1: get players to refresh
+      const listRes = await fetch("/api/admin/players-for-refresh", { credentials: "include" });
+      if (!listRes.ok) throw new Error("Failed to load player list.");
+      const { profiles } = (await listRes.json()) as {
+        profiles: { id: string; displayName: string; riotName: string; riotTag: string | null; chinaServerId: number }[];
       };
 
-      if (!response.ok || data.success === false) {
-        throw new Error(data.error ?? `${data.failed ?? 0} profiles failed to refresh.`);
+      if (!profiles.length) {
+        setMessage("No verified players found.");
+        return;
       }
 
-      setMessage(`Refreshed ${data.refreshed ?? 0}/${data.selected ?? 0} verified profiles.`);
+      let refreshed = 0;
+      let failed = 0;
+
+      for (let i = 0; i < profiles.length; i++) {
+        const p = profiles[i];
+        setMessage(`Refreshing ${i + 1}/${profiles.length}: ${p.displayName}...`);
+
+        try {
+          // Step 2: get a signed lzyumi URL from the server
+          const tag = (p.riotTag ?? "").replace(/^#+/, "");
+          const nickname = tag ? `${p.riotName}#${tag}` : p.riotName;
+          const signRes = await fetch(
+            `/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${p.chinaServerId}`,
+            { credentials: "include" }
+          );
+          if (!signRes.ok) throw new Error("Sign failed");
+          const { url } = (await signRes.json()) as { url: string };
+
+          // Step 3: call lzyumi from the browser (uses our residential IP, not blocked)
+          const lzyumiRes = await fetch(url, {
+            headers: {
+              Accept: "application/json",
+              Referer: "https://a.2025lol.top/",
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            },
+          });
+          if (!lzyumiRes.ok) throw new Error("lzyumi fetch failed");
+          const rawProfile = await lzyumiRes.json();
+
+          // Step 4: save to DB via the server
+          const saveRes = await fetch("/api/admin/save-lzyumi", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ profileId: p.id, rawProfile }),
+          });
+          if (!saveRes.ok) throw new Error("Save failed");
+
+          refreshed++;
+        } catch {
+          failed++;
+        }
+      }
+
+      const status = failed > 0
+        ? `Refreshed ${refreshed}/${profiles.length} profiles. ${failed} failed.`
+        : `Refreshed ${refreshed}/${profiles.length} profiles.`;
+      setMessage(status);
+      if (failed > 0 && refreshed === 0) setIsError(true);
     } catch (error) {
       setIsError(true);
       setMessage(error instanceof Error ? error.message : "Refresh failed.");
