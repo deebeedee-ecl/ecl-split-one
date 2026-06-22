@@ -116,9 +116,13 @@ export function formatVerifyHelpMessage() {
 }
 
 async function getLeaderboardRows(): Promise<LeaderboardRow[]> {
+  const INHOUSE_FILTER = { matchGame: { match: { roundLabel: "Ranked Inhouse" } } };
+
   const players = await prisma.player.findMany({
     include: {
-      gameStats: true,
+      gameStats: {
+        where: INHOUSE_FILTER,
+      },
     },
   });
 
@@ -211,7 +215,9 @@ async function findPlayerForProfile(profile: Awaited<ReturnType<typeof findVerif
       ],
     },
     include: {
-      gameStats: true,
+      gameStats: {
+        where: { matchGame: { match: { roundLabel: "Ranked Inhouse" } } },
+      },
     },
   });
 }
@@ -250,14 +256,13 @@ export async function formatMeMessage(kookUserId: string) {
   const gamesPlayed = player?.gameStats.length ?? 0;
   const wins = player?.gameStats.filter((stat) => stat.isWin).length ?? 0;
   const losses = gamesPlayed - wins;
-  const eloLabel = gamesPlayed > 0 ? `${player?.elo ?? STARTING_ELO}` : `${STARTING_ELO} (no games played)`;
 
   return [
     "You are verified.",
     "",
     `Player: ${profile.displayName}`,
     `Riot ID: ${formatRiotId(profile.riotName, profile.riotTag) ?? "-"}`,
-    `ECL LP: ${eloLabel}`,
+    `ECL LP: ${player?.elo ?? STARTING_ELO}`,
     `Record: ${wins}W/${losses}L`,
     `China rank: ${profile.currentRank || "Unranked"}`,
   ].join("\n");
