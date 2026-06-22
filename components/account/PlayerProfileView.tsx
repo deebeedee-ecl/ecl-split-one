@@ -298,6 +298,9 @@ export default function PlayerProfileView({
   const [reportingMatch, setReportingMatch] = useState(false);
   const [reportMatchMessage, setReportMatchMessage] = useState("");
   const [reportMatchError, setReportMatchError] = useState("");
+  const [shouldAutoReport, setShouldAutoReport] = useState(() =>
+    typeof window !== "undefined" && window.location.search.includes("autoreport=1"),
+  );
 
   useEffect(() => {
     if (initialProfile) return;
@@ -389,6 +392,15 @@ export default function PlayerProfileView({
     const interval = window.setInterval(() => setNow(Date.now()), 60000);
     return () => window.clearInterval(interval);
   }, []);
+
+  // Auto-report when opened via bot link (?autoreport=1)
+  useEffect(() => {
+    if (shouldAutoReport && profile && hasSession && !initialProfile) {
+      setShouldAutoReport(false);
+      handleReportGame();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldAutoReport, profile, hasSession, initialProfile]);
 
   const profile = initialProfile ?? loadedProfile;
 
