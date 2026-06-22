@@ -473,7 +473,7 @@ export default function PlayerProfileView({
 
       // Step 1: fetch reporter's profile from lzyumi (browser IP, bypasses block)
       // ECL inhouses are "满载SUV" / "新模式" mode — probe all filters to find it.
-      const LZYUMI_FILTERS = [1, 2, 3, 4, 5];
+      const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
       const signedUrls = await Promise.all(
         LZYUMI_FILTERS.map((f) =>
           fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=${f}&allCount=5`)
