@@ -347,7 +347,7 @@ export default function PlayerProfileView({
             const flexGames = Array.isArray(raw3?.data) ? raw3.data : [];
 
             if (raw1?.battleInfo) {
-              await fetch("/api/hub/refresh-my-profile", {
+              const saveRes = await fetch("/api/hub/refresh-my-profile", {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -355,7 +355,17 @@ export default function PlayerProfileView({
                 },
                 body: JSON.stringify({ rawProfile: raw1, soloGames, flexGames }),
               });
+              if (!saveRes.ok) {
+                const { message } = await saveRes.json().catch(() => ({}));
+                throw new Error(message ?? `Save failed (${saveRes.status})`);
+              }
               setLoadedProfile(await loadProfile());
+            } else {
+              // lzyumi returned no profile — wrong server, unrecognised account, etc.
+              const lzyumiMsg = typeof raw1?.message === "string" ? raw1.message : null;
+              throw new Error(
+                lzyumiMsg ?? "Account not found on lzyumi. Check your Riot name and server in your profile settings."
+              );
             }
           } catch (err) {
             const msg = err instanceof Error ? err.message : "Stats refresh failed";
