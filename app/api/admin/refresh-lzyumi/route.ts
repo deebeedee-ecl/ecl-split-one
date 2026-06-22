@@ -5,6 +5,7 @@ import { refreshAccountProfileStats } from "@/lib/account-stats-refresh";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+export const preferredRegion = ["sin1", "hkg1", "nrt1", "icn1"];
 
 type RefreshRequestBody = {
   limit?: unknown;

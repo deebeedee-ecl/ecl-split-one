@@ -6,6 +6,8 @@ import {
 } from "@/lib/lzyumi";
 
 export const dynamic = "force-dynamic";
+// Run from Asian edge regions so lzyumi (Chinese service) doesn't block the IP
+export const preferredRegion = ["sin1", "hkg1", "nrt1", "icn1"];
 
 function isUnauthorized(req: NextRequest): boolean {
   const expected = process.env.ECL_JOB_SECRET ?? process.env.ECL_KOOK_BOT_SECRET;
