@@ -472,18 +472,26 @@ export default function PlayerProfileView({
       const areaId = profile.chinaServerId;
 
       // Step 1: fetch reporter's profile from lzyumi (browser IP, bypasses block)
+      // filter=3 = Flex queue — ECL inhouses are played in Flex (灵活/满载SUV mode)
       const signRes = await fetch(
-        `/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=1&allCount=10`,
+        `/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=3&allCount=10`,
       );
       const { url: profileUrl } = await signRes.json();
       const rawProfile = await fetch(profileUrl).then((r) => r.json());
 
       const openId: string = rawProfile?.battleInfo?.openId ?? "";
-      const gameId: string = rawProfile?.data?.[0]?.gameId ?? "";
+
+      // Search through all recent Flex games for one with a gameId
+      const recentGames: Array<{ gameId?: string }> = Array.isArray(rawProfile?.data) ? rawProfile.data : [];
+      const targetGame = recentGames.find((g) => g.gameId);
+      const gameId: string = targetGame?.gameId ?? "";
 
       if (!openId || !gameId) {
+        const gamesReturned = recentGames.length;
         throw new Error(
-          "Could not find a recent game. Make sure you just finished an inhouse match.",
+          gamesReturned === 0
+            ? "No recent Flex games found on lzyumi. Make sure you just finished an inhouse match."
+            : "Could not find a game ID in your recent games. Try again in a moment.",
         );
       }
 
