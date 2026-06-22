@@ -295,6 +295,9 @@ export default function PlayerProfileView({
   const [verificationMessage, setVerificationMessage] = useState("");
   const [verificationError, setVerificationError] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const [reportingMatch, setReportingMatch] = useState(false);
+  const [reportMatchMessage, setReportMatchMessage] = useState("");
+  const [reportMatchError, setReportMatchError] = useState("");
 
   useEffect(() => {
     if (initialProfile) return;
@@ -441,6 +444,67 @@ export default function PlayerProfileView({
 
   const soloRank = formatSharedLzyumiRank(ranks.solo);
   const flexRank = formatSharedLzyumiRank(ranks.flex);
+
+  async function handleReportGame() {
+    if (!profile?.riotName || !profile?.chinaServerId) return;
+    setReportingMatch(true);
+    setReportMatchMessage("");
+    setReportMatchError("");
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("Not logged in");
+
+      const nickname = profile.riotTag
+        ? `${profile.riotName}#${profile.riotTag}`
+        : profile.riotName;
+      const areaId = profile.chinaServerId;
+
+      // Step 1: fetch reporter's profile from lzyumi (browser IP, bypasses block)
+      const signRes = await fetch(
+        `/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=1&allCount=10`,
+      );
+      const { url: profileUrl } = await signRes.json();
+      const rawProfile = await fetch(profileUrl).then((r) => r.json());
+
+      const openId: string = rawProfile?.battleInfo?.openId ?? "";
+      const gameId: string = rawProfile?.data?.[0]?.gameId ?? "";
+
+      if (!openId || !gameId) {
+        throw new Error(
+          "Could not find a recent game. Make sure you just finished an inhouse match.",
+        );
+      }
+
+      // Step 2: fetch match detail from lzyumi (openId-based)
+      const detailSignRes = await fetch(
+        `/api/lzyumi-sign?type=detail&openId=${encodeURIComponent(openId)}&gameId=${encodeURIComponent(gameId)}&areaId=${areaId}`,
+      );
+      const { url: detailUrl } = await detailSignRes.json();
+      const detail = await fetch(detailUrl).then((r) => r.json());
+
+      // Step 3: submit to backend
+      const reportRes = await fetch("/api/hub/report-match", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rawMatchData: { profile: rawProfile, gameId, detail } }),
+      });
+
+      const result = await reportRes.json().catch(() => ({}));
+      if (!reportRes.ok) {
+        throw new Error(
+          result.reply ?? result.message ?? `Report failed (${reportRes.status})`,
+        );
+      }
+      setReportMatchMessage(result.reply ?? "Match reported successfully!");
+    } catch (err) {
+      setReportMatchError(err instanceof Error ? err.message : "Report failed");
+    } finally {
+      setReportingMatch(false);
+    }
+  }
 
   async function requestFreshKookCode() {
     setCodeRequesting(true);
@@ -599,6 +663,26 @@ export default function PlayerProfileView({
               {statRefreshError ? statRefreshError : "Updates on visit."}
             </p>
           </div>
+
+          {!initialProfile && hasSession && (
+            <div className="mt-3">
+              <button
+                onClick={handleReportGame}
+                disabled={reportingMatch || !profile.riotName || !profile.chinaServerId}
+                className="w-full rounded-xl bg-[#48f0df]/10 px-4 py-2 text-sm font-black text-[#48f0df] ring-1 ring-[#48f0df]/30 transition hover:bg-[#48f0df]/20 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {reportingMatch ? "Reporting…" : "Report Inhouse Game"}
+              </button>
+              {reportMatchMessage && (
+                <p className="mt-1 text-[11px] font-semibold text-[#19d27f]">{reportMatchMessage}</p>
+              )}
+              {reportMatchError && (
+                <p className="mt-1 text-[11px] font-semibold text-[#ff6b6b]" title={reportMatchError}>
+                  {reportMatchError}
+                </p>
+              )}
+            </div>
+          )}
         </aside>
       </section>
 

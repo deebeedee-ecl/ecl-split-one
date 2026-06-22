@@ -165,6 +165,12 @@ export async function resolveInhousePlayers(
             riotName: true,
             riotTag: true,
             elo: true,
+            gameStats: {
+              where: { matchGame: { match: { roundLabel: "Ranked Inhouse" } } },
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: { eloAfter: true },
+            },
           },
         });
 
@@ -210,7 +216,7 @@ export async function resolveInhousePlayers(
       riotName: profile.riotName,
       riotTag: cleanTag(profile.riotTag) || null,
       email: profile.email,
-      elo: player?.elo ?? STARTING_ELO,
+      elo: player?.gameStats?.[0]?.eloAfter ?? STARTING_ELO,
       profileId: profile.id,
       playerId: player?.id ?? null,
       verified: true,
