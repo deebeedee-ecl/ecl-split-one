@@ -33,6 +33,7 @@ export async function GET() {
         team: true,
         gameStats: {
           where: { matchGame: { match: { roundLabel: "Ranked Inhouse" } } },
+          orderBy: { createdAt: "desc" },
         },
       },
     });
@@ -49,14 +50,21 @@ export async function GET() {
         const totalDeaths = player.gameStats.reduce((sum, s) => sum + s.deaths, 0);
         const totalAssists = player.gameStats.reduce((sum, s) => sum + s.assists, 0);
 
+        // Derive ELO and streak from inhouse stats only (Player.elo is polluted by old league data)
+        const elo = player.gameStats[0]?.eloAfter ?? 800;
         let streakLabel = "—";
-        if (player.winStreak > 0) streakLabel = `W${player.winStreak}`;
-        else if (player.lossStreak > 0) streakLabel = `L${player.lossStreak}`;
+        let w = 0, l = 0;
+        for (const s of player.gameStats) {
+          if (s.isWin) { if (l > 0) break; w++; }
+          else         { if (w > 0) break; l++; }
+        }
+        if (w > 0) streakLabel = `W${w}`;
+        else if (l > 0) streakLabel = `L${l}`;
 
         return {
           name: player.name,
           teamTag,
-          elo: player.elo,
+          elo,
           gamesPlayed,
           winRate: formatWinRate(wins, gamesPlayed),
           kda: formatKDA(totalKills, totalDeaths, totalAssists),
@@ -64,13 +72,14 @@ export async function GET() {
           streakLabel,
         };
       })
+      .filter((p) => p.gamesPlayed > 0)
       .sort((a, b) => {
         if (b.elo !== a.elo) return b.elo - a.elo;
         if (b.gamesPlayed !== a.gamesPlayed)
           return b.gamesPlayed - a.gamesPlayed;
         return a.name.localeCompare(b.name);
       })
-      .slice(0, 10) // 🔥 TOP 10 LOCKED
+      .slice(0, 10)
       .map((player, index) => ({
         rank: index + 1,
         ...player,

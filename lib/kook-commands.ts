@@ -115,6 +115,16 @@ export function formatVerifyHelpMessage() {
   return verifyInstructions();
 }
 
+function inhouseStreak(stats: { isWin: boolean }[]): string {
+  // stats ordered desc (most recent first)
+  let w = 0, l = 0;
+  for (const s of stats) {
+    if (s.isWin) { if (l > 0) break; w++; }
+    else         { if (w > 0) break; l++; }
+  }
+  return w > 0 ? `W${w}` : l > 0 ? `L${l}` : "-";
+}
+
 async function getLeaderboardRows(): Promise<LeaderboardRow[]> {
   const INHOUSE_FILTER = { matchGame: { match: { roundLabel: "Ranked Inhouse" } } };
 
@@ -122,6 +132,7 @@ async function getLeaderboardRows(): Promise<LeaderboardRow[]> {
     include: {
       gameStats: {
         where: INHOUSE_FILTER,
+        orderBy: { createdAt: "desc" },
       },
     },
   });
@@ -132,15 +143,15 @@ async function getLeaderboardRows(): Promise<LeaderboardRow[]> {
       const wins = player.gameStats.filter((stat) => stat.isWin).length;
       const losses = gamesPlayed - wins;
       const winRate = gamesPlayed === 0 ? "-" : `${Math.round((wins / gamesPlayed) * 100)}%`;
-      const streak =
-        player.winStreak > 0 ? `W${player.winStreak}` : player.lossStreak > 0 ? `L${player.lossStreak}` : "-";
+      const elo = player.gameStats[0]?.eloAfter ?? STARTING_ELO;
+      const streak = inhouseStreak(player.gameStats);
 
       return {
         rank: 0,
         playerId: player.id,
         name: player.name,
         riotId: formatRiotId(player.riotName, player.riotTag),
-        elo: player.elo,
+        elo,
         wins,
         losses,
         gamesPlayed,
@@ -148,6 +159,7 @@ async function getLeaderboardRows(): Promise<LeaderboardRow[]> {
         streak,
       };
     })
+    .filter((row) => row.gamesPlayed > 0)
     .sort((a, b) => {
       if (b.elo !== a.elo) return b.elo - a.elo;
       if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
@@ -217,6 +229,7 @@ async function findPlayerForProfile(profile: Awaited<ReturnType<typeof findVerif
     include: {
       gameStats: {
         where: { matchGame: { match: { roundLabel: "Ranked Inhouse" } } },
+        orderBy: { createdAt: "desc" },
       },
     },
   });
@@ -256,13 +269,14 @@ export async function formatMeMessage(kookUserId: string) {
   const gamesPlayed = player?.gameStats.length ?? 0;
   const wins = player?.gameStats.filter((stat) => stat.isWin).length ?? 0;
   const losses = gamesPlayed - wins;
+  const elo = player?.gameStats[0]?.eloAfter ?? STARTING_ELO;
 
   return [
     "You are verified.",
     "",
     `Player: ${profile.displayName}`,
     `Riot ID: ${formatRiotId(profile.riotName, profile.riotTag) ?? "-"}`,
-    `ECL LP: ${player?.elo ?? STARTING_ELO}`,
+    `ECL LP: ${elo}`,
     `Record: ${wins}W/${losses}L`,
     `China rank: ${profile.currentRank || "Unranked"}`,
   ].join("\n");
