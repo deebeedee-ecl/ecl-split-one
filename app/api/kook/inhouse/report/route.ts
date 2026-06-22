@@ -28,6 +28,7 @@ type ReportBody = {
   action?: string;
   kookUserId?: string;
   reporterKookUserId?: string;
+  sessionId?: string;
   rawMatchData?: RawMatchData;
 };
 
@@ -100,8 +101,23 @@ function toJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
-async function findActiveSessionForReporter(kookUserId: string) {
+async function findActiveSessionForReporter(kookUserId: string, sessionId?: string) {
   const activeSince = new Date(Date.now() - ACTIVE_SESSION_HOURS * 60 * 60 * 1000);
+
+  if (sessionId) {
+    // Specific session requested (from multi-step !report flow).
+    const session = await prisma.inhouseSession.findFirst({
+      where: {
+        id: sessionId,
+        status: "ASSIGNED",
+        createdAt: { gte: activeSince },
+        players: { some: { kookUserId } },
+      },
+      include: { players: true },
+    });
+    if (!session) throw new Error("That inhouse session was not found or has already been reported.");
+    return session;
+  }
 
   const session = await prisma.inhouseSession.findFirst({
     where: {
@@ -267,7 +283,10 @@ export async function POST(request: Request) {
   let session: Awaited<ReturnType<typeof findActiveSessionForReporter>>;
 
   try {
-    session = await findActiveSessionForReporter(reporterKookUserId);
+    session = await findActiveSessionForReporter(
+      reporterKookUserId,
+      clean(body.sessionId) || undefined,
+    );
   } catch (error) {
     return NextResponse.json(
       {
@@ -436,8 +455,8 @@ export async function POST(request: Request) {
   const match = await prisma.match.create({
     data: {
       stage: "REGULAR_SEASON",
-      roundLabel: "Ranked Inhouse",
-      matchLabel: `Ranked IH ${new Date().toISOString().slice(0, 10)}`,
+      roundLabel: session.gameLabel ?? "Ranked Inhouse",
+      matchLabel: session.gameLabel ?? `Ranked IH ${new Date().toISOString().slice(0, 10)}`,
       bestOf: 1,
       status: "COMPLETED",
       homeTeamId: blueTeam.id,

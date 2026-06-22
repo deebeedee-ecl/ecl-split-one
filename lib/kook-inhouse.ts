@@ -296,8 +296,15 @@ export async function createInhouseSession({
   blueTeam: BalancedInhouseTeam;
   redTeam: BalancedInhouseTeam;
 }) {
+  // Assign a sequential human-readable label (IH #001, IH #002, …).
+  const labelledCount = await prisma.inhouseSession.count({
+    where: { gameLabel: { not: null } },
+  });
+  const gameLabel = `IH #${String(labelledCount + 1).padStart(3, "0")}`;
+
   return prisma.inhouseSession.create({
     data: {
+      gameLabel,
       sourceChannelId,
       blueChannelId: BLUE_SIDE_CHANNEL_ID,
       redChannelId: RED_SIDE_CHANNEL_ID,
@@ -330,6 +337,7 @@ export async function createInhouseSession({
     },
     select: {
       id: true,
+      gameLabel: true,
       createdAt: true,
     },
   });

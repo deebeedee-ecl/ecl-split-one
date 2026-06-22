@@ -144,9 +144,10 @@ export async function POST(request: Request) {
     ok: true,
     status: "ASSIGNED",
     reply:
-      `Teams balanced. Move Blue to ${BLUE_SIDE_CHANNEL_ID} and Red to ${RED_SIDE_CHANNEL_ID}.\n\n` +
+      `**${session.gameLabel}** — teams are balanced!\n\n` +
       `Blue Side (${blueTeam.eloTotal} LP)\n${formatTeamList(blueTeam)}\n\n` +
-      `Red Side (${redTeam.eloTotal} LP)\n${formatTeamList(redTeam)}`,
+      `Red Side (${redTeam.eloTotal} LP)\n${formatTeamList(redTeam)}\n\n` +
+      `Players are being moved to their voice channels. GL HF!`,
     blueTeam,
     redTeam,
     session,

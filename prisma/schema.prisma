@@ -279,6 +279,7 @@ model MatchGamePlayerStat {
 model InhouseSession {
   id               String                 @id @default(uuid())
   status           String                 @default("ASSIGNED")
+  gameLabel        String?
   sourceChannelId  String
   blueChannelId    String
   redChannelId     String
