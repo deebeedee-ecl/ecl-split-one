@@ -30,6 +30,7 @@ type ReportBody = {
   reporterKookUserId?: string;
   sessionId?: string;
   rawMatchData?: RawMatchData;
+  adminOverride?: boolean;
 };
 
 type SessionPlayer = Awaited<ReturnType<typeof findActiveSessionForReporter>>["players"][number];
@@ -101,17 +102,17 @@ function toJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
-async function findActiveSessionForReporter(kookUserId: string, sessionId?: string) {
+async function findActiveSessionForReporter(kookUserId: string, sessionId?: string, adminOverride = false) {
   const activeSince = new Date(Date.now() - ACTIVE_SESSION_HOURS * 60 * 60 * 1000);
 
   if (sessionId) {
-    // Specific session requested (from multi-step !report flow).
+    // Specific session requested. Admin override skips time limit and player membership check.
     const session = await prisma.inhouseSession.findFirst({
       where: {
         id: sessionId,
         status: "ASSIGNED",
-        createdAt: { gte: activeSince },
-        players: { some: { kookUserId } },
+        ...(adminOverride ? {} : { createdAt: { gte: activeSince } }),
+        ...(adminOverride ? {} : { players: { some: { kookUserId } } }),
       },
       include: { players: true },
     });
@@ -272,8 +273,9 @@ export async function POST(request: Request) {
 
   const body = (await request.json()) as ReportBody;
   const reporterKookUserId = clean(body.reporterKookUserId || body.kookUserId);
+  const adminOverride = body.adminOverride === true;
 
-  if (!reporterKookUserId) {
+  if (!reporterKookUserId && !adminOverride) {
     return NextResponse.json(
       { message: "Reporter KOOK user ID is required." },
       { status: 400 },
@@ -284,8 +286,9 @@ export async function POST(request: Request) {
 
   try {
     session = await findActiveSessionForReporter(
-      reporterKookUserId,
+      reporterKookUserId || "ADMIN",
       clean(body.sessionId) || undefined,
+      adminOverride,
     );
   } catch (error) {
     return NextResponse.json(
@@ -297,16 +300,21 @@ export async function POST(request: Request) {
     );
   }
 
-  const reporter = session.players.find((player) => player.kookUserId === reporterKookUserId);
-  if (!reporter) {
+  // For admin override, skip the reporter-in-session and reporter-profile checks.
+  const reporter = adminOverride
+    ? null
+    : session.players.find((player) => player.kookUserId === reporterKookUserId);
+
+  if (!adminOverride && !reporter) {
     return NextResponse.json(
       { status: "REPORTER_NOT_IN_SESSION", reply: "Reporter was not part of this inhouse." },
       { status: 404 },
     );
   }
 
-  const reporterProfile = await findReporterProfile(reporter);
-  if (!reporterProfile) {
+  const reporterProfile = reporter ? await findReporterProfile(reporter) : null;
+
+  if (!adminOverride && !reporterProfile) {
     return NextResponse.json(
       {
         status: "REPORTER_PROFILE_NOT_FOUND",
@@ -316,7 +324,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const server = getChinaServer(reporterProfile.chinaServerId);
+  const server = getChinaServer(reporterProfile?.chinaServerId);
 
   let recentMatch: LzyumiRecentMatch;
   let matchDetail: LzyumiDetailResponse;
@@ -412,7 +420,7 @@ export async function POST(request: Request) {
         Boolean(value),
     );
 
-  const reporterMatched = matchedRows.some(
+  const reporterMatched = adminOverride || matchedRows.some(
     (row) => row.sessionPlayer.kookUserId === reporterKookUserId,
   );
 
@@ -583,7 +591,7 @@ export async function POST(request: Request) {
       matchId: match.id,
       matchGameId: game.id,
       lzyumiGameId: recentMatch.gameId,
-      reportedByKookId: reporterKookUserId,
+      reportedByKookId: adminOverride ? "ADMIN" : reporterKookUserId,
       reportRawJson: toJson({
         recentMatch,
         reporterProfile,
