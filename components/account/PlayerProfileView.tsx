@@ -482,12 +482,18 @@ export default function PlayerProfileView({
         ),
       );
       const filterResponses = await Promise.all(
-        signedUrls.map((url) => fetch(url).then((r) => r.json()).catch(() => null)),
+        signedUrls.map((url, i) =>
+          fetch(url)
+            .then((r) => r.json())
+            .then((data) => { console.log(`[lzyumi filter=${LZYUMI_FILTERS[i]}]`, { count: data?.data?.length ?? 0, titles: (data?.data ?? []).map((g: {title?: string}) => g.title), hasOpenId: !!data?.battleInfo?.openId, error: data?.errorCode }); return data; })
+            .catch((e) => { console.error(`[lzyumi filter=${LZYUMI_FILTERS[i]} FAILED]`, e); return null; }),
+        ),
       );
 
       // openId comes from battleInfo — any filter response will have it
       const profileData = filterResponses.find((r) => r?.battleInfo?.openId);
       const openId: string = profileData?.battleInfo?.openId ?? "";
+      console.log("[lzyumi] openId:", openId || "(not found)");
 
       type LzyumiGame = { gameId?: string; title?: string };
 
@@ -518,7 +524,18 @@ export default function PlayerProfileView({
         }
       }
 
-      if (!openId || !gameId) {
+      console.log("[lzyumi] gameId:", gameId || "(not found)");
+      if (!openId && !gameId) {
+        throw new Error(
+          "lzyumi returned no data at all. Open DevTools console and share the [lzyumi filter=*] logs.",
+        );
+      }
+      if (!openId) {
+        throw new Error(
+          "lzyumi returned games but no openId (battleInfo missing). Open DevTools console and share the [lzyumi filter=*] logs.",
+        );
+      }
+      if (!gameId) {
         throw new Error(
           "Could not find a recent inhouse game on lzyumi. Make sure you just finished an inhouse match.",
         );
