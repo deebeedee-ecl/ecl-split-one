@@ -466,29 +466,40 @@ export default function PlayerProfileView({
       const token = await getAccessToken();
       if (!token) throw new Error("Not logged in");
 
-      const nickname = profile.riotTag
+      // lzyumi lookup: try name-only first (matches signedLookupUrl in lib/lzyumi.ts).
+      // Fall back to name#tag (name*~*~*tag) for players who share a name.
+      const nameOnly = profile.riotName;
+      const nameWithTag = profile.riotTag
         ? `${profile.riotName}#${profile.riotTag}`
         : profile.riotName;
       const areaId = profile.chinaServerId;
 
-      // Step 1: fetch reporter's profile from lzyumi (browser IP, bypasses block)
-      // ECL inhouses are "满载SUV" / "新模式" mode — probe all filters to find it.
-      const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
-      const signedUrls = await Promise.all(
-        LZYUMI_FILTERS.map((f) =>
-          fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=${f}&allCount=5`)
-            .then((r) => r.json())
-            .then(({ url }: { url: string }) => url),
-        ),
-      );
-      const filterResponses = await Promise.all(
-        signedUrls.map((url, i) =>
-          fetch(url)
-            .then((r) => r.json())
-            .then((data) => { console.log(`[lzyumi filter=${LZYUMI_FILTERS[i]}]`, { count: data?.data?.length ?? 0, titles: (data?.data ?? []).map((g: {title?: string}) => g.title), hasOpenId: !!data?.battleInfo?.openId, error: data?.errorCode }); return data; })
-            .catch((e) => { console.error(`[lzyumi filter=${LZYUMI_FILTERS[i]} FAILED]`, e); return null; }),
-        ),
-      );
+      async function fetchAllFilters(nick: string) {
+        const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
+        const signedUrls = await Promise.all(
+          LZYUMI_FILTERS.map((f) =>
+            fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nick)}&areaId=${areaId}&filter=${f}&allCount=5`)
+              .then((r) => r.json())
+              .then(({ url }: { url: string }) => url),
+          ),
+        );
+        return Promise.all(
+          signedUrls.map((url, i) =>
+            fetch(url)
+              .then((r) => r.json())
+              .then((data) => { console.log(`[lzyumi nick=${nick} filter=${LZYUMI_FILTERS[i]}]`, { count: data?.data?.length ?? 0, titles: (data?.data ?? []).map((g: {title?: string}) => g.title), hasOpenId: !!data?.battleInfo?.openId, error: data?.errorCode }); return data; })
+              .catch((e) => { console.error(`[lzyumi nick=${nick} filter=${LZYUMI_FILTERS[i]} FAILED]`, e); return null; }),
+          ),
+        );
+      }
+
+      // Step 1: probe lzyumi — name-only first, fall back to name+tag
+      let filterResponses = await fetchAllFilters(nameOnly);
+      const hasAnyData = filterResponses.some((r) => r?.battleInfo?.openId || (Array.isArray(r?.data) && r.data.length > 0));
+      if (!hasAnyData && nameWithTag !== nameOnly) {
+        console.log("[lzyumi] name-only returned nothing, retrying with name+tag...");
+        filterResponses = await fetchAllFilters(nameWithTag);
+      }
 
       // openId comes from battleInfo — any filter response will have it
       const profileData = filterResponses.find((r) => r?.battleInfo?.openId);
