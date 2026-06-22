@@ -24,27 +24,34 @@ export async function GET() {
     profileIds.length > 0
       ? await prisma.accountProfile.findMany({
           where: { id: { in: profileIds } },
-          select: { id: true, chinaServerId: true },
+          select: { id: true, chinaServerId: true, riotName: true, riotTag: true },
         })
       : [];
 
-  const profileMap = new Map(profiles.map((p) => [p.id, p.chinaServerId]));
+  const profileMap = new Map(profiles.map((p) => [p.id, p]));
 
   const enriched = sessions.map((session) => ({
     id: session.id,
     gameLabel: session.gameLabel,
     status: session.status,
     createdAt: session.createdAt.toISOString(),
-    players: session.players.map((p) => ({
-      id: p.id,
-      kookUserId: p.kookUserId,
-      displayName: p.displayName,
-      riotName: p.riotName,
-      riotTag: p.riotTag,
-      side: p.side,
-      eloAtReady: p.eloAtReady,
-      chinaServerId: p.profileId ? (profileMap.get(p.profileId) ?? null) : null,
-    })),
+    players: session.players.map((p) => {
+      const prof = p.profileId ? profileMap.get(p.profileId) : null;
+      // Fall back to AccountProfile riotName/riotTag if InhouseSessionPlayer fields are empty
+      const riotName = p.riotName || prof?.riotName || null;
+      const rawTag = p.riotTag || prof?.riotTag || null;
+      const riotTag = rawTag ? rawTag.replace(/^#+/, "") : null; // strip leading #
+      return {
+        id: p.id,
+        kookUserId: p.kookUserId,
+        displayName: p.displayName,
+        riotName,
+        riotTag,
+        side: p.side,
+        eloAtReady: p.eloAtReady,
+        chinaServerId: prof?.chinaServerId ?? null,
+      };
+    }),
   }));
 
   return NextResponse.json({ sessions: enriched });

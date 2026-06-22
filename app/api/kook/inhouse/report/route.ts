@@ -415,7 +415,30 @@ export async function POST(request: Request) {
     }
   }
 
-  const matchedRows = session.players
+  // Enrich session players with AccountProfile riotName/riotTag when InhouseSessionPlayer fields are empty
+  const missingProfileIds = session.players
+    .filter((p) => (!p.riotName || !p.riotTag) && p.profileId)
+    .map((p) => p.profileId as string);
+
+  const enrichProfiles =
+    missingProfileIds.length > 0
+      ? await prisma.accountProfile.findMany({
+          where: { id: { in: missingProfileIds } },
+          select: { id: true, riotName: true, riotTag: true },
+        })
+      : [];
+  const enrichMap = new Map(enrichProfiles.map((p) => [p.id, p]));
+
+  const enrichedSessionPlayers = session.players.map((p) => {
+    const prof = p.profileId ? enrichMap.get(p.profileId) : null;
+    return {
+      ...p,
+      riotName: p.riotName || prof?.riotName || null,
+      riotTag: p.riotTag || (prof?.riotTag ? prof.riotTag.replace(/^#+/, "") : null),
+    };
+  });
+
+  const matchedRows = enrichedSessionPlayers
     .map((sessionPlayer) => {
       const key = riotKey(sessionPlayer.riotName, sessionPlayer.riotTag);
       const detailPlayer = key ? detailByRiotKey.get(key) : undefined;
