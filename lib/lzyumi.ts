@@ -207,7 +207,7 @@ function signedLookupUrl({
   const server = getChinaServer(areaId);
   const { lzyumiSign, signStr } = createLzyumiSignature();
   const params = [
-    `nickname=${encodeURIComponent(riotName.trim())}`,
+    `nickname=${encodeURIComponent(riotName.trim().replace(/#/g, "*~*~*"))}`,
     "allCount=10",
     `areaId=${server.id}`,
     `areaName=${encodeURIComponent(server.name)}`,
@@ -355,7 +355,7 @@ export async function fetchLzyumiRankedGames({
   async function fetchFilter(filter: number) {
     const { lzyumiSign, signStr } = createLzyumiSignature();
     const params = [
-      `nickname=${encodeURIComponent(riotName.trim())}`,
+      `nickname=${encodeURIComponent(riotName.trim().replace(/#/g, "*~*~*"))}`,
       "allCount=20",
       `areaId=${server.id}`,
       `areaName=${encodeURIComponent(server.name)}`,
