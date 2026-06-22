@@ -360,6 +360,12 @@ export async function POST(request: Request) {
     recentMatch = { gameId };
   } else {
     // Fall back to server-side fetch (works if not IP-blocked).
+    if (!reporterProfile) {
+      return NextResponse.json(
+        { status: "NO_RAW_MATCH_DATA", reply: "Admin reports must include rawMatchData." },
+        { status: 400 },
+      );
+    }
     const latest = await fetchLatestLzyumiMatch({
       riotName: reporterProfile.riotName,
       areaId: server.id,
