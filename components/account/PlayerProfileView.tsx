@@ -393,6 +393,8 @@ export default function PlayerProfileView({
     return () => window.clearInterval(interval);
   }, []);
 
+  const profile = initialProfile ?? loadedProfile;
+
   // Auto-report when opened via bot link (?autoreport=1)
   useEffect(() => {
     if (shouldAutoReport && profile && hasSession && !initialProfile) {
@@ -401,8 +403,6 @@ export default function PlayerProfileView({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldAutoReport, profile, hasSession, initialProfile]);
-
-  const profile = initialProfile ?? loadedProfile;
 
   if (loading) {
     return (
