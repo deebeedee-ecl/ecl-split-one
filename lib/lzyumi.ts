@@ -160,11 +160,14 @@ export function getChinaServer(areaId?: number | null, fallbackName?: string | n
 }
 
 export function createLzyumiSignature(now = new Date()) {
-  const month = String(now.getMonth() + 1);
-  const day = String(now.getDate());
-  const hours = String(now.getHours());
-  const minutes = String(now.getMinutes());
-  const seconds = String(now.getSeconds());
+  // lzyumi validates signatures using China Standard Time (UTC+8).
+  // Vercel runs in UTC, so we must shift to UTC+8 before extracting time components.
+  const china = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const month = String(china.getUTCMonth() + 1);
+  const day = String(china.getUTCDate());
+  const hours = String(china.getUTCHours());
+  const minutes = String(china.getUTCMinutes());
+  const seconds = String(china.getUTCSeconds());
   const signSource = `dld${month.padStart(2, "0")}o${day.padStart(
     2,
     "0",
