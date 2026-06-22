@@ -487,13 +487,14 @@ export default function PlayerProfileView({
           signedUrls.map((url, i) =>
             fetch(url)
               .then((r) => r.json())
-              .then((data) => { console.log(`[lzyumi nick=${nick} filter=${LZYUMI_FILTERS[i]}]`, { count: data?.data?.length ?? 0, titles: (data?.data ?? []).map((g: {title?: string}) => g.title), hasOpenId: !!data?.battleInfo?.openId, error: data?.errorCode }); return data; })
+              .then((data) => { console.log(`[lzyumi nick=${nick} filter=${LZYUMI_FILTERS[i]}]`, { code: data?.code, count: data?.data?.length ?? 0, hasOpenId: !!data?.battleInfo?.openId, message: data?.message, raw: data }); return data; })
               .catch((e) => { console.error(`[lzyumi nick=${nick} filter=${LZYUMI_FILTERS[i]} FAILED]`, e); return null; }),
           ),
         );
       }
 
       // Step 1: probe lzyumi — name-only first, fall back to name+tag
+      console.log("[lzyumi] areaId from profile:", areaId);
       let filterResponses = await fetchAllFilters(nameOnly);
       const hasAnyData = filterResponses.some((r) => r?.battleInfo?.openId || (Array.isArray(r?.data) && r.data.length > 0));
       if (!hasAnyData && nameWithTag !== nameOnly) {
