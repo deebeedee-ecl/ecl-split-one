@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
       riotName: { not: "" },
       chinaServerId: { not: null },
       OR: [
-        { lzyumiRawProfile: null },
+        { lzyumiRawProfile: { equals: Prisma.JsonNull } },
         { lzyumiLastLookupAt: null },
         { lzyumiLastLookupAt: { lt: staleBefore } },
       ],
