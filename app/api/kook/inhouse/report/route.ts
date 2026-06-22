@@ -430,7 +430,7 @@ export async function POST(request: Request) {
     (row) => row.sessionPlayer.kookUserId === reporterKookUserId,
   );
 
-  if (matchedRows.length < REQUIRED_MATCHED_PLAYERS || !reporterMatched) {
+  if (adminOverride ? matchedRows.length < 1 : (matchedRows.length < REQUIRED_MATCHED_PLAYERS || !reporterMatched)) {
     return NextResponse.json(
       {
         status: "MATCH_NOT_CONFIRMED",

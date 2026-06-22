@@ -286,8 +286,8 @@ export default function AdminInhousePage() {
                             <div className="text-sm font-medium truncate">{p.displayName}</div>
                             {p.riotName && (
                               <div className="text-xs text-gray-400 truncate">
-                                {p.riotName}
-                                {p.riotTag ? `#${p.riotTag}` : ""}
+                            {p.riotName}
+                                {p.riotTag ? `#${p.riotTag.replace(/^#+/, "")}` : ""}
                               </div>
                             )}
                             {!p.riotName && (
