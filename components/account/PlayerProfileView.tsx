@@ -472,8 +472,7 @@ export default function PlayerProfileView({
       const areaId = profile.chinaServerId;
 
       // Step 1: fetch reporter's profile from lzyumi (browser IP, bypasses block)
-      // Try all known filters in parallel — inhouses are "新模式" (New Mode) which may
-      // appear in a different filter than ranked/ARAM. Use whichever returns a game first.
+      // ECL inhouses are "满载SUV" / "新模式" mode — probe all filters to find it.
       const LZYUMI_FILTERS = [1, 2, 3, 4, 5];
       const signedUrls = await Promise.all(
         LZYUMI_FILTERS.map((f) =>
@@ -490,22 +489,37 @@ export default function PlayerProfileView({
       const profileData = filterResponses.find((r) => r?.battleInfo?.openId);
       const openId: string = profileData?.battleInfo?.openId ?? "";
 
-      // Find the most recent game across all filters that has a gameId
+      type LzyumiGame = { gameId?: string; title?: string };
+
+      // First pass: find a game with "SUV" or "新模式" in its title (the inhouse game mode)
       let gameId = "";
-      let rawProfile = profileData;
-      for (const resp of filterResponses) {
-        const games: Array<{ gameId?: string }> = Array.isArray(resp?.data) ? resp.data : [];
-        const found = games.find((g) => g.gameId);
-        if (found?.gameId) {
-          gameId = found.gameId;
-          rawProfile = resp;
-          break;
+      let rawProfile: unknown = profileData;
+      outer: for (const resp of filterResponses) {
+        const games: LzyumiGame[] = Array.isArray(resp?.data) ? resp.data : [];
+        for (const g of games) {
+          if (g.gameId && (g.title?.includes("SUV") || g.title?.includes("\u65b0\u6a21\u5f0f"))) {
+            gameId = g.gameId;
+            rawProfile = resp;
+            break outer;
+          }
+        }
+      }
+      // Fallback: take the most recent game from any filter
+      if (!gameId) {
+        for (const resp of filterResponses) {
+          const games: LzyumiGame[] = Array.isArray(resp?.data) ? resp.data : [];
+          const found = games.find((g) => g.gameId);
+          if (found?.gameId) {
+            gameId = found.gameId;
+            rawProfile = resp;
+            break;
+          }
         }
       }
 
       if (!openId || !gameId) {
         throw new Error(
-          "Could not find a recent game on lzyumi. Make sure you just finished an inhouse match.",
+          "Could not find a recent inhouse game on lzyumi. Make sure you just finished an inhouse match.",
         );
       }
 
