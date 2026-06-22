@@ -954,21 +954,116 @@ function ChampionsPanel({
   );
 }
 
+type InhouseHistoryGame = {
+  id: string;
+  gameLabel: string;
+  date: string;
+  isWin: boolean;
+  kills: number;
+  deaths: number;
+  assists: number;
+  lpChange: number;
+  eloAfter: number;
+  isMVP: boolean;
+  isSVP: boolean;
+};
+
 function ProfileMatchHistoryPreview() {
+  const [games, setGames] = useState<InhouseHistoryGame[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const token = await getAccessToken();
+        if (!token) { setLoading(false); return; }
+        const res = await fetch("/api/hub/my-inhouse-history", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setGames((data.games ?? []).slice(0, 3));
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  function formatDate(iso: string) {
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+
   return (
     <section className="rounded-[1.7rem] border border-white/[0.08] bg-[#191a1f] p-6 shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
-      <div className="flex items-center gap-3">
-        <BarChart3 className="text-[#ff1728]" size={24} />
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6b7280]">
-            Personal Match History
-          </p>
-          <h2 className="text-xl font-black text-white">Recent Games</h2>
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <BarChart3 className="text-[#ff1728]" size={24} />
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6b7280]">
+              Personal Match History
+            </p>
+            <h2 className="text-xl font-black text-white">Inhouse Games</h2>
+          </div>
         </div>
+        <Link
+          href="/hub/inhouses"
+          className="rounded-xl bg-white/[0.05] px-4 py-2 text-xs font-black text-[#aeb5da] transition hover:bg-white/[0.09]"
+        >
+          View all →
+        </Link>
       </div>
-      <div className="mt-5 rounded-[1.2rem] border border-white/[0.08] bg-black/20 px-6 py-8 text-center">
-        <p className="text-sm font-semibold text-[#6b7280]">No inhouse matches recorded yet.</p>
-      </div>
+
+      {loading ? (
+        <div className="rounded-[1.2rem] border border-white/[0.08] bg-black/20 px-6 py-8 text-center">
+          <p className="animate-pulse text-sm font-semibold text-[#ffd84d]">Loading…</p>
+        </div>
+      ) : !games || games.length === 0 ? (
+        <div className="rounded-[1.2rem] border border-white/[0.08] bg-black/20 px-6 py-8 text-center">
+          <p className="text-sm font-semibold text-[#6b7280]">No inhouse matches recorded yet.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-[1.2rem] border border-white/[0.08]">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/[0.08] bg-white/[0.03]">
+                <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-[#6b7280]">Game</th>
+                <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-[#6b7280]">Date</th>
+                <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-[#6b7280]">Result</th>
+                <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-[#6b7280]">KDA</th>
+                <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-[0.14em] text-[#6b7280]">LP</th>
+                <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-[0.14em] text-[#6b7280]">ELO</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.05]">
+              {games.map((g) => (
+                <tr key={g.id} className="transition hover:bg-white/[0.03]">
+                  <td className="px-4 py-3 font-black text-[#d7dcff]">
+                    {g.gameLabel}
+                    {g.isMVP && <span className="ml-2 rounded-full bg-[#ffd84d] px-1.5 py-0.5 text-[9px] font-black text-black">MVP</span>}
+                    {g.isSVP && <span className="ml-2 rounded-full bg-[#aeb5da] px-1.5 py-0.5 text-[9px] font-black text-black">SVP</span>}
+                  </td>
+                  <td className="px-4 py-3 text-[#6b7280]">{formatDate(g.date)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${g.isWin ? "bg-[#48f0df]/10 text-[#48f0df]" : "bg-[#ff1728]/10 text-[#ff1728]"}`}>
+                      {g.isWin ? "WIN" : "LOSS"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 font-bold text-[#c6ccd8]">{g.kills}/{g.deaths}/{g.assists}</td>
+                  <td className="px-4 py-3 text-right font-black">
+                    <span className={g.lpChange >= 0 ? "text-[#19d27f]" : "text-[#ff6b6b]"}>
+                      {g.lpChange >= 0 ? "+" : ""}{g.lpChange}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right font-black text-[#ffd84d]">{g.eloAfter}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
