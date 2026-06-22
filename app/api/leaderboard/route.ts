@@ -31,7 +31,9 @@ export async function GET() {
     const players = await prisma.player.findMany({
       include: {
         team: true,
-        gameStats: true,
+        gameStats: {
+          where: { matchGame: { match: { roundLabel: "Ranked Inhouse" } } },
+        },
       },
     });
 
