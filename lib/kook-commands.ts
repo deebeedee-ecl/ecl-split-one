@@ -125,13 +125,22 @@ function inhouseStreak(stats: { isWin: boolean }[]): string {
   return w > 0 ? `W${w}` : l > 0 ? `L${l}` : "-";
 }
 
-async function getLeaderboardRows(): Promise<LeaderboardRow[]> {
-  const INHOUSE_FILTER = { matchGame: { match: { roundLabel: "Ranked Inhouse" } } };
+const INHOUSE_MATCH_FILTER = {
+  matchGame: {
+    match: {
+      OR: [
+        { roundLabel: { startsWith: "IH" } },
+        { roundLabel: "Ranked Inhouse" },
+      ],
+    },
+  },
+};
 
+async function getLeaderboardRows(): Promise<LeaderboardRow[]> {
   const players = await prisma.player.findMany({
     include: {
       gameStats: {
-        where: INHOUSE_FILTER,
+        where: INHOUSE_MATCH_FILTER,
         orderBy: { createdAt: "desc" },
       },
     },
@@ -228,7 +237,7 @@ async function findPlayerForProfile(profile: Awaited<ReturnType<typeof findVerif
     },
     include: {
       gameStats: {
-        where: { matchGame: { match: { roundLabel: "Ranked Inhouse" } } },
+        where: INHOUSE_MATCH_FILTER,
         orderBy: { createdAt: "desc" },
       },
     },
