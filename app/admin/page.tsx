@@ -22,6 +22,7 @@ import {
   Trophy,
   UserCog,
   Users,
+  Swords,
   type LucideIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -183,6 +184,13 @@ export default function AdminPage() {
                 onClick={() => setActive(section.id)}
               />
             ))}
+            <Link
+              href="/admin/inhouse"
+              className="flex min-h-11 w-full items-center gap-3 rounded-xl px-4 text-xs font-black uppercase tracking-[0.08em] text-[#8d8d8d] transition hover:bg-[#1a1a1a] hover:text-white"
+            >
+              <Swords size={16} />
+              Inhouse Reporter
+            </Link>
           </nav>
 
           <div className="mt-auto pt-8">
