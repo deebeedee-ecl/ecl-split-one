@@ -20,6 +20,7 @@ type InhouseBody = {
   channelId?: string;
   members?: KookInhouseMember[];
   voiceMembers?: KookInhouseMember[];
+  isAdmin?: boolean;
 };
 
 function clean(value: unknown) {
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
   const action = parseAction(body);
   const channelId = clean(body.channelId);
   const members = getMembers(body);
+  const isAdmin = Boolean(body.isAdmin);
 
   if (channelId !== RANKED_INHOUSE_CHANNEL_ID) {
     return json(400, {
@@ -95,14 +97,14 @@ export async function POST(request: Request) {
   const players = await resolveInhousePlayers(members);
   const unverifiedPlayers = players.filter((player) => !player.verified);
 
-  if (unverifiedPlayers.length > 0) {
+  if (unverifiedPlayers.length > 0 && !isAdmin) {
     return NextResponse.json({
       ok: false,
       status: "UNVERIFIED_PLAYERS",
       reply:
         "Some players in the channel have not verified their ECL account through KOOK yet:\n" +
         unverifiedPlayers.map((player) => `- ${player.displayName}`).join("\n") +
-        "\n\nAsk them to verify first, then run !inhouse again.",
+        "\n\nAsk them to verify first, then run !inhouse again. Admins can use !forceready to override.",
       players,
     });
   }
