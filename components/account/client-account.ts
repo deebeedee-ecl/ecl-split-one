@@ -35,6 +35,37 @@ export type SignupProfilePayload = {
 };
 
 export const pendingProfileKey = "ecl.pendingSignupProfile";
+export const hubAccessCacheKey = "ecl.hubAccess";
+
+type HubAccessCacheStatus = "ready" | "profile";
+
+export function getHubAccessCache() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(hubAccessCacheKey);
+    if (!raw) return null;
+
+    const value = JSON.parse(raw) as { status?: string };
+    if (value.status === "ready" || value.status === "profile") {
+      return value as { status: HubAccessCacheStatus };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export function setHubAccessCache(status: HubAccessCacheStatus) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(hubAccessCacheKey, JSON.stringify({ status }));
+}
+
+export function clearHubAccessCache() {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(hubAccessCacheKey);
+}
 
 export function cleanSignupProfilePayload(payload: Partial<SignupProfilePayload> & Record<string, unknown>) {
   const { email: _email, password: _password, ...profile } = payload;
@@ -180,9 +211,9 @@ export async function uploadAvatar(file: File) {
   }
 
   const preparedFile = await prepareImageUpload(file, {
-    maxWidth: 512,
-    maxHeight: 512,
-    quality: 0.86,
+    maxWidth: 1024,
+    maxHeight: 1024,
+    quality: 0.92,
   });
   const body = new FormData();
   body.set("avatar", preparedFile);
@@ -212,9 +243,9 @@ export async function uploadBanner(file: File) {
   }
 
   const preparedFile = await prepareImageUpload(file, {
-    maxWidth: 1800,
-    maxHeight: 560,
-    quality: 0.84,
+    maxWidth: 2800,
+    maxHeight: 900,
+    quality: 0.92,
   });
   const body = new FormData();
   body.set("banner", preparedFile);

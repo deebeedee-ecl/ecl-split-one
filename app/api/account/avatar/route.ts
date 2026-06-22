@@ -3,7 +3,7 @@ import { getAccountFromRequest } from "@/lib/account-auth";
 
 export const runtime = "nodejs";
 
-const maxAvatarBytes = 2 * 1024 * 1024;
+const maxAvatarBytes = 4 * 1024 * 1024;
 const allowedTypes = new Map([
   ["image/jpeg", "jpg"],
   ["image/png", "png"],
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   }
 
   if (file.size > maxAvatarBytes) {
-    return NextResponse.json({ message: "Avatar must be 2MB or smaller." }, { status: 400 });
+    return NextResponse.json({ message: "Avatar must be 4MB or smaller." }, { status: 400 });
   }
 
   return NextResponse.json({

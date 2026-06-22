@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { AuthMediaPanel } from "./AuthMediaPanel";
-import { flushPendingProfile } from "./client-account";
+import { flushPendingProfile, loadProfile, setHubAccessCache } from "./client-account";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -28,7 +28,8 @@ export default function LoginForm() {
 
       if (loginError) throw loginError;
 
-      const profile = await flushPendingProfile().catch(() => null);
+      const profile = (await flushPendingProfile().catch(() => null)) ?? (await loadProfile());
+      setHubAccessCache(profile ? "ready" : "profile");
       setMessage(
         profile
           ? "Logged in and synced your pending ECL profile."

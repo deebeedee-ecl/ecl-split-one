@@ -12,10 +12,12 @@ import {
   roles,
 } from "./account-options";
 import {
+  clearHubAccessCache,
   flushPendingProfile,
   loadProfile,
   requestKookVerificationCode,
   saveProfile,
+  setHubAccessCache,
   type SignupProfilePayload,
   uploadAvatar,
   uploadBanner,
@@ -157,6 +159,7 @@ export default function AccountDashboard() {
     try {
       const updated = await saveProfile(savePayload, profile ? "PATCH" : "POST");
       setProfile(updated);
+      setHubAccessCache("ready");
       setMessage(profile ? "Profile saved." : "Profile created.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save profile.");
@@ -255,6 +258,7 @@ export default function AccountDashboard() {
   }
 
   async function signOut() {
+    clearHubAccessCache();
     await supabase.auth.signOut();
     window.location.href = "/login";
   }
@@ -454,7 +458,7 @@ function AvatarUpload({
         />
       </div>
       <span className="mt-2 block text-xs text-[#6b7280]">
-        {uploading ? "Uploading..." : "JPG, PNG, or WebP. Max 2MB."}
+        {uploading ? "Uploading..." : "JPG, PNG, or WebP. Max 4MB."}
       </span>
     </label>
   );
@@ -486,7 +490,7 @@ function BannerUpload({
         />
       </div>
       <span className="mt-2 block text-xs text-[#6b7280]">
-        {uploading ? "Uploading..." : "Recommended: 1400×200px. JPG, PNG, or WebP. Max 2MB."}
+        {uploading ? "Uploading..." : "Recommended: 2800 x 900px. JPG, PNG, or WebP. Max 8MB."}
       </span>
     </label>
   );
@@ -557,7 +561,7 @@ function BannerControls({
         )}
       </div>
       <span className="mt-2 block text-xs text-[#6b7280]">
-        {uploading ? "Uploading..." : "Recommended: 1400 x 200px. JPG, PNG, or WebP. Max 2MB."}
+        {uploading ? "Uploading..." : "Recommended: 2800 x 900px. JPG, PNG, or WebP. Max 8MB."}
       </span>
     </div>
   );

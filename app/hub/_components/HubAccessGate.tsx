@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { flushPendingProfile, loadProfile } from "@/components/account/client-account";
+import {
+  clearHubAccessCache,
+  flushPendingProfile,
+  getHubAccessCache,
+  loadProfile,
+  setHubAccessCache,
+} from "@/components/account/client-account";
 import { supabase } from "@/lib/supabase";
 
 type HubAccessState = "checking" | "ready" | "login" | "profile";
@@ -17,16 +23,40 @@ export function HubAccessGate({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [state, setState] = useState<HubAccessState>("checking");
+  const [state, setState] = useState<HubAccessState>(() => {
+    const cached = getHubAccessCache();
+    if (cached?.status === "ready") return "ready";
+    if (cached?.status === "profile" && allowProfileSetup) return "profile";
+    return "checking";
+  });
 
   useEffect(() => {
     let cancelled = false;
+    const cached = getHubAccessCache();
+
+    if (cached?.status === "ready" || (cached?.status === "profile" && allowProfileSetup)) {
+      setState(cached.status);
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((event) => {
+        if (event === "SIGNED_OUT") {
+          clearHubAccessCache();
+          setState("login");
+        }
+      });
+
+      return () => {
+        cancelled = true;
+        subscription.unsubscribe();
+      };
+    }
 
     async function checkAccess() {
       setState("checking");
 
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
+        clearHubAccessCache();
         if (!cancelled) setState("login");
         return;
       }
@@ -37,22 +67,29 @@ export function HubAccessGate({
       if (cancelled) return;
 
       if (profile) {
+        setHubAccessCache("ready");
         setState("ready");
         return;
       }
 
       if (allowProfileSetup) {
+        setHubAccessCache("profile");
         setState("profile");
         return;
       }
+
+      setHubAccessCache("profile");
 
       router.replace(`/hub/settings?next=${encodeURIComponent(pathname)}`);
     }
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      checkAccess();
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        clearHubAccessCache();
+        setState("login");
+      }
     });
 
     checkAccess();

@@ -3,7 +3,7 @@ import { getAccountFromRequest } from "@/lib/account-auth";
 
 export const runtime = "nodejs";
 
-const maxBannerBytes = 2 * 1024 * 1024; // 2MB
+const maxBannerBytes = 8 * 1024 * 1024;
 const allowedTypes = new Map([
   ["image/jpeg", "jpg"],
   ["image/png", "png"],
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   }
 
   if (file.size > maxBannerBytes) {
-    return NextResponse.json({ message: "Banner must be 2MB or smaller." }, { status: 400 });
+    return NextResponse.json({ message: "Banner must be 8MB or smaller." }, { status: 400 });
   }
 
   return NextResponse.json({
