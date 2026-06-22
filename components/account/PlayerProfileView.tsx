@@ -491,13 +491,14 @@ export default function PlayerProfileView({
 
       type LzyumiGame = { gameId?: string; title?: string };
 
-      // First pass: find a game with "SUV" or "新模式" in its title (the inhouse game mode)
+      // First pass: find a game with "新模式" in its title — that's the inhouse game mode
+      // (灵活/满载SUV is regular Flex ranked, not inhouse)
       let gameId = "";
       let rawProfile: unknown = profileData;
       outer: for (const resp of filterResponses) {
         const games: LzyumiGame[] = Array.isArray(resp?.data) ? resp.data : [];
         for (const g of games) {
-          if (g.gameId && (g.title?.includes("SUV") || g.title?.includes("\u65b0\u6a21\u5f0f"))) {
+          if (g.gameId && g.title?.includes("\u65b0\u6a21\u5f0f")) {
             gameId = g.gameId;
             rawProfile = resp;
             break outer;
