@@ -859,68 +859,19 @@ function ChampionsPanel({
 }
 
 function ProfileMatchHistoryPreview() {
-  const items = [
-    { id: 3802, name: "Lost Chapter" },
-    { id: 3020, name: "Sorcerer's Shoes" },
-    { id: 3916, name: "Oblivion Orb" },
-    { id: 1052, name: "Amplifying Tome" },
-    { id: 2055, name: "Control Ward" },
-  ];
-
   return (
     <section className="rounded-[1.7rem] border border-white/[0.08] bg-[#191a1f] p-6 shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <BarChart3 className="text-[#ff1728]" size={24} />
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6b7280]">
-              Personal Match History
-            </p>
-            <h2 className="text-xl font-black text-white">Recent Games</h2>
-          </div>
+      <div className="flex items-center gap-3">
+        <BarChart3 className="text-[#ff1728]" size={24} />
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6b7280]">
+            Personal Match History
+          </p>
+          <h2 className="text-xl font-black text-white">Recent Games</h2>
         </div>
-        <span className="rounded-full border border-[#ffd84d]/30 bg-[#ffd84d]/10 px-3 py-1 text-xs font-black text-[#ffd84d]">
-          SVP
-        </span>
       </div>
-
-      <div className="mt-5 grid gap-4 rounded-[1.2rem] border border-white/[0.08] bg-black/20 p-4 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center">
-        <div className="flex flex-wrap items-center gap-4">
-          <ChampionIcon id={103} size={72} />
-          <div className="min-w-[13rem] flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-2xl font-black text-white">Ahri</h3>
-              <span className="rounded-full bg-[#ff1728]/12 px-3 py-1 text-xs font-black uppercase text-[#ff6b6b]">
-                Defeat
-              </span>
-              <span className="rounded-full bg-white/[0.06] px-3 py-1 text-xs font-black text-[#aeb5da]">
-                Mid
-              </span>
-            </div>
-            <p className="mt-2 text-sm font-semibold text-[#aeb5da]">
-              deebeedee#34323 / ECL Elo 1842
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {items.map((item) => (
-                <span key={item.id} className="rounded-xl border border-white/[0.08] bg-white/[0.05] p-1">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`/lol/items/${item.id}.png`}
-                    alt={item.name}
-                    title={item.name}
-                    className="h-9 w-9 rounded-lg object-cover"
-                  />
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <Metric label="KDA" value="2/1/1" accent="text-[#ff6b6b]" />
-          <Metric label="Rating" value="10.0" accent="text-[#ffd84d]" />
-          <Metric label="Damage" value="5.7k" />
-        </div>
+      <div className="mt-5 rounded-[1.2rem] border border-white/[0.08] bg-black/20 px-6 py-8 text-center">
+        <p className="text-sm font-semibold text-[#6b7280]">No inhouse matches recorded yet.</p>
       </div>
     </section>
   );

@@ -250,13 +250,14 @@ export async function formatMeMessage(kookUserId: string) {
   const gamesPlayed = player?.gameStats.length ?? 0;
   const wins = player?.gameStats.filter((stat) => stat.isWin).length ?? 0;
   const losses = gamesPlayed - wins;
+  const eloLabel = gamesPlayed > 0 ? `${player?.elo ?? STARTING_ELO}` : `${STARTING_ELO} (no games played)`;
 
   return [
     "You are verified.",
     "",
     `Player: ${profile.displayName}`,
     `Riot ID: ${formatRiotId(profile.riotName, profile.riotTag) ?? "-"}`,
-    `ECL LP: ${player?.elo ?? STARTING_ELO}`,
+    `ECL LP: ${eloLabel}`,
     `Record: ${wins}W/${losses}L`,
     `China rank: ${profile.currentRank || "Unranked"}`,
   ].join("\n");
