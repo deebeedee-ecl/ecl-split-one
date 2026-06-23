@@ -10,6 +10,7 @@ import {
   type HubRole,
 } from "@/lib/hub-profile";
 import { HubShell } from "../_components/HubShell";
+import { LeaderboardCountdown } from "./LeaderboardCountdown";
 
 // Revalidate every 24 hours — gives the ladder a daily update cadence
 export const revalidate = 86400;
@@ -158,13 +159,16 @@ export default async function RankedLadderPage() {
       description="ECL ranked inhouse standings. Updates every 24 hours."
     >
       <section className="overflow-hidden border border-white/[0.08] bg-[#24252d] shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
-        <div className="border-b border-white/[0.08] bg-[#191a21] px-5 py-4">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#ff1728]">
-            Ranked Inhouse
-          </p>
-          <h2 className="mt-1 text-2xl font-black uppercase text-white">
-            Ranked Standings
-          </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] bg-[#191a21] px-5 py-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#ff1728]">
+              Ranked Inhouse
+            </p>
+            <h2 className="mt-1 text-2xl font-black uppercase text-white">
+              Ranked Standings
+            </h2>
+          </div>
+          <LeaderboardCountdown generatedAt={new Date().toISOString()} />
         </div>
 
         {ladderRows.length === 0 ? (
