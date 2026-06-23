@@ -126,8 +126,9 @@ async function detectGame(
   const matchEntry = allGames.find((g) => g.gameId === gameId);
   const timeStr = matchEntry?.titleTime ?? "unknown time";
 
-  const players: Array<{ teamId?: number | string; nickNameStr?: string; nickName?: string }> =
-    (detail as { data?: { wgBattleDetailInfo?: unknown[] } })?.data?.wgBattleDetailInfo ?? [];
+  type PlayerEntry = { teamId?: number | string; nickNameStr?: string; nickName?: string };
+  const players: PlayerEntry[] =
+    ((detail as { data?: { wgBattleDetailInfo?: unknown[] } })?.data?.wgBattleDetailInfo ?? []) as PlayerEntry[];
 
   const teamMap = new Map<string, string[]>();
   for (const p of players) {
