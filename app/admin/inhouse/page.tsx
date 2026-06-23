@@ -195,13 +195,17 @@ export default function AdminInhousePage() {
       });
 
       const data = await res.json();
-      setResult({ ok: res.ok, message: data.reply ?? data.message ?? JSON.stringify(data) });
+      const message = data.reply ?? data.message ?? JSON.stringify(data);
+      setResult({ ok: res.ok, message });
 
       if (res.ok) {
-        // Refresh sessions list
+        // Refresh sessions list — keep result visible, only clear lookup state
         setSessions((prev) => prev.filter((s) => s.id !== selectedSession.id));
         setSelectedSession(null);
-        resetLookup();
+        setGames([]);
+        setRawProfile(null);
+        setSelectedGameId(null);
+        // Don't call resetLookup() — that clears result too
       }
     } catch (e) {
       setResult({ ok: false, message: String(e) });

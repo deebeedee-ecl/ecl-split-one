@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { calculateLpChange } from "@/lib/elo";
 import {
@@ -642,6 +643,11 @@ export async function POST(request: Request) {
       completedAt: new Date(),
     },
   });
+
+  // Revalidate cached pages so the leaderboard and match history update immediately
+  revalidatePath("/hub/leaderboard");
+  revalidatePath("/hub/inhouses");
+  revalidatePath("/hub/me");
 
   return NextResponse.json({
     ok: true,
