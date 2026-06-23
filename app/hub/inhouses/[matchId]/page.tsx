@@ -1,5 +1,6 @@
 import { HubShell } from "../../_components/HubShell";
 import { InhouseMatchDetailClient } from "../InhouseMatchHistoryClient";
+import { fetchInhouseMatches } from "@/lib/inhouse-matches";
 
 export default async function InhouseMatchPage({
   params,
@@ -7,6 +8,7 @@ export default async function InhouseMatchPage({
   params: Promise<{ matchId: string }>;
 }) {
   const { matchId } = await params;
+  const liveMatches = await fetchInhouseMatches();
 
   return (
     <HubShell
@@ -16,7 +18,7 @@ export default async function InhouseMatchPage({
       description="Full match statistics, draft, damage, objectives, and standouts."
       hideHeader
     >
-      <InhouseMatchDetailClient matchId={matchId} />
+      <InhouseMatchDetailClient matchId={matchId} liveMatches={liveMatches} />
     </HubShell>
   );
 }

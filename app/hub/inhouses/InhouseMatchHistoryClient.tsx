@@ -311,22 +311,50 @@ const statLabels = [
   ["Barons", "barons"],
 ] as const;
 
-const visibleMatches = matches.filter((match) => match.id === "IH - 001");
+// Type for live data fetched from the DB (compatible with mock shape)
+export type LiveMatchData = {
+  id: string;
+  date: string;
+  blue: string;
+  red: string;
+  score: string;
+  blueResult: string;
+  redResult: string;
+  duration: string;
+  stage: string;
+  game: string;
+  stats: { kda: [string, string]; gold: [string, string]; towers: [string, string]; grubs: [string, string]; heralds: [string, string]; drakes: [string, string]; elders: [string, string]; barons: [string, string] };
+  blueDraft: string[];
+  redDraft: string[];
+  blueDamage: [string, string, number, string?][];
+  redDamage: [string, string, number, string?][];
+  goldDiff: number[];
+};
+
+// Show all matches (real data will override the mock array via props)
+const visibleMatches = matches;
 
 function getMatchSlug(matchId: string) {
-  return matchId.toLowerCase().replace(/\s*-\s*/g, "-").replace(/\s+/g, "-");
+  return matchId
+    .toLowerCase()
+    .replace(/#/g, "")
+    .replace(/\s*-\s*/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
-function findMatchBySlug(matchId: string) {
-  return visibleMatches.find((match) => getMatchSlug(match.id) === matchId) ?? visibleMatches[0];
+function findMatchBySlug(matchId: string, haystack: LiveMatchData[]) {
+  return haystack.find((match) => getMatchSlug(match.id) === matchId) ?? haystack[0];
 }
 
-export function InhouseMatchHistoryClient() {
-  const recentMatches = visibleMatches.slice(0, 5);
-  const [selectedId, setSelectedId] = useState(visibleMatches[0].id);
+export function InhouseMatchHistoryClient({ liveMatches }: { liveMatches?: LiveMatchData[] }) {
+  const allMatches = (liveMatches && liveMatches.length > 0 ? liveMatches : visibleMatches) as LiveMatchData[];
+  const recentMatches = allMatches.slice(0, 5);
+  const [selectedId, setSelectedId] = useState(allMatches[0]?.id ?? "");
   const selected = useMemo(
     () => recentMatches.find((match) => match.id === selectedId) ?? recentMatches[0],
-    [selectedId],
+    [selectedId, recentMatches],
   );
 
   return (
@@ -389,7 +417,8 @@ export function InhouseMatchHistoryClient() {
   );
 }
 
-export function InhouseArchiveClient() {
+export function InhouseArchiveClient({ liveMatches }: { liveMatches?: LiveMatchData[] }) {
+  const allMatches = (liveMatches && liveMatches.length > 0 ? liveMatches : visibleMatches) as LiveMatchData[];
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-5">
@@ -418,7 +447,7 @@ export function InhouseArchiveClient() {
           <span>Duration</span>
           <span />
         </div>
-        {visibleMatches.map((match) => (
+        {allMatches.map((match) => (
           <Link
             key={match.id}
             href={`/hub/inhouses/${getMatchSlug(match.id)}`}
@@ -446,8 +475,9 @@ export function InhouseArchiveClient() {
   );
 }
 
-export function InhouseMatchDetailClient({ matchId }: { matchId: string }) {
-  const match = findMatchBySlug(matchId);
+export function InhouseMatchDetailClient({ matchId, liveMatches }: { matchId: string; liveMatches?: LiveMatchData[] }) {
+  const allMatches = (liveMatches && liveMatches.length > 0 ? liveMatches : visibleMatches) as LiveMatchData[];
+  const match = findMatchBySlug(matchId, allMatches);
 
   return (
     <div className="space-y-5">
@@ -472,7 +502,7 @@ export function InhouseMatchDetailClient({ matchId }: { matchId: string }) {
   );
 }
 
-function BroadcastReport({ match }: { match: (typeof matches)[number] }) {
+function BroadcastReport({ match }: { match: LiveMatchData }) {
   return (
     <section className="relative overflow-hidden rounded-[1.4rem] border border-[#7f6bff]/35 bg-[#0c0620] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.42)]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(104,96,255,0.42),transparent_25%),radial-gradient(circle_at_88%_10%,rgba(255,93,128,0.3),transparent_30%),linear-gradient(135deg,rgba(60,30,140,0.68),rgba(8,4,26,0.98)_46%,rgba(18,4,31,0.98))]" />
@@ -500,7 +530,7 @@ function BroadcastReport({ match }: { match: (typeof matches)[number] }) {
   );
 }
 
-function ScoreStrip({ match }: { match: (typeof matches)[number] }) {
+function ScoreStrip({ match }: { match: LiveMatchData }) {
   const [blueScore, redScore] = match.score.split(" - ");
 
   return (
@@ -540,7 +570,7 @@ function ScoreStrip({ match }: { match: (typeof matches)[number] }) {
   );
 }
 
-function GameStats({ match }: { match: (typeof matches)[number] }) {
+function GameStats({ match }: { match: LiveMatchData }) {
   return (
     <section className="rounded-sm bg-[#11072b]/80 p-6">
       <h2 className="text-center text-xl font-black uppercase tracking-[0.14em] text-white">
@@ -606,7 +636,7 @@ function DraftIcons({ champions, tone }: { champions: string[]; tone: "blue" | "
   );
 }
 
-function DamagePanel({ match }: { match: (typeof matches)[number] }) {
+function DamagePanel({ match }: { match: LiveMatchData }) {
   const maxDamage = Math.max(
     ...match.blueDamage.map((item) => Number(item[2])),
     ...match.redDamage.map((item) => Number(item[2])),
@@ -644,7 +674,7 @@ function DamageBar({
   tone,
   align = "left",
 }: {
-  player: (typeof matches)[number]["blueDamage"][number];
+  player: LiveMatchData["blueDamage"][number];
   max: number;
   tone: "blue" | "red";
   align?: "left" | "right";
@@ -685,7 +715,7 @@ function DamageBar({
   );
 }
 
-function MatchStandouts({ match }: { match: (typeof matches)[number] }) {
+function MatchStandouts({ match }: { match: LiveMatchData }) {
   const standouts = getStandouts(match);
 
   return (
@@ -752,7 +782,7 @@ function StandoutCard({
   );
 }
 
-function getStandouts(match: (typeof matches)[number]) {
+function getStandouts(match: LiveMatchData) {
   const explicitStandouts = (match as unknown as {
     standouts?: {
       mvp: readonly [string, string, string];
@@ -773,11 +803,11 @@ function getStandouts(match: (typeof matches)[number]) {
   };
 }
 
-function findTopDamage(players: (typeof matches)[number]["blueDamage"]) {
+function findTopDamage(players: LiveMatchData["blueDamage"]) {
   return players.reduce((best, player) => (Number(player[2]) > Number(best[2]) ? player : best));
 }
 
-function damagePlayerToStandout(player: (typeof matches)[number]["blueDamage"][number]) {
+function damagePlayerToStandout(player: LiveMatchData["blueDamage"][number]) {
   const [name, champion, , kda] = player as unknown as readonly [
     string,
     string,
@@ -861,7 +891,8 @@ function ChampionIcon({
     );
   }
 
-  const icon = championIcons[champion];
+  // Support numeric champion IDs (e.g. "238" for Zed) as returned by lzyumi
+  const icon = championIcons[champion] ?? (/^\d+$/.test(champion) ? `/lol/champions/${champion}.png` : null);
 
   if (!icon) {
     return (

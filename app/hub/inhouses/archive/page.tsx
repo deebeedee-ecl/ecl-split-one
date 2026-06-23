@@ -1,7 +1,10 @@
 import { HubShell } from "../../_components/HubShell";
 import { InhouseArchiveClient } from "../InhouseMatchHistoryClient";
+import { fetchInhouseMatches } from "@/lib/inhouse-matches";
 
-export default function InhouseArchivePage() {
+export default async function InhouseArchivePage() {
+  const liveMatches = await fetchInhouseMatches();
+
   return (
     <HubShell
       active="inhouses"
@@ -10,7 +13,7 @@ export default function InhouseArchivePage() {
       description="Stored inhouse games with quick access to full post-game reports."
       hideHeader
     >
-      <InhouseArchiveClient />
+      <InhouseArchiveClient liveMatches={liveMatches} />
     </HubShell>
   );
 }
