@@ -329,6 +329,7 @@ export type LiveMatchData = {
   blueDamage: [string, string, number, string?][];
   redDamage: [string, string, number, string?][];
   goldDiff: number[];
+  standouts?: { mvp: [string, string, string]; svp: [string, string, string] };
 };
 
 // Show all matches (real data will override the mock array via props)
