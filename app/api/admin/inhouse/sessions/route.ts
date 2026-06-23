@@ -15,20 +15,32 @@ export async function GET() {
     return NextResponse.json({ sessions: [] });
   }
 
-  // Batch load chinaServerId from AccountProfile for lzyumi lookup
+  // Batch load from AccountProfile — by profileId AND by kookId fallback
   const profileIds = sessions
     .flatMap((s) => s.players.map((p) => p.profileId))
     .filter((id): id is string => Boolean(id));
 
-  const profiles =
+  const kookIds = sessions
+    .flatMap((s) => s.players.filter((p) => !p.profileId).map((p) => p.kookUserId))
+    .filter(Boolean);
+
+  const [profilesById, profilesByKook] = await Promise.all([
     profileIds.length > 0
-      ? await prisma.accountProfile.findMany({
+      ? prisma.accountProfile.findMany({
           where: { id: { in: profileIds } },
           select: { id: true, chinaServerId: true, riotName: true, riotTag: true },
         })
-      : [];
+      : Promise.resolve([]),
+    kookIds.length > 0
+      ? prisma.accountProfile.findMany({
+          where: { kookId: { in: kookIds } },
+          select: { kookId: true, chinaServerId: true, riotName: true, riotTag: true },
+        })
+      : Promise.resolve([]),
+  ]);
 
-  const profileMap = new Map(profiles.map((p) => [p.id, p]));
+  const profileMap = new Map(profilesById.map((p) => [p.id, p]));
+  const kookMap = new Map(profilesByKook.map((p) => [p.kookId!, p]));
 
   const enriched = sessions.map((session) => ({
     id: session.id,
@@ -36,11 +48,10 @@ export async function GET() {
     status: session.status,
     createdAt: session.createdAt.toISOString(),
     players: session.players.map((p) => {
-      const prof = p.profileId ? profileMap.get(p.profileId) : null;
-      // Fall back to AccountProfile riotName/riotTag if InhouseSessionPlayer fields are empty
+      const prof = (p.profileId ? profileMap.get(p.profileId) : null) ?? kookMap.get(p.kookUserId) ?? null;
       const riotName = p.riotName || prof?.riotName || null;
       const rawTag = p.riotTag || prof?.riotTag || null;
-      const riotTag = rawTag ? rawTag.replace(/^#+/, "") : null; // strip leading #
+      const riotTag = rawTag ? rawTag.replace(/^#+/, "") : null;
       return {
         id: p.id,
         kookUserId: p.kookUserId,

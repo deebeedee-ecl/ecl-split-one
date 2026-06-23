@@ -415,22 +415,36 @@ export async function POST(request: Request) {
     }
   }
 
-  // Enrich session players with AccountProfile riotName/riotTag when InhouseSessionPlayer fields are empty
+  // Enrich session players with AccountProfile riotName/riotTag when InhouseSessionPlayer fields are empty.
+  // Try by profileId first, fall back to kookUserId → AccountProfile.kookId.
   const missingProfileIds = session.players
     .filter((p) => (!p.riotName || !p.riotTag) && p.profileId)
     .map((p) => p.profileId as string);
 
-  const enrichProfiles =
+  const missingKookIds = session.players
+    .filter((p) => (!p.riotName || !p.riotTag) && !p.profileId)
+    .map((p) => p.kookUserId);
+
+  const [enrichProfiles, enrichByKook] = await Promise.all([
     missingProfileIds.length > 0
-      ? await prisma.accountProfile.findMany({
+      ? prisma.accountProfile.findMany({
           where: { id: { in: missingProfileIds } },
           select: { id: true, riotName: true, riotTag: true },
         })
-      : [];
+      : Promise.resolve([]),
+    missingKookIds.length > 0
+      ? prisma.accountProfile.findMany({
+          where: { kookId: { in: missingKookIds } },
+          select: { kookId: true, riotName: true, riotTag: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
   const enrichMap = new Map(enrichProfiles.map((p) => [p.id, p]));
+  const kookEnrichMap = new Map(enrichByKook.map((p) => [p.kookId!, p]));
 
   const enrichedSessionPlayers = session.players.map((p) => {
-    const prof = p.profileId ? enrichMap.get(p.profileId) : null;
+    const prof = (p.profileId ? enrichMap.get(p.profileId) : null) ?? kookEnrichMap.get(p.kookUserId) ?? null;
     return {
       ...p,
       riotName: p.riotName || prof?.riotName || null,
