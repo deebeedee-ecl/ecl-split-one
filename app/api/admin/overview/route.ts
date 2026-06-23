@@ -37,6 +37,7 @@ export async function GET() {
           wechatId: true,
           riotName: true,
           riotTag: true,
+          chinaServerId: true,
           primaryRole: true,
           currentRank: true,
           accountStatus: true,
@@ -93,6 +94,14 @@ export async function GET() {
         accountStatus: user.accountStatus,
         verificationStatus: user.verificationStatus,
         createdAt: user.createdAt,
+        // Raw fields for admin edit modal
+        displayName: user.displayName,
+        riotName: user.riotName,
+        riotTag: user.riotTag,
+        kookId: user.kookId ?? "",
+        kookUsername: user.kookUsername,
+        wechatId: user.wechatId ?? "",
+        chinaServerId: user.chinaServerId ?? "",
       })),
       matches: matches.map((match) => {
         const durationSeconds = match.games.find((game) => game.durationSeconds)?.durationSeconds;

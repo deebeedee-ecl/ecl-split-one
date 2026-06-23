@@ -3,11 +3,13 @@
 import Link from "next/link";
 import {
   Activity,
+  AlertTriangle,
   CalendarDays,
   Edit3,
   FileText,
   Gauge,
   Home,
+  KeyRound,
   LogOut,
   Mail,
   MessageSquareText,
@@ -15,11 +17,14 @@ import {
   PenSquare,
   Plus,
   RefreshCw,
+  Save,
   Search,
   ShieldCheck,
   Trash2,
   Trophy,
+  UserCog,
   Users,
+  X,
   Swords,
   type LucideIcon,
 } from "lucide-react";
@@ -31,6 +36,7 @@ type AdminSection =
   | "users"
   | "matches"
   | "elo"
+  | "admins"
   | "messages"
   | "news";
 
@@ -39,26 +45,10 @@ const sections: Array<{ id: AdminSection; label: string; icon: LucideIcon }> = [
   { id: "users", label: "Users", icon: Users },
   { id: "matches", label: "Match History", icon: CalendarDays },
   { id: "elo", label: "ELO / LP", icon: Gauge },
+  { id: "admins", label: "Admin Users", icon: UserCog },
   { id: "messages", label: "Messages", icon: MessageSquareText },
   { id: "news", label: "News Drafts", icon: Newspaper },
 ];
-
-type EloRuleConfig = {
-  baseWinLp: number;
-  baseLossLp: number;
-  mvpBonus: number;
-  svpLossReduction: number;
-  winStreakBonus: number;
-  lossStreakPenalty: number;
-};
-
-type EloPlayer = {
-  id: string;
-  name: string;
-  riotName: string | null;
-  riotTag: string | null;
-  elo: number;
-};
 
 type ContactMessage = {
   id: string;
@@ -88,6 +78,14 @@ type AdminOverview = {
     rank: string;
     accountStatus: string;
     verificationStatus: string;
+    // Raw fields for editing
+    displayName: string;
+    riotName: string;
+    riotTag: string;
+    kookId: string;
+    kookUsername: string;
+    wechatId: string;
+    chinaServerId: string | number;
   }>;
   matches: Array<{
     id: string;
@@ -103,6 +101,10 @@ type AdminOverview = {
     id: string;
     text: string;
     createdAt: string;
+  }>;
+  adminUsers: Array<{
+    email: string;
+    role: string;
   }>;
   newsDrafts: Array<{
     type: string;
@@ -121,6 +123,7 @@ const emptyOverview: AdminOverview = {
   users: [],
   matches: [],
   recentNotes: [],
+  adminUsers: [],
   newsDrafts: [],
 };
 
@@ -143,11 +146,10 @@ export default function AdminPage() {
         cache: "no-store",
         credentials: "include",
       });
-      const raw = await response.text();
-      const data = raw ? JSON.parse(raw) : null;
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data?.error ?? "Could not load admin overview.");
+        throw new Error(data.error ?? "Could not load admin overview.");
       }
 
       setOverview(data);
@@ -244,9 +246,10 @@ export default function AdminPage() {
               </p>
             )}
             {active === "dashboard" && <DashboardSection overview={overview} loading={overviewLoading} setActive={setActive} />}
-            {active === "users" && <UsersSection users={overview.users} loading={overviewLoading} />}
+            {active === "users" && <UsersSection users={overview.users} loading={overviewLoading} onRefresh={loadOverview} />}
             {active === "matches" && <MatchesSection matches={overview.matches} loading={overviewLoading} />}
             {active === "elo" && <EloSection />}
+            {active === "admins" && <AdminsSection admins={overview.adminUsers} loading={overviewLoading} />}
             {active === "messages" && <MessagesSection />}
             {active === "news" && <NewsSection drafts={overview.newsDrafts} loading={overviewLoading} />}
           </div>
@@ -434,72 +437,315 @@ function LzyumiRefreshPanel() {
 function UsersSection({
   users,
   loading,
+  onRefresh,
 }: {
   users: AdminOverview["users"];
   loading: boolean;
+  onRefresh: () => void;
 }) {
+  type User = AdminOverview["users"][number];
+
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [actionMsg, setActionMsg] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filtered = users.filter((u) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      u.player.toLowerCase().includes(q) ||
+      u.riot.toLowerCase().includes(q) ||
+      u.kook.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q)
+    );
+  });
+
+  function openEdit(user: User) {
+    setEditForm({
+      displayName: user.displayName,
+      riotName: user.riotName,
+      riotTag: user.riotTag,
+      kookId: user.kookId,
+      kookUsername: user.kookUsername,
+      wechatId: user.wechatId,
+      chinaServerId: String(user.chinaServerId ?? ""),
+      accountStatus: user.accountStatus,
+      verificationStatus: user.verificationStatus,
+    });
+    setActionMsg("");
+    setEditingUser(user);
+  }
+
+  async function saveEdit() {
+    if (!editingUser) return;
+    setSaving(true);
+    setActionMsg("");
+    try {
+      const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Save failed");
+      setActionMsg("Saved successfully.");
+      setEditingUser(null);
+      onRefresh();
+    } catch (err) {
+      setActionMsg(err instanceof Error ? err.message : "Save failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deletingUser) return;
+    setDeleting(true);
+    setActionMsg("");
+    try {
+      const res = await fetch(`/api/admin/users/${deletingUser.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Delete failed");
+      setDeletingUser(null);
+      onRefresh();
+    } catch (err) {
+      setActionMsg(err instanceof Error ? err.message : "Delete failed.");
+      setDeleting(false);
+    }
+  }
+
+  const inputCls =
+    "w-full rounded-lg border border-[#2b2b2b] bg-[#111] px-3 py-2 text-sm text-white placeholder-[#555] outline-none focus:border-[#b11226]";
+  const labelCls = "block text-xs font-black uppercase tracking-[0.1em] text-[#8d8d8d] mb-1";
+
   return (
-    <Panel title="Users" icon={Users}>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-[#8d8d8d]">
-          Player, email, KOOK ID, Riot ID, WeChat, and quick admin actions.
-        </p>
-        <button className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#b11226] px-4 text-xs font-black uppercase tracking-[0.08em]">
-          <Plus size={15} />
-          Add Player
-        </button>
-      </div>
-      <div className="overflow-x-auto rounded-xl border border-[#242424]">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-[#111111] text-[0.68rem] font-black uppercase tracking-[0.12em] text-[#8d8d8d]">
-            <tr>
-              <th className="px-4 py-3">Player</th>
-              <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3">KOOK ID</th>
-              <th className="px-4 py-3">Riot ID</th>
-              <th className="px-4 py-3">WeChat</th>
-              <th className="px-4 py-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
+    <>
+      <Panel title="Users" icon={Users}>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#555]" />
+            <input
+              type="text"
+              placeholder="Search by name, Riot ID, KOOK ID, email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-xl border border-[#242424] bg-[#111] py-2 pl-8 pr-4 text-sm text-white placeholder-[#555] outline-none focus:border-[#b11226]"
+            />
+          </div>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-[#242424]">
+          <table className="min-w-full text-left text-sm">
+            <thead className="bg-[#111111] text-[0.68rem] font-black uppercase tracking-[0.12em] text-[#8d8d8d]">
               <tr>
-                <td colSpan={6} className="px-4 py-4 text-[#8d8d8d]">
-                  Loading players...
-                </td>
+                <th className="px-4 py-3">Player</th>
+                <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">KOOK ID</th>
+                <th className="px-4 py-3">Riot ID</th>
+                <th className="px-4 py-3">WeChat</th>
+                <th className="px-4 py-3">Actions</th>
               </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-4 text-[#8d8d8d]">
+                    Loading players...
+                  </td>
+                </tr>
+              )}
+              {!loading && filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-4 text-[#8d8d8d]">
+                    {users.length === 0 ? "No registered player profiles yet." : "No results match your search."}
+                  </td>
+                </tr>
+              )}
+              {filtered.map((user) => (
+                <tr key={user.id} className="border-t border-[#242424] hover:bg-white/[0.02]">
+                  <td className="px-4 py-4">
+                    <p className="font-black text-white">{user.player}</p>
+                    <p className="text-xs text-[#8d8d8d]">
+                      {user.role} / {user.rank} / {user.accountStatus} / {user.verificationStatus}
+                    </p>
+                  </td>
+                  <td className="px-4 py-4 text-[#cfcfcf]">{user.email}</td>
+                  <td className="px-4 py-4 text-[#cfcfcf]">{user.kook}</td>
+                  <td className="px-4 py-4 text-[#cfcfcf]">{user.riot}</td>
+                  <td className="px-4 py-4 text-[#cfcfcf]">{user.wechat}</td>
+                  <td className="px-4 py-4">
+                    <div className="flex gap-2">
+                      <ActionButton label="Edit" icon={Edit3} onClick={() => openEdit(user)} />
+                      <ActionButton label="Remove" icon={Trash2} danger onClick={() => { setActionMsg(""); setDeletingUser(user); }} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {actionMsg && (
+          <p className={`mt-3 text-xs font-black ${actionMsg.includes("success") ? "text-green-400" : "text-[#ff5b70]"}`}>
+            {actionMsg}
+          </p>
+        )}
+      </Panel>
+
+      {/* ── Edit Modal ── */}
+      {editingUser && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/80 p-4" onClick={(e) => { if (e.target === e.currentTarget) setEditingUser(null); }}>
+          <div className="w-full max-w-lg rounded-2xl border border-[#2b2b2b] bg-[#0d0d0d] p-6 shadow-2xl">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.15em] text-[#b11226]">Edit Profile</p>
+                <h2 className="mt-1 text-lg font-black text-white">{editingUser.player}</h2>
+              </div>
+              <button type="button" onClick={() => setEditingUser(null)} className="rounded-lg p-1 text-[#8d8d8d] hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Display Name</label>
+                  <input className={inputCls} value={editForm.displayName ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, displayName: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={labelCls}>WeChat ID</label>
+                  <input className={inputCls} value={editForm.wechatId ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, wechatId: e.target.value }))} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Riot Name</label>
+                  <input className={inputCls} value={editForm.riotName ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, riotName: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={labelCls}>Riot Tag (no #)</label>
+                  <input className={inputCls} placeholder="e.g. EUW" value={editForm.riotTag ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, riotTag: e.target.value }))} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Kook ID (numeric)</label>
+                  <input className={inputCls} placeholder="e.g. 2250999902" value={editForm.kookId ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, kookId: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={labelCls}>Kook Username</label>
+                  <input className={inputCls} value={editForm.kookUsername ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, kookUsername: e.target.value }))} />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>China Server ID (for lzyumi)</label>
+                <input className={inputCls} placeholder="e.g. 12345678" value={editForm.chinaServerId ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, chinaServerId: e.target.value }))} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Account Status</label>
+                  <select className={inputCls} value={editForm.accountStatus ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, accountStatus: e.target.value }))}>
+                    <option value="PENDING">PENDING</option>
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="SUSPENDED">SUSPENDED</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Verification Status</label>
+                  <select className={inputCls} value={editForm.verificationStatus ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, verificationStatus: e.target.value }))}>
+                    <option value="PENDING_KOOK">PENDING_KOOK</option>
+                    <option value="VERIFIED">VERIFIED</option>
+                    <option value="REJECTED">REJECTED</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {actionMsg && (
+              <p className={`mt-3 text-xs font-black ${actionMsg.includes("success") ? "text-green-400" : "text-[#ff5b70]"}`}>
+                {actionMsg}
+              </p>
             )}
-            {!loading && users.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-4 text-[#8d8d8d]">
-                  No registered player profiles yet.
-                </td>
-              </tr>
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setEditingUser(null)} className="rounded-xl border border-[#2b2b2b] px-4 py-2 text-xs font-black text-[#8d8d8d] hover:text-white">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveEdit}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#b11226] px-5 py-2 text-xs font-black text-white transition hover:bg-[#d41530] disabled:opacity-50"
+              >
+                <Save size={14} />
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Confirmation Modal ── */}
+      {deletingUser && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#b11226]/40 bg-[#0d0d0d] p-8 shadow-2xl">
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#b11226]/20">
+                <AlertTriangle size={32} className="text-[#ff3046]" />
+              </div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-[#ff3046]">⚠ Destructive Action</p>
+              <h2 className="mt-2 text-2xl font-black text-white">Delete Account?</h2>
+              <p className="mt-3 text-sm font-semibold text-[#8d8d8d]">
+                You are about to permanently delete the account for
+              </p>
+              <p className="mt-2 text-xl font-black text-white">{deletingUser.player}</p>
+              <p className="mt-1 text-sm text-[#8d8d8d]">{deletingUser.email}</p>
+              <div className="mt-5 w-full rounded-xl border border-[#b11226]/30 bg-[#1a0608] p-4 text-left text-xs font-semibold text-[#ff7b8a]">
+                <p className="font-black">This will permanently erase:</p>
+                <ul className="mt-2 list-disc space-y-1 pl-4">
+                  <li>Their login credentials and account</li>
+                  <li>Profile data (Riot ID, KOOK ID, rank, etc.)</li>
+                  <li>All Kook verification records</li>
+                </ul>
+                <p className="mt-3 font-black text-[#ff3046]">This cannot be undone.</p>
+              </div>
+            </div>
+
+            {actionMsg && (
+              <p className="mt-4 text-center text-xs font-black text-[#ff5b70]">{actionMsg}</p>
             )}
-            {users.map((user) => (
-              <tr key={user.id} className="border-t border-[#242424]">
-                <td className="px-4 py-4">
-                  <p className="font-black text-white">{user.player}</p>
-                  <p className="text-xs text-[#8d8d8d]">
-                    {user.role} / {user.rank} / {user.accountStatus} / {user.verificationStatus}
-                  </p>
-                </td>
-                <td className="px-4 py-4 text-[#cfcfcf]">{user.email}</td>
-                <td className="px-4 py-4 text-[#cfcfcf]">{user.kook}</td>
-                <td className="px-4 py-4 text-[#cfcfcf]">{user.riot}</td>
-                <td className="px-4 py-4 text-[#cfcfcf]">{user.wechat}</td>
-                <td className="px-4 py-4">
-                  <div className="flex gap-2">
-                    <ActionButton label="Edit" icon={Edit3} />
-                    <ActionButton label="Remove" icon={Trash2} danger />
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Panel>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => { setDeletingUser(null); setActionMsg(""); }}
+                className="flex-1 rounded-xl border border-[#2b2b2b] py-3 text-sm font-black text-[#8d8d8d] transition hover:border-white/20 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="flex-1 rounded-xl bg-[#b11226] py-3 text-sm font-black text-white transition hover:bg-[#d41530] disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Yes, Delete Account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -563,237 +809,67 @@ function MatchesSection({
 }
 
 function EloSection() {
-  const [players, setPlayers] = useState<EloPlayer[]>([]);
-  const [selectedPlayerId, setSelectedPlayerId] = useState("");
-  const [newElo, setNewElo] = useState("");
-  const [reason, setReason] = useState("");
-  const [rules, setRules] = useState<EloRuleConfig | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [savingRules, setSavingRules] = useState(false);
-  const [savingOverride, setSavingOverride] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-
-  const selectedPlayer = players.find((player) => player.id === selectedPlayerId) ?? null;
-
-  async function loadData() {
-    setLoading(true);
-    setError("");
-
-    try {
-      const [playersResponse, configResponse] = await Promise.all([
-        fetch("/api/admin/elo-players", { cache: "no-store", credentials: "include" }),
-        fetch("/api/admin/elo-config", { cache: "no-store", credentials: "include" }),
-      ]);
-
-      const playersData = await playersResponse.json();
-      const configData = await configResponse.json();
-
-      if (!playersResponse.ok) {
-        throw new Error(playersData?.error ?? "Could not load players.");
-      }
-
-      if (!configResponse.ok) {
-        throw new Error(configData?.error ?? "Could not load MMR rules.");
-      }
-
-      setPlayers(playersData.players ?? []);
-      setRules(configData.config ?? null);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Could not load ELO tools.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  async function saveRules(reset = false) {
-    if (!rules) return;
-    setSavingRules(true);
-    setError("");
-    setMessage("");
-
-    try {
-      const payload = reset ? { reset: true } : rules;
-      const response = await fetch("/api/admin/elo-config", {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error ?? "Could not save MMR rules.");
-      }
-
-      setRules(data.config);
-      setMessage(reset ? "MMR rules reset to defaults." : "MMR rules saved.");
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Could not save MMR rules.");
-    } finally {
-      setSavingRules(false);
-    }
-  }
-
-  async function applyOverride() {
-    setSavingOverride(true);
-    setError("");
-    setMessage("");
-
-    try {
-      const response = await fetch("/api/admin/elo-override", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          playerId: selectedPlayerId,
-          newElo: Number(newElo),
-          reason,
-        }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error ?? "Could not save override.");
-      }
-
-      setMessage(data?.note ?? "Override applied.");
-      setNewElo("");
-      setReason("");
-      await loadData();
-    } catch (overrideError) {
-      setError(overrideError instanceof Error ? overrideError.message : "Could not save override.");
-    } finally {
-      setSavingOverride(false);
-    }
-  }
-
-  function updateRule<K extends keyof EloRuleConfig>(key: K, value: number) {
-    setRules((current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        [key]: Number.isFinite(value) ? Math.round(value) : current[key],
-      };
-    });
-  }
-
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
       <Panel title="ELO / LP Rules" icon={Gauge}>
-        <p className="mb-4 text-sm font-semibold text-[#8d8d8d]">
-          Live MMR control deck. Tune values like sliders on a DJ desk, then save to apply across match LP calculations.
-        </p>
-
-        {loading || !rules ? (
-          <EmptyAdminState text="Loading MMR control deck..." />
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            <RuleKnob label="Base Win LP" value={rules.baseWinLp} min={1} max={80} onChange={(value) => updateRule("baseWinLp", value)} />
-            <RuleKnob label="Base Loss LP" value={rules.baseLossLp} min={1} max={80} onChange={(value) => updateRule("baseLossLp", value)} />
-            <RuleKnob label="MVP Bonus" value={rules.mvpBonus} min={0} max={20} onChange={(value) => updateRule("mvpBonus", value)} />
-            <RuleKnob label="SVP Protection" value={rules.svpLossReduction} min={0} max={20} onChange={(value) => updateRule("svpLossReduction", value)} />
-            <RuleKnob label="Win Streak Bonus" value={rules.winStreakBonus} min={0} max={20} onChange={(value) => updateRule("winStreakBonus", value)} />
-            <RuleKnob label="Loss Streak Penalty" value={rules.lossStreakPenalty} min={0} max={20} onChange={(value) => updateRule("lossStreakPenalty", value)} />
-
-            <div className="md:col-span-2 flex flex-wrap gap-2 pt-2">
-              <button
-                type="button"
-                disabled={savingRules}
-                onClick={() => saveRules(false)}
-                className="min-h-10 rounded-xl bg-[#b11226] px-4 text-xs font-black uppercase tracking-[0.08em] text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {savingRules ? "Saving..." : "Save Rules"}
-              </button>
-              <button
-                type="button"
-                disabled={savingRules}
-                onClick={() => saveRules(true)}
-                className="min-h-10 rounded-xl border border-[#2e2e2e] bg-[#111111] px-4 text-xs font-black uppercase tracking-[0.08em] text-[#d8d8d8] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Reset Defaults
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="mt-4 rounded-xl border border-[#242424] bg-[#101010] p-4 text-xs font-semibold text-[#a6a6a6]">
-          Logic now shown in Control Room: <span className="text-white">Final Win LP = Base Win LP + Win Streak Bonus + MVP Bonus - Scaling Penalty</span>, <span className="text-white">Final Loss LP = -(Base Loss LP + Loss Streak Penalty + Scaling Penalty - SVP Protection)</span>.
+        <div className="grid gap-3 md:grid-cols-2">
+          <ConfigCard label="Base win LP" value="+24" />
+          <ConfigCard label="Base loss LP" value="-18" />
+          <ConfigCard label="MVP bonus" value="+4" />
+          <ConfigCard label="SVP protection" value="+3 loss reduction" />
+          <ConfigCard label="Streak bonus" value="+2 after 3 wins" />
+          <ConfigCard label="Rating floor" value="800 ELO" />
         </div>
       </Panel>
       <Panel title="Manual ELO Override" icon={Edit3}>
         <div className="space-y-3">
-          {loading ? (
-            <EmptyAdminState text="Loading player list..." />
-          ) : (
-            <>
-              <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.12em] text-[#8d8d8d]">Player</span>
-                <select
-                  value={selectedPlayerId}
-                  onChange={(event) => setSelectedPlayerId(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-[#242424] bg-[#101010] px-4 py-3 text-sm font-bold text-[#cfcfcf] outline-none"
-                >
-                  <option value="">Select a player</option>
-                  {players.map((player) => (
-                    <option key={player.id} value={player.id}>
-                      {player.name} ({player.elo})
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.12em] text-[#8d8d8d]">New ELO</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={5000}
-                  value={newElo}
-                  onChange={(event) => setNewElo(event.target.value)}
-                  placeholder={selectedPlayer ? String(selectedPlayer.elo) : "Enter new ELO"}
-                  className="mt-2 w-full rounded-xl border border-[#242424] bg-[#101010] px-4 py-3 text-sm font-bold text-[#cfcfcf] outline-none"
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.12em] text-[#8d8d8d]">Admin Reason</span>
-                <input
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  placeholder="Required before saving"
-                  className="mt-2 w-full rounded-xl border border-[#242424] bg-[#101010] px-4 py-3 text-sm font-bold text-[#cfcfcf] outline-none"
-                />
-              </label>
-
-              <button
-                type="button"
-                disabled={savingOverride}
-                onClick={applyOverride}
-                className="min-h-11 w-full rounded-xl bg-[#b11226] text-xs font-black uppercase tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {savingOverride ? "Applying..." : "Save Override"}
-              </button>
-            </>
-          )}
-
-          {error && (
-            <p className="rounded-xl border border-[#b11226]/40 bg-[#b11226]/10 p-3 text-xs font-bold text-[#ff8c9a]">
-              {error}
-            </p>
-          )}
-          {message && (
-            <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs font-bold text-emerald-300">
-              {message}
-            </p>
-          )}
+          <MockInput label="Player" value="Select a player" />
+          <MockInput label="New ELO" value="Enter new ELO" />
+          <MockInput label="Admin Reason" value="Required before saving" />
+          <button className="min-h-11 w-full rounded-xl bg-[#b11226] text-xs font-black uppercase tracking-[0.08em]">
+            Save Override
+          </button>
         </div>
       </Panel>
     </div>
+  );
+}
+
+function AdminsSection({
+  admins,
+  loading,
+}: {
+  admins: AdminOverview["adminUsers"];
+  loading: boolean;
+}) {
+  return (
+    <Panel title="Admin Users" icon={UserCog}>
+      <div className="grid gap-4 lg:grid-cols-3">
+        {loading && <EmptyAdminState text="Loading admin users..." />}
+        {!loading && admins.length === 0 && (
+          <EmptyAdminState text="Admin users are controlled by environment variables and no display email is configured." />
+        )}
+        {admins.map((admin) => (
+          <div key={admin.email} className="rounded-xl border border-[#242424] bg-[#101010] p-4">
+            <p className="flex items-center gap-2 text-sm font-black">
+              <Mail size={15} />
+              {admin.email}
+            </p>
+            <p className="mt-2 text-xs font-semibold text-[#8d8d8d]">
+              {admin.role}
+            </p>
+            <div className="mt-4 flex gap-2">
+              <ActionButton label="Reset Password" icon={KeyRound} />
+              <ActionButton label="Remove" icon={Trash2} danger />
+            </div>
+          </div>
+        ))}
+      </div>
+      <button className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#b11226] px-4 text-xs font-black uppercase tracking-[0.08em]">
+        <Plus size={15} />
+        Add Admin by Email
+      </button>
+    </Panel>
   );
 }
 
@@ -1040,18 +1116,24 @@ function ActionButton({
   label,
   icon: Icon,
   danger = false,
+  onClick,
+  disabled = false,
 }: {
   label: string;
   icon: LucideIcon;
   danger?: boolean;
+  onClick?: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
-      className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-xl px-3 text-xs font-black ${
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
         danger
-          ? "bg-[#b11226]/15 text-[#ff5b70]"
-          : "bg-white/[0.06] text-[#d8d8d8]"
+          ? "bg-[#b11226]/15 text-[#ff5b70] hover:bg-[#b11226]/30"
+          : "bg-white/[0.06] text-[#d8d8d8] hover:bg-white/[0.12]"
       }`}
     >
       <Icon size={14} />
@@ -1074,37 +1156,6 @@ function ConfigCard({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-bold text-[#8d8d8d]">{label}</p>
       <p className="mt-2 text-xl font-black text-white">{value}</p>
     </div>
-  );
-}
-
-function RuleKnob({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label className="rounded-xl border border-[#242424] bg-[#101010] p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-black uppercase tracking-[0.1em] text-[#8d8d8d]">{label}</span>
-        <span className="text-lg font-black text-[#ff5167]">{value}</span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="mt-3 w-full accent-[#b11226]"
-      />
-    </label>
   );
 }
 
