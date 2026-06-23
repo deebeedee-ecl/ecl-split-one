@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { BarChart3, CheckCircle2, Crown, Sparkles, Trophy, UserCircle } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -295,12 +296,10 @@ export default function PlayerProfileView({
   const [verificationMessage, setVerificationMessage] = useState("");
   const [verificationError, setVerificationError] = useState("");
   const [now, setNow] = useState(() => Date.now());
-  const [reportingMatch, setReportingMatch] = useState(false);
-  const [reportMatchMessage, setReportMatchMessage] = useState("");
-  const [reportMatchError, setReportMatchError] = useState("");
-  const [shouldAutoReport, setShouldAutoReport] = useState(() =>
+  const [shouldAutoReport] = useState(() =>
     typeof window !== "undefined" && window.location.search.includes("autoreport=1"),
   );
+  const router = useRouter();
 
   useEffect(() => {
     if (initialProfile) return;
@@ -395,11 +394,10 @@ export default function PlayerProfileView({
 
   const profile = initialProfile ?? loadedProfile;
 
-  // Auto-report when opened via bot link (?autoreport=1)
+  // Auto-report when opened via bot link (?autoreport=1) — redirect to confirm page
   useEffect(() => {
     if (shouldAutoReport && profile && hasSession && !initialProfile) {
-      setShouldAutoReport(false);
-      handleReportGame();
+      router.replace("/hub/me/report-inhouse");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldAutoReport, profile, hasSession, initialProfile]);
@@ -456,133 +454,6 @@ export default function PlayerProfileView({
 
   const soloRank = formatSharedLzyumiRank(ranks.solo);
   const flexRank = formatSharedLzyumiRank(ranks.flex);
-
-  async function handleReportGame() {
-    if (!profile?.riotName || !profile?.chinaServerId) return;
-    setReportingMatch(true);
-    setReportMatchMessage("");
-    setReportMatchError("");
-    try {
-      const token = await getAccessToken();
-      if (!token) throw new Error("Not logged in");
-
-      // lzyumi lookup: try name-only first (matches signedLookupUrl in lib/lzyumi.ts).
-      // Fall back to name#tag (name*~*~*tag) for players who share a name.
-      const nameOnly = profile.riotName;
-      const nameWithTag = profile.riotTag
-        ? `${profile.riotName}#${profile.riotTag}`
-        : profile.riotName;
-      const areaId = profile.chinaServerId;
-
-      async function fetchAllFilters(nick: string) {
-        const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
-        const signedUrls = await Promise.all(
-          LZYUMI_FILTERS.map((f) =>
-            fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nick)}&areaId=${areaId}&filter=${f}&allCount=5`)
-              .then((r) => r.json())
-              .then(({ url }: { url: string }) => url),
-          ),
-        );
-        return Promise.all(
-          signedUrls.map((url, i) =>
-            fetch(url)
-              .then((r) => r.json())
-              .then((data) => { console.log(`[lzyumi nick=${nick} filter=${LZYUMI_FILTERS[i]}]`, { code: data?.code, count: data?.data?.length ?? 0, hasOpenId: !!data?.battleInfo?.openId, message: data?.message, raw: data }); return data; })
-              .catch((e) => { console.error(`[lzyumi nick=${nick} filter=${LZYUMI_FILTERS[i]} FAILED]`, e); return null; }),
-          ),
-        );
-      }
-
-      // Step 1: probe lzyumi — name-only first, fall back to name+tag
-      console.log("[lzyumi] areaId from profile:", areaId);
-      let filterResponses = await fetchAllFilters(nameOnly);
-      const hasAnyData = filterResponses.some((r) => r?.battleInfo?.openId || (Array.isArray(r?.data) && r.data.length > 0));
-      if (!hasAnyData && nameWithTag !== nameOnly) {
-        console.log("[lzyumi] name-only returned nothing, retrying with name+tag...");
-        filterResponses = await fetchAllFilters(nameWithTag);
-      }
-
-      // openId comes from battleInfo — any filter response will have it
-      const profileData = filterResponses.find((r) => r?.battleInfo?.openId);
-      const openId: string = profileData?.battleInfo?.openId ?? "";
-      console.log("[lzyumi] openId:", openId || "(not found)");
-
-      type LzyumiGame = { gameId?: string; title?: string };
-
-      // First pass: find a game with "新模式" in its title — that's the inhouse game mode
-      // (灵活/满载SUV is regular Flex ranked, not inhouse)
-      let gameId = "";
-      let rawProfile: unknown = profileData;
-      outer: for (const resp of filterResponses) {
-        const games: LzyumiGame[] = Array.isArray(resp?.data) ? resp.data : [];
-        for (const g of games) {
-          if (g.gameId && g.title?.includes("\u65b0\u6a21\u5f0f")) {
-            gameId = g.gameId;
-            rawProfile = resp;
-            break outer;
-          }
-        }
-      }
-      // Fallback: take the most recent game from any filter
-      if (!gameId) {
-        for (const resp of filterResponses) {
-          const games: LzyumiGame[] = Array.isArray(resp?.data) ? resp.data : [];
-          const found = games.find((g) => g.gameId);
-          if (found?.gameId) {
-            gameId = found.gameId;
-            rawProfile = resp;
-            break;
-          }
-        }
-      }
-
-      console.log("[lzyumi] gameId:", gameId || "(not found)");
-      if (!openId && !gameId) {
-        throw new Error(
-          "lzyumi returned no data at all. Open DevTools console and share the [lzyumi filter=*] logs.",
-        );
-      }
-      if (!openId) {
-        throw new Error(
-          "lzyumi returned games but no openId (battleInfo missing). Open DevTools console and share the [lzyumi filter=*] logs.",
-        );
-      }
-      if (!gameId) {
-        throw new Error(
-          "Could not find a recent inhouse game on lzyumi. Make sure you just finished an inhouse match.",
-        );
-      }
-
-      // Step 2: fetch match detail from lzyumi (openId-based)
-      const detailSignRes = await fetch(
-        `/api/lzyumi-sign?type=detail&openId=${encodeURIComponent(openId)}&gameId=${encodeURIComponent(gameId)}&areaId=${areaId}`,
-      );
-      const { url: detailUrl } = await detailSignRes.json();
-      const detail = await fetch(detailUrl).then((r) => r.json());
-
-      // Step 3: submit to backend
-      const reportRes = await fetch("/api/hub/report-match", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ rawMatchData: { profile: rawProfile, gameId, detail } }),
-      });
-
-      const result = await reportRes.json().catch(() => ({}));
-      if (!reportRes.ok) {
-        throw new Error(
-          result.reply ?? result.message ?? `Report failed (${reportRes.status})`,
-        );
-      }
-      setReportMatchMessage(result.reply ?? "Match reported successfully!");
-    } catch (err) {
-      setReportMatchError(err instanceof Error ? err.message : "Report failed");
-    } finally {
-      setReportingMatch(false);
-    }
-  }
 
   async function requestFreshKookCode() {
     setCodeRequesting(true);
@@ -744,21 +615,12 @@ export default function PlayerProfileView({
 
           {!initialProfile && hasSession && (
             <div className="mt-3">
-              <button
-                onClick={handleReportGame}
-                disabled={reportingMatch || !profile.riotName || !profile.chinaServerId}
-                className="w-full rounded-xl bg-[#48f0df]/10 px-4 py-2 text-sm font-black text-[#48f0df] ring-1 ring-[#48f0df]/30 transition hover:bg-[#48f0df]/20 disabled:cursor-not-allowed disabled:opacity-40"
+              <Link
+                href="/hub/me/report-inhouse"
+                className="block w-full rounded-xl bg-[#48f0df]/10 px-4 py-2 text-center text-sm font-black text-[#48f0df] ring-1 ring-[#48f0df]/30 transition hover:bg-[#48f0df]/20"
               >
-                {reportingMatch ? "Reporting…" : "Report Inhouse Game"}
-              </button>
-              {reportMatchMessage && (
-                <p className="mt-1 text-[11px] font-semibold text-[#19d27f]">{reportMatchMessage}</p>
-              )}
-              {reportMatchError && (
-                <p className="mt-1 text-[11px] font-semibold text-[#ff6b6b]" title={reportMatchError}>
-                  {reportMatchError}
-                </p>
-              )}
+                Report Inhouse Game
+              </Link>
             </div>
           )}
         </aside>
