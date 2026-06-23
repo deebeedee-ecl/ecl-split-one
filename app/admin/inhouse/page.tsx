@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -214,6 +215,14 @@ export default function AdminInhousePage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white p-6">
+      <div className="mb-4">
+        <Link
+          href="/admin"
+          className="inline-flex items-center rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-xs font-black uppercase tracking-[0.08em] text-gray-200 transition hover:border-yellow-500 hover:text-white"
+        >
+          Return to Admin Dashboard
+        </Link>
+      </div>
       <h1 className="text-2xl font-bold mb-2">Admin — Inhouse Reporter</h1>
       <p className="text-gray-400 text-sm mb-6">
         Select a pending session, look up any player&apos;s recent games via lzyumi, then submit

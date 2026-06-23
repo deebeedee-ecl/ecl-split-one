@@ -8,27 +8,19 @@ function formatRiotId(riotName: string | null, riotTag: string | null) {
   return riotTag ? `${riotName}#${riotTag}` : riotName;
 }
 
-function getAdminEmails() {
-  return [
-    process.env.ADMIN_USERNAME,
-    process.env.ADMIN_EMAIL,
-  ].filter((value): value is string => Boolean(value));
-}
-
 export async function GET() {
   try {
     const weekAgo = new Date(Date.now() - 1000 * 60 * 60 * 24 * 7);
 
     const [
-      totalProfiles,
-      gamesPlayed,
-      newSignups,
-      openMessages,
-      users,
-      matches,
-      recentNotes,
-      adminEmails,
-    ] = await Promise.all([
+      totalProfilesResult,
+      gamesPlayedResult,
+      newSignupsResult,
+      openMessagesResult,
+      usersResult,
+      matchesResult,
+      recentNotesResult,
+    ] = await Promise.allSettled([
       prisma.accountProfile.count(),
       prisma.matchGame.count(),
       prisma.accountProfile.count({ where: { createdAt: { gte: weekAgo } } }),
@@ -72,8 +64,15 @@ export async function GET() {
           createdAt: true,
         },
       }),
-      Promise.resolve(getAdminEmails()),
     ]);
+
+    const totalProfiles = totalProfilesResult.status === "fulfilled" ? totalProfilesResult.value : 0;
+    const gamesPlayed = gamesPlayedResult.status === "fulfilled" ? gamesPlayedResult.value : 0;
+    const newSignups = newSignupsResult.status === "fulfilled" ? newSignupsResult.value : 0;
+    const openMessages = openMessagesResult.status === "fulfilled" ? openMessagesResult.value : 0;
+    const users = usersResult.status === "fulfilled" ? usersResult.value : [];
+    const matches = matchesResult.status === "fulfilled" ? matchesResult.value : [];
+    const recentNotes = recentNotesResult.status === "fulfilled" ? recentNotesResult.value : [];
 
     return NextResponse.json({
       metrics: {
@@ -116,12 +115,8 @@ export async function GET() {
       }),
       recentNotes: recentNotes.map((note) => ({
         id: note.id,
-        text: `${note.name} submitted ${note.topic.replaceAll("-", " ")} (${note.status})`,
+        text: `${note.name} submitted ${String(note.topic || "message").replaceAll("-", " ")} (${note.status})`,
         createdAt: note.createdAt,
-      })),
-      adminUsers: adminEmails.map((email, index) => ({
-        email,
-        role: index === 0 ? "Owner Admin" : "Admin",
       })),
       newsDrafts: [],
     });

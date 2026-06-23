@@ -8,7 +8,6 @@ import {
   FileText,
   Gauge,
   Home,
-  KeyRound,
   LogOut,
   Mail,
   MessageSquareText,
@@ -20,7 +19,6 @@ import {
   ShieldCheck,
   Trash2,
   Trophy,
-  UserCog,
   Users,
   Swords,
   type LucideIcon,
@@ -33,7 +31,6 @@ type AdminSection =
   | "users"
   | "matches"
   | "elo"
-  | "admins"
   | "messages"
   | "news";
 
@@ -42,10 +39,26 @@ const sections: Array<{ id: AdminSection; label: string; icon: LucideIcon }> = [
   { id: "users", label: "Users", icon: Users },
   { id: "matches", label: "Match History", icon: CalendarDays },
   { id: "elo", label: "ELO / LP", icon: Gauge },
-  { id: "admins", label: "Admin Users", icon: UserCog },
   { id: "messages", label: "Messages", icon: MessageSquareText },
   { id: "news", label: "News Drafts", icon: Newspaper },
 ];
+
+type EloRuleConfig = {
+  baseWinLp: number;
+  baseLossLp: number;
+  mvpBonus: number;
+  svpLossReduction: number;
+  winStreakBonus: number;
+  lossStreakPenalty: number;
+};
+
+type EloPlayer = {
+  id: string;
+  name: string;
+  riotName: string | null;
+  riotTag: string | null;
+  elo: number;
+};
 
 type ContactMessage = {
   id: string;
@@ -91,10 +104,6 @@ type AdminOverview = {
     text: string;
     createdAt: string;
   }>;
-  adminUsers: Array<{
-    email: string;
-    role: string;
-  }>;
   newsDrafts: Array<{
     type: string;
     title: string;
@@ -112,7 +121,6 @@ const emptyOverview: AdminOverview = {
   users: [],
   matches: [],
   recentNotes: [],
-  adminUsers: [],
   newsDrafts: [],
 };
 
@@ -135,10 +143,11 @@ export default function AdminPage() {
         cache: "no-store",
         credentials: "include",
       });
-      const data = await response.json();
+      const raw = await response.text();
+      const data = raw ? JSON.parse(raw) : null;
 
       if (!response.ok) {
-        throw new Error(data.error ?? "Could not load admin overview.");
+        throw new Error(data?.error ?? "Could not load admin overview.");
       }
 
       setOverview(data);
@@ -238,7 +247,6 @@ export default function AdminPage() {
             {active === "users" && <UsersSection users={overview.users} loading={overviewLoading} />}
             {active === "matches" && <MatchesSection matches={overview.matches} loading={overviewLoading} />}
             {active === "elo" && <EloSection />}
-            {active === "admins" && <AdminsSection admins={overview.adminUsers} loading={overviewLoading} />}
             {active === "messages" && <MessagesSection />}
             {active === "news" && <NewsSection drafts={overview.newsDrafts} loading={overviewLoading} />}
           </div>
@@ -555,67 +563,237 @@ function MatchesSection({
 }
 
 function EloSection() {
+  const [players, setPlayers] = useState<EloPlayer[]>([]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState("");
+  const [newElo, setNewElo] = useState("");
+  const [reason, setReason] = useState("");
+  const [rules, setRules] = useState<EloRuleConfig | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [savingRules, setSavingRules] = useState(false);
+  const [savingOverride, setSavingOverride] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const selectedPlayer = players.find((player) => player.id === selectedPlayerId) ?? null;
+
+  async function loadData() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const [playersResponse, configResponse] = await Promise.all([
+        fetch("/api/admin/elo-players", { cache: "no-store", credentials: "include" }),
+        fetch("/api/admin/elo-config", { cache: "no-store", credentials: "include" }),
+      ]);
+
+      const playersData = await playersResponse.json();
+      const configData = await configResponse.json();
+
+      if (!playersResponse.ok) {
+        throw new Error(playersData?.error ?? "Could not load players.");
+      }
+
+      if (!configResponse.ok) {
+        throw new Error(configData?.error ?? "Could not load MMR rules.");
+      }
+
+      setPlayers(playersData.players ?? []);
+      setRules(configData.config ?? null);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Could not load ELO tools.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function saveRules(reset = false) {
+    if (!rules) return;
+    setSavingRules(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const payload = reset ? { reset: true } : rules;
+      const response = await fetch("/api/admin/elo-config", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error ?? "Could not save MMR rules.");
+      }
+
+      setRules(data.config);
+      setMessage(reset ? "MMR rules reset to defaults." : "MMR rules saved.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Could not save MMR rules.");
+    } finally {
+      setSavingRules(false);
+    }
+  }
+
+  async function applyOverride() {
+    setSavingOverride(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/admin/elo-override", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          playerId: selectedPlayerId,
+          newElo: Number(newElo),
+          reason,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error ?? "Could not save override.");
+      }
+
+      setMessage(data?.note ?? "Override applied.");
+      setNewElo("");
+      setReason("");
+      await loadData();
+    } catch (overrideError) {
+      setError(overrideError instanceof Error ? overrideError.message : "Could not save override.");
+    } finally {
+      setSavingOverride(false);
+    }
+  }
+
+  function updateRule<K extends keyof EloRuleConfig>(key: K, value: number) {
+    setRules((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        [key]: Number.isFinite(value) ? Math.round(value) : current[key],
+      };
+    });
+  }
+
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
       <Panel title="ELO / LP Rules" icon={Gauge}>
-        <div className="grid gap-3 md:grid-cols-2">
-          <ConfigCard label="Base win LP" value="+24" />
-          <ConfigCard label="Base loss LP" value="-18" />
-          <ConfigCard label="MVP bonus" value="+4" />
-          <ConfigCard label="SVP protection" value="+3 loss reduction" />
-          <ConfigCard label="Streak bonus" value="+2 after 3 wins" />
-          <ConfigCard label="Rating floor" value="800 ELO" />
+        <p className="mb-4 text-sm font-semibold text-[#8d8d8d]">
+          Live MMR control deck. Tune values like sliders on a DJ desk, then save to apply across match LP calculations.
+        </p>
+
+        {loading || !rules ? (
+          <EmptyAdminState text="Loading MMR control deck..." />
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            <RuleKnob label="Base Win LP" value={rules.baseWinLp} min={1} max={80} onChange={(value) => updateRule("baseWinLp", value)} />
+            <RuleKnob label="Base Loss LP" value={rules.baseLossLp} min={1} max={80} onChange={(value) => updateRule("baseLossLp", value)} />
+            <RuleKnob label="MVP Bonus" value={rules.mvpBonus} min={0} max={20} onChange={(value) => updateRule("mvpBonus", value)} />
+            <RuleKnob label="SVP Protection" value={rules.svpLossReduction} min={0} max={20} onChange={(value) => updateRule("svpLossReduction", value)} />
+            <RuleKnob label="Win Streak Bonus" value={rules.winStreakBonus} min={0} max={20} onChange={(value) => updateRule("winStreakBonus", value)} />
+            <RuleKnob label="Loss Streak Penalty" value={rules.lossStreakPenalty} min={0} max={20} onChange={(value) => updateRule("lossStreakPenalty", value)} />
+
+            <div className="md:col-span-2 flex flex-wrap gap-2 pt-2">
+              <button
+                type="button"
+                disabled={savingRules}
+                onClick={() => saveRules(false)}
+                className="min-h-10 rounded-xl bg-[#b11226] px-4 text-xs font-black uppercase tracking-[0.08em] text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingRules ? "Saving..." : "Save Rules"}
+              </button>
+              <button
+                type="button"
+                disabled={savingRules}
+                onClick={() => saveRules(true)}
+                className="min-h-10 rounded-xl border border-[#2e2e2e] bg-[#111111] px-4 text-xs font-black uppercase tracking-[0.08em] text-[#d8d8d8] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Reset Defaults
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 rounded-xl border border-[#242424] bg-[#101010] p-4 text-xs font-semibold text-[#a6a6a6]">
+          Logic now shown in Control Room: <span className="text-white">Final Win LP = Base Win LP + Win Streak Bonus + MVP Bonus - Scaling Penalty</span>, <span className="text-white">Final Loss LP = -(Base Loss LP + Loss Streak Penalty + Scaling Penalty - SVP Protection)</span>.
         </div>
       </Panel>
       <Panel title="Manual ELO Override" icon={Edit3}>
         <div className="space-y-3">
-          <MockInput label="Player" value="Select a player" />
-          <MockInput label="New ELO" value="Enter new ELO" />
-          <MockInput label="Admin Reason" value="Required before saving" />
-          <button className="min-h-11 w-full rounded-xl bg-[#b11226] text-xs font-black uppercase tracking-[0.08em]">
-            Save Override
-          </button>
+          {loading ? (
+            <EmptyAdminState text="Loading player list..." />
+          ) : (
+            <>
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-[0.12em] text-[#8d8d8d]">Player</span>
+                <select
+                  value={selectedPlayerId}
+                  onChange={(event) => setSelectedPlayerId(event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-[#242424] bg-[#101010] px-4 py-3 text-sm font-bold text-[#cfcfcf] outline-none"
+                >
+                  <option value="">Select a player</option>
+                  {players.map((player) => (
+                    <option key={player.id} value={player.id}>
+                      {player.name} ({player.elo})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-[0.12em] text-[#8d8d8d]">New ELO</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={5000}
+                  value={newElo}
+                  onChange={(event) => setNewElo(event.target.value)}
+                  placeholder={selectedPlayer ? String(selectedPlayer.elo) : "Enter new ELO"}
+                  className="mt-2 w-full rounded-xl border border-[#242424] bg-[#101010] px-4 py-3 text-sm font-bold text-[#cfcfcf] outline-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-[0.12em] text-[#8d8d8d]">Admin Reason</span>
+                <input
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="Required before saving"
+                  className="mt-2 w-full rounded-xl border border-[#242424] bg-[#101010] px-4 py-3 text-sm font-bold text-[#cfcfcf] outline-none"
+                />
+              </label>
+
+              <button
+                type="button"
+                disabled={savingOverride}
+                onClick={applyOverride}
+                className="min-h-11 w-full rounded-xl bg-[#b11226] text-xs font-black uppercase tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingOverride ? "Applying..." : "Save Override"}
+              </button>
+            </>
+          )}
+
+          {error && (
+            <p className="rounded-xl border border-[#b11226]/40 bg-[#b11226]/10 p-3 text-xs font-bold text-[#ff8c9a]">
+              {error}
+            </p>
+          )}
+          {message && (
+            <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs font-bold text-emerald-300">
+              {message}
+            </p>
+          )}
         </div>
       </Panel>
     </div>
-  );
-}
-
-function AdminsSection({
-  admins,
-  loading,
-}: {
-  admins: AdminOverview["adminUsers"];
-  loading: boolean;
-}) {
-  return (
-    <Panel title="Admin Users" icon={UserCog}>
-      <div className="grid gap-4 lg:grid-cols-3">
-        {loading && <EmptyAdminState text="Loading admin users..." />}
-        {!loading && admins.length === 0 && (
-          <EmptyAdminState text="Admin users are controlled by environment variables and no display email is configured." />
-        )}
-        {admins.map((admin) => (
-          <div key={admin.email} className="rounded-xl border border-[#242424] bg-[#101010] p-4">
-            <p className="flex items-center gap-2 text-sm font-black">
-              <Mail size={15} />
-              {admin.email}
-            </p>
-            <p className="mt-2 text-xs font-semibold text-[#8d8d8d]">
-              {admin.role}
-            </p>
-            <div className="mt-4 flex gap-2">
-              <ActionButton label="Reset Password" icon={KeyRound} />
-              <ActionButton label="Remove" icon={Trash2} danger />
-            </div>
-          </div>
-        ))}
-      </div>
-      <button className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#b11226] px-4 text-xs font-black uppercase tracking-[0.08em]">
-        <Plus size={15} />
-        Add Admin by Email
-      </button>
-    </Panel>
   );
 }
 
@@ -896,6 +1074,37 @@ function ConfigCard({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-bold text-[#8d8d8d]">{label}</p>
       <p className="mt-2 text-xl font-black text-white">{value}</p>
     </div>
+  );
+}
+
+function RuleKnob({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="rounded-xl border border-[#242424] bg-[#101010] p-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-black uppercase tracking-[0.1em] text-[#8d8d8d]">{label}</span>
+        <span className="text-lg font-black text-[#ff5167]">{value}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="mt-3 w-full accent-[#b11226]"
+      />
+    </label>
   );
 }
 

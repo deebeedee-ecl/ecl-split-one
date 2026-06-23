@@ -69,7 +69,15 @@ export function clearHubAccessCache() {
 
 export function cleanSignupProfilePayload(payload: Partial<SignupProfilePayload> & Record<string, unknown>) {
   const { email: _email, password: _password, ...profile } = payload;
-  return profile as Partial<SignupProfilePayload>;
+  const riotName = typeof profile.riotName === "string" ? profile.riotName.trim() : "";
+  const riotTag = typeof profile.riotTag === "string" ? profile.riotTag.trim().replace(/^#+/, "") : "";
+
+  return {
+    ...profile,
+    riotName,
+    riotTag,
+    kookId: "",
+  } as Partial<SignupProfilePayload>;
 }
 
 export async function getAccessToken() {

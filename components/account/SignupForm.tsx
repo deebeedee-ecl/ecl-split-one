@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { AuthMediaPanel } from "./AuthMediaPanel";
 import {
@@ -67,15 +67,6 @@ export default function SignupForm() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const profilePayload = useMemo<SignupProfilePayload>(
-    () =>
-      cleanSignupProfilePayload({
-        ...form,
-        championPool: initialForm.championPool,
-      }) as SignupProfilePayload,
-    [form]
-  );
-
   function update<K extends keyof SignupFormState>(key: K, value: SignupFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
@@ -83,6 +74,32 @@ export default function SignupForm() {
   async function submit() {
     setError("");
     setMessage("");
+
+    const riotName = form.riotName.trim();
+    const riotTag = form.riotTag.trim().replace(/^#+/, "");
+
+    if (!riotName || !riotTag) {
+      setError("Riot ID must include a Riot name and a tag number.");
+      return;
+    }
+
+    if (riotName.includes("#")) {
+      setError("Riot name cannot include '#'. Enter only the name in Riot name.");
+      return;
+    }
+
+    if (!/^\d+$/.test(riotTag)) {
+      setError("Riot tag must be numbers only. Example: Username # 12345.");
+      return;
+    }
+
+    const profilePayload = cleanSignupProfilePayload({
+      ...form,
+      riotName,
+      riotTag,
+      championPool: initialForm.championPool,
+    }) as SignupProfilePayload;
+
     setIsSubmitting(true);
 
     try {
@@ -93,7 +110,7 @@ export default function SignupForm() {
           emailRedirectTo: `${window.location.origin}/auth/confirmed`,
           data: {
             display_name: form.displayName,
-            riot_id: `${form.riotName}#${form.riotTag}`,
+            riot_id: `${riotName}#${riotTag}`,
             kook_username: form.kookUsername,
             ecl_profile: profilePayload,
           },
@@ -148,7 +165,7 @@ export default function SignupForm() {
 
           <Section title="League Identity">
             <Field label="Riot name" value={form.riotName} onChange={(value) => update("riotName", value)} />
-            <Field label="Riot tag" value={form.riotTag} onChange={(value) => update("riotTag", value)} placeholder="e.g. 12345" />
+            <Field label="Riot tag" value={form.riotTag} onChange={(value) => update("riotTag", value.replace(/^#+/, ""))} placeholder="Numbers only, e.g. 12345" />
             <ServerField
               value={form.chinaServerId}
               onChange={(value) => {
@@ -161,7 +178,7 @@ export default function SignupForm() {
 
           <Section title="Community Verification">
             <Field label="KOOK username" value={form.kookUsername} onChange={(value) => update("kookUsername", value)} />
-            <Field label="KOOK ID" value={form.kookId} onChange={(value) => update("kookId", value)} placeholder="Optional until bot confirms" />
+            <p className="text-xs text-[#9ca3af] md:col-span-2">KOOK ID is linked automatically after you run the KOOK verification code.</p>
             <Field label="WeChat ID" value={form.wechatId} onChange={(value) => update("wechatId", value)} placeholder="Used only for reply/help if allowed" />
           </Section>
 

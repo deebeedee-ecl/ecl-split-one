@@ -377,7 +377,7 @@ export default function AccountDashboard() {
 
           <Panel title="Linked Accounts">
             <Field label="KOOK username" value={form.kookUsername} onChange={(value) => update("kookUsername", value)} />
-            <Field label="KOOK ID" value={form.kookId} onChange={(value) => update("kookId", value)} />
+            <ReadOnlyField label="KOOK ID" value={profile?.kookId || "Linked automatically via KOOK verification code"} />
             <Field label="WeChat ID" value={form.wechatId} onChange={(value) => update("wechatId", value)} />
           </Panel>
 
@@ -642,6 +642,15 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
     <label className="block text-sm">
       <span className="mb-2 block font-bold text-[#d1d5db]">{label}</span>
       <input value={value ?? ""} onChange={(event) => onChange(event.target.value)} className="w-full border border-[#1f1f1f] bg-[#050505] px-3 py-3 text-white outline-none transition focus:border-[#b11226]" />
+    </label>
+  );
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-2 block font-bold text-[#d1d5db]">{label}</span>
+      <div className="w-full border border-[#1f1f1f] bg-[#050505] px-3 py-3 text-[#9ca3af]">{value}</div>
     </label>
   );
 }

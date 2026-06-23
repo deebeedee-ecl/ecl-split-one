@@ -39,6 +39,29 @@ function required(value: unknown) {
   return clean(value).length > 0;
 }
 
+function normalizeRiotFields(payload: Pick<ProfilePayload, "riotName" | "riotTag">) {
+  return {
+    riotName: clean(payload.riotName),
+    riotTag: clean(payload.riotTag).replace(/^#+/, ""),
+  };
+}
+
+function riotValidationError(riotName: string, riotTag: string) {
+  if (!riotName || !riotTag) {
+    return "Riot ID must include a Riot name and tag number.";
+  }
+
+  if (riotName.includes("#")) {
+    return "Riot name must not include '#'. Enter only the name part.";
+  }
+
+  if (riotTag.includes("#") || !/^\d+$/.test(riotTag)) {
+    return "Riot tag must be numbers only without '#'.";
+  }
+
+  return null;
+}
+
 function cleanNumber(value: unknown) {
   const parsed = typeof value === "number" ? value : Number(clean(value));
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
@@ -217,11 +240,24 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as ProfilePayload;
-  const identity = await resolveLzyumiIdentity(body);
+  const normalizedRiot = normalizeRiotFields(body);
+  const riotError = riotValidationError(normalizedRiot.riotName, normalizedRiot.riotTag);
+
+  if (riotError) {
+    return NextResponse.json({ message: riotError }, { status: 400 });
+  }
+
+  const normalizedBody: ProfilePayload = {
+    ...body,
+    riotName: normalizedRiot.riotName,
+    riotTag: normalizedRiot.riotTag,
+  };
+
+  const identity = await resolveLzyumiIdentity(normalizedBody);
   let lzyumi;
 
   try {
-    lzyumi = lzyumiData(body, identity);
+    lzyumi = lzyumiData(normalizedBody, identity);
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "ecl.gg identity mismatch." },
@@ -230,12 +266,12 @@ export async function POST(request: Request) {
   }
 
   const missing = [
-    ["displayName", body.displayName],
-    ["riotName", body.riotName],
-    ["riotTag", body.riotTag],
-    ["kookUsername", body.kookUsername],
-    ["primaryRole", body.primaryRole],
-    ["timezone", body.timezone],
+    ["displayName", normalizedBody.displayName],
+    ["riotName", normalizedBody.riotName],
+    ["riotTag", normalizedBody.riotTag],
+    ["kookUsername", normalizedBody.kookUsername],
+    ["primaryRole", normalizedBody.primaryRole],
+    ["timezone", normalizedBody.timezone],
   ].filter(([, value]) => !required(value));
 
   if (missing.length > 0) {
@@ -268,8 +304,8 @@ export async function POST(request: Request) {
       update: {
         displayName: clean(body.displayName),
         email: account.email,
-        riotName: clean(body.riotName),
-        riotTag: clean(body.riotTag),
+        riotName: clean(normalizedBody.riotName),
+        riotTag: clean(normalizedBody.riotTag),
         chinaServerId: lzyumi.chinaServerId,
         chinaServerName: lzyumi.chinaServerName,
         openId: lzyumi.openId ?? null,
@@ -279,7 +315,6 @@ export async function POST(request: Request) {
         lzyumiRecentStat: lzyumi.lzyumiRecentStat,
         lzyumiRankedGames: lzyumi.lzyumiRankedGames,
         kookUsername: clean(body.kookUsername),
-        kookId: clean(body.kookId) || null,
         wechatId: clean(body.wechatId) || null,
         primaryRole: clean(body.primaryRole),
         secondaryRole: clean(body.secondaryRole) || null,
@@ -298,8 +333,8 @@ export async function POST(request: Request) {
         userId: user.id,
         displayName: clean(body.displayName),
         email: account.email,
-        riotName: clean(body.riotName),
-        riotTag: clean(body.riotTag),
+        riotName: clean(normalizedBody.riotName),
+        riotTag: clean(normalizedBody.riotTag),
         chinaServerId: lzyumi.chinaServerId,
         chinaServerName: lzyumi.chinaServerName,
         openId: lzyumi.openId ?? null,
@@ -309,7 +344,7 @@ export async function POST(request: Request) {
         lzyumiRecentStat: lzyumi.lzyumiRecentStat,
         lzyumiRankedGames: lzyumi.lzyumiRankedGames,
         kookUsername: clean(body.kookUsername),
-        kookId: clean(body.kookId) || null,
+        kookId: null,
         wechatId: clean(body.wechatId) || null,
         primaryRole: clean(body.primaryRole),
         secondaryRole: clean(body.secondaryRole) || null,
@@ -439,7 +474,6 @@ export async function PATCH(request: Request) {
       lzyumiRecentStat: lzyumi?.lzyumiRecentStat,
       lzyumiRankedGames: lzyumi?.lzyumiRankedGames,
       kookUsername: body.kookUsername === undefined ? undefined : clean(body.kookUsername),
-      kookId: body.kookId === undefined ? undefined : clean(body.kookId) || null,
       wechatId: body.wechatId === undefined ? undefined : clean(body.wechatId) || null,
       primaryRole: body.primaryRole === undefined ? undefined : clean(body.primaryRole),
       secondaryRole: body.secondaryRole === undefined ? undefined : clean(body.secondaryRole) || null,

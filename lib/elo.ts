@@ -1,3 +1,5 @@
+import { getEloRuleConfig } from "@/lib/elo-rule-config";
+
 export const STARTING_ELO = 800;
 export const PLACEMENT_GAME_COUNT = 3;
 export const LP_SCALING_START = 1400;
@@ -28,6 +30,7 @@ export function calculateLpChange({
   lossStreak: number;
 }) {
   const kda = (kills + assists) / Math.max(1, deaths);
+  const rules = getEloRuleConfig();
 
   if (gamesPlayed < PLACEMENT_GAME_COUNT) {
     return {
@@ -40,16 +43,14 @@ export function calculateLpChange({
   const ratingAboveScalingStart = Math.max(0, currentElo - LP_SCALING_START);
   const winScalingPenalty = Math.floor(ratingAboveScalingStart / 25);
   const lossScalingPenalty = Math.floor(ratingAboveScalingStart / 35);
-  const streakAdjustment = win
-    ? Math.min(4, Math.max(0, winStreak - 1))
-    : Math.min(4, Math.max(0, lossStreak - 1));
+  const winStreakBonus = Math.max(0, winStreak - 1) * rules.winStreakBonus;
+  const lossStreakPenalty = Math.max(0, lossStreak - 1) * rules.lossStreakPenalty;
 
-  const baseWinLp = Math.max(16, 42 - winScalingPenalty - streakAdjustment);
-  const baseLossLp = -(32 + lossScalingPenalty + streakAdjustment);
-  const awardAdjustment = win && isMVP ? 2 : !win && isSVP ? 2 : 0;
+  const winBase = Math.max(1, rules.baseWinLp - winScalingPenalty + winStreakBonus);
+  const lossBase = Math.max(1, rules.baseLossLp + lossScalingPenalty + lossStreakPenalty);
   const lp = win
-    ? Math.min(44, baseWinLp + awardAdjustment)
-    : Math.max(-52, baseLossLp + awardAdjustment);
+    ? winBase + (isMVP ? rules.mvpBonus : 0)
+    : -Math.max(0, lossBase - (isSVP ? rules.svpLossReduction : 0));
 
   return {
     lpChange: Math.round(lp),
