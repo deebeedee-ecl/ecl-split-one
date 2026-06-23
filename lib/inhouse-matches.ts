@@ -9,6 +9,11 @@ type OcrRawJson = {
         nickNameStr?: string;
         detailChampionId?: string;
         teamId?: string;
+        scoreInfo?: string;         // "K/D/A" string
+        totalDamageDealt?: number;
+        goldEarned?: number;
+        win?: string;               // "1" = win, "0" = loss
+        echartsMap?: Record<string, unknown>;
       }>;
       teamDetails?: Array<{
         teamId?: string;
@@ -22,6 +27,13 @@ type OcrRawJson = {
     title?: string;
   };
 };
+
+function parseScoreInfo(value: string | undefined) {
+  if (!value) return { kills: 0, deaths: 0, assists: 0 };
+  const m = value.match(/(\d+)\/(\d+)\/(\d+)/);
+  if (!m) return { kills: 0, deaths: 0, assists: 0 };
+  return { kills: Number(m[1]), deaths: Number(m[2]), assists: Number(m[3]) };
+}
 
 function formatGold(g: number) {
   return `${(g / 1000).toFixed(1)}K`;
@@ -66,42 +78,102 @@ export async function fetchInhouseMatches(): Promise<LiveMatchData[]> {
       if (!game) return null;
 
       const blueWon = match.winnerTeamId === match.homeTeamId;
-      const blueStats = game.playerStats.filter((p) => p.teamId === match.homeTeamId);
-      const redStats = game.playerStats.filter((p) => p.teamId === match.awayTeamId);
 
-      // Parse champion IDs from ocrRawJson
+      // ── All 10 players come from the stored lzyumi OCR JSON ──────────────
       const ocr = game.ocrRawJson as OcrRawJson | null;
       const wgPlayers = ocr?.detail?.data?.wgBattleDetailInfo ?? [];
-      const champMap = new Map<string, string>();
+
+      // Group by lzyumi teamId — two groups (100/200 or 1/2 etc.)
+      const groupedByTeam = new Map<string, typeof wgPlayers>();
       for (const p of wgPlayers) {
-        const name = p.nickName ?? p.nickNameStr?.split("#")[0] ?? "";
-        if (name && p.detailChampionId) champMap.set(name.toLowerCase(), p.detailChampionId);
+        const tid = p.teamId ?? "?";
+        if (!groupedByTeam.has(tid)) groupedByTeam.set(tid, []);
+        groupedByTeam.get(tid)!.push(p);
       }
 
-      const getChampion = (riotName: string | null) => {
-        if (!riotName) return "";
-        return champMap.get(riotName.toLowerCase()) ?? "";
-      };
+      // Determine which group won by checking the `win` field
+      let blueGroup: typeof wgPlayers = [];
+      let redGroup: typeof wgPlayers = [];
 
-      const buildDamageRow = (stats: typeof blueStats): [string, string, number, string][] =>
-        stats.map((p) => [
+      if (groupedByTeam.size === 2) {
+        const [groupA, groupB] = Array.from(groupedByTeam.values());
+        const groupAWon = groupA.some((p) => p.win === "1");
+        if (blueWon) {
+          blueGroup = groupAWon ? groupA : groupB;
+          redGroup  = groupAWon ? groupB : groupA;
+        } else {
+          blueGroup = groupAWon ? groupB : groupA;
+          redGroup  = groupAWon ? groupA : groupB;
+        }
+      } else {
+        // Fallback: split 5/5 if teamId not available
+        blueGroup = wgPlayers.slice(0, 5);
+        redGroup  = wgPlayers.slice(5, 10);
+      }
+
+      // Fall back to MatchGamePlayerStat if wgBattleDetailInfo is empty
+      const useDbStats = wgPlayers.length === 0;
+      const dbBlueStats = game.playerStats.filter((p) => p.teamId === match.homeTeamId);
+      const dbRedStats  = game.playerStats.filter((p) => p.teamId === match.awayTeamId);
+
+      type DamageRow = [string, string, number, string];
+
+      function wgToDamageRow(p: typeof wgPlayers[number]): DamageRow {
+        const name    = p.nickNameStr ?? p.nickName ?? "?";
+        const champId = p.detailChampionId ?? "";
+        const dmgRaw  = p.totalDamageDealt ?? (p.echartsMap?.totalDamageDealt as number | undefined) ?? 0;
+        const kda     = parseScoreInfo(p.scoreInfo);
+        return [
+          name,
+          champId,
+          dmgRaw / 1000,
+          `${kda.kills}/${kda.deaths}/${kda.assists}`,
+        ];
+      }
+
+      function dbToDamageRow(p: typeof dbBlueStats[number]): DamageRow {
+        return [
           p.riotName ?? "?",
-          getChampion(p.riotName),
+          "",
           (p.damage ?? 0) / 1000,
           formatKDA(p.kills, p.deaths, p.assists),
-        ]);
+        ];
+      }
 
-      // Totals
-      const blueKDA = blueStats.reduce(
-        (a, p) => ({ k: a.k + p.kills, d: a.d + p.deaths, a: a.a + p.assists }),
-        { k: 0, d: 0, a: 0 },
-      );
-      const redKDA = redStats.reduce(
-        (a, p) => ({ k: a.k + p.kills, d: a.d + p.deaths, a: a.a + p.assists }),
-        { k: 0, d: 0, a: 0 },
-      );
-      const blueGold = blueStats.reduce((s, p) => s + (p.gold ?? 0), 0);
-      const redGold = redStats.reduce((s, p) => s + (p.gold ?? 0), 0);
+      const blueDamage: DamageRow[] = useDbStats
+        ? dbBlueStats.map(dbToDamageRow)
+        : blueGroup.map(wgToDamageRow);
+      const redDamage: DamageRow[] = useDbStats
+        ? dbRedStats.map(dbToDamageRow)
+        : redGroup.map(wgToDamageRow);
+
+      const blueDraft = blueGroup.map((p) => p.detailChampionId ?? "").filter(Boolean);
+      const redDraft  = redGroup.map((p) => p.detailChampionId ?? "").filter(Boolean);
+
+      // Totals — prefer DB stats if available (already validated), else sum from lzyumi
+      const blueStats = useDbStats ? dbBlueStats : [];
+      const redStats  = useDbStats ? dbRedStats  : [];
+
+      const blueKDA = blueStats.length > 0
+        ? blueStats.reduce((a, p) => ({ k: a.k + p.kills, d: a.d + p.deaths, a: a.a + p.assists }), { k: 0, d: 0, a: 0 })
+        : blueGroup.reduce((a, p) => {
+            const s = parseScoreInfo(p.scoreInfo);
+            return { k: a.k + s.kills, d: a.d + s.deaths, a: a.a + s.assists };
+          }, { k: 0, d: 0, a: 0 });
+
+      const redKDA = redStats.length > 0
+        ? redStats.reduce((a, p) => ({ k: a.k + p.kills, d: a.d + p.deaths, a: a.a + p.assists }), { k: 0, d: 0, a: 0 })
+        : redGroup.reduce((a, p) => {
+            const s = parseScoreInfo(p.scoreInfo);
+            return { k: a.k + s.kills, d: a.d + s.deaths, a: a.a + s.assists };
+          }, { k: 0, d: 0, a: 0 });
+
+      const blueGoldSum = blueStats.length > 0
+        ? blueStats.reduce((s, p) => s + (p.gold ?? 0), 0)
+        : blueGroup.reduce((s, p) => s + ((p.goldEarned ?? (p.echartsMap?.goldEarned as number | undefined)) ?? 0), 0);
+      const redGoldSum = redStats.length > 0
+        ? redStats.reduce((s, p) => s + (p.gold ?? 0), 0)
+        : redGroup.reduce((s, p) => s + ((p.goldEarned ?? (p.echartsMap?.goldEarned as number | undefined)) ?? 0), 0);
 
       // Duration
       let duration = "–";
@@ -133,7 +205,7 @@ export async function fetchInhouseMatches(): Promise<LiveMatchData[]> {
         game: match.roundLabel ?? "IH Game",
         stats: {
           kda: [formatKDA(blueKDA.k, blueKDA.d, blueKDA.a), formatKDA(redKDA.k, redKDA.d, redKDA.a)] as [string, string],
-          gold: [formatGold(blueGold), formatGold(redGold)] as [string, string],
+          gold: [formatGold(blueGoldSum), formatGold(redGoldSum)] as [string, string],
           towers: [str(game.homeTowers), str(game.awayTowers)] as [string, string],
           grubs: ["–", "–"] as [string, string],
           heralds: ["–", "–"] as [string, string],
@@ -141,10 +213,10 @@ export async function fetchInhouseMatches(): Promise<LiveMatchData[]> {
           elders: ["–", "–"] as [string, string],
           barons: [str(game.homeBarons), str(game.awayBarons)] as [string, string],
         },
-        blueDraft: [],
-        redDraft: [],
-        blueDamage: buildDamageRow(blueStats),
-        redDamage: buildDamageRow(redStats),
+        blueDraft: blueDraft,
+        redDraft: redDraft,
+        blueDamage: blueDamage,
+        redDamage: redDamage,
         goldDiff: [],
       };
     })
