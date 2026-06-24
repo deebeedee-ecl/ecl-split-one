@@ -1,5 +1,7 @@
 import { STARTING_ELO } from "@/lib/elo";
+import { syncPlayerForProfile } from "@/lib/player-profile-sync";
 import { prisma } from "@/lib/prisma";
+import { formatRiotId, normalizeRiotTag } from "@/lib/riot-id";
 
 export const RANKED_INHOUSE_CATEGORY_ID =
   process.env.KOOK_RANKED_INHOUSE_CATEGORY_ID || "8024346698320304";
@@ -47,26 +49,6 @@ export type BalancedInhouseTeam = {
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function cleanTag(value: string | null | undefined) {
-  return clean(value).replace(/^#+/, "");
-}
-
-function riotKey(riotName: string | null | undefined, riotTag: string | null | undefined) {
-  const name = clean(riotName).toLowerCase();
-  const tag = cleanTag(riotTag).toLowerCase();
-
-  if (!name || !tag) return null;
-  return `${name}#${tag}`;
-}
-
-function formatRiotId(riotName: string | null | undefined, riotTag: string | null | undefined) {
-  const name = clean(riotName);
-  const tag = cleanTag(riotTag);
-
-  if (!name) return null;
-  return tag ? `${name}#${tag}` : name;
 }
 
 export function normalizeInhouseMembers(members: KookInhouseMember[]): NormalizedKookInhouseMember[] {
@@ -117,72 +99,13 @@ export async function resolveInhousePlayers(
       .map((profile) => [profile.kookId as string, profile]),
   );
 
-  const playerLookups = profiles
-    .map((profile) => ({
-      key: riotKey(profile.riotName, profile.riotTag),
-      email: clean(profile.email).toLowerCase(),
-      riotName: clean(profile.riotName),
-      riotTag: cleanTag(profile.riotTag),
-    }))
-    .filter((lookup) => lookup.key || lookup.email);
-
-  const players =
-    playerLookups.length === 0
-      ? []
-      : await prisma.player.findMany({
-          where: {
-            OR: playerLookups.flatMap((lookup) => {
-              const clauses = [];
-
-              if (lookup.riotName && lookup.riotTag) {
-                clauses.push({
-                  riotName: {
-                    equals: lookup.riotName,
-                    mode: "insensitive" as const,
-                  },
-                  riotTag: {
-                    equals: lookup.riotTag,
-                    mode: "insensitive" as const,
-                  },
-                });
-              }
-
-              if (lookup.email) {
-                clauses.push({
-                  email: {
-                    equals: lookup.email,
-                    mode: "insensitive" as const,
-                  },
-                });
-              }
-
-              return clauses;
-            }),
-          },
-          select: {
-            id: true,
-            email: true,
-            riotName: true,
-            riotTag: true,
-            elo: true,
-            gameStats: {
-              where: { matchGame: { match: { roundLabel: "Ranked Inhouse" } } },
-              orderBy: { createdAt: "desc" },
-              take: 1,
-              select: { eloAfter: true },
-            },
-          },
-        });
-
-  const playerByRiotId = new Map(
-    players
-      .map((player) => [riotKey(player.riotName, player.riotTag), player] as const)
-      .filter((entry): entry is [string, (typeof players)[number]] => Boolean(entry[0])),
-  );
-  const playerByEmail = new Map(
-    players
-      .map((player) => [clean(player.email).toLowerCase(), player] as const)
-      .filter((entry): entry is [string, (typeof players)[number]] => Boolean(entry[0])),
+  const playersByProfileId = new Map(
+    await Promise.all(
+      profiles.map(async (profile) => [
+        profile.id,
+        await syncPlayerForProfile(profile),
+      ] as const),
+    ),
   );
 
   return normalizedMembers.map((member) => {
@@ -204,19 +127,16 @@ export async function resolveInhousePlayers(
       };
     }
 
-    const profileRiotKey = riotKey(profile.riotName, profile.riotTag);
-    const player =
-      (profileRiotKey ? playerByRiotId.get(profileRiotKey) : undefined) ||
-      playerByEmail.get(clean(profile.email).toLowerCase());
+    const player = playersByProfileId.get(profile.id);
 
     return {
       kookUserId: member.id,
       displayName: profile.displayName || member.username || member.id,
       riotId: formatRiotId(profile.riotName, profile.riotTag),
       riotName: profile.riotName,
-      riotTag: cleanTag(profile.riotTag) || null,
+      riotTag: normalizeRiotTag(profile.riotTag) || null,
       email: profile.email,
-      elo: player?.gameStats?.[0]?.eloAfter ?? STARTING_ELO,
+      elo: player?.elo ?? STARTING_ELO,
       profileId: profile.id,
       playerId: player?.id ?? null,
       verified: true,

@@ -1,6 +1,8 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { getAccountFromRequest } from "@/lib/account-auth";
+import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import { prisma } from "@/lib/prisma";
+import { normalizeRiotPart, normalizeRiotTag } from "@/lib/riot-id";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +17,12 @@ export async function GET(request: NextRequest) {
 
   if (!profile?.riotName) return NextResponse.json({ games: [] });
 
-  const cleanTag = (profile.riotTag ?? "").replace(/^#+/, "");
+  const riotName = normalizeRiotPart(profile.riotName);
+  const cleanTag = normalizeRiotTag(profile.riotTag);
 
   const player = await prisma.player.findFirst({
     where: {
-      riotName: { equals: profile.riotName, mode: "insensitive" },
+      riotName: { equals: riotName, mode: "insensitive" },
       ...(cleanTag ? { riotTag: { equals: cleanTag, mode: "insensitive" } } : {}),
     },
   });
@@ -29,7 +32,7 @@ export async function GET(request: NextRequest) {
   const stats = await prisma.matchGamePlayerStat.findMany({
     where: {
       playerId: player.id,
-      matchGame: { match: { roundLabel: { startsWith: "IH" } } },
+      ...INHOUSE_MATCH_FILTER,
     },
     select: {
       id: true,

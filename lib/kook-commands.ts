@@ -1,10 +1,16 @@
 import { STARTING_ELO } from "@/lib/elo";
+import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import {
   RANKED_INHOUSE_CHANNEL_ID,
   normalizeInhouseMembers,
   type KookInhouseMember,
 } from "@/lib/kook-inhouse";
 import { prisma } from "@/lib/prisma";
+import {
+  formatRiotId,
+  normalizeRiotPart,
+  normalizeRiotTag,
+} from "@/lib/riot-id";
 
 type LeaderboardRow = {
   rank: number;
@@ -21,18 +27,6 @@ type LeaderboardRow = {
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function cleanTag(value: string | null | undefined) {
-  return clean(value).replace(/^#+/, "");
-}
-
-function formatRiotId(riotName: string | null | undefined, riotTag: string | null | undefined) {
-  const name = clean(riotName);
-  const tag = cleanTag(riotTag);
-
-  if (!name) return null;
-  return tag ? `${name}#${tag}` : name;
 }
 
 function verifyInstructions() {
@@ -125,17 +119,6 @@ function inhouseStreak(stats: { isWin: boolean }[]): string {
   return w > 0 ? `W${w}` : l > 0 ? `L${l}` : "-";
 }
 
-const INHOUSE_MATCH_FILTER = {
-  matchGame: {
-    match: {
-      OR: [
-        { roundLabel: { startsWith: "IH" } },
-        { roundLabel: "Ranked Inhouse" },
-      ],
-    },
-  },
-};
-
 async function getLeaderboardRows(): Promise<LeaderboardRow[]> {
   const players = await prisma.player.findMany({
     include: {
@@ -152,7 +135,7 @@ async function getLeaderboardRows(): Promise<LeaderboardRow[]> {
       const wins = player.gameStats.filter((stat) => stat.isWin).length;
       const losses = gamesPlayed - wins;
       const winRate = gamesPlayed === 0 ? "-" : `${Math.round((wins / gamesPlayed) * 100)}%`;
-      const elo = player.gameStats[0]?.eloAfter ?? STARTING_ELO;
+      const elo = player.elo;
       const streak = inhouseStreak(player.gameStats);
 
       return {
@@ -202,8 +185,8 @@ async function findVerifiedProfile(kookUserId: string) {
 async function findPlayerForProfile(profile: Awaited<ReturnType<typeof findVerifiedProfile>>) {
   if (!profile) return null;
 
-  const riotName = clean(profile.riotName);
-  const riotTag = cleanTag(profile.riotTag);
+  const riotName = normalizeRiotPart(profile.riotName);
+  const riotTag = normalizeRiotTag(profile.riotTag);
   const email = clean(profile.email);
 
   return prisma.player.findFirst({
@@ -278,7 +261,7 @@ export async function formatMeMessage(kookUserId: string) {
   const gamesPlayed = player?.gameStats.length ?? 0;
   const wins = player?.gameStats.filter((stat) => stat.isWin).length ?? 0;
   const losses = gamesPlayed - wins;
-  const elo = player?.gameStats[0]?.eloAfter ?? STARTING_ELO;
+  const elo = player?.elo ?? STARTING_ELO;
 
   return [
     "You are verified.",

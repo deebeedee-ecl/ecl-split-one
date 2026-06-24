@@ -6,6 +6,8 @@ import { refreshAccountProfileStats } from "@/lib/account-stats-refresh";
 import { createUniqueKookVerification, getKookVerificationExpiresAt } from "@/lib/kook-verification";
 import { formatLzyumiRank, getLzyumiRankRows } from "@/lib/hub-profile";
 import { getChinaServer, fetchLzyumiRecentStat, fetchLzyumiRankedGames, lookupLzyumiIdentity } from "@/lib/lzyumi";
+import { syncPlayerForProfile } from "@/lib/player-profile-sync";
+import { normalizeRiotPart, normalizeRiotTag } from "@/lib/riot-id";
 
 type ProfilePayload = {
   displayName?: string;
@@ -41,8 +43,8 @@ function required(value: unknown) {
 
 function normalizeRiotFields(payload: Pick<ProfilePayload, "riotName" | "riotTag">) {
   return {
-    riotName: clean(payload.riotName),
-    riotTag: clean(payload.riotTag).replace(/^#+/, ""),
+    riotName: normalizeRiotPart(payload.riotName),
+    riotTag: normalizeRiotTag(payload.riotTag),
   };
 }
 
@@ -456,8 +458,8 @@ export async function PATCH(request: Request) {
     },
     data: {
       displayName: body.displayName === undefined ? undefined : clean(body.displayName),
-      riotName: body.riotName === undefined ? undefined : clean(body.riotName),
-      riotTag: body.riotTag === undefined ? undefined : clean(body.riotTag),
+      riotName: body.riotName === undefined ? undefined : normalizeRiotPart(body.riotName),
+      riotTag: body.riotTag === undefined ? undefined : normalizeRiotTag(body.riotTag),
       chinaServerId: lzyumi ? lzyumi.chinaServerId : undefined,
       chinaServerName: lzyumi ? lzyumi.chinaServerName : undefined,
       openId:
@@ -499,6 +501,10 @@ export async function PATCH(request: Request) {
       },
     },
   });
+
+  if (profile.verificationStatus === "VERIFIED" && profile.accountStatus === "ACTIVE") {
+    await syncPlayerForProfile(profile);
+  }
 
   return NextResponse.json({ profile });
 }

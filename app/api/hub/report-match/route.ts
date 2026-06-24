@@ -39,7 +39,10 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const { rawMatchData } = body as { rawMatchData?: unknown };
+  const { rawMatchData, sessionId } = body as {
+    rawMatchData?: unknown;
+    sessionId?: string;
+  };
 
   if (!rawMatchData) {
     return NextResponse.json({ message: "rawMatchData is required" }, { status: 400 });
@@ -60,6 +63,7 @@ export async function POST(request: NextRequest) {
     body: JSON.stringify({
       command: "!report",
       reporterKookUserId: profile.kookId,
+      sessionId,
       rawMatchData,
     }),
   });

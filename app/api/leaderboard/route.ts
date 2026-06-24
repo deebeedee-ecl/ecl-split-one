@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import { prisma } from "@/lib/prisma";
 
 function getTeamTag(teamName?: string | null) {
@@ -32,7 +33,7 @@ export async function GET() {
       include: {
         team: true,
         gameStats: {
-          where: { matchGame: { match: { roundLabel: "Ranked Inhouse" } } },
+          where: INHOUSE_MATCH_FILTER,
           orderBy: { createdAt: "desc" },
         },
       },
@@ -50,8 +51,7 @@ export async function GET() {
         const totalDeaths = player.gameStats.reduce((sum, s) => sum + s.deaths, 0);
         const totalAssists = player.gameStats.reduce((sum, s) => sum + s.assists, 0);
 
-        // Derive ELO and streak from inhouse stats only (Player.elo is polluted by old league data)
-        const elo = player.gameStats[0]?.eloAfter ?? 800;
+        const elo = player.elo;
         let streakLabel = "—";
         let w = 0, l = 0;
         for (const s of player.gameStats) {

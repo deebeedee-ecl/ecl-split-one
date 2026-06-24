@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { syncPlayerForProfile } from "@/lib/player-profile-sync";
 
 function confirmedProfileResponse(
   message: string,
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
       verification.kookUserId === kookUserId || verification.profile.kookId === kookUserId;
 
     if (sameKookAccount && verification.profile.verificationStatus === "VERIFIED") {
+      await syncPlayerForProfile(verification.profile);
       return confirmedProfileResponse("KOOK verification already confirmed", verification.profile);
     }
 
@@ -82,6 +84,7 @@ export async function POST(request: Request) {
       verification.profile.verificationStatus === "VERIFIED";
 
     if (alreadyLinkedToThisKook) {
+      await syncPlayerForProfile(verification.profile);
       return confirmedProfileResponse("KOOK verification already confirmed", verification.profile);
     }
 
@@ -120,7 +123,7 @@ export async function POST(request: Request) {
         },
       });
 
-      return tx.accountProfile.update({
+      const profile = await tx.accountProfile.update({
         where: {
           id: verification.profileId,
         },
@@ -131,6 +134,9 @@ export async function POST(request: Request) {
           kookUsername: kookUsername || verification.profile.kookUsername,
         },
       });
+
+      await syncPlayerForProfile(profile, tx);
+      return profile;
     });
   } catch (error) {
     if (

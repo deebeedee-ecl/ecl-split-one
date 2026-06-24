@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Minus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { STARTING_ELO } from "@/lib/elo";
+import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import {
   HUB_ROLE_ICONS,
   hubRoleLabel,
@@ -11,20 +12,10 @@ import {
 } from "@/lib/hub-profile";
 import { HubShell } from "../_components/HubShell";
 import { LeaderboardCountdown } from "./LeaderboardCountdown";
+import { riotIdKey } from "@/lib/riot-id";
 
 // Revalidate every 24 hours — gives the ladder a daily update cadence
 export const revalidate = 86400;
-
-const INHOUSE_MATCH_FILTER = {
-  matchGame: {
-    match: {
-      OR: [
-        { roundLabel: { startsWith: "IH" } },
-        { roundLabel: "Ranked Inhouse" },
-      ],
-    },
-  },
-};
 
 type LadderRow = {
   profileId: string | null;
@@ -67,6 +58,7 @@ export default async function RankedLadderPage() {
           name: true,
           riotName: true,
           riotTag: true,
+          elo: true,
         },
       },
     },
@@ -103,7 +95,7 @@ export default async function RankedLadderPage() {
         name: stat.player.name,
         riotName: stat.player.riotName,
         riotTag: stat.player.riotTag,
-        elo: stat.eloAfter ?? STARTING_ELO,
+        elo: stat.player.elo ?? stat.eloAfter ?? STARTING_ELO,
         wins: stat.isWin ? 1 : 0,
         losses: stat.isWin ? 0 : 1,
         statsSorted: [{ isWin: stat.isWin }],
@@ -125,12 +117,9 @@ export default async function RankedLadderPage() {
       return a.name.localeCompare(b.name);
     })
     .map((p, index) => {
-      const riotNameLow = (p.riotName ?? "").toLowerCase();
-      const riotTagLow = cleanTag(p.riotTag).toLowerCase();
+      const playerRiotKey = riotIdKey(p.riotName, p.riotTag);
       const profile = profiles.find(
-        (pr) =>
-          (pr.riotName ?? "").toLowerCase() === riotNameLow &&
-          cleanTag(pr.riotTag).toLowerCase() === riotTagLow,
+        (pr) => riotIdKey(pr.riotName, pr.riotTag) === playerRiotKey,
       );
       const gamesPlayed = p.wins + p.losses;
       return {

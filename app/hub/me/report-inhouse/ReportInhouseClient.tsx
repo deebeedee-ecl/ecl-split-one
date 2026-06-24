@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getAccessToken, loadProfile } from "@/components/account/client-account";
+import { riotIdKey, splitRiotId } from "@/lib/riot-id";
 
 // ─── types ──────────────────────────────────────────────────────────────────
 
 type TeamEntry = { teamId: string; players: string[] };
 
 type GamePreview = {
+  sessionId: string;
+  gameLabel: string;
   timeStr: string;
   teams: TeamEntry[];
   rawMatchData: {
@@ -18,6 +21,21 @@ type GamePreview = {
     gameId: string;
     detail: unknown;
   };
+};
+
+type ReportSession = {
+  id: string;
+  gameLabel: string | null;
+  players: Array<{
+    displayName: string;
+    riotName: string | null;
+    riotTag: string | null;
+  }>;
+};
+
+type ReportSessionResponse = {
+  sessions: ReportSession[];
+  recentlyCompleted: { gameLabel: string | null } | null;
 };
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -51,6 +69,7 @@ async function detectGame(
   riotName: string,
   riotTag: string | null | undefined,
   chinaServerId: string | number,
+  sessions: ReportSession[],
 ): Promise<GamePreview> {
   const nameOnly = riotName;
   const nameWithTag = riotTag ? `${riotName}#${riotTag}` : riotName;
@@ -80,58 +99,74 @@ async function detectGame(
   }
 
   // Find most recent 新模式 (inhouse) game; fall back to any game
-  let gameId = "";
-  let rawProfile: unknown = profileData;
-
-  outer: for (const resp of filterResponses) {
-    const games: LzyumiGame[] = Array.isArray((resp as { data?: unknown[] })?.data)
-      ? ((resp as { data?: LzyumiGame[] }).data as LzyumiGame[])
+  const candidates = new Map<string, LzyumiGame>();
+  for (const response of filterResponses) {
+    const games = Array.isArray((response as { data?: unknown[] })?.data)
+      ? ((response as { data?: LzyumiGame[] }).data as LzyumiGame[])
       : [];
-    for (const g of games) {
-      if (g.gameId && g.title?.includes("\u65b0\u6a21\u5f0f")) {
-        gameId = g.gameId;
-        rawProfile = resp;
-        break outer;
+
+    for (const game of games) {
+      if (game.gameId && !candidates.has(game.gameId)) {
+        candidates.set(game.gameId, game);
       }
     }
   }
-  if (!gameId) {
-    for (const resp of filterResponses) {
-      const games: LzyumiGame[] = Array.isArray((resp as { data?: unknown[] })?.data)
-        ? ((resp as { data?: LzyumiGame[] }).data as LzyumiGame[])
-        : [];
-      const found = games.find((g) => g.gameId);
-      if (found?.gameId) {
-        gameId = found.gameId;
-        rawProfile = resp;
-        break;
-      }
-    }
-  }
-  if (!gameId) {
+
+  if (candidates.size === 0) {
     throw new Error("No recent inhouse game found on lzyumi. Make sure you just finished a match.");
   }
 
-  // Fetch detail
-  const detailSignRes = await fetch(
-    `/api/lzyumi-sign?type=detail&openId=${encodeURIComponent(openId)}&gameId=${encodeURIComponent(gameId)}&areaId=${areaId}`,
-  );
-  const { url: detailUrl } = await detailSignRes.json();
-  const detail = await fetch(detailUrl).then((r) => r.json());
-
-  // Build preview
-  const allGames: LzyumiGame[] = Array.isArray((rawProfile as { data?: unknown[] })?.data)
-    ? ((rawProfile as { data?: LzyumiGame[] }).data as LzyumiGame[])
-    : [];
-  const matchEntry = allGames.find((g) => g.gameId === gameId);
-  const timeStr = matchEntry?.titleTime ?? "unknown time";
-
   type PlayerEntry = { teamId?: number | string; nickNameStr?: string; nickName?: string };
-  const players: PlayerEntry[] =
-    ((detail as { data?: { wgBattleDetailInfo?: unknown[] } })?.data?.wgBattleDetailInfo ?? []) as PlayerEntry[];
+  let best:
+    | {
+        session: ReportSession;
+        game: LzyumiGame;
+        detail: unknown;
+        players: PlayerEntry[];
+        matchedPlayers: number;
+      }
+    | null = null;
+
+  for (const game of Array.from(candidates.values()).slice(0, 16)) {
+    const detailSignRes = await fetch(
+      `/api/lzyumi-sign?type=detail&openId=${encodeURIComponent(openId)}&gameId=${encodeURIComponent(game.gameId!)}&areaId=${areaId}`,
+    );
+    if (!detailSignRes.ok) continue;
+
+    const { url: detailUrl } = await detailSignRes.json();
+    const detail = await fetch(detailUrl).then((response) => response.json()).catch(() => null);
+    const players =
+      ((detail as { data?: { wgBattleDetailInfo?: unknown[] } } | null)?.data
+        ?.wgBattleDetailInfo ?? []) as PlayerEntry[];
+    const detailKeys = new Set(
+      players
+        .map((player) => splitRiotId(player.nickNameStr ?? player.nickName))
+        .map((parts) => riotIdKey(parts.riotName, parts.riotTag))
+        .filter((key): key is string => Boolean(key)),
+    );
+
+    for (const session of sessions) {
+      const matchedPlayers = session.players.filter((player) => {
+        const key = riotIdKey(player.riotName, player.riotTag);
+        return key ? detailKeys.has(key) : false;
+      }).length;
+
+      if (!best || matchedPlayers > best.matchedPlayers) {
+        best = { session, game, detail, players, matchedPlayers };
+      }
+    }
+
+    if (best?.matchedPlayers === 10) break;
+  }
+
+  if (!best || best.matchedPlayers < 5) {
+    throw new Error(
+      "I found recent games, but none matched your active inhouse roster. Ask an admin to review the session.",
+    );
+  }
 
   const teamMap = new Map<string, string[]>();
-  for (const p of players) {
+  for (const p of best.players) {
     const tid = String(p.teamId ?? "?");
     if (!teamMap.has(tid)) teamMap.set(tid, []);
     teamMap.get(tid)!.push(p.nickNameStr ?? p.nickName ?? "?");
@@ -143,9 +178,15 @@ async function detectGame(
   }));
 
   return {
-    timeStr,
+    sessionId: best.session.id,
+    gameLabel: best.session.gameLabel ?? "Ranked Inhouse",
+    timeStr: best.game.titleTime ?? "unknown time",
     teams,
-    rawMatchData: { profile: rawProfile, gameId, detail },
+    rawMatchData: {
+      profile: profileData,
+      gameId: best.game.gameId!,
+      detail: best.detail,
+    },
   };
 }
 
@@ -183,10 +224,40 @@ export default function ReportInhouseClient() {
           return;
         }
 
+        const token = data.session.access_token;
+        const sessionResponse = await fetch("/api/hub/report-session", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const sessionData = (await sessionResponse.json().catch(() => ({}))) as
+          | ReportSessionResponse
+          | { message?: string };
+
+        if (!sessionResponse.ok) {
+          throw new Error(
+            "message" in sessionData && sessionData.message
+              ? sessionData.message
+              : "Could not load your inhouse session.",
+          );
+        }
+
+        const { sessions, recentlyCompleted } = sessionData as ReportSessionResponse;
+        if (sessions.length === 0) {
+          if (recentlyCompleted) {
+            setSuccessMsg(
+              `${recentlyCompleted.gameLabel ?? "Your latest inhouse"} has already been reported.`,
+            );
+            setPhase("done");
+            return;
+          }
+
+          throw new Error("You do not have an active inhouse session to report.");
+        }
+
         const result = await detectGame(
           profile.riotName,
           profile.riotTag,
           profile.chinaServerId,
+          sessions,
         );
         if (!cancelled) {
           setPreview(result);
@@ -219,7 +290,10 @@ export default function ReportInhouseClient() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ rawMatchData: preview.rawMatchData }),
+        body: JSON.stringify({
+          sessionId: preview.sessionId,
+          rawMatchData: preview.rawMatchData,
+        }),
       });
 
       const result = await res.json().catch(() => ({}));
@@ -293,7 +367,7 @@ export default function ReportInhouseClient() {
             Detected game
           </p>
           <h2 className="mt-1 text-xl font-black text-white">
-            {preview!.timeStr || "Recent game"}
+            {preview!.gameLabel} - {preview!.timeStr || "Recent game"}
           </h2>
         </div>
 

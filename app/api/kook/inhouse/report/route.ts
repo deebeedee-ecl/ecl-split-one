@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { calculateLpChange } from "@/lib/elo";
+import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import {
   fetchLatestLzyumiMatch,
   fetchLzyumiMatchDetail,
@@ -11,12 +12,19 @@ import {
   type LzyumiPlayerDetail,
   type LzyumiRecentMatch,
 } from "@/lib/lzyumi";
+import { syncPlayerForProfile } from "@/lib/player-profile-sync";
 import { prisma } from "@/lib/prisma";
+import {
+  normalizeRiotPart,
+  normalizeRiotTag,
+  riotIdKey,
+  splitRiotId,
+} from "@/lib/riot-id";
 
 export const dynamic = "force-dynamic";
 
 const ACTIVE_SESSION_HOURS = 8;
-const REQUIRED_MATCHED_PLAYERS = 8;
+const REQUIRED_MATCHED_PLAYERS = 10;
 
 type RawMatchData = {
   profile: LzyumiLookupResponse;
@@ -40,36 +48,10 @@ function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function cleanTag(value: string | null | undefined) {
-  return clean(value).replace(/^#+/, "");
-}
-
-function riotKey(riotName: string | null | undefined, riotTag: string | null | undefined) {
-  const name = clean(riotName).toLowerCase();
-  const tag = cleanTag(riotTag).toLowerCase();
-
-  if (!name || !tag) return null;
-  return `${name}#${tag}`;
-}
-
-function splitRiotId(rawName: string | null | undefined) {
-  const value = clean(rawName);
-  const hashIndex = value.lastIndexOf("#");
-
-  if (hashIndex === -1) {
-    return { riotName: value, riotTag: "" };
-  }
-
-  return {
-    riotName: value.slice(0, hashIndex).trim(),
-    riotTag: cleanTag(value.slice(hashIndex + 1)),
-  };
-}
-
 function playerRiotKeys(player: LzyumiPlayerDetail) {
   return [player.nickNameStr, player.nickName]
     .map(splitRiotId)
-    .map((parts) => riotKey(parts.riotName, parts.riotTag))
+    .map((parts) => riotIdKey(parts.riotName, parts.riotTag))
     .filter((value): value is string => Boolean(value));
 }
 
@@ -91,7 +73,7 @@ function safeNumber(value: unknown, fallback = 0) {
 }
 
 function isPlayerWin(player: LzyumiPlayerDetail) {
-  return player.win === "1" || player.win === "true" || player.win === "WIN";
+  return ["1", "true", "win"].includes(clean(player.win).toLowerCase());
 }
 
 function unauthorized(request: Request) {
@@ -167,8 +149,8 @@ async function findReporterProfile(reporter: SessionPlayer) {
 }
 
 async function findOrCreatePlayer(sessionPlayer: SessionPlayer) {
-  const riotName = clean(sessionPlayer.riotName);
-  const riotTag = cleanTag(sessionPlayer.riotTag);
+  const riotName = normalizeRiotPart(sessionPlayer.riotName);
+  const riotTag = normalizeRiotTag(sessionPlayer.riotTag);
   const email = clean(sessionPlayer.email);
 
   const existingById = sessionPlayer.playerId
@@ -176,90 +158,20 @@ async function findOrCreatePlayer(sessionPlayer: SessionPlayer) {
         where: {
           id: sessionPlayer.playerId,
         },
-        include: {
-          _count: {
-            select: {
-              gameStats: true,
-            },
-          },
-        },
       })
     : null;
 
   if (existingById) return existingById;
 
-  if (!riotName && !email) {
-    return prisma.player.create({
-      data: {
-        name: sessionPlayer.displayName,
-        riotName: null,
-        riotTag: null,
-        email: null,
-      },
-      include: {
-        _count: {
-          select: {
-            gameStats: true,
-          },
-        },
-      },
-    });
-  }
-
-  const existing = await prisma.player.findFirst({
-    where: {
-      OR: [
-        ...(riotName && riotTag
-          ? [
-              {
-                riotName: {
-                  equals: riotName,
-                  mode: "insensitive" as const,
-                },
-                riotTag: {
-                  equals: riotTag,
-                  mode: "insensitive" as const,
-                },
-              },
-            ]
-          : []),
-        ...(email
-          ? [
-              {
-                email: {
-                  equals: email,
-                  mode: "insensitive" as const,
-                },
-              },
-            ]
-          : []),
-      ],
-    },
-    include: {
-      _count: {
-        select: {
-          gameStats: true,
-        },
-      },
-    },
+  const player = await syncPlayerForProfile({
+    displayName: sessionPlayer.displayName,
+    riotName,
+    riotTag,
+    email,
   });
 
-  if (existing) return existing;
-
-  return prisma.player.create({
-    data: {
-      name: sessionPlayer.displayName,
-      riotName: riotName || null,
-      riotTag: riotTag || null,
-      email: email || null,
-    },
-    include: {
-      _count: {
-        select: {
-          gameStats: true,
-        },
-      },
-    },
+  return prisma.player.findUniqueOrThrow({
+    where: { id: player.id },
   });
 }
 
@@ -275,6 +187,7 @@ export async function POST(request: Request) {
   const body = (await request.json()) as ReportBody;
   const reporterKookUserId = clean(body.reporterKookUserId || body.kookUserId);
   const adminOverride = body.adminOverride === true;
+  const requestedSessionId = clean(body.sessionId);
 
   if (!reporterKookUserId && !adminOverride) {
     return NextResponse.json(
@@ -283,12 +196,41 @@ export async function POST(request: Request) {
     );
   }
 
+  if (requestedSessionId) {
+    const completedSession = await prisma.inhouseSession.findFirst({
+      where: {
+        id: requestedSessionId,
+        status: "COMPLETED",
+        ...(adminOverride ? {} : { players: { some: { kookUserId: reporterKookUserId } } }),
+      },
+      select: {
+        id: true,
+        gameLabel: true,
+        matchId: true,
+        matchGameId: true,
+        lzyumiGameId: true,
+      },
+    });
+
+    if (completedSession) {
+      return NextResponse.json({
+        ok: true,
+        status: "ALREADY_REPORTED",
+        reply: `${completedSession.gameLabel ?? "This inhouse"} has already been reported.`,
+        sessionId: completedSession.id,
+        matchId: completedSession.matchId,
+        matchGameId: completedSession.matchGameId,
+        lzyumiGameId: completedSession.lzyumiGameId,
+      });
+    }
+  }
+
   let session: Awaited<ReturnType<typeof findActiveSessionForReporter>>;
 
   try {
     session = await findActiveSessionForReporter(
       reporterKookUserId || "ADMIN",
-      clean(body.sessionId) || undefined,
+      requestedSessionId || undefined,
       adminOverride,
     );
   } catch (error) {
@@ -449,13 +391,13 @@ export async function POST(request: Request) {
     return {
       ...p,
       riotName: p.riotName || prof?.riotName || null,
-      riotTag: p.riotTag || (prof?.riotTag ? prof.riotTag.replace(/^#+/, "") : null),
+      riotTag: normalizeRiotTag(p.riotTag || prof?.riotTag) || null,
     };
   });
 
   const matchedRows = enrichedSessionPlayers
     .map((sessionPlayer) => {
-      const key = riotKey(sessionPlayer.riotName, sessionPlayer.riotTag);
+      const key = riotIdKey(sessionPlayer.riotName, sessionPlayer.riotTag);
       const detailPlayer = key ? detailByRiotKey.get(key) : undefined;
       return detailPlayer ? { sessionPlayer, detailPlayer } : null;
     })
@@ -560,6 +502,12 @@ export async function POST(request: Request) {
 
   for (const row of matchedRows) {
     const player = await findOrCreatePlayer(row.sessionPlayer);
+    const gamesPlayed = await prisma.matchGamePlayerStat.count({
+      where: {
+        playerId: player.id,
+        ...INHOUSE_MATCH_FILTER,
+      },
+    });
     const side = row.sessionPlayer.side;
     const teamId = side === "BLUE" ? blueTeam.id : redTeam.id;
     const isWin = teamId === game.winnerTeamId;
@@ -572,7 +520,7 @@ export async function POST(request: Request) {
       isMVP: row.detailPlayer.wasMvp === "1",
       isSVP: row.detailPlayer.wasSvp === "1",
       currentElo: player.elo,
-      gamesPlayed: player._count.gameStats,
+      gamesPlayed,
       winStreak: player.winStreak,
       lossStreak: player.lossStreak,
     }).lpChange;
