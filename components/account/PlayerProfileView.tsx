@@ -3,9 +3,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
 import { BarChart3, CheckCircle2, Crown, Sparkles, Trophy, UserCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import {
+  PolarAngleAxis,
+  PolarGrid,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+} from "recharts";
 import { supabase } from "@/lib/supabase";
 import {
   formatLzyumiRank as formatSharedLzyumiRank,
@@ -37,6 +43,49 @@ export type AccountProfile = SignupProfilePayload & {
     status: string;
     expiresAt: string;
   }>;
+};
+
+type InhouseHistoryGame = {
+  id: string;
+  gameLabel: string;
+  date: string;
+  isWin: boolean;
+  kills: number;
+  deaths: number;
+  assists: number;
+  lpChange: number;
+  eloAfter: number;
+  isMVP: boolean;
+  isSVP: boolean;
+  role: string | null;
+  championId: string | null;
+};
+
+type InhouseProfileData = {
+  games: InhouseHistoryGame[];
+  summary: null | {
+    elo: number;
+    rank: number | null;
+    games: number;
+    wins: number;
+    losses: number;
+    mvps: number;
+    svps: number;
+    currentStreak: number;
+    streakLabel: string;
+    roleStats: Array<{
+      role: string;
+      games: number;
+      pct: number;
+      winRate: number;
+    }>;
+    topChampions: Array<{
+      championId: string;
+      games: number;
+      wins: number;
+    }>;
+    performance: Array<{ label: string; value: number }>;
+  };
 };
 
 type LzyumiRankRow = {
@@ -292,6 +341,8 @@ export default function PlayerProfileView({
   const [loading, setLoading] = useState(!initialProfile);
   const [refreshingStats, setRefreshingStats] = useState(false);
   const [statRefreshError, setStatRefreshError] = useState("");
+  const [inhouseData, setInhouseData] = useState<InhouseProfileData | null>(null);
+  const [inhouseLoading, setInhouseLoading] = useState(true);
   const [codeRequesting, setCodeRequesting] = useState(false);
   const [verificationMessage, setVerificationMessage] = useState("");
   const [verificationError, setVerificationError] = useState("");
@@ -388,6 +439,36 @@ export default function PlayerProfileView({
   }, [initialProfile]);
 
   useEffect(() => {
+    const statsProfile = initialProfile ?? loadedProfile;
+    if (!statsProfile?.id) return;
+
+    let cancelled = false;
+    async function loadInhouseData() {
+      setInhouseLoading(true);
+      try {
+        const token = initialProfile ? null : await getAccessToken();
+        const query = initialProfile ? `?profileId=${encodeURIComponent(statsProfile!.id)}` : "";
+        const response = await fetch(`/api/hub/my-inhouse-history${query}`, {
+          cache: "no-store",
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!response.ok) throw new Error(`Inhouse stats failed (${response.status})`);
+        const data = (await response.json()) as InhouseProfileData;
+        if (!cancelled) setInhouseData(data);
+      } catch {
+        if (!cancelled) setInhouseData({ games: [], summary: null });
+      } finally {
+        if (!cancelled) setInhouseLoading(false);
+      }
+    }
+
+    loadInhouseData();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialProfile, loadedProfile?.id]);
+
+  useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 60000);
     return () => window.clearInterval(interval);
   }, []);
@@ -454,6 +535,7 @@ export default function PlayerProfileView({
 
   const soloRank = formatSharedLzyumiRank(ranks.solo);
   const flexRank = formatSharedLzyumiRank(ranks.flex);
+  const inhouse = inhouseData?.summary ?? null;
 
   async function requestFreshKookCode() {
     setCodeRequesting(true);
@@ -592,10 +674,10 @@ export default function PlayerProfileView({
             Inhouse Record
           </p>
           <div className="mt-5 grid grid-cols-2 gap-4">
-            <Metric label="ELO" value="800" accent="text-[#ffd84d]" />
-            <Metric label="Rank" value="-" accent="text-[#ff1728]" />
-            <Metric label="W/L" value="0-0" />
-            <Metric label="MVPs" value="0" />
+            <Metric label="ELO" value={inhouseLoading ? "..." : String(inhouse?.elo ?? 800)} accent="text-[#ffd84d]" />
+            <Metric label="Rank" value={inhouseLoading ? "..." : inhouse?.rank ? `#${inhouse.rank}` : "-"} accent="text-[#ff1728]" />
+            <Metric label="W/L" value={inhouseLoading ? "..." : `${inhouse?.wins ?? 0}-${inhouse?.losses ?? 0}`} />
+            <Metric label="MVPs" value={inhouseLoading ? "..." : String(inhouse?.mvps ?? 0)} />
           </div>
           <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#aeb5da]">
@@ -617,14 +699,9 @@ export default function PlayerProfileView({
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[22rem_minmax(0,1fr)_22rem]">
-        <EmptyPanel
-          icon={<Trophy size={27} />}
-          eyebrow="Inhouse Only"
-          title="Performance Radar"
-          description="Mechanics, macro, vision, teamfight, and consistency ratings are built from recorded ECL inhouse games."
-        />
-        <InhouseStatsPanel />
-        <AwardsPanel />
+        <PerformanceRadar data={inhouse?.performance ?? []} loading={inhouseLoading} />
+        <InhouseStatsPanel summary={inhouse} loading={inhouseLoading} />
+        <AwardsPanel summary={inhouse} loading={inhouseLoading} />
       </section>
 
       <ChampionsPanel
@@ -633,7 +710,12 @@ export default function PlayerProfileView({
         recentGames={recentGames}
       />
 
-      {showPersonalMatchPreview && <ProfileMatchHistoryPreview />}
+      {showPersonalMatchPreview && (
+        <ProfileMatchHistoryPreview
+          games={inhouseData?.games ?? null}
+          loading={inhouseLoading}
+        />
+      )}
     </div>
   );
 }
@@ -647,12 +729,20 @@ const INHOUSE_ROLES: { key: string; label: string }[] = [
   { key: "SUP", label: "Support" },
 ];
 
-function InhouseStatsPanel() {
-  const roleStats = INHOUSE_ROLES.map((r) => ({
-    ...r,
-    pct: 0,
-    winRate: 0,
-    games: 0,
+function InhouseStatsPanel({
+  summary,
+  loading,
+}: {
+  summary: InhouseProfileData["summary"];
+  loading: boolean;
+}) {
+  const roleStats = INHOUSE_ROLES.map((role) => ({
+    ...role,
+    ...(summary?.roleStats.find((stat) => stat.role === role.key) ?? {
+      pct: 0,
+      winRate: 0,
+      games: 0,
+    }),
   }));
 
   return (
@@ -676,10 +766,10 @@ function InhouseStatsPanel() {
               />
             </div>
             <span className="w-8 text-right text-xs font-black text-[#ff1728]">
-              {pct > 0 ? `${pct}%` : "-"}
+              {loading ? "..." : pct > 0 ? `${pct}%` : "-"}
             </span>
             <span className="w-12 text-right text-xs font-bold text-[#aeb5da]">
-              {games > 0 ? `${winRate}% WR` : "-"}
+              {loading ? "..." : games > 0 ? `${winRate}% WR` : "-"}
             </span>
           </div>
         ))}
@@ -689,9 +779,23 @@ function InhouseStatsPanel() {
         <p className="text-xs font-black uppercase tracking-[0.14em] text-[#aeb5da]">
           Top Inhouse Champions
         </p>
-        <p className="text-xs font-semibold text-[#6b7280]">
-          Champion data is built from recorded ECL inhouse games.
-        </p>
+        {loading ? (
+          <p className="text-xs font-semibold text-[#6b7280]">Loading recorded games...</p>
+        ) : summary?.topChampions.length ? (
+          <div className="flex flex-wrap gap-3">
+            {summary.topChampions.map((champion) => (
+              <div key={champion.championId} className="flex items-center gap-2 rounded-xl bg-white/[0.04] p-2">
+                <ChampionIcon id={champion.championId} size={34} />
+                <div>
+                  <p className="text-xs font-black text-white">{champion.games}G</p>
+                  <p className="text-[10px] font-bold text-[#6b7280]">{champion.wins}W</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs font-semibold text-[#6b7280]">No recorded champions yet.</p>
+        )}
       </div>
     </section>
   );
@@ -872,42 +976,13 @@ function ChampionsPanel({
   );
 }
 
-type InhouseHistoryGame = {
-  id: string;
-  gameLabel: string;
-  date: string;
-  isWin: boolean;
-  kills: number;
-  deaths: number;
-  assists: number;
-  lpChange: number;
-  eloAfter: number;
-  isMVP: boolean;
-  isSVP: boolean;
-};
-
-function ProfileMatchHistoryPreview() {
-  const [games, setGames] = useState<InhouseHistoryGame[] | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const token = await getAccessToken();
-        if (!token) { setLoading(false); return; }
-        const res = await fetch("/api/hub/my-inhouse-history", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setGames((data.games ?? []).slice(0, 3));
-        }
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
+function ProfileMatchHistoryPreview({
+  games,
+  loading,
+}: {
+  games: InhouseHistoryGame[] | null;
+  loading: boolean;
+}) {
 
   function formatDate(iso: string) {
     const d = new Date(iso);
@@ -956,7 +1031,7 @@ function ProfileMatchHistoryPreview() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.05]">
-              {games.map((g) => (
+              {games.slice(0, 3).map((g) => (
                 <tr key={g.id} className="transition hover:bg-white/[0.03]">
                   <td className="px-4 py-3 font-black text-[#d7dcff]">
                     {g.gameLabel}
@@ -1092,12 +1167,74 @@ function KookVerificationNotice({
   );
 }
 
-function AwardsPanel() {
+function PerformanceRadar({
+  data,
+  loading,
+}: {
+  data: Array<{ label: string; value: number }>;
+  loading: boolean;
+}) {
+  const chartData = data.length
+    ? data
+    : ["Mechanics", "Damage", "Teamplay", "Economy", "Consistency"].map((label) => ({
+        label,
+        value: 0,
+      }));
+
+  return (
+    <section className="rounded-[1.7rem] border border-white/[0.08] bg-[#191a1f] p-6 shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
+      <div className="flex items-center gap-3">
+        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#8b7cff]/14 text-[#c9c2ff]">
+          <Trophy size={27} />
+        </span>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6b7280]">
+            Inhouse Only
+          </p>
+          <h3 className="text-xl font-black text-white">Performance Radar</h3>
+        </div>
+      </div>
+      <div className="mt-3 h-56 w-full" aria-label="Inhouse performance ratings">
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart data={chartData} outerRadius="62%">
+            <PolarGrid stroke="rgba(174,181,218,0.18)" />
+            <PolarAngleAxis
+              dataKey="label"
+              tick={{ fill: "#aeb5da", fontSize: 10, fontWeight: 800 }}
+            />
+            <Radar
+              dataKey="value"
+              stroke="#ff4058"
+              fill="#ff1728"
+              fillOpacity={0.28}
+              strokeWidth={2}
+              isAnimationActive={!loading}
+            />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="text-xs font-semibold leading-5 text-[#6b7280]">
+        {loading
+          ? "Loading recorded inhouse performance..."
+          : "Calculated from KDA, damage, participation, gold, and game-to-game consistency."}
+      </p>
+    </section>
+  );
+}
+
+function AwardsPanel({
+  summary,
+  loading,
+}: {
+  summary: InhouseProfileData["summary"];
+  loading: boolean;
+}) {
+  const value = (number: number | undefined) => (loading ? "..." : String(number ?? 0));
   const awards = [
-    { label: "MVP", value: "0", color: "text-[#ffd84d]", bg: "bg-[#ffd84d]/10" },
-    { label: "SVP", value: "0", color: "text-[#c0c0c0]", bg: "bg-white/[0.06]" },
-    { label: "Triple Kills", value: "0", color: "text-[#ff1728]", bg: "bg-[#ff1728]/10" },
-    { label: "Quadra Kills", value: "0", color: "text-[#ff6b6b]", bg: "bg-[#ff6b6b]/10" },
+    { label: "MVP", value: value(summary?.mvps), color: "text-[#ffd84d]", bg: "bg-[#ffd84d]/10" },
+    { label: "SVP", value: value(summary?.svps), color: "text-[#c0c0c0]", bg: "bg-white/[0.06]" },
+    { label: "Wins", value: value(summary?.wins), color: "text-[#19d27f]", bg: "bg-[#19d27f]/10" },
+    { label: "Current Streak", value: loading ? "..." : summary?.streakLabel ?? "-", color: "text-[#ff6b6b]", bg: "bg-[#ff6b6b]/10" },
   ];
 
   return (
@@ -1125,35 +1262,6 @@ function AwardsPanel() {
       </div>
       <p className="mt-4 text-xs font-semibold text-[#6b7280]">
         Populated from ECL inhouse match records.
-      </p>
-    </section>
-  );
-}
-
-function EmptyPanel({
-  icon,
-  eyebrow,
-  title,
-  description,
-}: {
-  icon: ReactNode;
-  eyebrow?: string;
-  title: string;
-  description: string;
-}) {
-  return (
-    <section className="rounded-[1.7rem] border border-white/[0.08] bg-[#191a1f] p-6 shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
-      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#8b7cff]/14 text-[#c9c2ff]">
-        {icon}
-      </span>
-      {eyebrow && (
-        <p className="mt-4 text-[10px] font-black uppercase tracking-[0.16em] text-[#6b7280]">
-          {eyebrow}
-        </p>
-      )}
-      <h3 className={`${eyebrow ? "mt-1" : "mt-5"} text-xl font-black text-white`}>{title}</h3>
-      <p className="mt-2 text-sm font-semibold leading-6 text-[#aeb5da]">
-        {description}
       </p>
     </section>
   );
