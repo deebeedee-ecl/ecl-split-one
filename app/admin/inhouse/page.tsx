@@ -2,6 +2,13 @@
 
 import { useEffect, useState } from "react";
 import AdminShell from "@/components/admin/AdminShell";
+import {
+  englishDuration,
+  findLzyumiPlayer,
+  loadChampionNames,
+  summarizeLzyumiPlayer,
+  type LzyumiPlayerSummary,
+} from "@/lib/lzyumi-display";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,7 +34,21 @@ type Session = {
 type LzyumiGame = {
   gameId: string;
   title?: string;
+  titleTime?: string;
   isWin?: number;
+};
+
+type LzyumiDetail = {
+  data?: {
+    wgBattleDetailInfo?: Array<{
+      nickNameStr?: string;
+      nickName?: string;
+      detailChampionId?: string | number;
+      position?: string;
+      win?: string;
+      scoreInfo?: string;
+    }>;
+  } | null;
 };
 
 type LzyumiResponse = {
@@ -69,6 +90,8 @@ export default function AdminInhousePage() {
   const [games, setGames] = useState<LzyumiGame[]>([]);
   const [rawProfile, setRawProfile] = useState<LzyumiResponse | null>(null);
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  const [gameDetails, setGameDetails] = useState<Record<string, LzyumiDetail>>({});
+  const [gameSummaries, setGameSummaries] = useState<Record<string, LzyumiPlayerSummary>>({});
 
   // Submit state
   const [submitting, setSubmitting] = useState(false);
@@ -86,6 +109,8 @@ export default function AdminInhousePage() {
     setGames([]);
     setRawProfile(null);
     setSelectedGameId(null);
+    setGameDetails({});
+    setGameSummaries({});
     setResult(null);
   }
 
@@ -159,6 +184,46 @@ export default function AdminInhousePage() {
       // Auto-select the most recent 新模式 game
       const inhouse = allGames.find((g) => g.title?.includes(INHOUSE_LABEL));
       setSelectedGameId(inhouse?.gameId ?? allGames[0]?.gameId ?? null);
+
+      const openId = profileResp?.battleInfo?.openId;
+      if (openId) {
+        const [detailEntries, championNames] = await Promise.all([
+          Promise.all(
+          allGames.slice(0, 16).map(async (game) => {
+            try {
+              const signResponse = await fetch(
+                `/api/lzyumi-sign?type=detail&openId=${encodeURIComponent(openId)}&gameId=${encodeURIComponent(game.gameId)}&areaId=${areaId}`,
+              );
+              if (!signResponse.ok) return null;
+              const { url } = (await signResponse.json()) as { url: string };
+              const detail = (await fetch(url).then((response) => response.json())) as LzyumiDetail;
+              return [game.gameId, detail] as const;
+            } catch {
+              return null;
+            }
+          }),
+          ),
+          loadChampionNames(),
+        ]);
+
+        const details: Record<string, LzyumiDetail> = {};
+        const summaries: Record<string, LzyumiPlayerSummary> = {};
+        for (const entry of detailEntries) {
+          if (!entry) continue;
+          const [gameId, detail] = entry;
+          details[gameId] = detail;
+          const matchingPlayer = findLzyumiPlayer(
+            detail.data?.wgBattleDetailInfo ?? [],
+            player.riotName,
+            player.riotTag,
+          );
+          if (matchingPlayer) {
+            summaries[gameId] = summarizeLzyumiPlayer(matchingPlayer, championNames);
+          }
+        }
+        setGameDetails(details);
+        setGameSummaries(summaries);
+      }
     } finally {
       setLookupLoading(null);
     }
@@ -175,11 +240,13 @@ export default function AdminInhousePage() {
         selectedSession.players.find((p) => p.chinaServerId)?.chinaServerId ?? 1;
 
       // Fetch detail from admin's browser (residential IP)
-      const detailSign = await fetch(
-        `/api/lzyumi-sign?type=detail&openId=${encodeURIComponent(openId)}&gameId=${encodeURIComponent(selectedGameId)}&areaId=${areaId}`,
-      ).then((r) => r.json());
-
-      const detail = await fetch(detailSign.url).then((r) => r.json());
+      let detail = gameDetails[selectedGameId];
+      if (!detail) {
+        const detailSign = await fetch(
+          `/api/lzyumi-sign?type=detail&openId=${encodeURIComponent(openId)}&gameId=${encodeURIComponent(selectedGameId)}&areaId=${areaId}`,
+        ).then((r) => r.json());
+        detail = await fetch(detailSign.url).then((r) => r.json());
+      }
 
       const res = await fetch("/api/admin/inhouse/report", {
         method: "POST",
@@ -329,6 +396,7 @@ export default function AdminInhousePage() {
                       const { mode, time } = parseTitle(g.title);
                       const isInhouse = mode.includes(INHOUSE_LABEL);
                       const isSelected = selectedGameId === g.gameId;
+                      const summary = gameSummaries[g.gameId];
                       return (
                         <button
                           key={g.gameId}
@@ -347,12 +415,22 @@ export default function AdminInhousePage() {
                                 IH
                               </span>
                             )}
-                            <span className="text-sm truncate">{mode}</span>
+                            <span className="text-sm font-semibold">
+                              {isInhouse ? "Ranked Inhouse" : "Recent game"}
+                            </span>
                             {isSelected && (
                               <span className="ml-auto text-xs text-green-400">selected</span>
                             )}
                           </div>
-                          {time && <div className="text-xs text-gray-500 mt-0.5">{time}</div>}
+                          <div className="mt-1 text-xs text-gray-300">
+                            {summary
+                              ? `${summary.result} - ${summary.champion} - ${summary.role}`
+                              : "Loading champion and role..."}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {englishDuration(g.title, g.titleTime)}
+                            {summary?.kda ? ` - KDA ${summary.kda}` : ""}
+                          </div>
                           <div className="text-xs text-gray-600 mt-0.5 font-mono truncate">
                             {g.gameId}
                           </div>

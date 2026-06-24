@@ -613,16 +613,6 @@ export default function PlayerProfileView({
             </p>
           </div>
 
-          {!initialProfile && hasSession && (
-            <div className="mt-3">
-              <Link
-                href="/hub/me/report-inhouse"
-                className="block w-full rounded-xl bg-[#48f0df]/10 px-4 py-2 text-center text-sm font-black text-[#48f0df] ring-1 ring-[#48f0df]/30 transition hover:bg-[#48f0df]/20"
-              >
-                Report Inhouse Game
-              </Link>
-            </div>
-          )}
         </aside>
       </section>
 

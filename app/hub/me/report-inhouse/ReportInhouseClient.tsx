@@ -6,6 +6,13 @@ import { CheckCircle2, XCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getAccessToken, loadProfile } from "@/components/account/client-account";
 import { riotIdKey, splitRiotId } from "@/lib/riot-id";
+import {
+  englishDuration,
+  findLzyumiPlayer,
+  loadChampionNames,
+  summarizeLzyumiPlayer,
+  type LzyumiPlayerSummary,
+} from "@/lib/lzyumi-display";
 
 // ─── types ──────────────────────────────────────────────────────────────────
 
@@ -15,6 +22,7 @@ type GamePreview = {
   sessionId: string;
   gameLabel: string;
   timeStr: string;
+  playerSummary: LzyumiPlayerSummary | null;
   teams: TeamEntry[];
   rawMatchData: {
     profile: unknown;
@@ -116,7 +124,15 @@ async function detectGame(
     throw new Error("No recent inhouse game found on lzyumi. Make sure you just finished a match.");
   }
 
-  type PlayerEntry = { teamId?: number | string; nickNameStr?: string; nickName?: string };
+  type PlayerEntry = {
+    teamId?: number | string;
+    nickNameStr?: string;
+    nickName?: string;
+    detailChampionId?: string | number;
+    position?: string;
+    win?: string;
+    scoreInfo?: string;
+  };
   let best:
     | {
         session: ReportSession;
@@ -176,11 +192,16 @@ async function detectGame(
     teamId,
     players: ps,
   }));
+  const reportingPlayer = findLzyumiPlayer(best.players, riotName, riotTag);
+  const championNames = reportingPlayer ? await loadChampionNames() : undefined;
 
   return {
     sessionId: best.session.id,
     gameLabel: best.session.gameLabel ?? "Ranked Inhouse",
-    timeStr: best.game.titleTime ?? "unknown time",
+    timeStr: englishDuration(best.game.title, best.game.titleTime),
+    playerSummary: reportingPlayer
+      ? summarizeLzyumiPlayer(reportingPlayer, championNames)
+      : null,
     teams,
     rawMatchData: {
       profile: profileData,
@@ -369,6 +390,19 @@ export default function ReportInhouseClient() {
           <h2 className="mt-1 text-xl font-black text-white">
             {preview!.gameLabel} - {preview!.timeStr || "Recent game"}
           </h2>
+          {preview!.playerSummary && (
+            <p className="mt-2 text-sm font-bold text-[#d7dcff]">
+              You played {preview!.playerSummary.champion} - {preview!.playerSummary.role} -{" "}
+              <span
+                className={
+                  preview!.playerSummary.result === "Win" ? "text-[#20b86f]" : "text-[#ff6b6b]"
+                }
+              >
+                {preview!.playerSummary.result}
+              </span>
+              {preview!.playerSummary.kda ? ` - KDA ${preview!.playerSummary.kda}` : ""}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-px bg-white/[0.05] sm:grid-cols-2">
