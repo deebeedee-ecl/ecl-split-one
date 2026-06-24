@@ -1,5 +1,6 @@
 import { STARTING_ELO } from "@/lib/elo";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
+import { translateLzyumiTier } from "@/lib/hub-profile";
 import {
   RANKED_INHOUSE_CHANNEL_ID,
   normalizeInhouseMembers,
@@ -270,7 +271,7 @@ export async function formatMeMessage(kookUserId: string) {
     `Riot ID: ${formatRiotId(profile.riotName, profile.riotTag) ?? "-"}`,
     `ECL LP: ${elo}`,
     `Record: ${wins}W/${losses}L`,
-    `China rank: ${profile.currentRank || "Unranked"}`,
+    `China rank: ${translateLzyumiTier(profile.currentRank || undefined)}`,
   ].join("\n");
 }
 
