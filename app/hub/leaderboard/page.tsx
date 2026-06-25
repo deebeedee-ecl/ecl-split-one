@@ -2,8 +2,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { Minus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { STARTING_ELO } from "@/lib/elo";
-import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
+import {
+  getFrozenInhouseLeaderboardRows,
+  getInhouseLeaderboardWindow,
+} from "@/lib/inhouse-leaderboard";
 import {
   HUB_ROLE_ICONS,
   hubRoleLabel,
@@ -14,8 +16,7 @@ import { HubShell } from "../_components/HubShell";
 import { LeaderboardCountdown } from "./LeaderboardCountdown";
 import { riotIdKey } from "@/lib/riot-id";
 
-// Revalidate every 24 hours — gives the ladder a daily update cadence
-export const revalidate = 86400;
+export const revalidate = 60;
 
 type LadderRow = {
   profileId: string | null;
@@ -34,37 +35,7 @@ function cleanTag(value: string | null | undefined) {
   return (value ?? "").trim().replace(/^#+/, "");
 }
 
-function inhouseStreak(stats: { isWin: boolean }[]): string {
-  let w = 0, l = 0;
-  for (const s of stats) {
-    if (s.isWin) { if (l > 0) break; w++; }
-    else         { if (w > 0) break; l++; }
-  }
-  return w > 1 ? `W${w}` : l > 1 ? `L${l}` : "-";
-}
-
 export default async function RankedLadderPage() {
-  // Fetch all inhouse stats (ordered newest-first so first entry per player = latest ELO)
-  const allStats = await prisma.matchGamePlayerStat.findMany({
-    where: INHOUSE_MATCH_FILTER,
-    select: {
-      playerId: true,
-      isWin: true,
-      eloAfter: true,
-      createdAt: true,
-      player: {
-        select: {
-          id: true,
-          name: true,
-          riotName: true,
-          riotTag: true,
-          elo: true,
-        },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
   // Get all verified profiles for display names + role + profile links
   const profiles = await prisma.accountProfile.findMany({
     where: { verificationStatus: "VERIFIED", accountStatus: "ACTIVE" },
@@ -77,45 +48,10 @@ export default async function RankedLadderPage() {
     },
   });
 
-  // Group stats by player — first entry is the most recent (latest ELO)
-  const byPlayer = new Map<string, {
-    name: string;
-    riotName: string | null;
-    riotTag: string | null;
-    elo: number;
-    wins: number;
-    losses: number;
-    statsSorted: { isWin: boolean }[];
-  }>();
+  const { nextUpdateAt } = getInhouseLeaderboardWindow();
 
-  for (const stat of allStats) {
-    const existing = byPlayer.get(stat.playerId);
-    if (!existing) {
-      byPlayer.set(stat.playerId, {
-        name: stat.player.name,
-        riotName: stat.player.riotName,
-        riotTag: stat.player.riotTag,
-        elo: stat.player.elo ?? stat.eloAfter ?? STARTING_ELO,
-        wins: stat.isWin ? 1 : 0,
-        losses: stat.isWin ? 0 : 1,
-        statsSorted: [{ isWin: stat.isWin }],
-      });
-    } else {
-      existing.wins += stat.isWin ? 1 : 0;
-      existing.losses += stat.isWin ? 0 : 1;
-      existing.statsSorted.push({ isWin: stat.isWin });
-    }
-  }
-
-  // Build ladder rows sorted by ELO
-  const ladderRows: LadderRow[] = [...byPlayer.values()]
-    .sort((a, b) => {
-      if (b.elo !== a.elo) return b.elo - a.elo;
-      const aGames = a.wins + a.losses;
-      const bGames = b.wins + b.losses;
-      if (bGames !== aGames) return bGames - aGames;
-      return a.name.localeCompare(b.name);
-    })
+  // Build ladder rows from the frozen daily leaderboard window.
+  const ladderRows: LadderRow[] = (await getFrozenInhouseLeaderboardRows())
     .map((p, index) => {
       const playerRiotKey = riotIdKey(p.riotName, p.riotTag);
       const profile = profiles.find(
@@ -135,7 +71,7 @@ export default async function RankedLadderPage() {
         wins: p.wins,
         losses: p.losses,
         winRate: gamesPlayed === 0 ? "-" : `${Math.round((p.wins / gamesPlayed) * 100)}%`,
-        streak: inhouseStreak(p.statsSorted),
+        streak: p.streak,
         primaryRole: normalizeHubRole(profile?.primaryRole),
       };
     });
@@ -157,7 +93,7 @@ export default async function RankedLadderPage() {
               Ranked Standings
             </h2>
           </div>
-          <LeaderboardCountdown generatedAt={new Date().toISOString()} />
+          <LeaderboardCountdown nextUpdateAt={nextUpdateAt.toISOString()} />
         </div>
 
         {ladderRows.length === 0 ? (

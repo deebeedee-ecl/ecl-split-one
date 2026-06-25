@@ -1002,6 +1002,12 @@
         "icon":  "/lol/champions/897.png"
     },
     {
+        "id":  805,
+        "name":  "Locke",
+        "alias":  "Locke",
+        "icon":  "/lol/champions/805.png"
+    },
+    {
         "id":  901,
         "name":  "Smolder",
         "alias":  "Smolder",

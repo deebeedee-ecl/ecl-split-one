@@ -2,9 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 
+function getAdminSessionSecret() {
+  return (
+    process.env.ADMIN_SESSION_SECRET ??
+    process.env.ADMIN_PASSWORD ??
+    "ecl2026"
+  );
+}
+
 async function requireAdmin() {
   const jar = await cookies();
-  return jar.get("ecl_admin_session")?.value === process.env.ADMIN_SESSION_SECRET;
+  return jar.get("ecl_admin_session")?.value === getAdminSessionSecret();
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

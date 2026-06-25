@@ -1,5 +1,9 @@
 import { STARTING_ELO } from "@/lib/elo";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
+import {
+  getFrozenInhouseLeaderboardRows,
+  type InhouseLeaderboardRow,
+} from "@/lib/inhouse-leaderboard";
 import { translateLzyumiTier } from "@/lib/hub-profile";
 import {
   RANKED_INHOUSE_CHANNEL_ID,
@@ -12,19 +16,6 @@ import {
   normalizeRiotPart,
   normalizeRiotTag,
 } from "@/lib/riot-id";
-
-type LeaderboardRow = {
-  rank: number;
-  playerId: string;
-  name: string;
-  riotId: string | null;
-  elo: number;
-  wins: number;
-  losses: number;
-  gamesPlayed: number;
-  winRate: string;
-  streak: string;
-};
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -111,58 +102,11 @@ export function formatVerifyHelpMessage() {
   return verifyInstructions();
 }
 
-function inhouseStreak(stats: { isWin: boolean }[]): string {
-  // stats ordered desc (most recent first)
-  let w = 0, l = 0;
-  for (const s of stats) {
-    if (s.isWin) { if (l > 0) break; w++; }
-    else         { if (w > 0) break; l++; }
-  }
-  return w > 0 ? `W${w}` : l > 0 ? `L${l}` : "-";
-}
-
-async function getLeaderboardRows(): Promise<LeaderboardRow[]> {
-  const players = await prisma.player.findMany({
-    include: {
-      gameStats: {
-        where: INHOUSE_MATCH_FILTER,
-        orderBy: { createdAt: "desc" },
-      },
-    },
-  });
-
-  return players
-    .map((player) => {
-      const gamesPlayed = player.gameStats.length;
-      const wins = player.gameStats.filter((stat) => stat.isWin).length;
-      const losses = gamesPlayed - wins;
-      const winRate = gamesPlayed === 0 ? "-" : `${Math.round((wins / gamesPlayed) * 100)}%`;
-      const elo = player.elo;
-      const streak = inhouseStreak(player.gameStats);
-
-      return {
-        rank: 0,
-        playerId: player.id,
-        name: player.name,
-        riotId: formatRiotId(player.riotName, player.riotTag),
-        elo,
-        wins,
-        losses,
-        gamesPlayed,
-        winRate,
-        streak,
-      };
-    })
-    .filter((row) => row.gamesPlayed > 0)
-    .sort((a, b) => {
-      if (b.elo !== a.elo) return b.elo - a.elo;
-      if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
-      return a.name.localeCompare(b.name);
-    })
-    .map((row, index) => ({
-      ...row,
-      rank: index + 1,
-    }));
+async function getLeaderboardRows(): Promise<(InhouseLeaderboardRow & { riotId: string | null })[]> {
+  return (await getFrozenInhouseLeaderboardRows()).map((row) => ({
+    ...row,
+    riotId: formatRiotId(row.riotName, row.riotTag),
+  }));
 }
 
 async function findVerifiedProfile(kookUserId: string) {

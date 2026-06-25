@@ -7,14 +7,12 @@ function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
-export function LeaderboardCountdown({ generatedAt }: { generatedAt: string }) {
+export function LeaderboardCountdown({ nextUpdateAt }: { nextUpdateAt: string }) {
   const [display, setDisplay] = useState("...");
 
   useEffect(() => {
-    const INTERVAL_MS = 86_400_000; // 24 hours in ms
-
     function tick() {
-      const nextUpdate = new Date(generatedAt).getTime() + INTERVAL_MS;
+      const nextUpdate = new Date(nextUpdateAt).getTime();
       const diff = nextUpdate - Date.now();
 
       if (diff <= 0) {
@@ -31,7 +29,7 @@ export function LeaderboardCountdown({ generatedAt }: { generatedAt: string }) {
     tick();
     const id = setInterval(tick, 1_000);
     return () => clearInterval(id);
-  }, [generatedAt]);
+  }, [nextUpdateAt]);
 
   return (
     <div className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[#1a1b22] px-3 py-2 text-xs font-black tracking-[0.12em] text-[#8f98c0]">

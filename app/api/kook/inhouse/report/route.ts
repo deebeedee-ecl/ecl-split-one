@@ -592,8 +592,7 @@ export async function POST(request: Request) {
     },
   });
 
-  // Revalidate cached pages so the leaderboard and match history update immediately
-  revalidatePath("/hub/leaderboard");
+  // Revalidate live match/profile surfaces immediately; the ranked ladder stays on its daily window.
   revalidatePath("/hub/inhouses");
   revalidatePath("/hub/me");
 
