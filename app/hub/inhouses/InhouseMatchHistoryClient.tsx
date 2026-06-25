@@ -304,8 +304,7 @@ const statLabels = [
   ["KDA", "kda"],
   ["Gold", "gold"],
   ["Towers", "towers"],
-  ["Void Grubs", "grubs"],
-  ["Heralds", "heralds"],
+  ["Inhibs", "grubs"],
   ["Drakes", "drakes"],
   ["Elders", "elders"],
   ["Barons", "barons"],
@@ -326,10 +325,10 @@ export type LiveMatchData = {
   stats: { kda: [string, string]; gold: [string, string]; towers: [string, string]; grubs: [string, string]; heralds: [string, string]; drakes: [string, string]; elders: [string, string]; barons: [string, string] };
   blueDraft: string[];
   redDraft: string[];
-  blueDamage: [string, string, number, string?][];
-  redDamage: [string, string, number, string?][];
+  blueDamage: [string, string, number, string?, string?, string?][];
+  redDamage: [string, string, number, string?, string?, string?][];
   goldDiff: number[];
-  standouts?: { mvp: [string, string, string]; svp: [string, string, string] };
+  standouts?: { mvp: [string, string, string, string?]; svp: [string, string, string, string?] };
 };
 
 // Show all matches (real data will override the mock array via props)
@@ -660,7 +659,11 @@ function DamagePanel({ match }: { match: LiveMatchData }) {
             >
               <DamageBar player={bluePlayer} max={maxDamage} tone="blue" />
               <span className="h-px bg-white/10" />
-              <DamageBar player={redPlayer} max={maxDamage} tone="red" align="right" />
+              {redPlayer ? (
+                <DamageBar player={redPlayer} max={maxDamage} tone="red" align="right" />
+              ) : (
+                <span />
+              )}
             </div>
           );
         })}
@@ -680,14 +683,16 @@ function DamageBar({
   tone: "blue" | "red";
   align?: "left" | "right";
 }) {
-  const [playerName, champion, damage, kda] = player as unknown as readonly [
+  const [playerName, champion, damage, kda, role] = player as unknown as readonly [
     string,
     string,
     number,
     string | undefined,
+    string | undefined,
   ];
   const width = (Number(player[2]) / max) * 100;
   const kdaColor = tone === "blue" ? "text-[#83a8ff]" : "text-[#ff7b8a]";
+  const roleLabel = formatRole(role);
 
   return (
     <div className={`min-w-0 ${align === "right" ? "text-right" : "text-left"}`}>
@@ -698,6 +703,11 @@ function DamageBar({
           <span className="block text-white/80">
             {damage}K
             {kda && <span className={`ml-2 ${kdaColor}`}>{kda}</span>}
+            {roleLabel && (
+              <span className="ml-2 text-xs font-black uppercase tracking-[0.08em] text-white/45">
+                {roleLabel}
+              </span>
+            )}
           </span>
         </p>
         {align === "right" && <ChampionIcon champion={champion} className="h-12 w-12 rounded-sm" />}
@@ -725,8 +735,8 @@ function MatchStandouts({ match }: { match: LiveMatchData }) {
         Match Standouts
       </h2>
       <div className="mt-6 grid gap-5" style={{ gridTemplateColumns: "1fr 1fr" }}>
-        <StandoutCard label="MVP" player={standouts.mvp} tone="red" />
-        <StandoutCard label="SVP" player={standouts.svp} tone="blue" />
+        <StandoutCard label="MVP" player={standouts.mvp} tone="gold" />
+        <StandoutCard label="SVP" player={standouts.svp} tone="silver" />
       </div>
     </section>
   );
@@ -738,16 +748,17 @@ function StandoutCard({
   tone,
 }: {
   label: "MVP" | "SVP";
-  player: readonly [string, string, string];
-  tone: "blue" | "red";
+  player: readonly [string, string, string, string?];
+  tone: "gold" | "silver";
 }) {
-  const accent = tone === "blue" ? "#246bff" : "#ff2338";
-  const soft = tone === "blue" ? "rgba(36,107,255,0.16)" : "rgba(255,35,56,0.16)";
+  const accent = tone === "gold" ? "#ffd84d" : "#d7dde8";
+  const soft = tone === "gold" ? "rgba(255,216,77,0.18)" : "rgba(215,221,232,0.15)";
+  const border = tone === "gold" ? "rgba(255,216,77,0.28)" : "rgba(215,221,232,0.24)";
 
   return (
     <div
-      className="rounded-sm border border-white/[0.08] p-5"
-      style={{ background: `linear-gradient(135deg, ${soft}, rgba(7,8,14,0.76))` }}
+      className="rounded-sm border p-5"
+      style={{ borderColor: border, background: `linear-gradient(135deg, ${soft}, rgba(7,8,14,0.76))` }}
     >
       <div className="flex items-center gap-4">
         <ChampionIcon champion={player[1]} className="h-16 w-16 rounded-sm" />
@@ -768,7 +779,7 @@ function StandoutCard({
           <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-white/45">
             Champion
           </p>
-          <p className="mt-1 text-lg font-black text-white">{player[1]}</p>
+          <p className="mt-1 text-lg font-black text-white">{player[3] ?? player[1]}</p>
         </div>
         <div>
           <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-white/45">
@@ -786,8 +797,8 @@ function StandoutCard({
 function getStandouts(match: LiveMatchData) {
   const explicitStandouts = (match as unknown as {
     standouts?: {
-      mvp: readonly [string, string, string];
-      svp: readonly [string, string, string];
+      mvp: readonly [string, string, string, string?];
+      svp: readonly [string, string, string, string?];
     };
   }).standouts;
 
@@ -809,14 +820,26 @@ function findTopDamage(players: LiveMatchData["blueDamage"]) {
 }
 
 function damagePlayerToStandout(player: LiveMatchData["blueDamage"][number]) {
-  const [name, champion, , kda] = player as unknown as readonly [
+  const [name, champion, , kda, , championName] = player as unknown as readonly [
     string,
     string,
     number,
     string | undefined,
+    string | undefined,
+    string | undefined,
   ];
 
-  return [name, champion, kda ?? "-"] as const;
+  return [name, champion, kda ?? "-", championName] as const;
+}
+
+function formatRole(position?: string) {
+  const role = position?.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (role === "TOP" || role === "TOP_LANE") return "TOP";
+  if (role === "JUNGLE" || role === "JGL") return "JNG";
+  if (role === "MID" || role === "MIDDLE" || role === "MID_LANE") return "MID";
+  if (role === "ADC" || role === "BOT" || role === "BOTTOM" || role === "BOTTOM_LANE") return "ADC";
+  if (role === "SUP" || role === "SUPPORT" || role === "UTILITY") return "SUP";
+  return "";
 }
 
 function StatLabel({ label }: { label: string }) {
