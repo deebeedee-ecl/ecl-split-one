@@ -6,6 +6,7 @@ const DAY_MS = 86_400_000;
 const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;
 const DAILY_UPDATE_HOUR_SHANGHAI = 18;
 const DAILY_UPDATE_OFFSET_MS = DAILY_UPDATE_HOUR_SHANGHAI * 60 * 60 * 1000;
+const ONE_TIME_BASELINE_CUTOFF_MS = Date.parse("2026-06-25T15:42:00.000Z");
 
 export type InhouseLeaderboardRow = {
   rank: number;
@@ -26,14 +27,15 @@ export type InhouseLeaderboardRow = {
 
 export function getInhouseLeaderboardWindow(now = new Date()) {
   const shanghaiMs = now.getTime() + SHANGHAI_OFFSET_MS;
-  const cutoffMs =
+  const scheduledCutoffMs =
     Math.floor((shanghaiMs - DAILY_UPDATE_OFFSET_MS) / DAY_MS) * DAY_MS +
     DAILY_UPDATE_OFFSET_MS -
     SHANGHAI_OFFSET_MS;
+  const cutoffMs = Math.max(scheduledCutoffMs, ONE_TIME_BASELINE_CUTOFF_MS);
 
   return {
     cutoffAt: new Date(cutoffMs),
-    nextUpdateAt: new Date(cutoffMs + DAY_MS),
+    nextUpdateAt: new Date(scheduledCutoffMs + DAY_MS),
   };
 }
 
