@@ -42,6 +42,10 @@ function json(status: number, body: Record<string, unknown>) {
   return NextResponse.json(body, { status });
 }
 
+function getSiteUrl() {
+  return process.env.NEXT_PUBLIC_SITE_URL || process.env.ECL_SITE_URL || "https://eclchina.lol";
+}
+
 export async function POST(request: Request) {
   const secret = request.headers.get("x-ecl-kook-secret");
 
@@ -98,13 +102,18 @@ export async function POST(request: Request) {
   const unverifiedPlayers = players.filter((player) => !player.verified);
 
   if (unverifiedPlayers.length > 0 && !isAdmin) {
+    const siteUrl = getSiteUrl();
+
     return NextResponse.json({
       ok: false,
       status: "UNVERIFIED_PLAYERS",
       reply:
-        "Some players in the channel have not verified their ECL account through KOOK yet:\n" +
+        "!ready blocked: some players in Ranked IH 1 are not verified on ECL yet.\n\n" +
         unverifiedPlayers.map((player) => `- ${player.displayName}`).join("\n") +
-        "\n\nAsk them to verify first, then run !inhouse again. Admins can use !forceready to override.",
+        "\n\nStarting a ranked inhouse with unverified players can hurt other players' LP/ELO because the bot cannot safely read their real ECL rating, track their match history, or apply the result correctly." +
+        "\n\nPlease ask them to register/login and verify their KOOK account here:" +
+        `\n${siteUrl}/signup` +
+        "\n\nAfter they verify, run !inhouse again. If admins knowingly accept the risk, they can use !forceready.",
       players,
     });
   }
