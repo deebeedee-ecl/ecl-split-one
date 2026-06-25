@@ -3,19 +3,12 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
+import type { ChampionStatsRow } from "@/lib/champion-stats";
 
 type Role = "ALL" | "TOP" | "JNG" | "MID" | "ADC" | "SUPP";
 type ChampionTier = "OP" | "1" | "2" | "3";
 
-type ChampionRow = {
-  role: Exclude<Role, "ALL">;
-  champion: string;
-  championId: number;
-  games: number;
-  pickRate: number;
-  banRate: number;
-  winRate: number;
-};
+type ChampionRow = ChampionStatsRow;
 
 type RoleStatRange = {
   highestPickRate: number;
@@ -40,198 +33,6 @@ const roleIcons: Record<Exclude<Role, "ALL">, string> = {
   SUPP: "/lol/roles/support.png",
 };
 
-const championRows: ChampionRow[] = [
-  {
-    role: "ADC",
-    champion: "Senna",
-    championId: 235,
-    games: 31,
-    pickRate: 19.18,
-    banRate: 29.08,
-    winRate: 53.82,
-  },
-  {
-    role: "JNG",
-    champion: "Rek'Sai",
-    championId: 421,
-    games: 24,
-    pickRate: 3.75,
-    banRate: 6.72,
-    winRate: 53.42,
-  },
-  {
-    role: "JNG",
-    champion: "Bel'Veth",
-    championId: 200,
-    games: 19,
-    pickRate: 2.34,
-    banRate: 2.5,
-    winRate: 53.13,
-  },
-  {
-    role: "TOP",
-    champion: "Poppy",
-    championId: 78,
-    games: 18,
-    pickRate: 1.87,
-    banRate: 6.55,
-    winRate: 52.85,
-  },
-  {
-    role: "MID",
-    champion: "Katarina",
-    championId: 55,
-    games: 22,
-    pickRate: 5.21,
-    banRate: 4.81,
-    winRate: 52.71,
-  },
-  {
-    role: "SUPP",
-    champion: "Braum",
-    championId: 201,
-    games: 20,
-    pickRate: 5.19,
-    banRate: 7.51,
-    winRate: 52.71,
-  },
-  {
-    role: "TOP",
-    champion: "Garen",
-    championId: 86,
-    games: 25,
-    pickRate: 4.6,
-    banRate: 2.43,
-    winRate: 52.3,
-  },
-  {
-    role: "TOP",
-    champion: "Olaf",
-    championId: 2,
-    games: 16,
-    pickRate: 3.12,
-    banRate: 3.43,
-    winRate: 52.27,
-  },
-  {
-    role: "TOP",
-    champion: "Shen",
-    championId: 98,
-    games: 14,
-    pickRate: 2.59,
-    banRate: 0.26,
-    winRate: 52.2,
-  },
-  {
-    role: "SUPP",
-    champion: "Leona",
-    championId: 89,
-    games: 29,
-    pickRate: 7.22,
-    banRate: 6.92,
-    winRate: 52.09,
-  },
-  {
-    role: "MID",
-    champion: "Twisted Fate",
-    championId: 4,
-    games: 21,
-    pickRate: 8.72,
-    banRate: 3.19,
-    winRate: 51.99,
-  },
-  {
-    role: "TOP",
-    champion: "Singed",
-    championId: 27,
-    games: 13,
-    pickRate: 2.46,
-    banRate: 0.9,
-    winRate: 51.81,
-  },
-  {
-    role: "SUPP",
-    champion: "Bard",
-    championId: 432,
-    games: 17,
-    pickRate: 9.68,
-    banRate: 6.79,
-    winRate: 51.59,
-  },
-  {
-    role: "SUPP",
-    champion: "Thresh",
-    championId: 412,
-    games: 32,
-    pickRate: 12.56,
-    banRate: 8.97,
-    winRate: 51.56,
-  },
-  {
-    role: "ADC",
-    champion: "Ashe",
-    championId: 22,
-    games: 26,
-    pickRate: 13.75,
-    banRate: 19.35,
-    winRate: 51.55,
-  },
-  {
-    role: "MID",
-    champion: "Xerath",
-    championId: 101,
-    games: 18,
-    pickRate: 5.78,
-    banRate: 10.51,
-    winRate: 51.23,
-  },
-  {
-    role: "TOP",
-    champion: "Malphite",
-    championId: 54,
-    games: 28,
-    pickRate: 6.26,
-    banRate: 15.12,
-    winRate: 51.2,
-  },
-  {
-    role: "TOP",
-    champion: "Sion",
-    championId: 14,
-    games: 23,
-    pickRate: 6.72,
-    banRate: 1.74,
-    winRate: 51.13,
-  },
-  {
-    role: "MID",
-    champion: "Syndra",
-    championId: 134,
-    games: 30,
-    pickRate: 7.45,
-    banRate: 3.04,
-    winRate: 51.04,
-  },
-  {
-    role: "ADC",
-    champion: "Jinx",
-    championId: 222,
-    games: 34,
-    pickRate: 14.1,
-    banRate: 7.2,
-    winRate: 50.88,
-  },
-  {
-    role: "JNG",
-    champion: "Vi",
-    championId: 254,
-    games: 27,
-    pickRate: 10.92,
-    banRate: 9.36,
-    winRate: 50.44,
-  },
-];
-
 const minimumSampleSize = 5;
 
 const strengthWeights = {
@@ -241,34 +42,6 @@ const strengthWeights = {
   games: 0.05,
 };
 
-const roleStatRanges = roles
-  .filter((role): role is { id: Exclude<Role, "ALL">; label: string } => role.id !== "ALL")
-  .reduce(
-    (acc, role) => {
-      const rows = championRows.filter((row) => row.role === role.id);
-      acc[role.id] = {
-        highestPickRate: Math.max(...rows.map((row) => row.pickRate), 1),
-        highestBanRate: Math.max(...rows.map((row) => row.banRate), 1),
-        highestGames: Math.max(...rows.map((row) => row.games), 1),
-      };
-      return acc;
-    },
-    {} as Record<Exclude<Role, "ALL">, RoleStatRange>,
-  );
-
-const opByRole = roles
-  .filter((role): role is { id: Exclude<Role, "ALL">; label: string } => role.id !== "ALL")
-  .reduce(
-    (acc, role) => {
-      const rows = championRows.filter((row) => row.role === role.id);
-      acc[role.id] = rows.reduce((best, row) =>
-        championScore(row) > championScore(best) ? row : best,
-      );
-      return acc;
-    },
-    {} as Record<Exclude<Role, "ALL">, ChampionRow>,
-  );
-
 const tierRank: Record<ChampionTier, number> = {
   OP: 0,
   "1": 1,
@@ -276,8 +49,13 @@ const tierRank: Record<ChampionTier, number> = {
   "3": 3,
 };
 
-export function ChampionsClient() {
+export function ChampionsClient({ championRows }: { championRows: ChampionRow[] }) {
   const [selectedRole, setSelectedRole] = useState<Role>("ALL");
+  const roleStatRanges = useMemo(() => getRoleStatRanges(championRows), [championRows]);
+  const opByRole = useMemo(
+    () => getOpByRole(championRows, roleStatRanges),
+    [championRows, roleStatRanges],
+  );
   const filtered = useMemo(() => {
     const rows =
       selectedRole === "ALL"
@@ -285,10 +63,12 @@ export function ChampionsClient() {
         : championRows.filter((row) => row.role === selectedRole);
 
     return [...rows].sort((a, b) => {
-      const tierDelta = tierRank[getTier(a)] - tierRank[getTier(b)];
+      const tierDelta =
+        tierRank[getTier(a, opByRole, roleStatRanges)] -
+        tierRank[getTier(b, opByRole, roleStatRanges)];
       if (tierDelta !== 0) return tierDelta;
 
-      const scoreDelta = championScore(b) - championScore(a);
+      const scoreDelta = championScore(b, roleStatRanges) - championScore(a, roleStatRanges);
       if (scoreDelta !== 0) return scoreDelta;
 
       const winRateDelta = b.winRate - a.winRate;
@@ -302,7 +82,7 @@ export function ChampionsClient() {
 
       return a.champion.localeCompare(b.champion);
     });
-  }, [selectedRole]);
+  }, [championRows, opByRole, roleStatRanges, selectedRole]);
 
   return (
     <section className="overflow-hidden border border-white/[0.08] bg-[#24252d] shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
@@ -331,6 +111,7 @@ export function ChampionsClient() {
               <TableHead>Champion</TableHead>
               <TableHead className="w-28 text-center text-[#6a95ff]">Tier</TableHead>
               <TableHead className="w-28 text-center">Role</TableHead>
+              <TableHead className="w-28 text-center">Games</TableHead>
               <TableHead className="w-36 text-center">Win rate</TableHead>
               <TableHead className="w-36 text-center">Pick rate</TableHead>
               <TableHead className="w-36 text-center">Ban rate</TableHead>
@@ -352,7 +133,7 @@ export function ChampionsClient() {
                   </div>
                 </td>
                 <td className="px-4 py-3 text-center">
-                  <TierBadge tier={getTier(row)} />
+                  <TierBadge tier={getTier(row, opByRole, roleStatRanges)} />
                 </td>
                 <td className="px-4 py-3 text-center">
                   <Image
@@ -362,6 +143,9 @@ export function ChampionsClient() {
                     height={34}
                     className="mx-auto opacity-55"
                   />
+                </td>
+                <td className="px-4 py-3 text-center text-xl font-semibold">
+                  {row.games}
                 </td>
                 <td className="px-4 py-3 text-center text-xl font-semibold">
                   {formatRate(row.winRate)}
@@ -376,6 +160,14 @@ export function ChampionsClient() {
             ))}
           </tbody>
         </table>
+        {filtered.length === 0 ? (
+          <div className="border-t border-black/35 bg-[#30313c] px-6 py-10 text-center">
+            <p className="text-lg font-black text-white">No champion data recorded yet.</p>
+            <p className="mt-2 text-sm font-semibold text-[#98a1c7]">
+              This page fills automatically once reported inhouse games include champion details.
+            </p>
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -441,7 +233,51 @@ function formatRate(value: number) {
   return `${value.toFixed(value % 1 === 0 ? 0 : 2)}%`;
 }
 
-function championScore(row: ChampionRow) {
+function getRoleStatRanges(championRows: ChampionRow[]) {
+  return roles
+    .filter((role): role is { id: Exclude<Role, "ALL">; label: string } => role.id !== "ALL")
+    .reduce(
+      (acc, role) => {
+        const rows = championRows.filter((row) => row.role === role.id);
+        acc[role.id] = {
+          highestPickRate: Math.max(...rows.map((row) => row.pickRate), 1),
+          highestBanRate: Math.max(...rows.map((row) => row.banRate), 1),
+          highestGames: Math.max(...rows.map((row) => row.games), 1),
+        };
+        return acc;
+      },
+      {} as Record<Exclude<Role, "ALL">, RoleStatRange>,
+    );
+}
+
+function getOpByRole(
+  championRows: ChampionRow[],
+  roleStatRanges: Record<Exclude<Role, "ALL">, RoleStatRange>,
+) {
+  return roles
+    .filter((role): role is { id: Exclude<Role, "ALL">; label: string } => role.id !== "ALL")
+    .reduce(
+      (acc, role) => {
+        const rows = championRows.filter((row) => row.role === role.id);
+        const best = rows.reduce<ChampionRow | null>(
+          (currentBest, row) =>
+            !currentBest ||
+            championScore(row, roleStatRanges) > championScore(currentBest, roleStatRanges)
+              ? row
+              : currentBest,
+          null,
+        );
+        if (best) acc[role.id] = best;
+        return acc;
+      },
+      {} as Partial<Record<Exclude<Role, "ALL">, ChampionRow>>,
+    );
+}
+
+function championScore(
+  row: ChampionRow,
+  roleStatRanges: Record<Exclude<Role, "ALL">, RoleStatRange>,
+) {
   const ranges = roleStatRanges[row.role];
   const winRateScore = clamp(((row.winRate - 45) / 12) * 100, 0, 100);
   const pickRateScore = clamp((row.pickRate / ranges.highestPickRate) * 100, 0, 100);
@@ -456,8 +292,12 @@ function championScore(row: ChampionRow) {
   );
 }
 
-function getTier(row: ChampionRow): ChampionTier {
-  const score = championScore(row);
+function getTier(
+  row: ChampionRow,
+  opByRole: Partial<Record<Exclude<Role, "ALL">, ChampionRow>>,
+  roleStatRanges: Record<Exclude<Role, "ALL">, RoleStatRange>,
+): ChampionTier {
+  const score = championScore(row, roleStatRanges);
 
   if (
     opByRole[row.role]?.champion === row.champion &&

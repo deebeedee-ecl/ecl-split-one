@@ -212,6 +212,7 @@ export async function GET(request: NextRequest) {
       games: stats.length,
       wins,
       losses,
+      averageKda: Number(average(kdas).toFixed(2)),
       mvps: stats.filter((stat) => stat.isMVP).length,
       svps: stats.filter((stat) => stat.isSVP).length,
       currentStreak,

@@ -69,6 +69,7 @@ type InhouseProfileData = {
     games: number;
     wins: number;
     losses: number;
+    averageKda: number;
     mvps: number;
     svps: number;
     currentStreak: number;
@@ -677,7 +678,10 @@ export default function PlayerProfileView({
             <Metric label="ELO" value={inhouseLoading ? "..." : String(inhouse?.elo ?? 800)} accent="text-[#ffd84d]" />
             <Metric label="Rank" value={inhouseLoading ? "..." : inhouse?.rank ? `#${inhouse.rank}` : "-"} accent="text-[#ff1728]" />
             <Metric label="W/L" value={inhouseLoading ? "..." : `${inhouse?.wins ?? 0}-${inhouse?.losses ?? 0}`} />
-            <Metric label="MVPs" value={inhouseLoading ? "..." : String(inhouse?.mvps ?? 0)} />
+            <Metric
+              label="Avg KDA"
+              value={inhouseLoading ? "..." : (inhouse?.averageKda ?? 0).toFixed(2)}
+            />
           </div>
           <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#aeb5da]">
