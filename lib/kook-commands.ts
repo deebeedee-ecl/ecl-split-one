@@ -92,17 +92,18 @@ export function formatHelpMessage() {
   return [
     "ECL KOOK Commands",
     "",
+    "!help - show this command list",
     "!verify CODE - verify your ECL account",
     "!me - check if your KOOK account is verified",
     "!rank - show your ECL ladder rank",
     "!leaderboard - show the top 10 ECL players",
     "!inhouse - check/start ranked inhouse",
     "!ready - confirm the 10 players and balance teams",
+    "!forceready - admin only: force start if admins accept the risk",
     "!status - show current inhouse status",
     "!report - report the completed inhouse through Lzyumi",
     "!cancel - admin only: cancel the active inhouse session",
     "!welcome - show the ECL welcome message",
-    "!help - show this command list",
   ].join("\n");
 }
 
