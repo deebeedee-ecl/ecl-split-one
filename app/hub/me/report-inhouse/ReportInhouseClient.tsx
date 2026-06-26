@@ -111,12 +111,11 @@ async function detectGame(
     : reporterProfile.riotName;
   const areaId = reporterProfile.chinaServerId;
   const savedOpenId = reporterProfile.openId?.trim() || null;
-  const lookupAttempts = savedOpenId
-    ? [{ nick: nameOnly, openId: savedOpenId }]
-    : [
-        { nick: nameOnly, openId: null },
-        ...(nameWithTag !== nameOnly ? [{ nick: nameWithTag, openId: null }] : []),
-      ];
+  const lookupAttempts = [
+    ...(savedOpenId ? [{ nick: nameOnly, openId: savedOpenId }] : []),
+    { nick: nameOnly, openId: null },
+    ...(nameWithTag !== nameOnly ? [{ nick: nameWithTag, openId: null }] : []),
+  ];
 
   for (const attempt of lookupAttempts) {
     const filterResponses = await fetchAllFilters(attempt.nick, areaId, attempt.openId);
@@ -162,7 +161,7 @@ async function detectGame(
     throw new Error(
       sawAnyRecentGame
         ? "I found recent games, but none matched enough players from your active inhouse roster. Ask an admin to review the session."
-        : "No recent inhouse game found on lzyumi. Make sure the match has finished and try again.",
+        : "Lzyumi returned no recent games for your ECL profile. Check your Riot ID/server on your profile, then open your profile once to refresh Lzyumi data.",
     );
   }
 
