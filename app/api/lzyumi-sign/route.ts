@@ -39,19 +39,21 @@ export async function GET(req: NextRequest) {
 
   // Default: info / profile lookup
   const nickname = searchParams.get("nickname") ?? "";
+  const openId = searchParams.get("openId") ?? "";
   const allCount = searchParams.get("allCount") ?? "10";
   const filter = searchParams.get("filter") ?? "1";
 
-  if (!nickname) {
-    return NextResponse.json({ error: "nickname required" }, { status: 400 });
+  if (!nickname && !openId) {
+    return NextResponse.json({ error: "nickname or openId required" }, { status: 400 });
   }
 
   const encodedNick = encodeURIComponent(nickname.replace(/#/g, "*~*~*"));
+  const encodedOpenId = encodeURIComponent(openId);
 
   const url =
     `${LZYUMI_BASE}/info?nickname=${encodedNick}&allCount=${allCount}` +
     `&areaId=${server.id}&areaName=${encodeURIComponent(server.name)}` +
-    `&seleMe=1&filter=${filter}&openId=&lzyumiSign=${lzyumiSign}&signStr=${signStr}`;
+    `&seleMe=1&filter=${filter}&openId=${encodedOpenId}&lzyumiSign=${lzyumiSign}&signStr=${signStr}`;
 
   return NextResponse.json({ url });
 }

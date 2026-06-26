@@ -48,6 +48,13 @@ type ReportSession = {
   }>;
 };
 
+type ReporterProfile = {
+  riotName: string;
+  riotTag?: string | null;
+  chinaServerId: string | number;
+  openId?: string | null;
+};
+
 type ReportSessionResponse = {
   sessions: ReportSession[];
   recentlyCompleted: { gameLabel: string | null } | null;
@@ -58,11 +65,14 @@ type ReportSessionResponse = {
 async function fetchAllFilters(
   nick: string,
   areaId: string | number,
+  openId?: string | null,
 ): Promise<unknown[]> {
   const signedUrls: string[] = await Promise.all(
     LZYUMI_FILTERS.map((f) =>
       fetch(
-        `/api/lzyumi-sign?nickname=${encodeURIComponent(nick)}&areaId=${areaId}&filter=${f}&allCount=${LZYUMI_GAMES_PER_FILTER}`,
+        `/api/lzyumi-sign?nickname=${encodeURIComponent(nick)}&areaId=${areaId}&filter=${f}&allCount=${LZYUMI_GAMES_PER_FILTER}${
+          openId ? `&openId=${encodeURIComponent(openId)}` : ""
+        }`,
       )
         .then((r) => r.json())
         .then(({ url }: { url: string }) => url),
@@ -80,28 +90,9 @@ async function fetchAllFilters(
 type LzyumiGame = { gameId?: string; title?: string; titleTime?: string };
 
 async function detectGame(
-  riotName: string,
-  riotTag: string | null | undefined,
-  chinaServerId: string | number,
+  reporterProfile: ReporterProfile,
   sessions: ReportSession[],
 ): Promise<GamePreview> {
-  const seenLookupKeys = new Set<string>();
-  const lookupPlayers = [
-    { riotName, riotTag, chinaServerId },
-    ...sessions.flatMap((session) =>
-      session.players.map((player) => ({
-        riotName: player.riotName ?? "",
-        riotTag: player.riotTag,
-        chinaServerId: player.chinaServerId ?? chinaServerId,
-      })),
-    ),
-  ].filter((player) => {
-    const key = riotIdKey(player.riotName, player.riotTag) ?? riotNameKey(player.riotName);
-    if (!key || seenLookupKeys.has(key)) return false;
-    seenLookupKeys.add(key);
-    return true;
-  });
-
   const candidates = new Map<
     string,
     {
@@ -114,24 +105,28 @@ async function detectGame(
     }
   >();
   let sawAnyRecentGame = false;
+  const nameOnly = reporterProfile.riotName;
+  const nameWithTag = reporterProfile.riotTag
+    ? `${reporterProfile.riotName}#${reporterProfile.riotTag}`
+    : reporterProfile.riotName;
+  const areaId = reporterProfile.chinaServerId;
+  const savedOpenId = reporterProfile.openId?.trim() || null;
+  const lookupAttempts = savedOpenId
+    ? [{ nick: nameOnly, openId: savedOpenId }]
+    : [
+        { nick: nameOnly, openId: null },
+        ...(nameWithTag !== nameOnly ? [{ nick: nameWithTag, openId: null }] : []),
+      ];
 
-  for (const lookupPlayer of lookupPlayers) {
-    const nameOnly = lookupPlayer.riotName;
-    const nameWithTag = lookupPlayer.riotTag
-      ? `${lookupPlayer.riotName}#${lookupPlayer.riotTag}`
-      : lookupPlayer.riotName;
-    const areaId = lookupPlayer.chinaServerId;
-
-    let filterResponses = await fetchAllFilters(nameOnly, areaId);
+  for (const attempt of lookupAttempts) {
+    const filterResponses = await fetchAllFilters(attempt.nick, areaId, attempt.openId);
     const hasAnyData = filterResponses.some(
       (r: unknown) =>
         (r as { battleInfo?: { openId?: string } })?.battleInfo?.openId ||
         (Array.isArray((r as { data?: unknown[] })?.data) &&
           ((r as { data?: unknown[] }).data?.length ?? 0) > 0),
     );
-    if (!hasAnyData && nameWithTag !== nameOnly) {
-      filterResponses = await fetchAllFilters(nameWithTag, areaId);
-    }
+    if (!hasAnyData) continue;
 
     const profileData = filterResponses.find(
       (r: unknown) => (r as { battleInfo?: { openId?: string } })?.battleInfo?.openId,
@@ -155,14 +150,12 @@ async function detectGame(
             profileData,
             openId,
             areaId,
-            lookupRiotName: lookupPlayer.riotName,
-            lookupRiotTag: lookupPlayer.riotTag,
+            lookupRiotName: reporterProfile.riotName,
+            lookupRiotTag: reporterProfile.riotTag,
           });
         }
       }
     }
-
-    if (candidates.size > 0) break;
   }
 
   if (candidates.size === 0) {
@@ -249,7 +242,11 @@ async function detectGame(
     teamId,
     players: ps,
   }));
-  const reportingPlayer = findLzyumiPlayer(best.players, riotName, riotTag);
+  const reportingPlayer = findLzyumiPlayer(
+    best.players,
+    reporterProfile.riotName,
+    reporterProfile.riotTag,
+  );
   const championNames = reportingPlayer ? await loadChampionNames() : undefined;
 
   return {
@@ -333,9 +330,12 @@ export default function ReportInhouseClient() {
         }
 
         const result = await detectGame(
-          profile.riotName,
-          profile.riotTag,
-          profile.chinaServerId,
+          {
+            riotName: profile.riotName,
+            riotTag: profile.riotTag,
+            chinaServerId: profile.chinaServerId,
+            openId: profile.openId,
+          },
           sessions,
         );
         if (!cancelled) {
