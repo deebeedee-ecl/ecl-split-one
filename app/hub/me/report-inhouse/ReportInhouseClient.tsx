@@ -17,7 +17,8 @@ import {
 const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const LZYUMI_GAMES_PER_FILTER = 10;
 const MAX_DETAIL_CANDIDATES = 40;
-const MIN_PREVIEW_MATCHED_PLAYERS = 10;
+const MIN_PREVIEW_MATCHED_PLAYERS = 6;
+const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
 
 // Types
 
@@ -27,6 +28,7 @@ type GamePreview = {
   sessionId: string;
   gameLabel: string;
   timeStr: string;
+  matchedPlayers: number;
   playerSummary: LzyumiPlayerSummary | null;
   teams: TeamEntry[];
   rawMatchData: {
@@ -43,6 +45,7 @@ type ReportSession = {
     displayName: string;
     riotName: string | null;
     riotTag: string | null;
+    chinaServerId?: number | null;
   }>;
 };
 
@@ -83,49 +86,92 @@ async function detectGame(
   chinaServerId: string | number,
   sessions: ReportSession[],
 ): Promise<GamePreview> {
-  const nameOnly = riotName;
-  const nameWithTag = riotTag ? `${riotName}#${riotTag}` : riotName;
-  const areaId = chinaServerId;
+  const seenLookupKeys = new Set<string>();
+  const lookupPlayers = [
+    { riotName, riotTag, chinaServerId },
+    ...sessions.flatMap((session) =>
+      session.players.map((player) => ({
+        riotName: player.riotName ?? "",
+        riotTag: player.riotTag,
+        chinaServerId: player.chinaServerId ?? chinaServerId,
+      })),
+    ),
+  ].filter((player) => {
+    const key = riotIdKey(player.riotName, player.riotTag) ?? riotNameKey(player.riotName);
+    if (!key || seenLookupKeys.has(key)) return false;
+    seenLookupKeys.add(key);
+    return true;
+  });
 
-  let filterResponses = await fetchAllFilters(nameOnly, areaId);
-  const hasAnyData = filterResponses.some(
-    (r: unknown) =>
-      (r as { battleInfo?: { openId?: string } })?.battleInfo?.openId ||
-      (Array.isArray((r as { data?: unknown[] })?.data) &&
-        ((r as { data?: unknown[] }).data?.length ?? 0) > 0),
-  );
-  if (!hasAnyData && nameWithTag !== nameOnly) {
-    filterResponses = await fetchAllFilters(nameWithTag, areaId);
-  }
+  const candidates = new Map<
+    string,
+    {
+      game: LzyumiGame;
+      profileData: unknown;
+      openId: string;
+      areaId: string | number;
+      lookupRiotName: string;
+      lookupRiotTag: string | null | undefined;
+    }
+  >();
+  let sawAnyRecentGame = false;
 
-  const profileData = filterResponses.find(
-    (r: unknown) => (r as { battleInfo?: { openId?: string } })?.battleInfo?.openId,
-  );
-  const openId: string =
-    (profileData as { battleInfo?: { openId?: string } } | undefined)?.battleInfo?.openId ?? "";
+  for (const lookupPlayer of lookupPlayers) {
+    const nameOnly = lookupPlayer.riotName;
+    const nameWithTag = lookupPlayer.riotTag
+      ? `${lookupPlayer.riotName}#${lookupPlayer.riotTag}`
+      : lookupPlayer.riotName;
+    const areaId = lookupPlayer.chinaServerId;
 
-  if (!openId) {
-    throw new Error(
-      "lzyumi returned no profile data. Make sure your Riot name and server are set correctly.",
+    let filterResponses = await fetchAllFilters(nameOnly, areaId);
+    const hasAnyData = filterResponses.some(
+      (r: unknown) =>
+        (r as { battleInfo?: { openId?: string } })?.battleInfo?.openId ||
+        (Array.isArray((r as { data?: unknown[] })?.data) &&
+          ((r as { data?: unknown[] }).data?.length ?? 0) > 0),
     );
-  }
+    if (!hasAnyData && nameWithTag !== nameOnly) {
+      filterResponses = await fetchAllFilters(nameWithTag, areaId);
+    }
 
-  // Find the best matching recent inhouse game; fall back to any recent game.
-  const candidates = new Map<string, LzyumiGame>();
-  for (const response of filterResponses) {
-    const games = Array.isArray((response as { data?: unknown[] })?.data)
-      ? ((response as { data?: LzyumiGame[] }).data as LzyumiGame[])
-      : [];
+    const profileData = filterResponses.find(
+      (r: unknown) => (r as { battleInfo?: { openId?: string } })?.battleInfo?.openId,
+    );
+    const openId: string =
+      (profileData as { battleInfo?: { openId?: string } } | undefined)?.battleInfo?.openId ?? "";
 
-    for (const game of games) {
-      if (game.gameId && !candidates.has(game.gameId)) {
-        candidates.set(game.gameId, game);
+    if (!openId) continue;
+
+    for (const response of filterResponses) {
+      const games = Array.isArray((response as { data?: unknown[] })?.data)
+        ? ((response as { data?: LzyumiGame[] }).data as LzyumiGame[])
+        : [];
+
+      if (games.length > 0) sawAnyRecentGame = true;
+
+      for (const game of games) {
+        if (game.gameId && game.title?.includes(INHOUSE_LABEL) && !candidates.has(game.gameId)) {
+          candidates.set(game.gameId, {
+            game,
+            profileData,
+            openId,
+            areaId,
+            lookupRiotName: lookupPlayer.riotName,
+            lookupRiotTag: lookupPlayer.riotTag,
+          });
+        }
       }
     }
+
+    if (candidates.size > 0) break;
   }
 
   if (candidates.size === 0) {
-    throw new Error("No recent inhouse game found on lzyumi. Make sure you just finished a match.");
+    throw new Error(
+      sawAnyRecentGame
+        ? "I found recent games, but no ranked inhouse games. Ask an admin to try another player from the session."
+        : "No recent inhouse game found on lzyumi. Make sure the match has finished and try again.",
+    );
   }
 
   type PlayerEntry = {
@@ -147,7 +193,8 @@ async function detectGame(
       }
     | null = null;
 
-  for (const game of Array.from(candidates.values()).slice(0, MAX_DETAIL_CANDIDATES)) {
+  for (const candidate of Array.from(candidates.values()).slice(0, MAX_DETAIL_CANDIDATES)) {
+    const { game, openId, areaId } = candidate;
     const detailSignRes = await fetch(
       `/api/lzyumi-sign?type=detail&openId=${encodeURIComponent(openId)}&gameId=${encodeURIComponent(game.gameId!)}&areaId=${areaId}`,
     );
@@ -188,7 +235,7 @@ async function detectGame(
 
   if (!best || best.matchedPlayers < MIN_PREVIEW_MATCHED_PLAYERS) {
     throw new Error(
-      "I found recent games, but none matched your active inhouse roster. Ask an admin to review the session.",
+      "I found ranked inhouse games, but none matched enough players from your active roster. Ask an admin to review the session.",
     );
   }
 
@@ -210,12 +257,13 @@ async function detectGame(
     sessionId: best.session.id,
     gameLabel: best.session.gameLabel ?? "Ranked Inhouse",
     timeStr: englishDuration(best.game.title, best.game.titleTime),
+    matchedPlayers: best.matchedPlayers,
     playerSummary: reportingPlayer
       ? summarizeLzyumiPlayer(reportingPlayer, championNames)
       : null,
     teams,
     rawMatchData: {
-      profile: profileData,
+      profile: candidates.get(best.game.gameId!)?.profileData,
       gameId: best.game.gameId!,
       detail: best.detail,
     },
@@ -414,6 +462,10 @@ export default function ReportInhouseClient() {
               {preview!.playerSummary.kda ? ` - KDA ${preview!.playerSummary.kda}` : ""}
             </p>
           )}
+          <p className="mt-3 rounded-xl border border-[#ffd84d]/30 bg-[#ffd84d]/10 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#ffd84d]">
+            Be absolutely sure this is the correct ranked inhouse. Reporting applies LP/ELO
+            changes.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 gap-px bg-white/[0.05] sm:grid-cols-2">

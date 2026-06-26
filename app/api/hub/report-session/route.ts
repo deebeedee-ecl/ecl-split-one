@@ -33,9 +33,13 @@ export async function GET(request: NextRequest) {
     completedAt: true,
     players: {
       select: {
+        id: true,
+        kookUserId: true,
         displayName: true,
         riotName: true,
         riotTag: true,
+        side: true,
+        profileId: true,
       },
     },
   } as const;
@@ -62,5 +66,54 @@ export async function GET(request: NextRequest) {
     }),
   ]);
 
-  return NextResponse.json({ sessions, recentlyCompleted });
+  const sessionPlayers = sessions.flatMap((session) => session.players);
+  const profileIds = sessionPlayers
+    .map((player) => player.profileId)
+    .filter((id): id is string => Boolean(id));
+  const kookIds = sessionPlayers
+    .filter((player) => !player.profileId)
+    .map((player) => player.kookUserId)
+    .filter(Boolean);
+
+  const [profilesById, profilesByKook] = await Promise.all([
+    profileIds.length > 0
+      ? prisma.accountProfile.findMany({
+          where: { id: { in: profileIds } },
+          select: { id: true, chinaServerId: true, riotName: true, riotTag: true },
+        })
+      : Promise.resolve([]),
+    kookIds.length > 0
+      ? prisma.accountProfile.findMany({
+          where: { kookId: { in: kookIds } },
+          select: { kookId: true, chinaServerId: true, riotName: true, riotTag: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const profileMap = new Map(profilesById.map((profile) => [profile.id, profile]));
+  const kookMap = new Map(profilesByKook.map((profile) => [profile.kookId!, profile]));
+  const enrichSession = (session: (typeof sessions)[number]) => ({
+    ...session,
+    players: session.players.map((player) => {
+      const enrichedProfile =
+        (player.profileId ? profileMap.get(player.profileId) : null) ??
+        kookMap.get(player.kookUserId) ??
+        null;
+
+      return {
+        id: player.id,
+        kookUserId: player.kookUserId,
+        displayName: player.displayName,
+        riotName: player.riotName || enrichedProfile?.riotName || null,
+        riotTag: player.riotTag || enrichedProfile?.riotTag || null,
+        side: player.side,
+        chinaServerId: enrichedProfile?.chinaServerId ?? null,
+      };
+    }),
+  });
+
+  return NextResponse.json({
+    sessions: sessions.map(enrichSession),
+    recentlyCompleted: recentlyCompleted ? enrichSession(recentlyCompleted) : null,
+  });
 }

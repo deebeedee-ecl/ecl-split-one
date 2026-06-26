@@ -179,17 +179,17 @@ export default function AdminInhousePage() {
         }
       }
 
-      setGames(allGames);
+      const inhouseGames = allGames.filter((g) => g.title?.includes(INHOUSE_LABEL));
+      setGames(inhouseGames);
 
       // Auto-select the most recent 新模式 game
-      const inhouse = allGames.find((g) => g.title?.includes(INHOUSE_LABEL));
-      setSelectedGameId(inhouse?.gameId ?? allGames[0]?.gameId ?? null);
+      setSelectedGameId(inhouseGames[0]?.gameId ?? null);
 
       const openId = profileResp?.battleInfo?.openId;
       if (openId) {
         const [detailEntries, championNames] = await Promise.all([
           Promise.all(
-          allGames.slice(0, 16).map(async (game) => {
+          inhouseGames.slice(0, 16).map(async (game) => {
             try {
               const signResponse = await fetch(
                 `/api/lzyumi-sign?type=detail&openId=${encodeURIComponent(openId)}&gameId=${encodeURIComponent(game.gameId)}&areaId=${areaId}`,
@@ -386,7 +386,7 @@ export default function AdminInhousePage() {
               {games.length > 0 && (
                 <div className="mb-4">
                   <div className="text-sm font-semibold mb-2 text-gray-300">
-                    Recent Games{" "}
+                    Ranked Inhouse Games{" "}
                     <span className="text-gray-500 font-normal">
                       ({rawProfile?.battleInfo?.openId ? "openId ✓" : "no openId"})
                     </span>
@@ -394,7 +394,6 @@ export default function AdminInhousePage() {
                   <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
                     {games.map((g) => {
                       const { mode, time } = parseTitle(g.title);
-                      const isInhouse = mode.includes(INHOUSE_LABEL);
                       const isSelected = selectedGameId === g.gameId;
                       const summary = gameSummaries[g.gameId];
                       return (
@@ -404,20 +403,14 @@ export default function AdminInhousePage() {
                           className={`w-full text-left px-3 py-2 rounded border transition-colors ${
                             isSelected
                               ? "border-green-500 bg-green-500/10"
-                              : isInhouse
-                                ? "border-yellow-600 bg-yellow-600/5 hover:border-yellow-500"
-                                : "border-gray-700 bg-gray-900 hover:border-gray-500"
+                              : "border-yellow-600 bg-yellow-600/5 hover:border-yellow-500"
                           }`}
                         >
                           <div className="flex items-center gap-2">
-                            {isInhouse && (
-                              <span className="text-xs bg-yellow-500 text-black px-1 rounded font-bold">
-                                IH
-                              </span>
-                            )}
-                            <span className="text-sm font-semibold">
-                              {isInhouse ? "Ranked Inhouse" : "Recent game"}
+                            <span className="text-xs bg-yellow-500 text-black px-1 rounded font-bold">
+                              IH
                             </span>
+                            <span className="text-sm font-semibold">Ranked Inhouse</span>
                             {isSelected && (
                               <span className="ml-auto text-xs text-green-400">selected</span>
                             )}
@@ -449,19 +442,25 @@ export default function AdminInhousePage() {
 
               {games.length === 0 && lookupLoading === null && rawProfile !== null && (
                 <p className="text-red-400 text-sm mb-4">
-                  No games found. Player may have privacy set to private, or wrong areaId.
+                  No ranked inhouse games found. Try fetching another player from the same session.
                 </p>
               )}
 
               {/* Submit */}
               {selectedGameId && rawProfile?.battleInfo?.openId && (
-                <button
-                  onClick={submitReport}
-                  disabled={submitting}
-                  className="w-full py-2.5 rounded-lg bg-green-600 hover:bg-green-500 disabled:opacity-50 font-semibold transition-colors"
-                >
-                  {submitting ? "Reporting…" : `Report Game`}
-                </button>
+                <div className="space-y-2">
+                  <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm font-semibold text-yellow-200">
+                    Be absolutely sure this is the correct ranked inhouse for the selected
+                    session. Reporting applies LP/ELO changes.
+                  </div>
+                  <button
+                    onClick={submitReport}
+                    disabled={submitting}
+                    className="w-full py-2.5 rounded-lg bg-green-600 hover:bg-green-500 disabled:opacity-50 font-semibold transition-colors"
+                  >
+                    {submitting ? "Reporting…" : `Report Ranked Inhouse Game`}
+                  </button>
+                </div>
               )}
 
               {result && (
