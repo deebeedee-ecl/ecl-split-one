@@ -16,7 +16,7 @@ import { HubShell } from "../_components/HubShell";
 import { LeaderboardCountdown } from "./LeaderboardCountdown";
 import { riotIdKey } from "@/lib/riot-id";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 type LadderRow = {
   profileId: string | null;
