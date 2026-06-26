@@ -99,14 +99,14 @@ export async function resolveInhousePlayers(
       .map((profile) => [profile.kookId as string, profile]),
   );
 
-  const playersByProfileId = new Map(
-    await Promise.all(
-      profiles.map(async (profile) => [
-        profile.id,
-        await syncPlayerForProfile(profile),
-      ] as const),
-    ),
-  );
+  const playersByProfileId = new Map<
+    string,
+    Awaited<ReturnType<typeof syncPlayerForProfile>>
+  >();
+
+  for (const profile of profiles) {
+    playersByProfileId.set(profile.id, await syncPlayerForProfile(profile));
+  }
 
   return normalizedMembers.map((member) => {
     const profile = profileByKookId.get(member.id);

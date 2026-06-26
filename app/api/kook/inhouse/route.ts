@@ -46,120 +46,145 @@ function getSiteUrl() {
   return process.env.NEXT_PUBLIC_SITE_URL || process.env.ECL_SITE_URL || "https://eclchina.lol";
 }
 
+function formatServerErrorReply(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowerMessage = message.toLowerCase();
+
+  if (
+    lowerMessage.includes("emaxconnsession") ||
+    lowerMessage.includes("max clients") ||
+    lowerMessage.includes("pool_size")
+  ) {
+    return "ECL server/database is temporarily busy. Please wait 30 seconds, then try !inhouse or !ready again.";
+  }
+
+  return "ECL server hit an error while checking the inhouse. Please try again. If it repeats, ask an admin to check the Railway logs.";
+}
+
 export async function POST(request: Request) {
-  const secret = request.headers.get("x-ecl-kook-secret");
+  try {
+    const secret = request.headers.get("x-ecl-kook-secret");
 
-  if (!process.env.ECL_KOOK_BOT_SECRET || secret !== process.env.ECL_KOOK_BOT_SECRET) {
-    return json(401, { message: "Unauthorized" });
-  }
+    if (!process.env.ECL_KOOK_BOT_SECRET || secret !== process.env.ECL_KOOK_BOT_SECRET) {
+      return json(401, { message: "Unauthorized" });
+    }
 
-  const body = (await request.json()) as InhouseBody;
-  const action = parseAction(body);
-  const channelId = clean(body.channelId);
-  const members = getMembers(body);
-  const isAdmin = Boolean(body.isAdmin);
+    const body = (await request.json()) as InhouseBody;
+    const action = parseAction(body);
+    const channelId = clean(body.channelId);
+    const members = getMembers(body);
+    const isAdmin = Boolean(body.isAdmin);
 
-  if (channelId !== RANKED_INHOUSE_CHANNEL_ID) {
-    return json(400, {
-      ok: false,
-      status: "WRONG_CHANNEL",
-      reply: "Ranked inhouse can only be started from the Ranked IH 1 channel.",
-      expectedChannelId: RANKED_INHOUSE_CHANNEL_ID,
+    if (channelId !== RANKED_INHOUSE_CHANNEL_ID) {
+      return json(400, {
+        ok: false,
+        status: "WRONG_CHANNEL",
+        reply: "Ranked inhouse can only be started from the Ranked IH 1 channel.",
+        expectedChannelId: RANKED_INHOUSE_CHANNEL_ID,
+      });
+    }
+
+    if (action !== "inhouse" && action !== "ready") {
+      return json(400, {
+        ok: false,
+        status: "UNKNOWN_COMMAND",
+        reply: "Use !inhouse to start the check or !ready when the 10 players are confirmed.",
+      });
+    }
+
+    if (members.length < 10) {
+      return NextResponse.json({
+        ok: true,
+        status: "WAITING",
+        reply: `Ranked IH started. Waiting for ${10 - members.length} more player${
+          10 - members.length === 1 ? "" : "s"
+        } in the channel. Current count: ${members.length}/10.`,
+        count: members.length,
+        required: 10,
+      });
+    }
+
+    if (members.length > 10) {
+      return NextResponse.json({
+        ok: false,
+        status: "TOO_MANY_PLAYERS",
+        reply: `There are ${members.length} people in Ranked IH 1. Please get it to exactly 10, then type !ready.`,
+        count: members.length,
+        required: 10,
+      });
+    }
+
+    const players = await resolveInhousePlayers(members);
+    const unverifiedPlayers = players.filter((player) => !player.verified);
+
+    if (unverifiedPlayers.length > 0 && !isAdmin) {
+      const siteUrl = getSiteUrl();
+
+      return NextResponse.json({
+        ok: false,
+        status: "UNVERIFIED_PLAYERS",
+        reply:
+          "!ready blocked: some players in Ranked IH 1 are not verified on ECL yet.\n\n" +
+          unverifiedPlayers.map((player) => `- ${player.displayName}`).join("\n") +
+          "\n\nStarting a ranked inhouse with unverified players can hurt other players' LP/ELO because the bot cannot safely read their real ECL rating, track their match history, or apply the result correctly." +
+          "\n\nPlease ask them to register/login and verify their KOOK account here:" +
+          `\n${siteUrl}/signup` +
+          "\n\nAfter they verify, run !inhouse again. If admins knowingly accept the risk, they can use !forceready.",
+        players,
+      });
+    }
+
+    if (action === "inhouse") {
+      return NextResponse.json({
+        ok: true,
+        status: "READY_CHECK",
+        reply:
+          "Ranked IH 1 is full. Are these the 10 players?\n\n" +
+          formatInhouseRoster(players) +
+          "\n\nIf yes, type !ready.",
+        players,
+      });
+    }
+
+    const { blueTeam, redTeam } = balanceInhouseTeams(players);
+    const session = await createInhouseSession({
+      sourceChannelId: channelId,
+      blueTeam,
+      redTeam,
     });
-  }
+    const moveInstructions = [
+      ...blueTeam.players.map((player) => ({
+        kookUserId: player.kookUserId,
+        targetChannelId: BLUE_SIDE_CHANNEL_ID,
+        side: "BLUE",
+      })),
+      ...redTeam.players.map((player) => ({
+        kookUserId: player.kookUserId,
+        targetChannelId: RED_SIDE_CHANNEL_ID,
+        side: "RED",
+      })),
+    ];
 
-  if (action !== "inhouse" && action !== "ready") {
-    return json(400, {
-      ok: false,
-      status: "UNKNOWN_COMMAND",
-      reply: "Use !inhouse to start the check or !ready when the 10 players are confirmed.",
-    });
-  }
-
-  if (members.length < 10) {
     return NextResponse.json({
       ok: true,
-      status: "WAITING",
-      reply: `Ranked IH started. Waiting for ${10 - members.length} more player${
-        10 - members.length === 1 ? "" : "s"
-      } in the channel. Current count: ${members.length}/10.`,
-      count: members.length,
-      required: 10,
+      status: "ASSIGNED",
+      reply:
+        `**${session.gameLabel}** - teams are balanced!\n\n` +
+        `Blue Side (${blueTeam.eloTotal} LP)\n${formatTeamList(blueTeam)}\n\n` +
+        `Red Side (${redTeam.eloTotal} LP)\n${formatTeamList(redTeam)}\n\n` +
+        `Players are being moved to their voice channels. GL HF!`,
+      blueTeam,
+      redTeam,
+      session,
+      moveInstructions,
     });
-  }
-
-  if (members.length > 10) {
-    return NextResponse.json({
-      ok: false,
-      status: "TOO_MANY_PLAYERS",
-      reply: `There are ${members.length} people in Ranked IH 1. Please get it to exactly 10, then type !ready.`,
-      count: members.length,
-      required: 10,
-    });
-  }
-
-  const players = await resolveInhousePlayers(members);
-  const unverifiedPlayers = players.filter((player) => !player.verified);
-
-  if (unverifiedPlayers.length > 0 && !isAdmin) {
-    const siteUrl = getSiteUrl();
+  } catch (error) {
+    console.error("[kook-inhouse] command failed", error);
 
     return NextResponse.json({
       ok: false,
-      status: "UNVERIFIED_PLAYERS",
-      reply:
-        "!ready blocked: some players in Ranked IH 1 are not verified on ECL yet.\n\n" +
-        unverifiedPlayers.map((player) => `- ${player.displayName}`).join("\n") +
-        "\n\nStarting a ranked inhouse with unverified players can hurt other players' LP/ELO because the bot cannot safely read their real ECL rating, track their match history, or apply the result correctly." +
-        "\n\nPlease ask them to register/login and verify their KOOK account here:" +
-        `\n${siteUrl}/signup` +
-        "\n\nAfter they verify, run !inhouse again. If admins knowingly accept the risk, they can use !forceready.",
-      players,
+      status: "SERVER_ERROR",
+      reply: formatServerErrorReply(error),
     });
   }
-
-  if (action === "inhouse") {
-    return NextResponse.json({
-      ok: true,
-      status: "READY_CHECK",
-      reply:
-        "Ranked IH 1 is full. Are these the 10 players?\n\n" +
-        formatInhouseRoster(players) +
-        "\n\nIf yes, type !ready.",
-      players,
-    });
-  }
-
-  const { blueTeam, redTeam } = balanceInhouseTeams(players);
-  const session = await createInhouseSession({
-    sourceChannelId: channelId,
-    blueTeam,
-    redTeam,
-  });
-  const moveInstructions = [
-    ...blueTeam.players.map((player) => ({
-      kookUserId: player.kookUserId,
-      targetChannelId: BLUE_SIDE_CHANNEL_ID,
-      side: "BLUE",
-    })),
-    ...redTeam.players.map((player) => ({
-      kookUserId: player.kookUserId,
-      targetChannelId: RED_SIDE_CHANNEL_ID,
-      side: "RED",
-    })),
-  ];
-
-  return NextResponse.json({
-    ok: true,
-    status: "ASSIGNED",
-    reply:
-      `**${session.gameLabel}** — teams are balanced!\n\n` +
-      `Blue Side (${blueTeam.eloTotal} LP)\n${formatTeamList(blueTeam)}\n\n` +
-      `Red Side (${redTeam.eloTotal} LP)\n${formatTeamList(redTeam)}\n\n` +
-      `Players are being moved to their voice channels. GL HF!`,
-    blueTeam,
-    redTeam,
-    session,
-    moveInstructions,
-  });
 }
