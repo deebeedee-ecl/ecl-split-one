@@ -1,4 +1,5 @@
 const invisibleControlPattern = /[\p{Cc}\p{Cf}]/gu;
+const riotKeySpacingPattern = /[\s\p{Zs}\u1160\uFFA0]+/gu;
 
 export function normalizeRiotPart(value: string | null | undefined) {
   return (value ?? "")
@@ -15,10 +16,18 @@ export function riotIdKey(
   riotName: string | null | undefined,
   riotTag: string | null | undefined,
 ) {
-  const name = normalizeRiotPart(riotName).toLocaleLowerCase();
-  const tag = normalizeRiotTag(riotTag).toLocaleLowerCase();
+  const name = riotNameKey(riotName);
+  const tag = normalizeRiotTag(riotTag)
+    .replace(riotKeySpacingPattern, "")
+    .toLocaleLowerCase();
 
   return name && tag ? `${name}#${tag}` : null;
+}
+
+export function riotNameKey(riotName: string | null | undefined) {
+  return normalizeRiotPart(riotName)
+    .replace(riotKeySpacingPattern, "")
+    .toLocaleLowerCase();
 }
 
 export function formatRiotId(

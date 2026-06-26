@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getAccessToken, loadProfile } from "@/components/account/client-account";
-import { riotIdKey, splitRiotId } from "@/lib/riot-id";
+import { riotIdKey, riotNameKey, splitRiotId } from "@/lib/riot-id";
 import {
   englishDuration,
   findLzyumiPlayer,
@@ -14,7 +14,12 @@ import {
   type LzyumiPlayerSummary,
 } from "@/lib/lzyumi-display";
 
-// ─── types ──────────────────────────────────────────────────────────────────
+const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
+const LZYUMI_GAMES_PER_FILTER = 10;
+const MAX_DETAIL_CANDIDATES = 40;
+const MIN_PREVIEW_MATCHED_PLAYERS = 10;
+
+// Types
 
 type TeamEntry = { teamId: string; players: string[] };
 
@@ -46,17 +51,16 @@ type ReportSessionResponse = {
   recentlyCompleted: { gameLabel: string | null } | null;
 };
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// Helpers
 
 async function fetchAllFilters(
   nick: string,
   areaId: string | number,
 ): Promise<unknown[]> {
-  const FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
   const signedUrls: string[] = await Promise.all(
-    FILTERS.map((f) =>
+    LZYUMI_FILTERS.map((f) =>
       fetch(
-        `/api/lzyumi-sign?nickname=${encodeURIComponent(nick)}&areaId=${areaId}&filter=${f}&allCount=5`,
+        `/api/lzyumi-sign?nickname=${encodeURIComponent(nick)}&areaId=${areaId}&filter=${f}&allCount=${LZYUMI_GAMES_PER_FILTER}`,
       )
         .then((r) => r.json())
         .then(({ url }: { url: string }) => url),
@@ -106,7 +110,7 @@ async function detectGame(
     );
   }
 
-  // Find most recent 新模式 (inhouse) game; fall back to any game
+  // Find the best matching recent inhouse game; fall back to any recent game.
   const candidates = new Map<string, LzyumiGame>();
   for (const response of filterResponses) {
     const games = Array.isArray((response as { data?: unknown[] })?.data)
@@ -143,7 +147,7 @@ async function detectGame(
       }
     | null = null;
 
-  for (const game of Array.from(candidates.values()).slice(0, 16)) {
+  for (const game of Array.from(candidates.values()).slice(0, MAX_DETAIL_CANDIDATES)) {
     const detailSignRes = await fetch(
       `/api/lzyumi-sign?type=detail&openId=${encodeURIComponent(openId)}&gameId=${encodeURIComponent(game.gameId!)}&areaId=${areaId}`,
     );
@@ -154,17 +158,24 @@ async function detectGame(
     const players =
       ((detail as { data?: { wgBattleDetailInfo?: unknown[] } } | null)?.data
         ?.wgBattleDetailInfo ?? []) as PlayerEntry[];
-    const detailKeys = new Set(
-      players
-        .map((player) => splitRiotId(player.nickNameStr ?? player.nickName))
-        .map((parts) => riotIdKey(parts.riotName, parts.riotTag))
-        .filter((key): key is string => Boolean(key)),
-    );
+    const detailKeys = new Set<string>();
+    const detailNameKeys = new Map<string, number>();
+    for (const player of players) {
+      const parts = splitRiotId(player.nickNameStr ?? player.nickName);
+      const fullKey = riotIdKey(parts.riotName, parts.riotTag);
+      const nameKey = riotNameKey(parts.riotName);
+      if (fullKey) detailKeys.add(fullKey);
+      if (nameKey) detailNameKeys.set(nameKey, (detailNameKeys.get(nameKey) ?? 0) + 1);
+    }
 
     for (const session of sessions) {
       const matchedPlayers = session.players.filter((player) => {
         const key = riotIdKey(player.riotName, player.riotTag);
-        return key ? detailKeys.has(key) : false;
+        const nameKey = riotNameKey(player.riotName);
+        return Boolean(
+          (key && detailKeys.has(key)) ||
+            (nameKey && detailNameKeys.get(nameKey) === 1),
+        );
       }).length;
 
       if (!best || matchedPlayers > best.matchedPlayers) {
@@ -175,7 +186,7 @@ async function detectGame(
     if (best?.matchedPlayers === 10) break;
   }
 
-  if (!best || best.matchedPlayers < 5) {
+  if (!best || best.matchedPlayers < MIN_PREVIEW_MATCHED_PLAYERS) {
     throw new Error(
       "I found recent games, but none matched your active inhouse roster. Ask an admin to review the session.",
     );
@@ -211,7 +222,7 @@ async function detectGame(
   };
 }
 
-// ─── component ──────────────────────────────────────────────────────────────
+// Component
 
 export default function ReportInhouseClient() {
   const router = useRouter();
@@ -329,17 +340,17 @@ export default function ReportInhouseClient() {
     }
   }
 
-  // ─── loading ───────────────────────────────────────────────────────────────
+  // Loading
   if (phase === "loading") {
     return (
       <div className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-[#191a21] px-6 py-8 text-[#8f98c0]">
         <Loader2 size={20} className="animate-spin" />
-        <span className="text-sm font-bold">Detecting your latest inhouse game…</span>
+        <span className="text-sm font-bold">Detecting your latest inhouse game...</span>
       </div>
     );
   }
 
-  // ─── error ─────────────────────────────────────────────────────────────────
+  // Error
   if (phase === "error") {
     return (
       <div className="space-y-4 rounded-2xl border border-[#ff4058]/30 bg-[#191a21] px-6 py-8">
@@ -351,13 +362,13 @@ export default function ReportInhouseClient() {
           onClick={() => router.back()}
           className="rounded-xl border border-white/[0.08] px-4 py-2 text-xs font-black text-[#8f98c0] hover:text-white"
         >
-          ← Go back
+          Go back
         </button>
       </div>
     );
   }
 
-  // ─── done ──────────────────────────────────────────────────────────────────
+  // Done
   if (phase === "done") {
     return (
       <div className="space-y-4 rounded-2xl border border-[#20b86f]/30 bg-[#191a21] px-6 py-8">
@@ -375,7 +386,7 @@ export default function ReportInhouseClient() {
     );
   }
 
-  // ─── preview / submitting ──────────────────────────────────────────────────
+  // Preview / submitting
   const [blueTeam, redTeam] = [preview!.teams[0], preview!.teams[1]];
   const isSubmitting = phase === "submitting";
 
@@ -456,7 +467,7 @@ export default function ReportInhouseClient() {
             {isSubmitting ? (
               <>
                 <Loader2 size={14} className="animate-spin" />
-                Submitting…
+                Submitting...
               </>
             ) : (
               <>

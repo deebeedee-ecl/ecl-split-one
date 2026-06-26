@@ -18,12 +18,13 @@ import {
   normalizeRiotPart,
   normalizeRiotTag,
   riotIdKey,
+  riotNameKey,
   splitRiotId,
 } from "@/lib/riot-id";
 
 export const dynamic = "force-dynamic";
 
-const ACTIVE_SESSION_HOURS = 8;
+const ACTIVE_SESSION_HOURS = 48;
 const REQUIRED_MATCHED_PLAYERS = 10;
 
 type RawMatchData = {
@@ -52,6 +53,13 @@ function playerRiotKeys(player: LzyumiPlayerDetail) {
   return [player.nickNameStr, player.nickName]
     .map(splitRiotId)
     .map((parts) => riotIdKey(parts.riotName, parts.riotTag))
+    .filter((value): value is string => Boolean(value));
+}
+
+function playerRiotNameKeys(player: LzyumiPlayerDetail) {
+  return [player.nickNameStr, player.nickName]
+    .map(splitRiotId)
+    .map((parts) => riotNameKey(parts.riotName))
     .filter((value): value is string => Boolean(value));
 }
 
@@ -351,10 +359,14 @@ export async function POST(request: Request) {
 
   const detailPlayers = matchDetail.data?.wgBattleDetailInfo ?? [];
   const detailByRiotKey = new Map<string, LzyumiPlayerDetail>();
+  const detailByNameKey = new Map<string, LzyumiPlayerDetail | null>();
 
   for (const player of detailPlayers) {
     for (const key of playerRiotKeys(player)) {
       detailByRiotKey.set(key, player);
+    }
+    for (const key of playerRiotNameKeys(player)) {
+      detailByNameKey.set(key, detailByNameKey.has(key) ? null : player);
     }
   }
 
@@ -398,7 +410,10 @@ export async function POST(request: Request) {
   const matchedRows = enrichedSessionPlayers
     .map((sessionPlayer) => {
       const key = riotIdKey(sessionPlayer.riotName, sessionPlayer.riotTag);
-      const detailPlayer = key ? detailByRiotKey.get(key) : undefined;
+      const nameKey = riotNameKey(sessionPlayer.riotName);
+      const detailPlayer =
+        (key ? detailByRiotKey.get(key) : undefined) ??
+        (nameKey ? detailByNameKey.get(nameKey) ?? undefined : undefined);
       return detailPlayer ? { sessionPlayer, detailPlayer } : null;
     })
     .filter(
@@ -411,11 +426,19 @@ export async function POST(request: Request) {
   );
 
   if (adminOverride ? matchedRows.length < 1 : (matchedRows.length < REQUIRED_MATCHED_PLAYERS || !reporterMatched)) {
+    const matchedIds = new Set(matchedRows.map((row) => row.sessionPlayer.id));
+    const missingPlayers = enrichedSessionPlayers
+      .filter((player) => !matchedIds.has(player.id))
+      .map((player) => player.displayName);
+
     return NextResponse.json(
       {
         status: "MATCH_NOT_CONFIRMED",
-        reply: `The latest Lzyumi game only matched ${matchedRows.length}/10 inhouse players. I did not ingest it.`,
+        reply: `The latest Lzyumi game only matched ${matchedRows.length}/10 inhouse players. I did not ingest it. Missing: ${
+          missingPlayers.length > 0 ? missingPlayers.join(", ") : "unknown"
+        }.`,
         matchedPlayers: matchedRows.map((row) => row.sessionPlayer.displayName),
+        missingPlayers,
       },
       { status: 409 },
     );
