@@ -15,7 +15,7 @@ import {
 } from "@/lib/lzyumi-display";
 
 const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
-const LZYUMI_GAMES_PER_FILTER = 10;
+const LZYUMI_GAMES_PER_FILTER = 20;
 const MAX_DETAIL_CANDIDATES = 40;
 const MIN_PREVIEW_MATCHED_PLAYERS = 6;
 
@@ -112,12 +112,31 @@ async function detectGame(
   const areaId = reporterProfile.chinaServerId;
   const savedOpenId = reporterProfile.openId?.trim() || null;
   const lookupAttempts = [
-    ...(savedOpenId ? [{ nick: nameOnly, openId: savedOpenId }] : []),
-    { nick: nameOnly, openId: null },
-    ...(nameWithTag !== nameOnly ? [{ nick: nameWithTag, openId: null }] : []),
+    ...(savedOpenId ? [{ nick: nameOnly, openId: savedOpenId, source: "reporter" }] : []),
+    { nick: nameOnly, openId: null, source: "reporter" },
+    ...(nameWithTag !== nameOnly
+      ? [{ nick: nameWithTag, openId: null, source: "reporter" }]
+      : []),
+    ...sessions.flatMap((session) =>
+      session.players
+        .filter((player) => riotNameKey(player.riotName) !== riotNameKey(reporterProfile.riotName))
+        .flatMap((player) => {
+          if (!player.riotName) return [];
+          const fullId = player.riotTag ? `${player.riotName}#${player.riotTag}` : player.riotName;
+          return [
+            { nick: player.riotName, openId: null, source: "session" },
+            ...(fullId !== player.riotName ? [{ nick: fullId, openId: null, source: "session" }] : []),
+          ];
+        }),
+    ),
   ];
+  const seenLookupAttempts = new Set<string>();
 
   for (const attempt of lookupAttempts) {
+    const attemptKey = `${attempt.nick}|${attempt.openId ?? ""}`;
+    if (seenLookupAttempts.has(attemptKey)) continue;
+    seenLookupAttempts.add(attemptKey);
+
     const filterResponses = await fetchAllFilters(attempt.nick, areaId, attempt.openId);
     const hasAnyData = filterResponses.some(
       (r: unknown) =>
@@ -161,7 +180,7 @@ async function detectGame(
     throw new Error(
       sawAnyRecentGame
         ? "I found recent games, but none matched enough players from your active inhouse roster. Ask an admin to review the session."
-        : "Lzyumi returned no recent games for your ECL profile. Check your Riot ID/server on your profile, then open your profile once to refresh Lzyumi data.",
+        : "Lzyumi returned no recent games for your profile or the active inhouse roster. Ask an admin to report this match from the admin inhouse reporter.",
     );
   }
 
