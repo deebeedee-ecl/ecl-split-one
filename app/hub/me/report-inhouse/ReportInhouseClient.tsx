@@ -18,7 +18,6 @@ const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const LZYUMI_GAMES_PER_FILTER = 10;
 const MAX_DETAIL_CANDIDATES = 40;
 const MIN_PREVIEW_MATCHED_PLAYERS = 6;
-const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
 
 // Types
 
@@ -150,7 +149,7 @@ async function detectGame(
       if (games.length > 0) sawAnyRecentGame = true;
 
       for (const game of games) {
-        if (game.gameId && game.title?.includes(INHOUSE_LABEL) && !candidates.has(game.gameId)) {
+        if (game.gameId && !candidates.has(game.gameId)) {
           candidates.set(game.gameId, {
             game,
             profileData,
@@ -169,7 +168,7 @@ async function detectGame(
   if (candidates.size === 0) {
     throw new Error(
       sawAnyRecentGame
-        ? "I found recent games, but no ranked inhouse games. Ask an admin to try another player from the session."
+        ? "I found recent games, but none matched enough players from your active inhouse roster. Ask an admin to review the session."
         : "No recent inhouse game found on lzyumi. Make sure the match has finished and try again.",
     );
   }
