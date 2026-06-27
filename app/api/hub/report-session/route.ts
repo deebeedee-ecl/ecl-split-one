@@ -5,6 +5,33 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 const REPORT_WINDOW_HOURS = 48;
+const DUPLICATE_SESSION_WINDOW_MS = 5 * 60 * 1000;
+
+type SessionForReport = {
+  id: string;
+  sourceChannelId: string | null;
+  createdAt: Date;
+  completedAt: Date | null;
+  players: Array<{ kookUserId: string }>;
+};
+
+function rosterKey(session: SessionForReport) {
+  return session.players
+    .map((player) => player.kookUserId)
+    .filter(Boolean)
+    .sort()
+    .join("|");
+}
+
+function isSameRosterClose(a: SessionForReport, b: SessionForReport) {
+  const aKey = rosterKey(a);
+  const bKey = rosterKey(b);
+  if (!aKey || aKey !== bKey) return false;
+
+  const aTime = a.completedAt ?? a.createdAt;
+  const bTime = b.completedAt ?? b.createdAt;
+  return Math.abs(aTime.getTime() - bTime.getTime()) <= DUPLICATE_SESSION_WINDOW_MS;
+}
 
 export async function GET(request: NextRequest) {
   const account = await getAccountFromRequest(request);
@@ -29,6 +56,7 @@ export async function GET(request: NextRequest) {
     id: true,
     gameLabel: true,
     status: true,
+    sourceChannelId: true,
     createdAt: true,
     completedAt: true,
     players: {
@@ -44,16 +72,16 @@ export async function GET(request: NextRequest) {
     },
   } as const;
 
-  const [sessions, recentlyCompleted] = await Promise.all([
+  const [allSessions, recentlyCompleted] = await Promise.all([
     prisma.inhouseSession.findMany({
       where: {
-        status: "ASSIGNED",
+        status: { in: ["ASSIGNED", "COMPLETED"] },
         createdAt: { gte: since },
         players: { some: { kookUserId: profile.kookId } },
       },
       select: sessionSelect,
       orderBy: { createdAt: "desc" },
-      take: 5,
+      take: 12,
     }),
     prisma.inhouseSession.findFirst({
       where: {
@@ -65,6 +93,19 @@ export async function GET(request: NextRequest) {
       orderBy: { completedAt: "desc" },
     }),
   ]);
+
+  const completedSessions = allSessions.filter((session) => session.status === "COMPLETED");
+  const seenAssignedKeys = new Set<string>();
+  const sessions = allSessions
+    .filter((session) => session.status === "ASSIGNED")
+    .filter((session) => {
+      const sourceKey = `${session.sourceChannelId ?? ""}:${rosterKey(session)}`;
+      if (seenAssignedKeys.has(sourceKey)) return false;
+      seenAssignedKeys.add(sourceKey);
+
+      return !completedSessions.some((completed) => isSameRosterClose(session, completed));
+    })
+    .slice(0, 5);
 
   const sessionPlayers = sessions.flatMap((session) => session.players);
   const profileIds = sessionPlayers
