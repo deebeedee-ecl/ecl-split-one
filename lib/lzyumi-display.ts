@@ -1,4 +1,4 @@
-import { riotIdKey, splitRiotId } from "@/lib/riot-id";
+import { riotIdKey, riotNameKey, splitRiotId } from "@/lib/riot-id";
 
 type DisplayPlayer = {
   nickNameStr?: string;
@@ -80,14 +80,26 @@ export function findLzyumiPlayer(
   riotTag?: string | null,
 ) {
   const targetKey = riotIdKey(riotName, riotTag);
-  if (!targetKey) return null;
+  const targetNameKey = riotNameKey(riotName);
+  if (!targetKey && !targetNameKey) return null;
 
-  return (
-    players.find((player) => {
+  const fullMatch = targetKey
+    ? players.find((player) => {
       const parsed = splitRiotId(player.nickNameStr ?? player.nickName);
       return riotIdKey(parsed.riotName, parsed.riotTag) === targetKey;
-    }) ?? null
-  );
+    })
+    : null;
+
+  if (fullMatch) return fullMatch;
+
+  if (!targetNameKey) return null;
+
+  const nameMatches = players.filter((player) => {
+    const parsed = splitRiotId(player.nickNameStr ?? player.nickName);
+    return riotNameKey(parsed.riotName) === targetNameKey;
+  });
+
+  return nameMatches.length === 1 ? nameMatches[0] : null;
 }
 
 export function englishDuration(title?: string, titleTime?: string) {

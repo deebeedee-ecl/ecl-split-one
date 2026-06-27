@@ -78,6 +78,11 @@ function parseTitle(title?: string) {
   return { mode: (mode ?? "").trim(), time: (time ?? "").trim() };
 }
 
+function gameDateTime(game: LzyumiGame) {
+  const { time } = parseTitle(game.title);
+  return game.titleTime || time || "Date/time unavailable";
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AdminInhousePage() {
@@ -418,9 +423,12 @@ export default function AdminInhousePage() {
                           <div className="mt-1 text-xs text-gray-300">
                             {summary
                               ? `${summary.result} - ${summary.champion} - ${summary.role}`
-                              : "Loading champion and role..."}
+                              : gameDetails[g.gameId]
+                                ? "Champion and role unavailable for this player"
+                                : "Loading champion and role..."}
                           </div>
                           <div className="text-xs text-gray-500 mt-0.5">
+                            {gameDateTime(g)} -{" "}
                             {englishDuration(g.title, g.titleTime)}
                             {summary?.kda ? ` - KDA ${summary.kda}` : ""}
                           </div>

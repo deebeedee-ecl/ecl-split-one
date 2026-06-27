@@ -3,12 +3,40 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+const DUPLICATE_SESSION_WINDOW_MS = 5 * 60 * 1000;
+
+function rosterKey(session: {
+  players: Array<{
+    kookUserId: string;
+  }>;
+}) {
+  return session.players.map((player) => player.kookUserId).sort().join("|");
+}
+
 // Protected by middleware (admin session cookie).
 export async function GET() {
-  const sessions = await prisma.inhouseSession.findMany({
-    where: { status: "ASSIGNED" },
+  const rawSessions = await prisma.inhouseSession.findMany({
+    where: { status: { in: ["ASSIGNED", "COMPLETED"] } },
     include: { players: true },
     orderBy: { createdAt: "desc" },
+  });
+
+  const completedSessions = rawSessions.filter((session) => session.status === "COMPLETED");
+  const seenAssignedKeys = new Set<string>();
+  const sessions = rawSessions.filter((session) => {
+    if (session.status !== "ASSIGNED") return false;
+
+    const key = rosterKey(session);
+    const duplicateKey = `${session.sourceChannelId ?? ""}:${key}`;
+    if (seenAssignedKeys.has(duplicateKey)) return false;
+    seenAssignedKeys.add(duplicateKey);
+
+    return !completedSessions.some(
+      (completedSession) =>
+        rosterKey(completedSession) === key &&
+        Math.abs(completedSession.createdAt.getTime() - session.createdAt.getTime()) <=
+          DUPLICATE_SESSION_WINDOW_MS,
+    );
   });
 
   if (sessions.length === 0) {

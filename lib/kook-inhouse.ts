@@ -14,6 +14,7 @@ export const RED_SIDE_CHANNEL_ID =
 
 const INHOUSE_SIZE = 10;
 const TEAM_SIZE = 5;
+const DUPLICATE_READY_WINDOW_MS = 2 * 60 * 1000;
 
 export type KookInhouseMember = {
   id?: string | null;
@@ -217,6 +218,40 @@ export async function createInhouseSession({
   redTeam: BalancedInhouseTeam;
 }) {
   // Assign a sequential human-readable label (IH #001, IH #002, …).
+  const allPlayers = [...blueTeam.players, ...redTeam.players];
+  const rosterKey = allPlayers.map((player) => player.kookUserId).sort().join("|");
+  const duplicateSince = new Date(Date.now() - DUPLICATE_READY_WINDOW_MS);
+  const recentSessions = await prisma.inhouseSession.findMany({
+    where: {
+      status: "ASSIGNED",
+      sourceChannelId,
+      createdAt: { gte: duplicateSince },
+    },
+    include: {
+      players: {
+        select: {
+          kookUserId: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 5,
+  });
+  const duplicateSession = recentSessions.find(
+    (session) =>
+      session.players.map((player) => player.kookUserId).sort().join("|") === rosterKey,
+  );
+
+  if (duplicateSession) {
+    return {
+      id: duplicateSession.id,
+      gameLabel: duplicateSession.gameLabel,
+      createdAt: duplicateSession.createdAt,
+    };
+  }
+
   const labelledCount = await prisma.inhouseSession.count({
     where: { gameLabel: { not: null } },
   });
