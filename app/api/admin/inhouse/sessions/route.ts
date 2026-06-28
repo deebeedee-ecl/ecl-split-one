@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { normalizeRiotTag } from "@/lib/riot-id";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,7 @@ export async function GET() {
       const prof = (p.profileId ? profileMap.get(p.profileId) : null) ?? kookMap.get(p.kookUserId) ?? null;
       const riotName = p.riotName || prof?.riotName || null;
       const rawTag = p.riotTag || prof?.riotTag || null;
-      const riotTag = rawTag ? rawTag.replace(/^#+/, "") : null;
+      const riotTag = normalizeRiotTag(rawTag) || null;
       return {
         id: p.id,
         kookUserId: p.kookUserId,

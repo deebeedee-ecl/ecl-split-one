@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccountFromRequest } from "@/lib/account-auth";
 import { prisma } from "@/lib/prisma";
+import { normalizeRiotTag } from "@/lib/riot-id";
 
 export const dynamic = "force-dynamic";
 
@@ -146,7 +147,7 @@ export async function GET(request: NextRequest) {
         kookUserId: player.kookUserId,
         displayName: player.displayName,
         riotName: player.riotName || enrichedProfile?.riotName || null,
-        riotTag: player.riotTag || enrichedProfile?.riotTag || null,
+        riotTag: normalizeRiotTag(player.riotTag || enrichedProfile?.riotTag) || null,
         side: player.side,
         chinaServerId: enrichedProfile?.chinaServerId ?? null,
       };

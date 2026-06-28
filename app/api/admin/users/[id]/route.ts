@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
+import { normalizeRiotPart, normalizeRiotTag } from "@/lib/riot-id";
 
 function getAdminSessionSecret() {
   return (
@@ -48,6 +49,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const val = body[key];
       if (key === "chinaServerId") {
         data[key] = val === "" || val === null ? null : Number(val);
+      } else if (key === "riotName") {
+        data[key] = normalizeRiotPart(typeof val === "string" ? val : String(val ?? ""));
+      } else if (key === "riotTag") {
+        data[key] = normalizeRiotTag(typeof val === "string" ? val : String(val ?? ""));
       } else if (val === "") {
         data[key] = null;
       } else {
