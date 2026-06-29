@@ -11,6 +11,7 @@ const LZYUMI_BASE = "https://a.2025lol.top/lzyumi/lol";
 //
 // type=info (default): sign a profile lookup URL (nickname required)
 // type=detail: sign a match detail URL (openId + gameId required)
+// type=recent: sign a recent-stat URL (openId required)
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const type = searchParams.get("type") ?? "info";
@@ -30,6 +31,22 @@ export async function GET(req: NextRequest) {
     const url = new URL(`${LZYUMI_BASE}/findOrderDetailInfoAll`);
     url.searchParams.set("openId", openId);
     url.searchParams.set("gameId", gameId);
+    url.searchParams.set("areaId", String(server.id));
+    url.searchParams.set("lzyumiSign", lzyumiSign);
+    url.searchParams.set("signStr", signStr);
+
+    return NextResponse.json({ url: url.toString() });
+  }
+
+  if (type === "recent") {
+    const openId = searchParams.get("openId") ?? "";
+
+    if (!openId) {
+      return NextResponse.json({ error: "openId required for recent stats" }, { status: 400 });
+    }
+
+    const url = new URL(`${LZYUMI_BASE}/getPlayerRecentStat`);
+    url.searchParams.set("openId", openId);
     url.searchParams.set("areaId", String(server.id));
     url.searchParams.set("lzyumiSign", lzyumiSign);
     url.searchParams.set("signStr", signStr);

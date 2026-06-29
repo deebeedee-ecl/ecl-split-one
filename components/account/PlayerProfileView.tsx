@@ -404,13 +404,23 @@ export default function PlayerProfileView({
             const flexGames = Array.isArray(raw3?.data) ? raw3.data : [];
 
             if (raw1?.battleInfo) {
+              const openId = typeof raw1.battleInfo.openId === "string" ? raw1.battleInfo.openId : "";
+              let recentStat = null;
+              if (openId) {
+                const recentSignRes = await fetch(
+                  `/api/lzyumi-sign?type=recent&openId=${encodeURIComponent(openId)}&areaId=${areaId}`,
+                );
+                const { url: recentUrl } = await recentSignRes.json();
+                recentStat = await fetch(recentUrl).then((r) => r.json());
+              }
+
               const saveRes = await fetch("/api/hub/refresh-my-profile", {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
                   Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({ rawProfile: raw1, soloGames, flexGames }),
+                body: JSON.stringify({ rawProfile: raw1, recentStat, soloGames, flexGames }),
               });
               if (!saveRes.ok) {
                 const { message } = await saveRes.json().catch(() => ({}));

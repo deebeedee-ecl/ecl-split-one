@@ -18,14 +18,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
   }
 
-  let body: { rawProfile?: unknown; soloGames?: unknown[]; flexGames?: unknown[] };
+  let body: {
+    rawProfile?: unknown;
+    recentStat?: unknown;
+    soloGames?: unknown[];
+    flexGames?: unknown[];
+  };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { rawProfile, soloGames, flexGames } = body;
+  const { rawProfile, recentStat, soloGames, flexGames } = body;
   if (!rawProfile) {
     return NextResponse.json({ error: "rawProfile required" }, { status: 400 });
   }
@@ -59,6 +64,14 @@ export async function POST(request: Request) {
   const rankedFlex = Array.isArray(flexGames) ? flexGames : [];
   if (rankedSolo.length > 0 || rankedFlex.length > 0) {
     updateData.lzyumiRankedGames = { soloGames: rankedSolo, flexGames: rankedFlex };
+  }
+
+  if (
+    recentStat &&
+    typeof recentStat === "object" &&
+    (recentStat as { data?: unknown }).data
+  ) {
+    updateData.lzyumiRecentStat = recentStat;
   }
 
   await prisma.accountProfile.update({
