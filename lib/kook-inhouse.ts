@@ -208,6 +208,23 @@ export function formatTeamList(team: BalancedInhouseTeam) {
     .join("\n");
 }
 
+export async function findActiveInhouseSession(sourceChannelId: string) {
+  return prisma.inhouseSession.findFirst({
+    where: {
+      status: "ASSIGNED",
+      sourceChannelId,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      id: true,
+      gameLabel: true,
+      createdAt: true,
+    },
+  });
+}
+
 export async function createInhouseSession({
   sourceChannelId,
   blueTeam,

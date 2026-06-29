@@ -5,6 +5,7 @@ import {
   RED_SIDE_CHANNEL_ID,
   balanceInhouseTeams,
   createInhouseSession,
+  findActiveInhouseSession,
   formatInhouseRoster,
   formatTeamList,
   normalizeInhouseMembers,
@@ -89,6 +90,20 @@ export async function POST(request: Request) {
         ok: false,
         status: "UNKNOWN_COMMAND",
         reply: "Use !inhouse to start the check or !ready when the 10 players are confirmed.",
+      });
+    }
+
+    const activeSession = await findActiveInhouseSession(channelId);
+    if (activeSession) {
+      return NextResponse.json({
+        ok: true,
+        status: "ALREADY_ASSIGNED",
+        reply:
+          `${activeSession.gameLabel ?? "The current inhouse"} is already set.\n\n` +
+          "Duplicate commands are ignored. Finish/report this game, or ask an admin to cancel the stuck session from the admin dashboard.\n\n" +
+          "After it is cleared, type !inhouse to start the next game.",
+        session: activeSession,
+        moveInstructions: [],
       });
     }
 
