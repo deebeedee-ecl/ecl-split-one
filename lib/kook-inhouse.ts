@@ -220,80 +220,92 @@ export async function createInhouseSession({
   // Assign a sequential human-readable label (IH #001, IH #002, …).
   const allPlayers = [...blueTeam.players, ...redTeam.players];
   const rosterKey = allPlayers.map((player) => player.kookUserId).sort().join("|");
-  const duplicateSince = new Date(Date.now() - DUPLICATE_READY_WINDOW_MS);
-  const recentSessions = await prisma.inhouseSession.findMany({
-    where: {
-      status: "ASSIGNED",
-      sourceChannelId,
-      createdAt: { gte: duplicateSince },
-    },
-    include: {
-      players: {
-        select: {
-          kookUserId: true,
+  const lockKey = `${sourceChannelId}:${rosterKey}`;
+
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+
+    const duplicateSince = new Date(Date.now() - DUPLICATE_READY_WINDOW_MS);
+    const recentSessions = await tx.inhouseSession.findMany({
+      where: {
+        status: "ASSIGNED",
+        sourceChannelId,
+        createdAt: { gte: duplicateSince },
+      },
+      include: {
+        players: {
+          select: {
+            kookUserId: true,
+          },
         },
       },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: 5,
-  });
-  const duplicateSession = recentSessions.find(
-    (session) =>
-      session.players.map((player) => player.kookUserId).sort().join("|") === rosterKey,
-  );
-
-  if (duplicateSession) {
-    return {
-      id: duplicateSession.id,
-      gameLabel: duplicateSession.gameLabel,
-      createdAt: duplicateSession.createdAt,
-    };
-  }
-
-  const labelledCount = await prisma.inhouseSession.count({
-    where: { gameLabel: { not: null } },
-  });
-  const gameLabel = `IH #${String(labelledCount + 1).padStart(3, "0")}`;
-
-  return prisma.inhouseSession.create({
-    data: {
-      gameLabel,
-      sourceChannelId,
-      blueChannelId: BLUE_SIDE_CHANNEL_ID,
-      redChannelId: RED_SIDE_CHANNEL_ID,
-      players: {
-        create: [
-          ...blueTeam.players.map((player) => ({
-            kookUserId: player.kookUserId,
-            profileId: player.profileId,
-            playerId: player.playerId,
-            displayName: player.displayName,
-            riotName: player.riotName,
-            riotTag: player.riotTag,
-            email: player.email,
-            side: "BLUE",
-            eloAtReady: player.elo,
-          })),
-          ...redTeam.players.map((player) => ({
-            kookUserId: player.kookUserId,
-            profileId: player.profileId,
-            playerId: player.playerId,
-            displayName: player.displayName,
-            riotName: player.riotName,
-            riotTag: player.riotTag,
-            email: player.email,
-            side: "RED",
-            eloAtReady: player.elo,
-          })),
-        ],
+      orderBy: {
+        createdAt: "desc",
       },
-    },
-    select: {
-      id: true,
-      gameLabel: true,
-      createdAt: true,
-    },
+      take: 5,
+    });
+    const duplicateSession = recentSessions.find(
+      (session) =>
+        session.players.map((player) => player.kookUserId).sort().join("|") === rosterKey,
+    );
+
+    if (duplicateSession) {
+      return {
+        id: duplicateSession.id,
+        gameLabel: duplicateSession.gameLabel,
+        createdAt: duplicateSession.createdAt,
+        duplicate: true,
+      };
+    }
+
+    const labelledCount = await tx.inhouseSession.count({
+      where: { gameLabel: { not: null } },
+    });
+    const gameLabel = `IH #${String(labelledCount + 1).padStart(3, "0")}`;
+
+    const session = await tx.inhouseSession.create({
+      data: {
+        gameLabel,
+        sourceChannelId,
+        blueChannelId: BLUE_SIDE_CHANNEL_ID,
+        redChannelId: RED_SIDE_CHANNEL_ID,
+        players: {
+          create: [
+            ...blueTeam.players.map((player) => ({
+              kookUserId: player.kookUserId,
+              profileId: player.profileId,
+              playerId: player.playerId,
+              displayName: player.displayName,
+              riotName: player.riotName,
+              riotTag: player.riotTag,
+              email: player.email,
+              side: "BLUE",
+              eloAtReady: player.elo,
+            })),
+            ...redTeam.players.map((player) => ({
+              kookUserId: player.kookUserId,
+              profileId: player.profileId,
+              playerId: player.playerId,
+              displayName: player.displayName,
+              riotName: player.riotName,
+              riotTag: player.riotTag,
+              email: player.email,
+              side: "RED",
+              eloAtReady: player.elo,
+            })),
+          ],
+        },
+      },
+      select: {
+        id: true,
+        gameLabel: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      ...session,
+      duplicate: false,
+    };
   });
 }

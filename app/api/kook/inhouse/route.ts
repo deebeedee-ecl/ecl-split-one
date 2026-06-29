@@ -152,6 +152,19 @@ export async function POST(request: Request) {
       blueTeam,
       redTeam,
     });
+
+    if (session.duplicate) {
+      return NextResponse.json({
+        ok: true,
+        status: "ALREADY_ASSIGNED",
+        reply: `${session.gameLabel ?? "This inhouse"} is already assigned. Ignoring the duplicate !ready.`,
+        blueTeam,
+        redTeam,
+        session,
+        moveInstructions: [],
+      });
+    }
+
     const moveInstructions = [
       ...blueTeam.players.map((player) => ({
         kookUserId: player.kookUserId,
