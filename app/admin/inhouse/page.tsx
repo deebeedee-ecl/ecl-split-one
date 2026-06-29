@@ -100,6 +100,7 @@ export default function AdminInhousePage() {
 
   // Submit state
   const [submitting, setSubmitting] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
@@ -122,6 +123,41 @@ export default function AdminInhousePage() {
   function selectSession(s: Session) {
     setSelectedSession(s);
     resetLookup();
+  }
+
+  async function cancelSession(session: Session) {
+    if (cancellingId !== null) return;
+
+    const label = session.gameLabel ?? "this session";
+    if (!window.confirm(`Cancel ${label}? This removes it from pending reports.`)) return;
+
+    setCancellingId(session.id);
+    setResult(null);
+
+    try {
+      const response = await fetch(`/api/admin/inhouse/sessions/${session.id}/cancel`, {
+        method: "POST",
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message ?? `Cancel failed (${response.status})`);
+      }
+
+      setSessions((current) => current.filter((item) => item.id !== session.id));
+      if (selectedSession?.id === session.id) {
+        setSelectedSession(null);
+        resetLookup();
+      }
+      setResult({ ok: true, message: data.message ?? `${label} cancelled.` });
+    } catch (error) {
+      setResult({
+        ok: false,
+        message: error instanceof Error ? error.message : "Cancel failed.",
+      });
+    } finally {
+      setCancellingId(null);
+    }
   }
 
   async function fetchGamesForPlayer(player: SessionPlayer) {
@@ -321,7 +357,28 @@ export default function AdminInhousePage() {
                   <span className="text-xs text-gray-400">{s.players.length} players</span>
                 </div>
                 <div className="text-xs text-gray-500 mt-1">{formatDate(s.createdAt)}</div>
-                <div className="text-xs text-gray-600 mt-0.5 truncate">{s.id}</div>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <div className="min-w-0 truncate text-xs text-gray-600">{s.id}</div>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      cancelSession(s);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        cancelSession(s);
+                      }
+                    }}
+                    className="shrink-0 rounded bg-red-700 px-2 py-1 text-xs font-semibold text-white transition-colors hover:bg-red-600 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                    aria-disabled={cancellingId !== null}
+                  >
+                    {cancellingId === s.id ? "Cancelling..." : "Cancel"}
+                  </span>
+                </div>
               </button>
             ))}
           </div>
