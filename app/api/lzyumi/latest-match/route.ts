@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         status: latest.status,
-        message: "No recent ecl.gg match found.",
+        message: "No recent ECL.GG match found.",
         profile: linkedProfile,
         lzyumiProfile: latest.profile,
       },

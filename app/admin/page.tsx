@@ -455,7 +455,7 @@ function LzyumiRefreshPanel() {
               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             },
           });
-          if (!lzyumiRes.ok) throw new Error("lzyumi fetch failed");
+          if (!lzyumiRes.ok) throw new Error("ECL.GG fetch failed");
           const rawProfile = await lzyumiRes.json();
 
           // Step 4: save to DB via the server
@@ -494,7 +494,7 @@ function LzyumiRefreshPanel() {
   }
 
   return (
-    <Panel title="ecl.gg Stat Refresh" icon={RefreshCw}>
+    <Panel title="ECL.GG Stat Refresh" icon={RefreshCw}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm font-semibold text-[#cfcfcf]">
@@ -511,7 +511,7 @@ function LzyumiRefreshPanel() {
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#ff1731] px-5 text-xs font-black uppercase tracking-[0.1em] text-white transition hover:bg-[#ff3046] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
-          {isRefreshing ? "Refreshing" : "Refresh ecl.gg Data"}
+          {isRefreshing ? "Refreshing" : "Refresh ECL.GG Data"}
         </button>
       </div>
       <div className="mt-5 rounded-xl border border-[#242424] bg-[#101010] p-4">
@@ -793,7 +793,7 @@ function UsersSection({
               </div>
 
               <div>
-                <label className={labelCls}>China Server ID (for lzyumi)</label>
+                <label className={labelCls}>China Server ID (for ECL.GG)</label>
                 <input className={inputCls} placeholder="e.g. 12345678" value={editForm.chinaServerId ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, chinaServerId: e.target.value }))} />
               </div>
 

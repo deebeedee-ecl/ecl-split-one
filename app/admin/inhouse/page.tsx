@@ -329,7 +329,7 @@ export default function AdminInhousePage() {
     <AdminShell>
       <h1 className="text-2xl font-bold mb-2">Inhouse Reporter</h1>
       <p className="text-gray-400 text-sm mb-6">
-        Select a pending session, look up any player&apos;s recent games via lzyumi, then submit
+        Select a pending session, look up any player&apos;s recent games via ECL.GG, then submit
         to ingest the match.
       </p>
 
@@ -501,7 +501,7 @@ export default function AdminInhousePage() {
 
               {games.length === 0 && lookupLoading === null && rawProfile === null && (
                 <p className="text-gray-500 text-sm mb-4">
-                  Click <strong>Fetch</strong> next to a player to load their recent lzyumi games.
+                  Click <strong>Fetch</strong> next to a player to load their recent ECL.GG games.
                 </p>
               )}
 

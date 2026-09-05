@@ -266,7 +266,7 @@ export function formatHelpMessage() {
     "!ready - confirm the 10 players and balance teams",
     "!forceready - admin only: force start if admins accept the risk",
     "!status - show current inhouse status",
-    "!report - report the completed inhouse through Lzyumi",
+    "!report - report the completed inhouse through ECL.GG",
     "!cancel - admin only: cancel the active inhouse session",
     "!welcome - show the ECL welcome message",
   ].join("\n");
@@ -503,7 +503,7 @@ export async function formatReportPreviewMessage(kookUserId: string, args: strin
   });
 
   if (latest.status !== "found" || !latest.recentMatch?.gameId || !latest.detail) {
-    return "I could not find a recent Lzyumi match for your Riot account.";
+    return "I could not find a recent ECL.GG match for your Riot account.";
   }
 
   const championNames = await loadChampionNamesForKook();
@@ -532,7 +532,7 @@ export async function formatReportPreviewMessage(kookUserId: string, args: strin
     "",
     formatReporterLine(latest.player, championNames),
     `Time: ${formatGameTime(latest.recentMatch)}`,
-    `Lzyumi game: ${latest.recentMatch.gameId}`,
+    `ECL.GG game: ${latest.recentMatch.gameId}`,
     "",
     "Submit this result?",
     "Type !yes to submit, or !no to cancel.",

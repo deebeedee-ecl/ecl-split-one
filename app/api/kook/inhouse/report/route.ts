@@ -289,7 +289,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           status: "NO_LATEST_MATCH",
-          reply: "Pre-fetched lzyumi data is missing the player openId.",
+          reply: "Pre-fetched ECL.GG data is missing the player openId.",
         },
         { status: 404 },
       );
@@ -326,7 +326,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           status: "NO_LATEST_MATCH",
-          reply: "I could not find a recent Lzyumi match for the reporter. If the bot supports it, ensure it passes match data directly.",
+          reply: "I could not find a recent ECL.GG match for the reporter. If the bot supports it, ensure it passes match data directly.",
         },
         { status: 404 },
       );
@@ -350,7 +350,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         status: "ALREADY_REPORTED",
-        reply: "That Lzyumi game has already been reported to ECL.",
+        reply: "That ECL.GG game has already been reported to ECL.",
         sessionId: alreadyReported.id,
       },
       { status: 409 },
@@ -434,7 +434,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         status: "MATCH_NOT_CONFIRMED",
-        reply: `The latest Lzyumi game only matched ${matchedRows.length}/10 inhouse players. I did not ingest it. Missing: ${
+        reply: `The latest ECL.GG game only matched ${matchedRows.length}/10 inhouse players. I did not ingest it. Missing: ${
           missingPlayers.length > 0 ? missingPlayers.join(", ") : "unknown"
         }.`,
         matchedPlayers: matchedRows.map((row) => row.sessionPlayer.displayName),

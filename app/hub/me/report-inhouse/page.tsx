@@ -7,7 +7,7 @@ export default function ReportInhousePage() {
       active="profile"
       eyebrow="Inhouse"
       title="Report Inhouse Game"
-      description="Choose your inhouse session, fetch Lzyumi data, and confirm the correct game."
+      description="Choose your inhouse session, fetch ECL.GG data, and confirm the correct game."
     >
       <ReportInhouseClient />
     </HubShell>

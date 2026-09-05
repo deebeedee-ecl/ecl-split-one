@@ -268,7 +268,7 @@ async function lzyumiFetch<T>(url: string): Promise<T> {
   }
 
   if (!response.ok) {
-    throw new Error(`Lzyumi request failed with HTTP ${response.status}`);
+    throw new Error(`ECL.GG request failed with HTTP ${response.status}`);
   }
 
   return (await response.json()) as T;

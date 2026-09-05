@@ -542,7 +542,7 @@ export default function ReportInhouseClient() {
 
               {games.length === 0 && lookupLoading === null && rawProfile === null && (
                 <p className="rounded-xl bg-white/[0.04] px-4 py-3 text-sm font-bold text-[#8f98c0]">
-                  Click Fetch next to any roster player to load Ranked Inhouse games from Lzyumi.
+                  Click Fetch next to any roster player to load Ranked Inhouse games from ECL.GG.
                 </p>
               )}
 

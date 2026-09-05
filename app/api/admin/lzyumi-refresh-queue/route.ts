@@ -11,7 +11,7 @@ export async function GET() {
   } catch (error) {
     console.error("GET /api/admin/lzyumi-refresh-queue error:", error);
     return NextResponse.json(
-      { error: "Failed to load ecl.gg refresh queue." },
+      { error: "Failed to load ECL.GG refresh queue." },
       { status: 500 },
     );
   }
@@ -38,7 +38,7 @@ export async function POST() {
   } catch (error) {
     console.error("POST /api/admin/lzyumi-refresh-queue error:", error);
     return NextResponse.json(
-      { error: "Failed to retry ecl.gg refresh queue." },
+      { error: "Failed to retry ECL.GG refresh queue." },
       { status: 500 },
     );
   }

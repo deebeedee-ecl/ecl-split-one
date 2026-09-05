@@ -431,7 +431,7 @@ export default function PlayerProfileView({
               // lzyumi returned no profile — wrong server, unrecognised account, etc.
               const lzyumiMsg = typeof raw1?.message === "string" ? raw1.message : null;
               throw new Error(
-                lzyumiMsg ?? "Account not found on lzyumi. Check your Riot name and server in your profile settings."
+                lzyumiMsg ?? "Account not found on ECL.GG. Check your Riot name and server in your profile settings."
               );
             }
           } catch (err) {
