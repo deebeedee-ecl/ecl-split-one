@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { STARTING_ELO } from "@/lib/elo";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import {
@@ -5,6 +6,14 @@ import {
   type InhouseLeaderboardRow,
 } from "@/lib/inhouse-leaderboard";
 import { translateLzyumiTier } from "@/lib/hub-profile";
+import {
+  fetchLatestLzyumiMatch,
+  getChinaServer,
+  type LzyumiDetailResponse,
+  type LzyumiLookupResponse,
+  type LzyumiPlayerDetail,
+  type LzyumiRecentMatch,
+} from "@/lib/lzyumi";
 import {
   RANKED_INHOUSE_CHANNEL_ID,
   normalizeInhouseMembers,
@@ -19,6 +28,115 @@ import {
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function toJson(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+const ACTIVE_REPORT_HOURS = 48;
+const REPORT_CONFIRM_MINUTES = 20;
+
+type PendingKookReport = {
+  source: "kook-report-preview";
+  pendingConfirmation: {
+    reporterKookUserId: string;
+    gameId: string;
+    createdAt: string;
+    rawMatchData: {
+      profile: LzyumiLookupResponse;
+      gameId: string;
+      detail: LzyumiDetailResponse;
+    };
+  };
+};
+
+function parseScore(value: unknown) {
+  if (typeof value !== "string") return null;
+  const match = value.match(/(\d+)\s*\/\s*(\d+)\s*\/\s*(\d+)/);
+  return match ? `${match[1]}/${match[2]}/${match[3]}` : null;
+}
+
+function formatLzyumiResult(value: unknown) {
+  const normalized = clean(value).toLowerCase();
+  if (["1", "true", "win"].includes(normalized)) return "Win";
+  if (["0", "false", "loss", "lose"].includes(normalized)) return "Loss";
+  return "Unknown";
+}
+
+function formatGameTime(match: LzyumiRecentMatch) {
+  if (match.titleTime) return match.titleTime;
+  if (match.title?.includes("<br>")) return match.title.split("<br>").at(-1)?.trim() || "Unknown time";
+  return match.title || "Unknown time";
+}
+
+function formatReporterLine(player: LzyumiPlayerDetail | null) {
+  if (!player) return "Player details unavailable.";
+
+  const riotId = clean(player.nickNameStr || player.nickName) || "Unknown player";
+  const kda = parseScore(player.scoreInfo) ?? "KDA unknown";
+  const result = formatLzyumiResult(player.win);
+  const champion = clean(String(player.detailChampionId ?? "")) || "unknown champion";
+  const role = clean(player.position) || "unknown role";
+
+  return `Player: ${riotId} | Champion: ${champion} | ${role} | KDA ${kda} | ${result}`;
+}
+
+function pendingReportFromJson(value: unknown): PendingKookReport["pendingConfirmation"] | null {
+  if (!value || typeof value !== "object") return null;
+  const source = "source" in value ? value.source : null;
+  const pendingConfirmation = "pendingConfirmation" in value ? value.pendingConfirmation : null;
+
+  if (source !== "kook-report-preview" || !pendingConfirmation || typeof pendingConfirmation !== "object") {
+    return null;
+  }
+
+  const pending = pendingConfirmation as PendingKookReport["pendingConfirmation"];
+  if (!pending.reporterKookUserId || !pending.gameId || !pending.rawMatchData) return null;
+
+  return pending;
+}
+
+async function findReportSessions(kookUserId: string) {
+  const activeSince = new Date(Date.now() - ACTIVE_REPORT_HOURS * 60 * 60 * 1000);
+
+  return prisma.inhouseSession.findMany({
+    where: {
+      status: "ASSIGNED",
+      lzyumiGameId: null,
+      createdAt: { gte: activeSince },
+      players: { some: { kookUserId } },
+    },
+    include: { players: true },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+  });
+}
+
+function pickReportSession<T extends { id: string }>(sessions: T[], args: string[] = []) {
+  const selector = clean(args[0]);
+  if (!selector) return sessions.length === 1 ? sessions[0] : null;
+
+  const numeric = Number(selector);
+  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= sessions.length) {
+    return sessions[numeric - 1];
+  }
+
+  return sessions.find((session) => session.id.startsWith(selector) || session.id === selector) ?? null;
+}
+
+function multipleSessionMessage(sessions: Awaited<ReturnType<typeof findReportSessions>>) {
+  return [
+    "You have multiple pending inhouses.",
+    "",
+    ...sessions.map((session, index) => {
+      const blue = session.players.filter((player) => player.side === "BLUE").map((player) => player.displayName).join(", ");
+      const red = session.players.filter((player) => player.side === "RED").map((player) => player.displayName).join(", ");
+      return `${index + 1}. ${session.gameLabel ?? "Ranked Inhouse"} - Blue: ${blue || "-"} / Red: ${red || "-"}`;
+    }),
+    "",
+    "Type !report 1, !report 2, etc.",
+  ].join("\n");
 }
 
 function verifyInstructions() {
@@ -122,6 +240,7 @@ async function findVerifiedProfile(kookUserId: string) {
       email: true,
       riotName: true,
       riotTag: true,
+      chinaServerId: true,
       currentRank: true,
       lzyumiVerifiedAt: true,
     },
@@ -296,6 +415,132 @@ export async function formatStatusMessage(members: KookInhouseMember[] = []) {
     "",
     "Join the Ranked IH voice channel and type !inhouse to start.",
   ].join("\n");
+}
+
+export async function formatReportPreviewMessage(kookUserId: string, args: string[] = []) {
+  const profile = await findVerifiedProfile(kookUserId);
+
+  if (!profile) {
+    return [
+      "I cannot report for you yet because your KOOK account is not verified.",
+      "",
+      "Use !verify CODE after getting your code from https://eclchina.lol.",
+    ].join("\n");
+  }
+
+  const sessions = await findReportSessions(kookUserId);
+
+  if (sessions.length === 0) {
+    return "No pending inhouse session found for your KOOK account.";
+  }
+
+  const session = pickReportSession(sessions, args);
+
+  if (!session) {
+    return multipleSessionMessage(sessions);
+  }
+
+  const server = getChinaServer(profile.chinaServerId);
+  const latest = await fetchLatestLzyumiMatch({
+    riotName: profile.riotName,
+    areaId: server.id,
+  });
+
+  if (latest.status !== "found" || !latest.recentMatch?.gameId || !latest.detail) {
+    return "I could not find a recent Lzyumi match for your Riot account.";
+  }
+
+  await prisma.inhouseSession.update({
+    where: { id: session.id },
+    data: {
+      reportRawJson: toJson({
+        source: "kook-report-preview",
+        pendingConfirmation: {
+          reporterKookUserId: kookUserId,
+          gameId: latest.recentMatch.gameId,
+          createdAt: new Date().toISOString(),
+          rawMatchData: {
+            profile: latest.profile,
+            gameId: latest.recentMatch.gameId,
+            detail: latest.detail,
+          },
+        },
+      } satisfies PendingKookReport),
+    },
+  });
+
+  return [
+    `Found a possible report for ${session.gameLabel ?? "your inhouse"}.`,
+    "",
+    formatReporterLine(latest.player),
+    `Time: ${formatGameTime(latest.recentMatch)}`,
+    `Game ID: ${latest.recentMatch.gameId}`,
+    "",
+    "Is this correct?",
+    "Type !yes to submit it, or !no to cancel.",
+  ].join("\n");
+}
+
+export async function formatCancelReportMessage(kookUserId: string) {
+  const sessions = await findReportSessions(kookUserId);
+  const pendingSession = sessions.find((session) => {
+    const pending = pendingReportFromJson(session.reportRawJson);
+    return pending?.reporterKookUserId === kookUserId;
+  });
+
+  if (!pendingSession) {
+    return "No pending report confirmation found.";
+  }
+
+  await prisma.inhouseSession.update({
+    where: { id: pendingSession.id },
+    data: { reportRawJson: Prisma.JsonNull },
+  });
+
+  return "Cancelled that pending report confirmation.";
+}
+
+export async function submitPendingReportMessage(kookUserId: string, origin: string) {
+  const sessions = await findReportSessions(kookUserId);
+  const pendingSession = sessions.find((session) => {
+    const pending = pendingReportFromJson(session.reportRawJson);
+    return pending?.reporterKookUserId === kookUserId;
+  });
+
+  if (!pendingSession) {
+    return "No pending report confirmation found. Type !report first.";
+  }
+
+  const pending = pendingReportFromJson(pendingSession.reportRawJson);
+  if (!pending) {
+    return "No pending report confirmation found. Type !report first.";
+  }
+
+  const ageMs = Date.now() - new Date(pending.createdAt).getTime();
+  if (!Number.isFinite(ageMs) || ageMs > REPORT_CONFIRM_MINUTES * 60 * 1000) {
+    await prisma.inhouseSession.update({
+      where: { id: pendingSession.id },
+      data: { reportRawJson: Prisma.JsonNull },
+    });
+    return "That report confirmation expired. Type !report again for a fresh lookup.";
+  }
+
+  const reportRes = await fetch(`${origin}/api/kook/inhouse/report`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-ecl-kook-secret": process.env.ECL_KOOK_BOT_SECRET ?? "",
+    },
+    body: JSON.stringify({
+      command: "!report",
+      reporterKookUserId: kookUserId,
+      sessionId: pendingSession.id,
+      rawMatchData: pending.rawMatchData,
+    }),
+  });
+
+  const payload = await reportRes.json().catch(() => ({}));
+  return payload.reply ?? payload.message ?? (reportRes.ok ? "Reported." : "Report failed.");
 }
 
 export async function cancelActiveInhouseSession() {

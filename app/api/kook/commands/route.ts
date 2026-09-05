@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import {
   cancelActiveInhouseSession,
+  formatCancelReportMessage,
   formatHelpMessage,
   formatLeaderboardMessage,
   formatMeMessage,
   formatRankMessage,
+  formatReportPreviewMessage,
   formatStatusMessage,
   formatVerifyHelpMessage,
   formatWelcomeMessage,
+  submitPendingReportMessage,
 } from "@/lib/kook-commands";
 import type { KookInhouseMember } from "@/lib/kook-inhouse";
 
@@ -28,7 +31,14 @@ function clean(value: unknown) {
 
 function parseCommand(body: CommandBody) {
   const raw = clean(body.command || body.action).toLowerCase();
-  return raw.startsWith("!") ? raw.slice(1) : raw;
+  const withoutPrefix = raw.startsWith("!") ? raw.slice(1) : raw;
+  return withoutPrefix.split(/\s+/)[0] ?? "";
+}
+
+function parseArgs(body: CommandBody) {
+  const raw = clean(body.command || body.action);
+  const withoutPrefix = raw.startsWith("!") ? raw.slice(1) : raw;
+  return withoutPrefix.split(/\s+/).slice(1).filter(Boolean);
 }
 
 function membersFromBody(body: CommandBody) {
@@ -42,7 +52,7 @@ function unauthorized(request: Request) {
 }
 
 function needsKookUser(command: string) {
-  return command === "me" || command === "rank";
+  return ["me", "rank", "report", "result", "yes", "confirm", "no"].includes(command);
 }
 
 export async function POST(request: Request) {
@@ -52,6 +62,7 @@ export async function POST(request: Request) {
 
   const body = (await request.json()) as CommandBody;
   const command = parseCommand(body);
+  const args = parseArgs(body);
   const kookUserId = clean(body.kookUserId);
 
   if (!command) {
@@ -78,50 +89,74 @@ export async function POST(request: Request) {
 
   let reply: string;
 
-  switch (command) {
-    case "welcome":
-      reply = formatWelcomeMessage();
-      break;
-    case "help":
-    case "commands":
-      reply = formatHelpMessage();
-      break;
-    case "verify":
-      reply = formatVerifyHelpMessage();
-      break;
-    case "leaderboard":
-    case "top":
-      reply = await formatLeaderboardMessage();
-      break;
-    case "me":
-      reply = await formatMeMessage(kookUserId);
-      break;
-    case "rank":
-      reply = await formatRankMessage(kookUserId);
-      break;
-    case "status":
-      reply = await formatStatusMessage(membersFromBody(body));
-      break;
-    case "cancel":
-      if (!body.isAdmin) {
-        return NextResponse.json(
-          {
-            ok: false,
-            status: "ADMIN_REQUIRED",
-            reply: "!cancel is restricted to admins.",
-          },
-          { status: 403 },
-        );
-      }
-      reply = await cancelActiveInhouseSession();
-      break;
-    default:
-      reply = [
-        "Unknown command.",
-        "",
-        formatHelpMessage(),
-      ].join("\n");
-      break;
+  try {
+    switch (command) {
+      case "welcome":
+        reply = formatWelcomeMessage();
+        break;
+      case "help":
+      case "commands":
+        reply = formatHelpMessage();
+        break;
+      case "verify":
+        reply = formatVerifyHelpMessage();
+        break;
+      case "leaderboard":
+      case "top":
+        reply = await formatLeaderboardMessage();
+        break;
+      case "me":
+        reply = await formatMeMessage(kookUserId);
+        break;
+      case "rank":
+        reply = await formatRankMessage(kookUserId);
+        break;
+      case "status":
+        reply = await formatStatusMessage(membersFromBody(body));
+        break;
+      case "report":
+      case "result":
+        reply = await formatReportPreviewMessage(kookUserId, args);
+        break;
+      case "yes":
+      case "confirm":
+        reply = await submitPendingReportMessage(kookUserId, new URL(request.url).origin);
+        break;
+      case "no":
+        reply = await formatCancelReportMessage(kookUserId);
+        break;
+      case "cancel":
+        if (!body.isAdmin) {
+          return NextResponse.json(
+            {
+              ok: false,
+              status: "ADMIN_REQUIRED",
+              reply: "!cancel is restricted to admins.",
+            },
+            { status: 403 },
+          );
+        }
+        reply = await cancelActiveInhouseSession();
+        break;
+      default:
+        reply = [
+          "Unknown command.",
+          "",
+          formatHelpMessage(),
+        ].join("\n");
+        break;
+    }
+  } catch (error) {
+    console.error("POST /api/kook/commands error:", error);
+    return NextResponse.json(
+      {
+        ok: false,
+        status: "COMMAND_FAILED",
+        command,
+        reply: "I could not complete that command right now. Please try again in a moment.",
+      },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({
