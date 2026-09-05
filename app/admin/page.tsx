@@ -349,9 +349,21 @@ function LzyumiRefreshPanel() {
   } | null>(null);
 
   async function loadQueue() {
-    const res = await fetch("/api/admin/lzyumi-refresh-queue", { credentials: "include" });
-    if (!res.ok) return;
-    setQueue(await res.json());
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const res = await fetch("/api/admin/lzyumi-refresh-queue", {
+        credentials: "include",
+        signal: controller.signal,
+      });
+      if (!res.ok) return;
+      setQueue(await res.json());
+    } catch {
+      // Keep the existing snapshot visible if the queue check times out.
+    } finally {
+      window.clearTimeout(timeout);
+    }
   }
 
   useEffect(() => {
@@ -360,23 +372,41 @@ function LzyumiRefreshPanel() {
 
   async function retryFailedQueue() {
     setIsRetryingQueue(true);
+    setIsError(false);
+    setMessage("Queueing failed profiles for retry...");
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
+
     try {
       const res = await fetch("/api/admin/lzyumi-refresh-queue", {
         method: "POST",
         credentials: "include",
+        signal: controller.signal,
       });
       const payload = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(payload?.error ?? "Failed to retry queue.");
       }
       setQueue(payload.queue);
-      setMessage(`Queued ${payload.retried} failed profile${payload.retried === 1 ? "" : "s"} for retry.`);
+      if (payload.retried === 0) {
+        setMessage("No failed profiles are waiting for retry.");
+      } else {
+        setMessage(`Queued ${payload.retried} failed profile${payload.retried === 1 ? "" : "s"} for retry.`);
+      }
       setIsError(false);
     } catch (error) {
       setIsError(true);
-      setMessage(error instanceof Error ? error.message : "Failed to retry queue.");
+      setMessage(
+        error instanceof DOMException && error.name === "AbortError"
+          ? "Queue retry timed out. Refresh the page and check whether Vercel finished it."
+          : error instanceof Error
+            ? error.message
+            : "Failed to retry queue.",
+      );
     } finally {
+      window.clearTimeout(timeout);
       setIsRetryingQueue(false);
+      loadQueue();
     }
   }
 
