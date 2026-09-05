@@ -1,4 +1,6 @@
 import { Prisma } from "@prisma/client";
+import { readFile } from "fs/promises";
+import path from "path";
 import { STARTING_ELO } from "@/lib/elo";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import {
@@ -37,6 +39,8 @@ function toJson(value: unknown): Prisma.InputJsonValue {
 const ACTIVE_REPORT_HOURS = 48;
 const REPORT_CONFIRM_MINUTES = 20;
 
+let championNamesCache: Map<string, string> | null = null;
+
 type PendingKookReport = {
   source: "kook-report-preview";
   pendingConfirmation: {
@@ -60,8 +64,51 @@ function parseScore(value: unknown) {
 function formatLzyumiResult(value: unknown) {
   const normalized = clean(value).toLowerCase();
   if (["1", "true", "win"].includes(normalized)) return "Win";
-  if (["0", "false", "loss", "lose"].includes(normalized)) return "Loss";
+  if (["0", "false", "fail", "loss", "lose"].includes(normalized)) return "Loss";
   return "Unknown";
+}
+
+async function loadChampionNamesForKook() {
+  if (championNamesCache) return championNamesCache;
+
+  const file = await readFile(
+    path.join(process.cwd(), "public", "lol", "champions", "champions.json"),
+    "utf8",
+  );
+  const champions = JSON.parse(file.replace(/^\uFEFF/, "")) as Array<{
+    id: number;
+    name: string;
+  }>;
+  championNamesCache = new Map(champions.map((champion) => [String(champion.id), champion.name]));
+  return championNamesCache;
+}
+
+function championName(championId: unknown, championNames: ReadonlyMap<string, string>) {
+  const key = clean(String(championId ?? ""));
+  if (!key) return "Champion unavailable";
+  return championNames.get(key) ?? `Champion ${key}`;
+}
+
+function roleName(position: unknown) {
+  const normalized = clean(position).toUpperCase().replace(/[\s-]+/g, "_");
+  const labels: Record<string, string> = {
+    TOP: "Top",
+    TOP_LANE: "Top",
+    JUNGLE: "Jungle",
+    JGL: "Jungle",
+    MID: "Mid",
+    MIDDLE: "Mid",
+    MID_LANE: "Mid",
+    ADC: "ADC",
+    BOT: "ADC",
+    BOTTOM: "ADC",
+    BOTTOM_LANE: "ADC",
+    SUPPORT: "Support",
+    SUP: "Support",
+    UTILITY: "Support",
+  };
+
+  return labels[normalized] ?? "Role unavailable";
 }
 
 function formatGameTime(match: LzyumiRecentMatch) {
@@ -70,16 +117,25 @@ function formatGameTime(match: LzyumiRecentMatch) {
   return match.title || "Unknown time";
 }
 
-function formatReporterLine(player: LzyumiPlayerDetail | null) {
+function formatReporterLine(
+  player: LzyumiPlayerDetail | null,
+  championNames: ReadonlyMap<string, string>,
+) {
   if (!player) return "Player details unavailable.";
 
   const riotId = clean(player.nickNameStr || player.nickName) || "Unknown player";
   const kda = parseScore(player.scoreInfo) ?? "KDA unknown";
   const result = formatLzyumiResult(player.win);
-  const champion = clean(String(player.detailChampionId ?? "")) || "unknown champion";
-  const role = clean(player.position) || "unknown role";
+  const champion = championName(player.detailChampionId, championNames);
+  const role = roleName(player.position);
 
-  return `Player: ${riotId} | Champion: ${champion} | ${role} | KDA ${kda} | ${result}`;
+  return [
+    `Player: ${riotId}`,
+    `Result: ${result}`,
+    `Champion: ${champion}`,
+    `Role: ${role}`,
+    `KDA: ${kda}`,
+  ].join("\n");
 }
 
 function pendingReportFromJson(value: unknown): PendingKookReport["pendingConfirmation"] | null {
@@ -450,6 +506,8 @@ export async function formatReportPreviewMessage(kookUserId: string, args: strin
     return "I could not find a recent Lzyumi match for your Riot account.";
   }
 
+  const championNames = await loadChampionNamesForKook();
+
   await prisma.inhouseSession.update({
     where: { id: session.id },
     data: {
@@ -470,14 +528,14 @@ export async function formatReportPreviewMessage(kookUserId: string, args: strin
   });
 
   return [
-    `Found a possible report for ${session.gameLabel ?? "your inhouse"}.`,
+    `Report check: ${session.gameLabel ?? "Ranked Inhouse"}`,
     "",
-    formatReporterLine(latest.player),
+    formatReporterLine(latest.player, championNames),
     `Time: ${formatGameTime(latest.recentMatch)}`,
-    `Game ID: ${latest.recentMatch.gameId}`,
+    `Lzyumi game: ${latest.recentMatch.gameId}`,
     "",
-    "Is this correct?",
-    "Type !yes to submit it, or !no to cancel.",
+    "Submit this result?",
+    "Type !yes to submit, or !no to cancel.",
   ].join("\n");
 }
 
