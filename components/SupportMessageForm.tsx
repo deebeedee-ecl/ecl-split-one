@@ -10,10 +10,11 @@ export default function SupportMessageForm() {
 
   async function submitSupportMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setStatus("sending");
     setError("");
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const res = await fetch("/api/contact", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -32,7 +33,7 @@ export default function SupportMessageForm() {
       return;
     }
 
-    event.currentTarget.reset();
+    form.reset();
     setStatus("sent");
   }
 

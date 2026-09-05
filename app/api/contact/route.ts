@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { notifyKookAdmins } from "@/lib/kook-notifier";
 import { prisma } from "@/lib/prisma";
 
 const TOPICS = new Set([
@@ -12,6 +13,32 @@ const TOPICS = new Set([
 
 function readString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function formatKookAdminMessage(message: {
+  id: string;
+  name: string;
+  contact: string;
+  topic: string;
+  body: string;
+  createdAt: Date;
+}) {
+  const adminUrl = process.env.NEXT_PUBLIC_SITE_URL
+    ? `${process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, "")}/admin#messages`
+    : "/admin#messages";
+
+  return [
+    "**New ECL site message**",
+    `**From:** ${message.name}`,
+    `**Contact:** ${message.contact}`,
+    `**Topic:** ${message.topic}`,
+    `**Time:** ${message.createdAt.toLocaleString("en-GB", { timeZone: "Asia/Shanghai" })} CST`,
+    `**Admin:** ${adminUrl}`,
+    "",
+    message.body,
+    "",
+    `Message ID: ${message.id}`,
+  ].join("\n");
 }
 
 export async function POST(req: Request) {
@@ -45,8 +72,25 @@ export async function POST(req: Request) {
       },
       select: {
         id: true,
+        name: true,
+        contact: true,
+        topic: true,
+        message: true,
         createdAt: true,
       },
+    });
+
+    notifyKookAdmins(
+      formatKookAdminMessage({
+        id: saved.id,
+        name: saved.name,
+        contact: saved.contact,
+        topic: saved.topic,
+        body: saved.message,
+        createdAt: saved.createdAt,
+      }),
+    ).catch((error) => {
+      console.error("KOOK admin contact notification failed:", error);
     });
 
     return NextResponse.json(saved, { status: 201 });

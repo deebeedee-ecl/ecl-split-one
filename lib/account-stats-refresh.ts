@@ -45,6 +45,12 @@ function getCurrentRankFromRawProfile(value: unknown) {
   return formatted.label === "Unranked" ? null : formatted.label;
 }
 
+function rejectedMessage(result: PromiseRejectedResult, label: string) {
+  const reason = result.reason;
+  const message = reason instanceof Error ? reason.message : String(reason || "Unknown error");
+  return `${label}: ${message}`;
+}
+
 function withRecoveredProfileData({
   rawProfile,
   recovered,
@@ -177,7 +183,12 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
     return {
       ok: false,
       profileId: profile.id,
-      message: "Raw profile, ranked games, and recent stats failed.",
+      message: [
+        "Raw profile, ranked games, and recent stats failed.",
+        rejectedMessage(rawProfile, "profile"),
+        rejectedMessage(rankedGames, "ranked"),
+        rejectedMessage(recentStat, "recent"),
+      ].join(" "),
     };
   }
 

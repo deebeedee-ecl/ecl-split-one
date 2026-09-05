@@ -51,6 +51,7 @@ model AccountProfile {
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   kookVerifications   KookVerification[]
+  lzyumiRefreshQueue  LzyumiRefreshQueue?
 
   @@index([email])
   @@index([riotName, riotTag])
@@ -59,6 +60,25 @@ model AccountProfile {
   @@index([kookUsername])
   @@index([verificationStatus])
   @@index([accountStatus])
+}
+
+model LzyumiRefreshQueue {
+  id            String         @id @default(uuid())
+  profileId     String         @unique
+  profile       AccountProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  status        String         @default("PENDING")
+  attemptCount  Int            @default(0)
+  nextAttemptAt DateTime       @default(now())
+  lastAttemptAt DateTime?
+  lastSuccessAt DateTime?
+  lastError     String?
+  notifiedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([attemptCount])
+  @@index([notifiedAt])
 }
 
 model KookVerification {

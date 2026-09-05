@@ -358,7 +358,7 @@ export function InhouseMatchHistoryClient({ liveMatches }: { liveMatches?: LiveM
   );
 
   return (
-    <div className="grid gap-7" style={{ gridTemplateColumns: "20rem minmax(0, 1fr)" }}>
+    <div className="grid gap-7 2xl:grid-cols-[20rem_minmax(0,1fr)]">
       <aside className="rounded-[1.7rem] border border-white/[0.07] bg-[#101420] p-5">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-black text-white">Match History</h2>
@@ -504,12 +504,12 @@ export function InhouseMatchDetailClient({ matchId, liveMatches }: { matchId: st
 
 function BroadcastReport({ match }: { match: LiveMatchData }) {
   return (
-    <section className="relative overflow-hidden rounded-[1.4rem] border border-[#7f6bff]/35 bg-[#0c0620] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.42)]">
+    <section className="relative overflow-hidden rounded-[1.4rem] border border-[#7f6bff]/35 bg-[#0c0620] p-4 shadow-[0_24px_90px_rgba(0,0,0,0.42)] sm:p-5">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(104,96,255,0.42),transparent_25%),radial-gradient(circle_at_88%_10%,rgba(255,93,128,0.3),transparent_30%),linear-gradient(135deg,rgba(60,30,140,0.68),rgba(8,4,26,0.98)_46%,rgba(18,4,31,0.98))]" />
       <div className="relative">
         <ScoreStrip match={match} />
 
-        <div className="mt-5 grid gap-6" style={{ gridTemplateColumns: "42% minmax(0, 58%)" }}>
+        <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(20rem,42%)_minmax(0,58%)]">
           <GameStats match={match} />
 
           <div className="space-y-6">
@@ -518,7 +518,7 @@ function BroadcastReport({ match }: { match: LiveMatchData }) {
           </div>
         </div>
 
-        <div className="mt-6 flex items-center justify-between text-sm font-black uppercase tracking-[0.14em] text-[#c9cee9]">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm font-black uppercase tracking-[0.14em] text-[#c9cee9]">
           <span>ECL Ranked Inhouses</span>
           <span>
             {match.stage} | {match.game}
@@ -535,35 +535,34 @@ function ScoreStrip({ match }: { match: LiveMatchData }) {
 
   return (
     <div
-      className="grid items-center overflow-hidden rounded-sm text-white shadow-[0_18px_54px_rgba(36,30,120,0.24)]"
+      className="grid grid-cols-[minmax(7rem,1fr)_3rem_4.25rem_5.5rem_4.25rem_3rem_minmax(7rem,1fr)] items-center overflow-hidden rounded-sm text-white shadow-[0_18px_54px_rgba(36,30,120,0.24)] lg:grid-cols-[minmax(9rem,1fr)_4rem_5rem_7rem_5rem_4rem_minmax(9rem,1fr)] 2xl:grid-cols-[1fr_5rem_6rem_8rem_6rem_5rem_1fr]"
       style={{
-        gridTemplateColumns: "1fr 5rem 6rem 8rem 6rem 5rem 1fr",
         background:
           "linear-gradient(90deg, rgba(42, 85, 255, 0.95) 0%, rgba(35, 59, 180, 0.78) 20%, rgba(13, 11, 31, 0.98) 43%, rgba(13, 11, 31, 0.98) 57%, rgba(126, 18, 47, 0.78) 80%, rgba(255, 30, 48, 0.95) 100%)",
       }}
     >
-      <div className="px-6 py-5 text-4xl font-black uppercase tracking-normal">
+      <div className="min-w-0 truncate px-3 py-4 text-xl font-black uppercase tracking-normal sm:text-2xl lg:px-5 lg:text-3xl 2xl:px-6 2xl:py-5 2xl:text-4xl">
         {match.blue}
       </div>
-      <div className="border-l border-white/[0.16] py-5 text-center text-5xl font-black text-[#7c8cff]">
+      <div className="border-l border-white/[0.16] py-4 text-center text-3xl font-black text-[#7c8cff] lg:text-4xl 2xl:py-5 2xl:text-5xl">
         {blueScore}
       </div>
-      <div className="border-x border-white/[0.16] py-5 text-center text-2xl font-light uppercase text-white/74">
+      <div className="border-x border-white/[0.16] py-4 text-center text-sm font-light uppercase text-white/74 sm:text-base lg:text-xl 2xl:py-5 2xl:text-2xl">
         {match.blueResult}
       </div>
-      <div className="py-4 text-center">
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-white/65">
+      <div className="py-3 text-center 2xl:py-4">
+        <p className="text-[0.6rem] font-black uppercase tracking-[0.14em] text-white/65 sm:text-xs">
           Game Time
         </p>
-        <p className="text-4xl font-light tracking-normal">{match.duration}</p>
+        <p className="text-xl font-light tracking-normal sm:text-2xl lg:text-3xl 2xl:text-4xl">{match.duration}</p>
       </div>
-      <div className="border-x border-white/[0.16] py-5 text-center text-2xl font-light uppercase text-white/74">
+      <div className="border-x border-white/[0.16] py-4 text-center text-sm font-light uppercase text-white/74 sm:text-base lg:text-xl 2xl:py-5 2xl:text-2xl">
         {match.redResult}
       </div>
-      <div className="py-5 text-center text-5xl font-black text-[#ff3048]">
+      <div className="py-4 text-center text-3xl font-black text-[#ff3048] lg:text-4xl 2xl:py-5 2xl:text-5xl">
         {redScore}
       </div>
-      <div className="px-6 py-5 text-right text-4xl font-black uppercase tracking-normal">
+      <div className="min-w-0 truncate px-3 py-4 text-right text-xl font-black uppercase tracking-normal sm:text-2xl lg:px-5 lg:text-3xl 2xl:px-6 2xl:py-5 2xl:text-4xl">
         {match.red}
       </div>
     </div>
@@ -572,7 +571,7 @@ function ScoreStrip({ match }: { match: LiveMatchData }) {
 
 function GameStats({ match }: { match: LiveMatchData }) {
   return (
-    <section className="rounded-sm bg-[#11072b]/80 p-6">
+    <section className="rounded-sm bg-[#11072b]/80 p-4 sm:p-6">
       <h2 className="text-center text-xl font-black uppercase tracking-[0.14em] text-white">
         Game Stats
       </h2>
@@ -590,8 +589,7 @@ function GameStats({ match }: { match: LiveMatchData }) {
           return (
             <div
               key={label}
-              className="grid items-center border-b border-white/16 py-4 text-center"
-              style={{ gridTemplateColumns: "1fr 9rem 1fr" }}
+              className="grid grid-cols-[minmax(0,1fr)_6rem_minmax(0,1fr)] items-center border-b border-white/16 py-4 text-center sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)]"
             >
               <span className="text-2xl font-light text-white">
                 {key === "drakes" && !drakeCounts ? <DragonList value={blue} /> : blue}
@@ -606,8 +604,7 @@ function GameStats({ match }: { match: LiveMatchData }) {
           );
         })}
         <div
-          className="grid items-center border-b border-white/16 py-4"
-          style={{ gridTemplateColumns: "1fr 9rem 1fr" }}
+          className="grid grid-cols-[minmax(0,1fr)_6rem_minmax(0,1fr)] items-center border-b border-white/16 py-4 sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)]"
         >
           <DraftIcons champions={match.blueDraft} tone="blue" />
           <span className="text-center text-sm font-black uppercase tracking-[0.08em] text-white/75">
@@ -622,7 +619,7 @@ function GameStats({ match }: { match: LiveMatchData }) {
 
 function DraftIcons({ champions, tone }: { champions: string[]; tone: "blue" | "red" }) {
   return (
-    <div className={`flex gap-2 ${tone === "red" ? "justify-end" : ""}`}>
+    <div className={`flex min-w-0 flex-wrap gap-2 ${tone === "red" ? "justify-end" : ""}`}>
       {champions.map((champion) => (
         <ChampionIcon
           key={champion}
@@ -643,7 +640,7 @@ function DamagePanel({ match }: { match: LiveMatchData }) {
   );
 
   return (
-    <section className="rounded-sm bg-[#09031a]/80 p-6">
+    <section className="rounded-sm bg-[#09031a]/80 p-4 sm:p-6">
       <h2 className="text-center text-xl font-black uppercase tracking-[0.14em] text-white">
         Total Damage Dealt
       </h2>
@@ -654,11 +651,10 @@ function DamagePanel({ match }: { match: LiveMatchData }) {
           return (
             <div
               key={String(bluePlayer[0])}
-              className="grid items-center gap-4"
-              style={{ gridTemplateColumns: "1fr 5rem 1fr" }}
+              className="grid items-center gap-3 lg:grid-cols-[minmax(0,1fr)_2rem_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1fr)_5rem_minmax(0,1fr)]"
             >
               <DamageBar player={bluePlayer} max={maxDamage} tone="blue" />
-              <span className="h-px bg-white/10" />
+              <span className="hidden h-px bg-white/10 lg:block" />
               {redPlayer ? (
                 <DamageBar player={redPlayer} max={maxDamage} tone="red" align="right" />
               ) : (
@@ -683,7 +679,7 @@ function DamageBar({
   tone: "blue" | "red";
   align?: "left" | "right";
 }) {
-  const [playerName, champion, damage, kda, role] = player as unknown as readonly [
+  const [playerName, champion, , kda, role] = player as unknown as readonly [
     string,
     string,
     number,
@@ -696,13 +692,14 @@ function DamageBar({
 
   return (
     <div className={`min-w-0 ${align === "right" ? "text-right" : "text-left"}`}>
-      <div className={`flex items-center gap-3 ${align === "right" ? "justify-end" : ""}`}>
+      <div className={`flex min-w-0 items-center gap-3 ${align === "right" ? "justify-end" : ""}`}>
         {align === "left" && <ChampionIcon champion={champion} className="h-12 w-12 rounded-sm" />}
-        <p className="text-lg font-black leading-5 text-white">
-          {stripRiotTag(playerName)}
-          <span className="block text-white/80">
-            {damage}K
-            {kda && <span className={`ml-2 ${kdaColor}`}>{kda}</span>}
+        <p className="min-w-0 text-base font-black leading-5 text-white sm:text-lg">
+          <span className="block truncate" title={stripRiotTag(playerName)}>
+            {stripRiotTag(playerName)}
+          </span>
+          <span className="block truncate text-white/80">
+            {kda && <span className={kdaColor}>{kda}</span>}
             {roleLabel && (
               <span className="ml-2 text-xs font-black uppercase tracking-[0.08em] text-white/45">
                 {roleLabel}
@@ -730,11 +727,11 @@ function MatchStandouts({ match }: { match: LiveMatchData }) {
   const standouts = getStandouts(match);
 
   return (
-    <section className="rounded-sm bg-[linear-gradient(135deg,rgba(26,34,80,0.72),rgba(7,5,18,0.94)_48%,rgba(78,12,28,0.62))] p-6">
+    <section className="rounded-sm bg-[linear-gradient(135deg,rgba(26,34,80,0.72),rgba(7,5,18,0.94)_48%,rgba(78,12,28,0.62))] p-4 sm:p-6">
       <h2 className="text-center text-xl font-black uppercase tracking-[0.14em] text-white">
         Match Standouts
       </h2>
-      <div className="mt-6 grid gap-5" style={{ gridTemplateColumns: "1fr 1fr" }}>
+      <div className="mt-6 grid gap-5 lg:grid-cols-2">
         <StandoutCard label="MVP" player={standouts.mvp} tone="gold" />
         <StandoutCard label="SVP" player={standouts.svp} tone="silver" />
       </div>
@@ -774,7 +771,7 @@ function StandoutCard({
           </p>
         </div>
       </div>
-      <div className="mt-5 grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <div>
           <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-white/45">
             Champion

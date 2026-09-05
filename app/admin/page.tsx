@@ -333,6 +333,29 @@ function LzyumiRefreshPanel() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [message, setMessage] = useState("Manual refresh updates verified player ranks, recent games, and profile snapshots.");
   const [isError, setIsError] = useState(false);
+  const [queue, setQueue] = useState<{
+    pending: number;
+    processing: number;
+    failed: Array<{
+      id: string;
+      displayName: string;
+      riotId: string;
+      attemptCount: number;
+      nextAttemptAt: string;
+      lastError: string | null;
+      notifiedAt: string | null;
+    }>;
+  } | null>(null);
+
+  async function loadQueue() {
+    const res = await fetch("/api/admin/lzyumi-refresh-queue", { credentials: "include" });
+    if (!res.ok) return;
+    setQueue(await res.json());
+  }
+
+  useEffect(() => {
+    loadQueue();
+  }, []);
 
   async function refreshStats() {
     setIsRefreshing(true);
@@ -354,6 +377,7 @@ function LzyumiRefreshPanel() {
 
       let refreshed = 0;
       let failed = 0;
+      const failures: string[] = [];
 
       for (let i = 0; i < profiles.length; i++) {
         const p = profiles[i];
@@ -391,16 +415,23 @@ function LzyumiRefreshPanel() {
           if (!saveRes.ok) throw new Error("Save failed");
 
           refreshed++;
-        } catch {
+        } catch (error) {
           failed++;
+          if (failures.length < 5) {
+            failures.push(
+              `${p.displayName}: ${error instanceof Error ? error.message : "Unknown error"}`,
+            );
+          }
         }
       }
 
+      const failureDetails = failures.length > 0 ? ` First failures: ${failures.join(" | ")}` : "";
       const status = failed > 0
-        ? `Refreshed ${refreshed}/${profiles.length} profiles. ${failed} failed.`
+        ? `Refreshed ${refreshed}/${profiles.length} profiles. ${failed} failed.${failureDetails}`
         : `Refreshed ${refreshed}/${profiles.length} profiles.`;
       setMessage(status);
       if (failed > 0 && refreshed === 0) setIsError(true);
+      loadQueue();
     } catch (error) {
       setIsError(true);
       setMessage(error instanceof Error ? error.message : "Refresh failed.");
@@ -429,6 +460,58 @@ function LzyumiRefreshPanel() {
           <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
           {isRefreshing ? "Refreshing" : "Refresh ecl.gg Data"}
         </button>
+      </div>
+      <div className="mt-5 rounded-xl border border-[#242424] bg-[#101010] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8d8d8d]">
+            Background Queue
+          </p>
+          <button
+            type="button"
+            onClick={loadQueue}
+            className="rounded-lg border border-[#2f2f2f] px-3 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-[#cfcfcf] transition hover:border-[#ff3046] hover:text-white"
+          >
+            Refresh Queue
+          </button>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg bg-black/30 p-3">
+            <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-[#777]">Pending</p>
+            <p className="mt-1 text-2xl font-black text-white">{queue?.pending ?? "-"}</p>
+          </div>
+          <div className="rounded-lg bg-black/30 p-3">
+            <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-[#777]">Processing</p>
+            <p className="mt-1 text-2xl font-black text-white">{queue?.processing ?? "-"}</p>
+          </div>
+          <div className="rounded-lg bg-black/30 p-3">
+            <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-[#777]">Failed</p>
+            <p className="mt-1 text-2xl font-black text-[#ff3046]">{queue?.failed.length ?? "-"}</p>
+          </div>
+        </div>
+        {queue && queue.failed.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {queue.failed.map((failure) => (
+              <div key={failure.id} className="rounded-lg border border-[#ff3046]/20 bg-[#ff3046]/10 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-black text-white">{failure.displayName}</p>
+                  <p className="text-xs font-black uppercase tracking-[0.1em] text-[#ff9aaa]">
+                    {failure.attemptCount} attempts
+                  </p>
+                </div>
+                <p className="mt-1 text-xs font-bold text-[#cfcfcf]">{failure.riotId}</p>
+                {failure.lastError && (
+                  <p className="mt-2 line-clamp-2 text-xs font-semibold text-[#ffbdc6]">
+                    {failure.lastError}
+                  </p>
+                )}
+                <p className="mt-2 text-[0.68rem] font-black uppercase tracking-[0.1em] text-[#8d8d8d]">
+                  Next retry {new Date(failure.nextAttemptAt).toLocaleString()}
+                  {failure.notifiedAt ? " / admins notified" : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </Panel>
   );

@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import {
   LZYUMI_REFRESH_INTERVAL_MS,
-  refreshAccountProfileStats,
 } from "@/lib/account-stats-refresh";
-import { prisma } from "@/lib/prisma";
+import {
+  enqueueDueLzyumiRefreshes,
+  getLzyumiRefreshQueueSnapshot,
+  processLzyumiRefreshQueue,
+} from "@/lib/lzyumi-refresh-queue";
 
 export const dynamic = "force-dynamic";
 export const preferredRegion = ["sin1", "hkg1", "nrt1", "icn1"];
@@ -35,67 +38,9 @@ export async function GET(request: Request) {
   }
 
   const batchLimit = getBatchLimit(request);
-  const staleBefore = new Date(Date.now() - LZYUMI_REFRESH_INTERVAL_MS);
-
-  const profiles = await prisma.accountProfile.findMany({
-    where: {
-      riotName: {
-        not: "",
-      },
-      chinaServerId: {
-        not: null,
-      },
-      OR: [
-        {
-          lzyumiLastLookupAt: null,
-        },
-        {
-          lzyumiLastLookupAt: {
-            lt: staleBefore,
-          },
-        },
-      ],
-    },
-    orderBy: [
-      {
-        lzyumiLastLookupAt: "asc",
-      },
-      {
-        createdAt: "asc",
-      },
-    ],
-    take: batchLimit,
-    select: {
-      id: true,
-      displayName: true,
-      riotName: true,
-      riotTag: true,
-      openId: true,
-      chinaServerId: true,
-      lzyumiLastLookupAt: true,
-    },
-  });
-
-  const results = [];
-
-  for (const profile of profiles) {
-    try {
-      const result = await refreshAccountProfileStats(profile);
-      results.push({
-        ...result,
-        displayName: profile.displayName,
-        riotId: `${profile.riotName}#${profile.riotTag}`,
-      });
-    } catch (error) {
-      results.push({
-        ok: false,
-        profileId: profile.id,
-        displayName: profile.displayName,
-        riotId: `${profile.riotName}#${profile.riotTag}`,
-        message: error instanceof Error ? error.message : "Unknown refresh error.",
-      });
-    }
-  }
+  const enqueued = await enqueueDueLzyumiRefreshes(batchLimit);
+  const results = await processLzyumiRefreshQueue(batchLimit);
+  const queue = await getLzyumiRefreshQueueSnapshot();
 
   const refreshed = results.filter((result) => result.ok).length;
   const failed = results.length - refreshed;
@@ -104,9 +49,11 @@ export async function GET(request: Request) {
     ok: true,
     staleWindowHours: LZYUMI_REFRESH_INTERVAL_MS / (1000 * 60 * 60),
     batchLimit,
-    selected: profiles.length,
+    enqueued,
+    selected: results.length,
     refreshed,
     failed,
+    queue,
     results,
   });
 }

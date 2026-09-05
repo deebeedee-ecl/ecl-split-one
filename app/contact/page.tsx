@@ -9,10 +9,11 @@ export default function ContactPage() {
 
   async function submitMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setStatus("sending");
     setError("");
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const res = await fetch("/api/contact", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -31,7 +32,7 @@ export default function ContactPage() {
       return;
     }
 
-    event.currentTarget.reset();
+    form.reset();
     setStatus("sent");
   }
 
