@@ -331,6 +331,7 @@ function DashboardSection({
 
 function LzyumiRefreshPanel() {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRetryingQueue, setIsRetryingQueue] = useState(false);
   const [message, setMessage] = useState("Manual refresh updates verified player ranks, recent games, and profile snapshots.");
   const [isError, setIsError] = useState(false);
   const [queue, setQueue] = useState<{
@@ -356,6 +357,28 @@ function LzyumiRefreshPanel() {
   useEffect(() => {
     loadQueue();
   }, []);
+
+  async function retryFailedQueue() {
+    setIsRetryingQueue(true);
+    try {
+      const res = await fetch("/api/admin/lzyumi-refresh-queue", {
+        method: "POST",
+        credentials: "include",
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(payload?.error ?? "Failed to retry queue.");
+      }
+      setQueue(payload.queue);
+      setMessage(`Queued ${payload.retried} failed profile${payload.retried === 1 ? "" : "s"} for retry.`);
+      setIsError(false);
+    } catch (error) {
+      setIsError(true);
+      setMessage(error instanceof Error ? error.message : "Failed to retry queue.");
+    } finally {
+      setIsRetryingQueue(false);
+    }
+  }
 
   async function refreshStats() {
     setIsRefreshing(true);
@@ -466,13 +489,23 @@ function LzyumiRefreshPanel() {
           <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8d8d8d]">
             Background Queue
           </p>
-          <button
-            type="button"
-            onClick={loadQueue}
-            className="rounded-lg border border-[#2f2f2f] px-3 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-[#cfcfcf] transition hover:border-[#ff3046] hover:text-white"
-          >
-            Refresh Queue
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={retryFailedQueue}
+              disabled={isRetryingQueue || !queue || queue.failed.length === 0}
+              className="rounded-lg border border-[#ff3046]/40 px-3 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-[#ffbdc6] transition hover:border-[#ff3046] hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {isRetryingQueue ? "Retrying" : "Retry Failed Now"}
+            </button>
+            <button
+              type="button"
+              onClick={loadQueue}
+              className="rounded-lg border border-[#2f2f2f] px-3 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-[#cfcfcf] transition hover:border-[#ff3046] hover:text-white"
+            >
+              Refresh Queue
+            </button>
+          </div>
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg bg-black/30 p-3">

@@ -37,25 +37,36 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const batchLimit = getBatchLimit(request);
-  const enqueued = await enqueueDueLzyumiRefreshes(batchLimit);
-  const results = await processLzyumiRefreshQueue(batchLimit);
-  const queue = await getLzyumiRefreshQueueSnapshot();
+  try {
+    const batchLimit = getBatchLimit(request);
+    const enqueued = await enqueueDueLzyumiRefreshes(batchLimit);
+    const results = await processLzyumiRefreshQueue(batchLimit);
+    const queue = await getLzyumiRefreshQueueSnapshot();
 
-  const refreshed = results.filter((result) => result.ok).length;
-  const failed = results.length - refreshed;
+    const refreshed = results.filter((result) => result.ok).length;
+    const failed = results.length - refreshed;
 
-  return NextResponse.json({
-    ok: true,
-    staleWindowHours: LZYUMI_REFRESH_INTERVAL_MS / (1000 * 60 * 60),
-    batchLimit,
-    enqueued,
-    selected: results.length,
-    refreshed,
-    failed,
-    queue,
-    results,
-  });
+    return NextResponse.json({
+      ok: true,
+      staleWindowHours: LZYUMI_REFRESH_INTERVAL_MS / (1000 * 60 * 60),
+      batchLimit,
+      enqueued,
+      selected: results.length,
+      refreshed,
+      failed,
+      queue,
+      results,
+    });
+  } catch (error) {
+    console.error("GET /api/jobs/refresh-lzyumi-profiles error:", error);
+    return NextResponse.json(
+      {
+        ok: false,
+        message: error instanceof Error ? error.message : "Unknown refresh job error.",
+      },
+      { status: 500 },
+    );
+  }
 }
 
 export const POST = GET;
