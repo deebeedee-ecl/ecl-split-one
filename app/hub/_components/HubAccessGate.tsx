@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   clearHubAccessCache,
   flushPendingProfile,
@@ -21,7 +21,6 @@ export function HubAccessGate({
   allowProfileSetup?: boolean;
   children: ReactNode;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const [state, setState] = useState<HubAccessState>(() => {
     const cached = getHubAccessCache();
@@ -79,8 +78,7 @@ export function HubAccessGate({
       }
 
       setHubAccessCache("profile");
-
-      router.replace(`/hub/settings?next=${encodeURIComponent(pathname)}`);
+      setState("profile");
     }
 
     const {
@@ -98,9 +96,9 @@ export function HubAccessGate({
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [allowProfileSetup, pathname, router]);
+  }, [allowProfileSetup]);
 
-  if (state === "ready" || state === "profile") {
+  if (state === "ready" || (state === "profile" && allowProfileSetup)) {
     return children;
   }
 
@@ -111,6 +109,17 @@ export function HubAccessGate({
         description="The ECL Hub is only available after you log in with your ECL account."
         actionHref="/login"
         actionLabel="Log in"
+      />
+    );
+  }
+
+  if (state === "profile") {
+    return (
+      <HubGateMessage
+        title="Complete your Hub profile"
+        description="Your account is logged in, but the Hub could not load a completed player profile for this page."
+        actionHref={`/hub/settings?next=${encodeURIComponent(pathname)}`}
+        actionLabel="Open settings"
       />
     );
   }

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, BarChart3, ShieldCheck, Swords, Trophy, Users } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Swords, Trophy, Users } from "lucide-react";
 import { HubShell } from "../../../_components/HubShell";
 import { prisma } from "@/lib/prisma";
 import { formatLzyumiRank, getLzyumiRankRows } from "@/lib/hub-profile";
@@ -417,10 +417,13 @@ export default async function WorldCupTeamDashboardPage({
           <ArrowLeft size={15} />
           Back To Teams
         </Link>
-        <div className="inline-flex min-h-10 items-center gap-2 border border-[#36D7FF]/24 px-4 text-xs font-black uppercase tracking-[0.12em] text-[#C9DFEB]">
-          <BarChart3 size={15} />
-          Team Stats
-        </div>
+        <Link
+          href="/hub/world-cup/find-team"
+          className="inline-flex min-h-10 items-center gap-2 border border-[#36D7FF]/24 px-4 text-xs font-black uppercase tracking-[0.12em] text-[#C9DFEB] transition hover:border-white/45 hover:text-white"
+        >
+          <Users size={15} />
+          View All Teams
+        </Link>
       </div>
 
       <header className="mb-5 border border-[#0797F2]/30 bg-[#061C4A]/92 p-6 shadow-[0_18px_54px_rgba(0,0,0,0.28)]">
