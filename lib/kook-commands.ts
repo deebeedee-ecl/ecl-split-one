@@ -14,6 +14,7 @@ import {
   findPlayerInDetail,
   findPlayerInDetailByRiotId,
   getChinaServer,
+  isResolvedRiotIdMatch,
   type LzyumiDetailResponse,
   type LzyumiLookupResponse,
   type LzyumiPlayerDetail,
@@ -207,8 +208,11 @@ function playerRiotNameKeys(player: LzyumiPlayerDetail) {
 
 type SessionReportPlayer = {
   displayName: string;
+  kookUserId: string;
   riotName: string | null;
   riotTag: string | null;
+  chinaServerId: number | null;
+  openId: string | null;
 };
 
 async function loadSessionReportPlayers(
@@ -225,13 +229,13 @@ async function loadSessionReportPlayers(
     missingProfileIds.length > 0
       ? prisma.accountProfile.findMany({
           where: { id: { in: missingProfileIds } },
-          select: { id: true, riotName: true, riotTag: true },
+          select: { id: true, riotName: true, riotTag: true, chinaServerId: true, openId: true },
         })
       : Promise.resolve([]),
     missingKookIds.length > 0
       ? prisma.accountProfile.findMany({
           where: { kookId: { in: missingKookIds } },
-          select: { kookId: true, riotName: true, riotTag: true },
+          select: { kookId: true, riotName: true, riotTag: true, chinaServerId: true, openId: true },
         })
       : Promise.resolve([]),
   ]);
@@ -247,8 +251,11 @@ async function loadSessionReportPlayers(
 
     return {
       displayName: sessionPlayer.displayName,
+      kookUserId: sessionPlayer.kookUserId,
       riotName: sessionPlayer.riotName || profile?.riotName || null,
       riotTag: normalizeRiotTag(sessionPlayer.riotTag || profile?.riotTag) || null,
+      chinaServerId: profile?.chinaServerId ?? null,
+      openId: profile?.openId ?? null,
     };
   });
 }
@@ -309,36 +316,80 @@ async function findMatchingReportCandidate({
   profile: NonNullable<Awaited<ReturnType<typeof findVerifiedProfile>>>;
   areaId: number;
 }): Promise<ReportMatchCandidate | null> {
-  const lookupNames = Array.from(
-    new Set(
-      [
-        profile.riotName,
-        formatRiotId(profile.riotName, profile.riotTag),
-      ].filter((value): value is string => Boolean(clean(value))),
-    ),
+  const sessionPlayers = await loadSessionReportPlayers(session);
+  const reporterOpenId = clean(profile.openId);
+  const orderedSearchPlayers = [
+    ...sessionPlayers.filter((player) => player.kookUserId === profile.kookId),
+    ...sessionPlayers.filter((player) => player.kookUserId !== profile.kookId),
+  ];
+  const recentGameById = new Map<
+    string,
+    { game: LzyumiRecentMatch; lookupProfile: LzyumiLookupResponse; openId: string; areaId: number }
+  >();
+
+  await Promise.all(
+    orderedSearchPlayers.map(async (searchPlayer) => {
+      const searchOpenId = clean(searchPlayer.openId);
+      const searchAreaId = searchPlayer.chinaServerId ?? areaId;
+      const searchRiotId =
+        formatRiotId(searchPlayer.riotName ?? "", searchPlayer.riotTag) ??
+        clean(searchPlayer.riotName);
+      const lookupNames = Array.from(
+        new Set([searchRiotId, clean(searchPlayer.riotName)].filter(Boolean)),
+      );
+
+      const attempts = searchOpenId
+        ? [{ riotName: searchRiotId, openId: searchOpenId, trustedOpenId: true }]
+        : lookupNames.map((riotName) => ({ riotName, openId: "", trustedOpenId: false }));
+
+      for (const attempt of attempts) {
+        const result = await fetchLzyumiRecentGames({
+          riotName: attempt.riotName,
+          openId: attempt.openId,
+          areaId: searchAreaId,
+          allCount: 5,
+          timeoutMs: 7000,
+        });
+        const resolvedName = result.profile?.battleInfo?.nameInfoNew;
+        const resolvedOpenId = clean(result.profile?.battleInfo?.openId) || attempt.openId;
+        const isExactProfile =
+          attempt.trustedOpenId ||
+          (resolvedOpenId &&
+            isResolvedRiotIdMatch(
+              resolvedName,
+              searchPlayer.riotName ?? "",
+              normalizeRiotTag(searchPlayer.riotTag),
+            ));
+
+        if (!isExactProfile || !resolvedOpenId || result.games.length === 0) continue;
+
+        const lookupProfile = result.profile ?? {
+          battleInfo: {
+            openId: resolvedOpenId,
+            nameInfoNew: searchRiotId || searchPlayer.displayName,
+          },
+        };
+
+        for (const game of result.games) {
+          if (!game.gameId || recentGameById.has(game.gameId)) continue;
+          recentGameById.set(game.gameId, {
+            game,
+            lookupProfile,
+            openId: resolvedOpenId,
+            areaId: searchAreaId,
+          });
+        }
+
+        break;
+      }
+    }),
   );
 
-  let lookupProfile: LzyumiLookupResponse | null = null;
-  let recentGames: LzyumiRecentMatch[] = [];
-
-  for (const riotName of lookupNames) {
-    const result = await fetchLzyumiRecentGames({
-      riotName,
-      areaId,
-      allCount: 5,
-      timeoutMs: 7000,
-    });
-    lookupProfile = result.profile ?? lookupProfile;
-    recentGames = result.games;
-    if (lookupProfile?.battleInfo?.openId && recentGames.length > 0) break;
-  }
-
-  const openId = lookupProfile?.battleInfo?.openId;
-  if (!lookupProfile || !openId || recentGames.length === 0) return null;
+  const recentGames = Array.from(recentGameById.entries());
+  if (recentGames.length === 0) return null;
 
   const candidateGameIds = recentGames
-    .map((game) => game.gameId)
-    .filter((gameId): gameId is string => Boolean(gameId));
+    .map(([gameId]) => gameId);
   const reportedSessions =
     candidateGameIds.length > 0
       ? await prisma.inhouseSession.findMany({
@@ -354,35 +405,34 @@ async function findMatchingReportCandidate({
       .map((reportedSession) => reportedSession.lzyumiGameId)
       .filter((gameId): gameId is string => Boolean(gameId)),
   );
-  const sessionPlayers = await loadSessionReportPlayers(session);
-  const sortedCandidates = [...recentGames]
-    .filter((game) => game.gameId && !reportedGameIds.has(game.gameId))
-    .sort((a, b) => {
-      const aIsInhouse = clean(a.title).includes(LZYUMI_INHOUSE_LABEL) ? 0 : 1;
-      const bIsInhouse = clean(b.title).includes(LZYUMI_INHOUSE_LABEL) ? 0 : 1;
+  const sortedCandidates = recentGames
+    .filter(([gameId]) => !reportedGameIds.has(gameId))
+    .sort(([, a], [, b]) => {
+      const aIsInhouse = clean(a.game.title).includes(LZYUMI_INHOUSE_LABEL) ? 0 : 1;
+      const bIsInhouse = clean(b.game.title).includes(LZYUMI_INHOUSE_LABEL) ? 0 : 1;
       if (aIsInhouse !== bIsInhouse) return aIsInhouse - bIsInhouse;
       return (
-        Math.abs(reportGameSortValue(a, session.createdAt)) -
-        Math.abs(reportGameSortValue(b, session.createdAt))
+        Math.abs(reportGameSortValue(a.game, session.createdAt)) -
+        Math.abs(reportGameSortValue(b.game, session.createdAt))
       );
     })
     .slice(0, REPORT_CANDIDATE_LIMIT);
 
   const candidates = (
     await Promise.all(
-      sortedCandidates.map(async (recentMatch) => {
-        if (!recentMatch.gameId) return null;
+      sortedCandidates.map(async ([gameId, source]) => {
+        const recentMatch = source.game;
 
         try {
           const detail = await fetchLzyumiMatchDetail({
-            openId,
-            gameId: recentMatch.gameId,
-            areaId,
+            openId: source.openId,
+            gameId,
+            areaId: source.areaId,
             timeoutMs: 7000,
           });
           const rosterMatch = matchSessionPlayersToDetail(sessionPlayers, detail);
           const player =
-            findPlayerInDetail(detail, openId) ??
+            (reporterOpenId ? findPlayerInDetail(detail, reporterOpenId) : null) ??
             findPlayerInDetailByRiotId(
               detail,
               profile.riotName,
@@ -390,7 +440,7 @@ async function findMatchingReportCandidate({
             );
 
           return {
-            profile: lookupProfile,
+            profile: source.lookupProfile,
             recentMatch,
             detail,
             player,
@@ -587,9 +637,11 @@ async function findVerifiedProfile(kookUserId: string) {
       id: true,
       displayName: true,
       email: true,
+      kookId: true,
       riotName: true,
       riotTag: true,
       chinaServerId: true,
+      openId: true,
       currentRank: true,
       lzyumiVerifiedAt: true,
     },
@@ -803,7 +855,11 @@ export async function formatReportPreviewMessage(kookUserId: string, args: strin
   }
 
   if (!candidate?.recentMatch.gameId || !candidate.detail) {
-    return "I could not find a recent ECL.GG match for your Riot account.";
+    return [
+      `I could not find recent ECL.GG games for your verified Riot ID: ${formatRiotId(profile.riotName, profile.riotTag) ?? profile.displayName}.`,
+      "",
+      "Ask another player from the inhouse to type !report, or ask an admin to submit the match from the dashboard.",
+    ].join("\n");
   }
 
   const rosterMatch = candidate.rosterMatch;

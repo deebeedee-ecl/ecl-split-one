@@ -294,13 +294,15 @@ export async function lookupLzyumiProfile({
 
 export async function fetchLzyumiRecentGames({
   riotName,
+  openId,
   areaId,
   filters = [1, 2, 3, 4, 5, 6, 7, 8],
   allCount = 5,
   timeoutMs = 15000,
   baseUrl = defaultBaseUrl,
 }: {
-  riotName: string;
+  riotName?: string;
+  openId?: string;
   areaId: number;
   filters?: number[];
   allCount?: number;
@@ -312,13 +314,13 @@ export async function fetchLzyumiRecentGames({
   async function fetchFilter(filter: number) {
     const { lzyumiSign, signStr } = createLzyumiSignature();
     const params = [
-      `nickname=${encodeURIComponent(riotName.trim().replace(/#/g, "*~*~*"))}`,
+      `nickname=${encodeURIComponent((riotName ?? "").trim().replace(/#/g, "*~*~*"))}`,
       `allCount=${allCount}`,
       `areaId=${server.id}`,
       `areaName=${encodeURIComponent(server.name)}`,
       "seleMe=1",
       `filter=${filter}`,
-      "openId=",
+      `openId=${encodeURIComponent((openId ?? "").trim())}`,
       `lzyumiSign=${lzyumiSign}`,
       `signStr=${signStr}`,
     ];
