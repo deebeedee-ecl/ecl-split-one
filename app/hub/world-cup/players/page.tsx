@@ -30,37 +30,20 @@ function realRosterPlayers(players: unknown) {
 }
 
 export default async function WorldCupPlayersPage() {
-  const [teamRegistrations, applications] = await Promise.all([
-    prisma.teamRegistration.findMany({
-      select: {
-        players: true,
-      },
-    }),
-    prisma.freeAgentRegistration.findMany({
-      where: {
-        notes: {
-          contains: "World Cup Team Application",
-        },
-      },
-      select: {
-        riotName: true,
-        riotTag: true,
-      },
-    }),
-  ]);
+  const teamRegistrations = await prisma.teamRegistration.findMany({
+    select: {
+      teamName: true,
+      players: true,
+    },
+  });
 
-  const riotKeys = new Set<string>();
+  const rosterTeamByRiotKey = new Map<string, string>();
 
   for (const team of teamRegistrations) {
     for (const player of realRosterPlayers(team.players)) {
       const key = riotIdKey(player.riotName, player.riotTag);
-      if (key) riotKeys.add(key);
+      if (key) rosterTeamByRiotKey.set(key, team.teamName);
     }
-  }
-
-  for (const application of applications) {
-    const key = riotIdKey(application.riotName, application.riotTag);
-    if (key) riotKeys.add(key);
   }
 
   const profiles = await prisma.accountProfile.findMany({
@@ -79,25 +62,33 @@ export default async function WorldCupPlayersPage() {
     },
   });
 
-  const players: PlayerDirectoryRow[] = profiles
-    .filter((profile) => riotKeys.has(riotIdKey(profile.riotName, profile.riotTag) ?? ""))
-    .map((profile) => ({
+  const players: PlayerDirectoryRow[] = profiles.map((profile) => {
+    const riotKey = riotIdKey(profile.riotName, profile.riotTag) ?? "";
+    const teamName = rosterTeamByRiotKey.get(riotKey) ?? null;
+
+    return {
       id: profile.id,
       name: profile.displayName,
-      riotId: `${profile.riotName}#${profile.riotTag}`,
+      riotId:
+        clean(profile.riotName) && clean(profile.riotTag)
+          ? `${profile.riotName}#${profile.riotTag}`
+          : "Riot ID pending",
       roles: [normalizeHubRole(profile.primaryRole), normalizeHubRole(profile.secondaryRole)].filter(
         Boolean,
       ) as HubRole[],
       primaryRole: normalizeHubRole(profile.primaryRole),
       secondaryRole: normalizeHubRole(profile.secondaryRole),
-    }));
+      worldCupStatus: teamName ? "ROSTERED" : "LFT",
+      worldCupTeamName: teamName,
+    };
+  });
 
   return (
     <HubShell
       active="world-cup"
       eyebrow="World Cup"
       title="Players"
-      description="Verified Hub profiles attached to World Cup teams and applications."
+      description="Verified Hub profiles for World Cup rosters and free-agent scouting."
       theme="blue"
       hideHeader
     >
@@ -109,7 +100,7 @@ export default async function WorldCupPlayersPage() {
           Players
         </h1>
         <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-[#C9DFEB]">
-          Scout verified players who are attached to a World Cup roster or application.
+          Scout verified players, rostered profiles, and available free agents.
         </p>
       </header>
 
@@ -117,7 +108,7 @@ export default async function WorldCupPlayersPage() {
 
       {players.length === 0 ? (
         <section className="border border-[#0797F2]/30 bg-[#061C4A]/92 p-8 text-sm font-bold text-[#C9DFEB]">
-          World Cup players will appear here once rosters or applications match verified Hub profiles.
+          World Cup players will appear here once Hub profiles are verified.
         </section>
       ) : (
         <PlayersDirectoryClient players={players} />

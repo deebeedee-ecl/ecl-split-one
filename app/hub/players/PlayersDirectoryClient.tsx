@@ -17,6 +17,8 @@ export type PlayerDirectoryRow = {
   roles: HubRole[];
   primaryRole: HubRole | null;
   secondaryRole: HubRole | null;
+  worldCupStatus?: "ROSTERED" | "LFT";
+  worldCupTeamName?: string | null;
 };
 
 const roleOptions: Array<{ value: HubRole; label: string }> = [
@@ -32,6 +34,11 @@ export function PlayersDirectoryClient({ players }: { players: PlayerDirectoryRo
   const [nameQuery, setNameQuery] = useState("");
   const [primaryRole, setPrimaryRole] = useState("");
   const [secondaryRole, setSecondaryRole] = useState("");
+  const [worldCupView, setWorldCupView] = useState<"players" | "free-agents">("players");
+  const hasWorldCupStatus = players.some((player) => player.worldCupStatus);
+  const tableGridClass = hasWorldCupStatus
+    ? "lg:grid-cols-[minmax(14rem,1.5fr)_minmax(12rem,1fr)_11rem_11rem_5rem]"
+    : "lg:grid-cols-[minmax(14rem,1.5fr)_minmax(12rem,1fr)_11rem_5rem]";
 
   const filteredPlayers = useMemo(() => {
     const cleanQuery = nameQuery.trim().toLowerCase();
@@ -43,13 +50,44 @@ export function PlayersDirectoryClient({ players }: { players: PlayerDirectoryRo
         player.riotId.toLowerCase().includes(cleanQuery);
       const matchesPrimary = !primaryRole || player.primaryRole === primaryRole;
       const matchesSecondary = !secondaryRole || player.secondaryRole === secondaryRole;
+      const matchesWorldCupView =
+        !hasWorldCupStatus ||
+        worldCupView === "players" ||
+        player.worldCupStatus === "LFT";
 
-      return matchesName && matchesPrimary && matchesSecondary;
+      return matchesName && matchesPrimary && matchesSecondary && matchesWorldCupView;
     });
-  }, [nameQuery, players, primaryRole, secondaryRole]);
+  }, [hasWorldCupStatus, nameQuery, players, primaryRole, secondaryRole, worldCupView]);
 
   return (
     <section className="space-y-4">
+      {hasWorldCupStatus && (
+        <div className="grid gap-2 border border-[#0797F2]/24 bg-[#061C4A]/88 p-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setWorldCupView("players")}
+            className={`min-h-11 px-4 text-xs font-black uppercase tracking-[0.14em] transition ${
+              worldCupView === "players"
+                ? "bg-[#0755C9] text-white shadow-[0_0_24px_rgba(54,215,255,0.18)]"
+                : "text-[#C9DFEB] hover:bg-[#0797F2]/16 hover:text-white"
+            }`}
+          >
+            Players
+          </button>
+          <button
+            type="button"
+            onClick={() => setWorldCupView("free-agents")}
+            className={`min-h-11 px-4 text-xs font-black uppercase tracking-[0.14em] transition ${
+              worldCupView === "free-agents"
+                ? "bg-[#0755C9] text-white shadow-[0_0_24px_rgba(54,215,255,0.18)]"
+                : "text-[#C9DFEB] hover:bg-[#0797F2]/16 hover:text-white"
+            }`}
+          >
+            Free Agents
+          </button>
+        </div>
+      )}
+
       <div className="border border-[#0797F2]/24 bg-[#061C4A]/88 p-4">
         <div className="mb-3 flex items-center gap-2 text-[#77CFFF]">
           <SlidersHorizontal size={17} />
@@ -100,10 +138,11 @@ export function PlayersDirectoryClient({ players }: { players: PlayerDirectoryRo
       </div>
 
       <section className="overflow-hidden rounded-[0.9rem] border border-[#0797F2]/22 bg-[#061C4A]/82 shadow-[0_1px_0_rgba(255,255,255,0.12)_inset,0_18px_44px_rgba(0,0,0,0.35)]">
-        <div className="hidden grid-cols-[minmax(14rem,1.5fr)_minmax(12rem,1fr)_11rem_5rem] items-center border-b border-[#36D7FF]/12 bg-white/[0.035] px-4 py-3 text-[0.68rem] font-black uppercase tracking-[0.14em] text-[#77CFFF] lg:grid">
+        <div className={`hidden items-center border-b border-[#36D7FF]/12 bg-white/[0.035] px-4 py-3 text-[0.68rem] font-black uppercase tracking-[0.14em] text-[#77CFFF] lg:grid ${tableGridClass}`}>
           <span>Player</span>
           <span>Riot ID</span>
           <span>Roles</span>
+          {hasWorldCupStatus && <span>Status</span>}
           <span className="text-right">Profile</span>
         </div>
 
@@ -112,7 +151,7 @@ export function PlayersDirectoryClient({ players }: { players: PlayerDirectoryRo
             <Link
               key={player.id}
               href={`/hub/players/${player.id}`}
-              className="group relative block px-4 py-4 transition hover:bg-[#0797F2]/10 lg:grid lg:min-h-[4.75rem] lg:grid-cols-[minmax(14rem,1.5fr)_minmax(12rem,1fr)_11rem_5rem] lg:items-center lg:gap-0"
+              className={`group relative block px-4 py-4 transition hover:bg-[#0797F2]/10 lg:grid lg:min-h-[4.75rem] lg:items-center lg:gap-0 ${tableGridClass}`}
             >
               <div className="pointer-events-none absolute bottom-0 left-0 h-px w-full bg-gradient-to-r from-[#36D7FF]/0 via-[#36D7FF]/0 to-[#36D7FF]/0 transition group-hover:via-[#36D7FF]/65" />
 
@@ -150,6 +189,25 @@ export function PlayersDirectoryClient({ players }: { players: PlayerDirectoryRo
                   <span className="text-xs font-bold text-[#77CFFF]/60">No roles</span>
                 )}
               </div>
+
+              {player.worldCupStatus && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 lg:mt-0 lg:pr-4">
+                  <span
+                    className={`inline-flex min-h-8 items-center border px-3 text-[0.65rem] font-black uppercase tracking-[0.12em] ${
+                      player.worldCupStatus === "LFT"
+                        ? "border-[#36D7FF]/40 bg-[#0797F2]/16 text-[#77CFFF]"
+                        : "border-[#C9DFEB]/24 bg-white/[0.04] text-[#C9DFEB]"
+                    }`}
+                  >
+                    {player.worldCupStatus === "LFT" ? "Free Agent / LFT" : "Rostered"}
+                  </span>
+                  {player.worldCupTeamName && (
+                    <span className="text-xs font-bold text-[#C9DFEB]/70">
+                      {player.worldCupTeamName}
+                    </span>
+                  )}
+                </div>
+              )}
 
               <div className="hidden justify-end lg:flex">
                 <span className="rounded-full border border-[#36D7FF]/35 px-3 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-[#C9DFEB] transition group-hover:border-white/50 group-hover:text-white">
