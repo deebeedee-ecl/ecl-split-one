@@ -32,11 +32,11 @@ export default function LoginForm() {
       setHubAccessCache(profile ? "ready" : "profile");
       setMessage(
         profile
-          ? "Logged in and synced your pending ECL profile."
+          ? "Logged in. Opening the World Cup dashboard."
           : "Logged in. Opening your dashboard."
       );
 
-      router.push("/hub/me");
+      router.push("/hub/dashboard");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed.");
