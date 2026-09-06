@@ -4,7 +4,6 @@ import { Minus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   getFrozenInhouseLeaderboardRows,
-  getInhouseLeaderboardWindow,
 } from "@/lib/inhouse-leaderboard";
 import {
   HUB_ROLE_ICONS,
@@ -13,7 +12,6 @@ import {
   type HubRole,
 } from "@/lib/hub-profile";
 import { HubShell } from "../_components/HubShell";
-import { LeaderboardCountdown } from "./LeaderboardCountdown";
 import { riotIdKey } from "@/lib/riot-id";
 
 export const dynamic = "force-dynamic";
@@ -48,9 +46,7 @@ export default async function RankedLadderPage() {
     },
   });
 
-  const { nextUpdateAt } = getInhouseLeaderboardWindow();
-
-  // Build ladder rows from the frozen daily leaderboard window.
+  // Build ladder rows from every reported ranked inhouse.
   const ladderRows: LadderRow[] = (await getFrozenInhouseLeaderboardRows())
     .map((p, index) => {
       const playerRiotKey = riotIdKey(p.riotName, p.riotTag);
@@ -81,7 +77,7 @@ export default async function RankedLadderPage() {
       active="ladder"
       eyebrow="Ranked Inhouse"
       title="Ranked Ladder"
-      description="ECL ranked inhouse standings. Updates every 24 hours."
+      description="ECL ranked inhouse standings. Updates after every reported game."
     >
       <section className="overflow-hidden border border-white/[0.08] bg-[#24252d] shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] bg-[#191a21] px-5 py-4">
@@ -93,7 +89,9 @@ export default async function RankedLadderPage() {
               Ranked Standings
             </h2>
           </div>
-          <LeaderboardCountdown nextUpdateAt={nextUpdateAt.toISOString()} />
+          <div className="rounded-lg border border-[#36D7FF]/18 bg-[#061C4A] px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#77CFFF]">
+            Live after reports
+          </div>
         </div>
 
         {ladderRows.length === 0 ? (

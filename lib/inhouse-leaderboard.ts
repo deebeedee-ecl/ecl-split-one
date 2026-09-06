@@ -2,12 +2,6 @@ import { STARTING_ELO } from "@/lib/elo";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import { prisma } from "@/lib/prisma";
 
-const DAY_MS = 86_400_000;
-const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;
-const DAILY_UPDATE_HOUR_SHANGHAI = 18;
-const DAILY_UPDATE_OFFSET_MS = DAILY_UPDATE_HOUR_SHANGHAI * 60 * 60 * 1000;
-const ONE_TIME_BASELINE_CUTOFF_MS = Date.parse("2026-06-25T15:42:00.000Z");
-
 export type InhouseLeaderboardRow = {
   rank: number;
   playerId: string;
@@ -24,20 +18,6 @@ export type InhouseLeaderboardRow = {
   kda: string;
   mvpCount: number;
 };
-
-export function getInhouseLeaderboardWindow(now = new Date()) {
-  const shanghaiMs = now.getTime() + SHANGHAI_OFFSET_MS;
-  const scheduledCutoffMs =
-    Math.floor((shanghaiMs - DAILY_UPDATE_OFFSET_MS) / DAY_MS) * DAY_MS +
-    DAILY_UPDATE_OFFSET_MS -
-    SHANGHAI_OFFSET_MS;
-  const cutoffMs = Math.max(scheduledCutoffMs, ONE_TIME_BASELINE_CUTOFF_MS);
-
-  return {
-    cutoffAt: new Date(cutoffMs),
-    nextUpdateAt: new Date(scheduledCutoffMs + DAY_MS),
-  };
-}
 
 function inhouseStreak(stats: { isWin: boolean }[]): string {
   let w = 0;
@@ -71,9 +51,7 @@ function formatKda(kills: number, deaths: number, assists: number) {
   return ((kills + assists) / Math.max(1, deaths)).toFixed(2);
 }
 
-export async function getFrozenInhouseLeaderboardRows(now = new Date()) {
-  const { cutoffAt } = getInhouseLeaderboardWindow(now);
-
+export async function getInhouseLeaderboardRows() {
   const players = await prisma.player.findMany({
     include: {
       team: {
@@ -82,16 +60,7 @@ export async function getFrozenInhouseLeaderboardRows(now = new Date()) {
         },
       },
       gameStats: {
-        where: {
-          AND: [
-            INHOUSE_MATCH_FILTER,
-            {
-              createdAt: {
-                lt: cutoffAt,
-              },
-            },
-          ],
-        },
+        where: INHOUSE_MATCH_FILTER,
         orderBy: { createdAt: "desc" },
       },
     },
@@ -139,3 +108,5 @@ export async function getFrozenInhouseLeaderboardRows(now = new Date()) {
       rank: index + 1,
     }));
 }
+
+export const getFrozenInhouseLeaderboardRows = getInhouseLeaderboardRows;
