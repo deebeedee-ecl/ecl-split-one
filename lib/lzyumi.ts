@@ -288,6 +288,58 @@ export async function lookupLzyumiProfile({
   );
 }
 
+export async function fetchLzyumiRecentGames({
+  riotName,
+  areaId,
+  filters = [1, 2, 3, 4, 5, 6, 7, 8],
+  allCount = 5,
+  baseUrl = defaultBaseUrl,
+}: {
+  riotName: string;
+  areaId: number;
+  filters?: number[];
+  allCount?: number;
+  baseUrl?: string;
+}) {
+  const server = getChinaServer(areaId);
+
+  async function fetchFilter(filter: number) {
+    const { lzyumiSign, signStr } = createLzyumiSignature();
+    const params = [
+      `nickname=${encodeURIComponent(riotName.trim().replace(/#/g, "*~*~*"))}`,
+      `allCount=${allCount}`,
+      `areaId=${server.id}`,
+      `areaName=${encodeURIComponent(server.name)}`,
+      "seleMe=1",
+      `filter=${filter}`,
+      "openId=",
+      `lzyumiSign=${lzyumiSign}`,
+      `signStr=${signStr}`,
+    ];
+    return lzyumiFetch<LzyumiLookupResponse>(`${baseUrl}?${params.join("&")}`);
+  }
+
+  const responses = await Promise.all(
+    filters.map((filter) => fetchFilter(filter).catch(() => null)),
+  );
+  const profile =
+    responses.find((response) => response?.battleInfo?.openId) ??
+    responses.find((response) => Array.isArray(response?.data) && response.data.length > 0) ??
+    null;
+  const seen = new Set<string>();
+  const games: LzyumiRecentMatch[] = [];
+
+  for (const response of responses) {
+    for (const game of response?.data ?? []) {
+      if (!game.gameId || seen.has(game.gameId)) continue;
+      seen.add(game.gameId);
+      games.push(game);
+    }
+  }
+
+  return { profile, games };
+}
+
 export async function lookupLzyumiIdentity({
   riotName,
   riotTag,

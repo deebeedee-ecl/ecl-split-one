@@ -9,7 +9,10 @@ import {
 } from "@/lib/inhouse-leaderboard";
 import { translateLzyumiTier } from "@/lib/hub-profile";
 import {
-  fetchLatestLzyumiMatch,
+  fetchLzyumiMatchDetail,
+  fetchLzyumiRecentGames,
+  findPlayerInDetail,
+  findPlayerInDetailByRiotId,
   getChinaServer,
   type LzyumiDetailResponse,
   type LzyumiLookupResponse,
@@ -42,6 +45,8 @@ function toJson(value: unknown): Prisma.InputJsonValue {
 const ACTIVE_REPORT_HOURS = 48;
 const REPORT_CONFIRM_MINUTES = 20;
 const REQUIRED_REPORT_MATCHES = 10;
+const REPORT_CANDIDATE_LIMIT = 16;
+const LZYUMI_INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
 
 let championNamesCache: Map<string, string> | null = null;
 
@@ -221,6 +226,106 @@ async function matchSessionPlayersToDetail(
   }
 
   return { matched, missing };
+}
+
+type ReportMatchCandidate = {
+  profile: LzyumiLookupResponse;
+  recentMatch: LzyumiRecentMatch;
+  detail: LzyumiDetailResponse;
+  player: LzyumiPlayerDetail | null;
+  rosterMatch: Awaited<ReturnType<typeof matchSessionPlayersToDetail>>;
+};
+
+async function findMatchingReportCandidate({
+  session,
+  profile,
+  areaId,
+}: {
+  session: Awaited<ReturnType<typeof findReportSessions>>[number];
+  profile: NonNullable<Awaited<ReturnType<typeof findVerifiedProfile>>>;
+  areaId: number;
+}): Promise<ReportMatchCandidate | null> {
+  const lookupNames = Array.from(
+    new Set(
+      [
+        profile.riotName,
+        formatRiotId(profile.riotName, profile.riotTag),
+      ].filter((value): value is string => Boolean(clean(value))),
+    ),
+  );
+
+  let lookupProfile: LzyumiLookupResponse | null = null;
+  let recentGames: LzyumiRecentMatch[] = [];
+
+  for (const riotName of lookupNames) {
+    const result = await fetchLzyumiRecentGames({ riotName, areaId });
+    lookupProfile = result.profile ?? lookupProfile;
+    recentGames = result.games;
+    if (lookupProfile?.battleInfo?.openId && recentGames.length > 0) break;
+  }
+
+  const openId = lookupProfile?.battleInfo?.openId;
+  if (!lookupProfile || !openId || recentGames.length === 0) return null;
+
+  const candidateGameIds = recentGames
+    .map((game) => game.gameId)
+    .filter((gameId): gameId is string => Boolean(gameId));
+  const reportedSessions =
+    candidateGameIds.length > 0
+      ? await prisma.inhouseSession.findMany({
+          where: {
+            lzyumiGameId: { in: candidateGameIds },
+            NOT: { id: session.id },
+          },
+          select: { lzyumiGameId: true },
+        })
+      : [];
+  const reportedGameIds = new Set(
+    reportedSessions
+      .map((reportedSession) => reportedSession.lzyumiGameId)
+      .filter((gameId): gameId is string => Boolean(gameId)),
+  );
+  const sortedCandidates = [...recentGames]
+    .filter((game) => game.gameId && !reportedGameIds.has(game.gameId))
+    .sort((a, b) => {
+      const aIsInhouse = clean(a.title).includes(LZYUMI_INHOUSE_LABEL) ? 0 : 1;
+      const bIsInhouse = clean(b.title).includes(LZYUMI_INHOUSE_LABEL) ? 0 : 1;
+      return aIsInhouse - bIsInhouse;
+    })
+    .slice(0, REPORT_CANDIDATE_LIMIT);
+
+  let bestCandidate: ReportMatchCandidate | null = null;
+
+  for (const recentMatch of sortedCandidates) {
+    if (!recentMatch.gameId) continue;
+    const detail = await fetchLzyumiMatchDetail({
+      openId,
+      gameId: recentMatch.gameId,
+      areaId,
+    });
+    const rosterMatch = await matchSessionPlayersToDetail(session, detail);
+    const player =
+      findPlayerInDetail(detail, openId) ??
+      findPlayerInDetailByRiotId(detail, profile.riotName, normalizeRiotTag(profile.riotTag));
+
+    const candidate = {
+      profile: lookupProfile,
+      recentMatch,
+      detail,
+      player,
+      rosterMatch,
+    };
+
+    if (!bestCandidate || rosterMatch.matched.length > bestCandidate.rosterMatch.matched.length) {
+      bestCandidate = candidate;
+    }
+
+    if (rosterMatch.matched.length >= REQUIRED_REPORT_MATCHES) {
+      return candidate;
+    }
+  }
+
+  return bestCandidate;
 }
 
 function pendingReportFromJson(value: unknown): PendingKookReport["pendingConfirmation"] | null {
@@ -582,10 +687,11 @@ export async function formatReportPreviewMessage(kookUserId: string, args: strin
   }
 
   const server = getChinaServer(profile.chinaServerId);
-  let latest: Awaited<ReturnType<typeof fetchLatestLzyumiMatch>>;
+  let candidate: ReportMatchCandidate | null;
   try {
-    latest = await fetchLatestLzyumiMatch({
-      riotName: profile.riotName,
+    candidate = await findMatchingReportCandidate({
+      session,
+      profile,
       areaId: server.id,
     });
   } catch (error) {
@@ -593,11 +699,11 @@ export async function formatReportPreviewMessage(kookUserId: string, args: strin
     return "I could not reach ECL.GG for the report check. Please try !report again in a moment.";
   }
 
-  if (latest.status !== "found" || !latest.recentMatch?.gameId || !latest.detail) {
+  if (!candidate?.recentMatch.gameId || !candidate.detail) {
     return "I could not find a recent ECL.GG match for your Riot account.";
   }
 
-  const rosterMatch = await matchSessionPlayersToDetail(session, latest.detail);
+  const rosterMatch = candidate.rosterMatch;
   if (rosterMatch.matched.length < REQUIRED_REPORT_MATCHES) {
     await prisma.inhouseSession.update({
       where: { id: session.id },
@@ -605,14 +711,14 @@ export async function formatReportPreviewMessage(kookUserId: string, args: strin
     });
 
     return [
-      `I found your latest ECL.GG game, but it does not look like ${session.gameLabel ?? "this inhouse"}.`,
+      `I searched your recent ECL.GG games, but none look like ${session.gameLabel ?? "this inhouse"}.`,
       "",
-      `Matched: ${rosterMatch.matched.length}/10 inhouse players.`,
+      `Closest recent match: ${rosterMatch.matched.length}/10 inhouse players.`,
       rosterMatch.missing.length > 0
         ? `Missing: ${rosterMatch.missing.join(", ")}`
         : "Missing players could not be identified.",
       "",
-      "I did not create a report confirmation. Finish the inhouse game first, then type !report again.",
+      "I did not create a report confirmation. Wait for ECL.GG to show the inhouse game, or ask an admin to submit it from the dashboard.",
     ].join("\n");
   }
 
@@ -625,12 +731,12 @@ export async function formatReportPreviewMessage(kookUserId: string, args: strin
         source: "kook-report-preview",
         pendingConfirmation: {
           reporterKookUserId: kookUserId,
-          gameId: latest.recentMatch.gameId,
+          gameId: candidate.recentMatch.gameId,
           createdAt: new Date().toISOString(),
           rawMatchData: {
-            profile: latest.profile,
-            gameId: latest.recentMatch.gameId,
-            detail: latest.detail,
+            profile: candidate.profile,
+            gameId: candidate.recentMatch.gameId,
+            detail: candidate.detail,
           },
         },
       } satisfies PendingKookReport),
@@ -640,9 +746,9 @@ export async function formatReportPreviewMessage(kookUserId: string, args: strin
   return [
     `Report check: ${session.gameLabel ?? "Ranked Inhouse"}`,
     "",
-    formatReporterLine(latest.player, championNames),
-    `Time: ${formatGameTime(latest.recentMatch)}`,
-    `ECL.GG game: ${latest.recentMatch.gameId}`,
+    formatReporterLine(candidate.player, championNames),
+    `Time: ${formatGameTime(candidate.recentMatch)}`,
+    `ECL.GG game: ${candidate.recentMatch.gameId}`,
     "",
     "Submit this result?",
     "Type !yes to submit, or !no to cancel.",
