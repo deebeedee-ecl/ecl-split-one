@@ -248,8 +248,12 @@ function signedDetailUrl({
 }
 
 async function lzyumiFetch<T>(url: string): Promise<T> {
+  return lzyumiFetchWithTimeout<T>(url);
+}
+
+async function lzyumiFetchWithTimeout<T>(url: string, timeoutMs = 15000): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let response: Response;
   try {
@@ -293,12 +297,14 @@ export async function fetchLzyumiRecentGames({
   areaId,
   filters = [1, 2, 3, 4, 5, 6, 7, 8],
   allCount = 5,
+  timeoutMs = 15000,
   baseUrl = defaultBaseUrl,
 }: {
   riotName: string;
   areaId: number;
   filters?: number[];
   allCount?: number;
+  timeoutMs?: number;
   baseUrl?: string;
 }) {
   const server = getChinaServer(areaId);
@@ -316,7 +322,10 @@ export async function fetchLzyumiRecentGames({
       `lzyumiSign=${lzyumiSign}`,
       `signStr=${signStr}`,
     ];
-    return lzyumiFetch<LzyumiLookupResponse>(`${baseUrl}?${params.join("&")}`);
+    return lzyumiFetchWithTimeout<LzyumiLookupResponse>(
+      `${baseUrl}?${params.join("&")}`,
+      timeoutMs,
+    );
   }
 
   const responses = await Promise.all(
@@ -455,15 +464,18 @@ export async function fetchLzyumiMatchDetail({
   openId,
   gameId,
   areaId,
+  timeoutMs = 15000,
   baseUrl = defaultBaseUrl,
 }: {
   openId: string;
   gameId: string;
   areaId: number;
+  timeoutMs?: number;
   baseUrl?: string;
 }) {
-  return lzyumiFetch<LzyumiDetailResponse>(
+  return lzyumiFetchWithTimeout<LzyumiDetailResponse>(
     signedDetailUrl({ openId, gameId, areaId, baseUrl }),
+    timeoutMs,
   );
 }
 
