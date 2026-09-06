@@ -1,10 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
+  ArrowRight,
   Globe2,
   ShieldCheck,
+  UserPlus,
   Trophy,
   Users,
   Volume2,
@@ -170,6 +173,22 @@ export default function HubDashboard() {
                 Build a national roster, enter the double elimination bracket,
                 and fight through the lower bracket if the first run goes wrong.
               </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link
+                  href="/hub/world-cup/create-team"
+                  className="inline-flex min-h-12 items-center gap-2 bg-[#0755C9] px-5 text-xs font-black uppercase tracking-[0.12em] text-white shadow-[0_0_28px_rgba(54,215,255,0.2)] transition hover:bg-[#0797F2]"
+                >
+                  Create Team
+                  <ArrowRight size={16} />
+                </Link>
+                <Link
+                  href="/hub/world-cup/apply"
+                  className="inline-flex min-h-12 items-center gap-2 border border-[#36D7FF]/35 bg-[#020817]/32 px-5 text-xs font-black uppercase tracking-[0.12em] text-[#F5F5F2] transition hover:border-white/50 hover:bg-[#0797F2]/18"
+                >
+                  Apply For Team
+                  <UserPlus size={16} />
+                </Link>
+              </div>
             </div>
 
             <div aria-hidden="true" />
