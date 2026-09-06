@@ -26,6 +26,9 @@ import {
   formatRiotId,
   normalizeRiotPart,
   normalizeRiotTag,
+  riotIdKey,
+  riotNameKey,
+  splitRiotId,
 } from "@/lib/riot-id";
 
 function clean(value: unknown) {
@@ -38,6 +41,7 @@ function toJson(value: unknown): Prisma.InputJsonValue {
 
 const ACTIVE_REPORT_HOURS = 48;
 const REPORT_CONFIRM_MINUTES = 20;
+const REQUIRED_REPORT_MATCHES = 10;
 
 let championNamesCache: Map<string, string> | null = null;
 
@@ -136,6 +140,87 @@ function formatReporterLine(
     `Role: ${role}`,
     `KDA: ${kda}`,
   ].join("\n");
+}
+
+function playerRiotKeys(player: LzyumiPlayerDetail) {
+  return [player.nickNameStr, player.nickName]
+    .map(splitRiotId)
+    .map((parts) => riotIdKey(parts.riotName, parts.riotTag))
+    .filter((value): value is string => Boolean(value));
+}
+
+function playerRiotNameKeys(player: LzyumiPlayerDetail) {
+  return [player.nickNameStr, player.nickName]
+    .map(splitRiotId)
+    .map((parts) => riotNameKey(parts.riotName))
+    .filter((value): value is string => Boolean(value));
+}
+
+async function matchSessionPlayersToDetail(
+  session: Awaited<ReturnType<typeof findReportSessions>>[number],
+  detail: LzyumiDetailResponse,
+) {
+  const detailPlayers = detail.data?.wgBattleDetailInfo ?? [];
+  const detailByRiotKey = new Map<string, LzyumiPlayerDetail>();
+  const detailByNameKey = new Map<string, LzyumiPlayerDetail | null>();
+
+  for (const player of detailPlayers) {
+    for (const key of playerRiotKeys(player)) {
+      detailByRiotKey.set(key, player);
+    }
+    for (const key of playerRiotNameKeys(player)) {
+      detailByNameKey.set(key, detailByNameKey.has(key) ? null : player);
+    }
+  }
+
+  const missingProfileIds = session.players
+    .filter((player) => (!player.riotName || !player.riotTag) && player.profileId)
+    .map((player) => player.profileId as string);
+  const missingKookIds = session.players
+    .filter((player) => (!player.riotName || !player.riotTag) && !player.profileId)
+    .map((player) => player.kookUserId);
+
+  const [profiles, kookProfiles] = await Promise.all([
+    missingProfileIds.length > 0
+      ? prisma.accountProfile.findMany({
+          where: { id: { in: missingProfileIds } },
+          select: { id: true, riotName: true, riotTag: true },
+        })
+      : Promise.resolve([]),
+    missingKookIds.length > 0
+      ? prisma.accountProfile.findMany({
+          where: { kookId: { in: missingKookIds } },
+          select: { kookId: true, riotName: true, riotTag: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const profileByKook = new Map(kookProfiles.map((profile) => [profile.kookId!, profile]));
+  const matched = [];
+  const missing = [];
+
+  for (const sessionPlayer of session.players) {
+    const profile =
+      (sessionPlayer.profileId ? profileById.get(sessionPlayer.profileId) : null) ??
+      profileByKook.get(sessionPlayer.kookUserId) ??
+      null;
+    const riotName = sessionPlayer.riotName || profile?.riotName || null;
+    const riotTag = normalizeRiotTag(sessionPlayer.riotTag || profile?.riotTag) || null;
+    const key = riotIdKey(riotName, riotTag);
+    const nameKey = riotNameKey(riotName);
+    const detailPlayer =
+      (key ? detailByRiotKey.get(key) : undefined) ??
+      (nameKey ? detailByNameKey.get(nameKey) ?? undefined : undefined);
+
+    if (detailPlayer) {
+      matched.push(sessionPlayer.displayName);
+    } else {
+      missing.push(sessionPlayer.displayName);
+    }
+  }
+
+  return { matched, missing };
 }
 
 function pendingReportFromJson(value: unknown): PendingKookReport["pendingConfirmation"] | null {
@@ -497,13 +582,38 @@ export async function formatReportPreviewMessage(kookUserId: string, args: strin
   }
 
   const server = getChinaServer(profile.chinaServerId);
-  const latest = await fetchLatestLzyumiMatch({
-    riotName: profile.riotName,
-    areaId: server.id,
-  });
+  let latest: Awaited<ReturnType<typeof fetchLatestLzyumiMatch>>;
+  try {
+    latest = await fetchLatestLzyumiMatch({
+      riotName: profile.riotName,
+      areaId: server.id,
+    });
+  } catch (error) {
+    console.error("KOOK report ECL.GG lookup failed:", error);
+    return "I could not reach ECL.GG for the report check. Please try !report again in a moment.";
+  }
 
   if (latest.status !== "found" || !latest.recentMatch?.gameId || !latest.detail) {
     return "I could not find a recent ECL.GG match for your Riot account.";
+  }
+
+  const rosterMatch = await matchSessionPlayersToDetail(session, latest.detail);
+  if (rosterMatch.matched.length < REQUIRED_REPORT_MATCHES) {
+    await prisma.inhouseSession.update({
+      where: { id: session.id },
+      data: { reportRawJson: Prisma.JsonNull },
+    });
+
+    return [
+      `I found your latest ECL.GG game, but it does not look like ${session.gameLabel ?? "this inhouse"}.`,
+      "",
+      `Matched: ${rosterMatch.matched.length}/10 inhouse players.`,
+      rosterMatch.missing.length > 0
+        ? `Missing: ${rosterMatch.missing.join(", ")}`
+        : "Missing players could not be identified.",
+      "",
+      "I did not create a report confirmation. Finish the inhouse game first, then type !report again.",
+    ].join("\n");
   }
 
   const championNames = await loadChampionNamesForKook();
