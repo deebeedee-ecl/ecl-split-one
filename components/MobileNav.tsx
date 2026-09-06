@@ -96,7 +96,7 @@ export default function MobileNav({
               onClick={() => setCompetitiveOpen((prev) => !prev)}
               className="flex items-center justify-between rounded-md px-4 py-3 text-left transition hover:bg-white/10 hover:text-white"
             >
-              <span>Competitive</span>
+              <span>Tournaments</span>
               <span className="text-xs">{competitiveOpen ? "Up" : "Down"}</span>
             </button>
 

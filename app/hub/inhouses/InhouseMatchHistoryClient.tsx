@@ -509,7 +509,7 @@ function BroadcastReport({ match }: { match: LiveMatchData }) {
       <div className="relative">
         <ScoreStrip match={match} />
 
-        <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(20rem,42%)_minmax(0,58%)]">
+        <div className="mt-5 grid gap-6 2xl:grid-cols-[minmax(20rem,42%)_minmax(0,58%)]">
           <GameStats match={match} />
 
           <div className="space-y-6">
@@ -651,10 +651,10 @@ function DamagePanel({ match }: { match: LiveMatchData }) {
           return (
             <div
               key={String(bluePlayer[0])}
-              className="grid items-center gap-3 lg:grid-cols-[minmax(0,1fr)_2rem_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1fr)_5rem_minmax(0,1fr)]"
+              className="grid items-center gap-5 2xl:grid-cols-[minmax(0,1fr)_5rem_minmax(0,1fr)]"
             >
               <DamageBar player={bluePlayer} max={maxDamage} tone="blue" />
-              <span className="hidden h-px bg-white/10 lg:block" />
+              <span className="hidden h-px bg-white/10 2xl:block" />
               {redPlayer ? (
                 <DamageBar player={redPlayer} max={maxDamage} tone="red" align="right" />
               ) : (

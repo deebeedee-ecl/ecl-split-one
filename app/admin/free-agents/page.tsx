@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { parseWorldCupApplication } from "@/lib/world-cup-applications";
 
 type FreeAgent = {
   id: string;
@@ -36,6 +37,7 @@ type EditForm = {
 };
 
 const rankOrder = [
+  "No Elo",
   "Iron",
   "Bronze",
   "Silver",
@@ -54,6 +56,8 @@ const roleOptions = ["Top", "Jungle", "Mid", "ADC", "Support", "Fill"];
 function normalizeRank(rank?: string | null) {
   const value = rank?.trim().toLowerCase() || "";
 
+  if (value.includes("no elo")) return "No Elo";
+
   if (value.includes("challenger")) return "Challenger";
   if (value.includes("grandmaster")) return "Grandmaster";
   if (value.includes("master")) return "Master";
@@ -66,6 +70,18 @@ function normalizeRank(rank?: string | null) {
   if (value.includes("iron")) return "Iron";
 
   return "Unranked";
+}
+
+function isWorldCupApplication(notes?: string | null) {
+  return parseWorldCupApplication(notes).isWorldCup;
+}
+
+function requestedTeam(notes?: string | null) {
+  return parseWorldCupApplication(notes).requestedTeam;
+}
+
+function captainDecision(notes?: string | null) {
+  return parseWorldCupApplication(notes).captainDecision;
 }
 
 export default function AdminFreeAgentsPage() {
@@ -348,6 +364,9 @@ export default function AdminFreeAgentsPage() {
           const displayEmail = agent.email?.trim() || "-";
           const displayNotes = agent.notes?.trim() || "";
           const signedTeamName = agent.signedToTeamName?.trim() || "-";
+          const worldCupApplication = isWorldCupApplication(agent.notes);
+          const requestedTeamName = requestedTeam(agent.notes);
+          const captainDecisionLabel = captainDecision(agent.notes);
 
           return (
             <div
@@ -512,6 +531,23 @@ export default function AdminFreeAgentsPage() {
                   ) : (
                     <div className="space-y-1">
                       <p className="text-lg font-bold">{displayName}</p>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {worldCupApplication && (
+                          <span className="rounded-full border border-blue-500/25 bg-blue-500/10 px-2 py-1 text-xs font-bold uppercase tracking-wide text-blue-700">
+                            World Cup Application
+                          </span>
+                        )}
+                        {requestedTeamName && (
+                          <span className="rounded-full border border-indigo-500/25 bg-indigo-500/10 px-2 py-1 text-xs font-bold uppercase tracking-wide text-indigo-700">
+                            Wants: {requestedTeamName}
+                          </span>
+                        )}
+                        {captainDecisionLabel && (
+                          <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-xs font-bold uppercase tracking-wide text-amber-700">
+                            Captain: {captainDecisionLabel}
+                          </span>
+                        )}
+                      </div>
                       <p>
                         <strong>Riot ID:</strong> {displayRiotId}
                       </p>

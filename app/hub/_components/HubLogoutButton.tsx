@@ -17,7 +17,7 @@ export function HubLogoutButton() {
       onClick={signOut}
       aria-label="Log out"
       title="Log out"
-      className="group relative flex h-12 w-12 items-center justify-center text-[#8f96a3] transition hover:bg-[#ff1728]/12 hover:text-[#f2f2f2]"
+      className="group relative flex h-12 w-12 items-center justify-center rounded-full text-[#8f96a3] transition hover:bg-[#0797F2]/16 hover:text-[#f2f2f2]"
     >
       <LogOut size={23} strokeWidth={2.15} className="transition" />
       <span className="pointer-events-none absolute left-[3.85rem] z-[999] w-64 border border-white/[0.12] bg-[#15161a] px-4 py-3 text-left opacity-0 shadow-[0_18px_44px_rgba(0,0,0,0.45)] transition group-hover:translate-x-1 group-hover:opacity-100">

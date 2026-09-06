@@ -11,6 +11,7 @@ import {
   MessageSquareText,
   Newspaper,
   ShieldCheck,
+  ShieldPlus,
   Swords,
   UserCog,
   Users,
@@ -18,6 +19,7 @@ import {
 
 const navLinks = [
   { href: "/admin", label: "Dashboard", icon: Activity },
+  { href: "/admin/teams", label: "World Cup Teams", icon: ShieldPlus },
   { href: "/admin#users", label: "Users", icon: Users },
   { href: "/admin#matches", label: "Match History", icon: CalendarDays },
   { href: "/admin#elo", label: "ELO / LP", icon: Gauge },

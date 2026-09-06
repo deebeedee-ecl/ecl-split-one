@@ -91,6 +91,29 @@
   box-shadow: 0 0 0 3px rgb(177 18 38 / 0.12);
 }
 
+.world-cup-input {
+  width: 100%;
+  border: 1px solid rgb(54 215 255 / 0.22);
+  background: rgb(2 8 23 / 0.78);
+  padding: 0.8rem 0.95rem;
+  color: #F5F5F2;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.world-cup-input::placeholder {
+  color: rgb(119 207 255 / 0.52);
+}
+
+.world-cup-input:focus {
+  border-color: rgb(54 215 255 / 0.72);
+  background: rgb(6 28 74 / 0.82);
+  box-shadow: 0 0 0 3px rgb(7 151 242 / 0.18);
+}
+
 @keyframes archive-panel {
   from {
     opacity: 0;

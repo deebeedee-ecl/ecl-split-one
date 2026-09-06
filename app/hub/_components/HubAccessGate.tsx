@@ -141,7 +141,7 @@ function HubGateMessage({
       </p>
       <Link
         href={actionHref}
-        className="mt-7 inline-flex rounded-2xl bg-[#ff1728] px-5 py-3 text-sm font-black text-white transition hover:bg-[#d91524]"
+        className="mt-7 inline-flex rounded-2xl bg-[#0755C9] px-5 py-3 text-sm font-black text-white transition hover:bg-[#0797F2]"
       >
         {actionLabel}
       </Link>

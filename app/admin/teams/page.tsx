@@ -15,6 +15,10 @@ type TeamPlayer = {
   secondaryRole?: string;
   currentRank?: string;
   rank?: string;
+  nationality?: string;
+  countryFlag?: string;
+  teamCountry?: string;
+  teamCountryFlag?: string;
 };
 
 function cleanText(value?: string | null) {
@@ -24,6 +28,7 @@ function cleanText(value?: string | null) {
 function normalizeRank(rank?: string | null) {
   const value = cleanText(rank).toLowerCase();
 
+  if (value.includes("no elo")) return "No Elo";
   if (value.includes("challenger")) return "Challenger";
   if (value.includes("grandmaster")) return "Grandmaster";
   if (value.includes("master")) return "Master";
@@ -43,11 +48,7 @@ function isRealTeamPlayer(player: TeamPlayer) {
     cleanText(player.playerName) ||
       cleanText(player.name) ||
       cleanText(player.riotName) ||
-      cleanText(player.riotTag) ||
-      cleanText(player.primaryRole) ||
-      cleanText(player.secondaryRole) ||
-      cleanText(player.currentRank) ||
-      cleanText(player.rank)
+      cleanText(player.riotTag)
   );
 }
 
@@ -61,10 +62,18 @@ async function updateTeamStatus(formData: FormData) {
     redirect("/admin/teams?message=invalid");
   }
 
-  await prisma.teamRegistration.update({
+  const updatedTeam = await prisma.teamRegistration.update({
     where: { id: teamId },
     data: { status },
   });
+
+  if (status === "approved") {
+    await prisma.team.upsert({
+      where: { name: updatedTeam.teamName },
+      update: {},
+      create: { name: updatedTeam.teamName },
+    });
+  }
 
   revalidatePath("/admin/teams");
 
@@ -210,9 +219,9 @@ export default async function AdminTeamsPage({
                             </p>
                             <p>
                               <span className="font-semibold text-white/85">
-                                Email:
+                                Captain Account:
                               </span>{" "}
-                              {team.captainEmail}
+                              {team.captainEmail ? "Linked Hub profile" : "Missing Hub link"}
                             </p>
                             <p>
                               <span className="font-semibold text-white/85">
@@ -246,6 +255,13 @@ export default async function AdminTeamsPage({
                           className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20"
                         >
                           Edit Team
+                        </Link>
+
+                        <Link
+                          href={`/hub/world-cup/team/${team.id}`}
+                          className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-sm font-semibold text-indigo-300 transition hover:bg-indigo-500/20"
+                        >
+                          Team Dashboard
                         </Link>
 
                         <form action={updateTeamStatus}>
@@ -304,6 +320,7 @@ export default async function AdminTeamsPage({
                               <th className="px-4 py-3">Riot ID</th>
                               <th className="px-4 py-3">Tag</th>
                               <th className="px-4 py-3">Rank</th>
+                              <th className="px-4 py-3">Nation</th>
                               <th className="px-4 py-3">Primary</th>
                               <th className="px-4 py-3">Secondary</th>
                             </tr>
@@ -324,6 +341,14 @@ export default async function AdminTeamsPage({
                                   cleanText(player.rank) ||
                                   "Unranked"
                               );
+                              const displayNation =
+                                [cleanText(player.countryFlag), cleanText(player.nationality)]
+                                  .filter(Boolean)
+                                  .join(" ") ||
+                                [cleanText(player.teamCountryFlag), cleanText(player.teamCountry)]
+                                  .filter(Boolean)
+                                  .join(" ") ||
+                                "-";
                               const displayPrimary =
                                 cleanText(player.primaryRole) || "-";
                               const displaySecondary =
@@ -347,6 +372,9 @@ export default async function AdminTeamsPage({
                                     <span className="rounded-full border border-green-400/30 bg-green-400/10 px-2 py-1 text-xs font-semibold text-green-300">
                                       {displayRank}
                                     </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-white/80">
+                                    {displayNation}
                                   </td>
                                   <td className="px-4 py-3 text-white/80">
                                     {displayPrimary}

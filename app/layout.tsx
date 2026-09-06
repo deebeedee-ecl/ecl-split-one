@@ -19,6 +19,7 @@ export const metadata: Metadata = {
 };
 
 const competitiveLinks = [
+  { href: "/tournaments/world-cup", label: "ECL World Cup" },
   { href: "/tournaments", label: "Past Tournaments" },
 ];
 
@@ -92,7 +93,7 @@ export default function RootLayout({
                   type="button"
                   className="flex items-center gap-2 rounded-md px-3 py-2 transition duration-200 hover:bg-white/10 hover:text-white"
                 >
-                  Competitive
+                  Tournaments
                   <span className="text-[0.65rem]">v</span>
                 </button>
 

@@ -160,7 +160,7 @@ After the game, any player from that inhouse can type `!report`.
 The KOOK bot should call:
 
 ```txt
-POST /api/kook/inhouse/report
+POST /api/kook/commands
 ```
 
 Body:
@@ -168,7 +168,7 @@ Body:
 ```json
 {
   "command": "!report",
-  "reporterKookUserId": "kook-user-id"
+  "kookUserId": "kook-user-id"
 }
 ```
 
@@ -177,20 +177,54 @@ The site will:
 ```txt
 1. Find the most recent active inhouse session containing that KOOK user.
 2. Look up the reporter's verified ECL profile.
-3. Fetch the reporter's latest Lzyumi match.
-4. Compare that match against the 10 players saved from !ready.
-5. Ingest the match only if the latest game matches the inhouse lobby.
-6. Apply LP changes and mark the inhouse session completed.
+3. Fetch the reporter's latest ECL.GG match.
+4. Show a KOOK confirmation preview with result, champion, role, KDA, time, and game ID.
+5. Wait for the player to type !yes or !no.
 ```
 
 Responses:
 
 ```txt
-INGESTED            Match was accepted and LP was applied.
-NO_ACTIVE_SESSION   Reporter was not found in an active saved inhouse.
-NO_LATEST_MATCH     Lzyumi has not exposed the latest match yet.
-MATCH_NOT_CONFIRMED Latest Lzyumi game did not match enough inhouse players.
-ALREADY_REPORTED    That Lzyumi game was already ingested.
+Report check: IH #017
+
+Player: Player#12345
+Result: Win
+Champion: Ornn
+Role: Top
+KDA: 8/2/18
+Time: 2026-09-06 00:10
+ECL.GG game: 123456789
+
+Submit this result?
+Type !yes to submit, or !no to cancel.
+```
+
+When the player types `!yes`, call the same endpoint:
+
+```txt
+POST /api/kook/commands
+```
+
+Body:
+
+```json
+{
+  "command": "!yes",
+  "kookUserId": "kook-user-id"
+}
+```
+
+The website then submits the stored preview through `/api/kook/inhouse/report`,
+compares the match against the 10 players saved from `!ready`, ingests only if
+the lobby matches, applies LP, and marks the inhouse session completed.
+
+If the player types `!no`, send:
+
+```json
+{
+  "command": "!no",
+  "kookUserId": "kook-user-id"
+}
 ```
 
 ## ELO Source

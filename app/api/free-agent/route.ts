@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAccountFromRequest } from "@/lib/account-auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -55,18 +56,42 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const account = await getAccountFromRequest(req);
     const body = await req.json();
+    const isWorldCupApplication = String(body.notes || "").includes("World Cup Team Application");
+    const profile =
+      account && isWorldCupApplication
+        ? await prisma.accountProfile.findUnique({
+            where: { userId: account.id },
+            select: {
+              displayName: true,
+              email: true,
+              riotName: true,
+              riotTag: true,
+              primaryRole: true,
+              secondaryRole: true,
+              currentRank: true,
+            },
+          })
+        : null;
+
+    if (isWorldCupApplication && !profile) {
+      return NextResponse.json(
+        { error: "Log in with a Hub profile before applying for the World Cup." },
+        { status: 401 },
+      );
+    }
 
     const freeAgent = await prisma.freeAgentRegistration.create({
       data: {
-        playerName: body.playerName,
-        email: body.email,
-        riotName: body.riotName,
-        riotTag: body.riotTag,
-        primaryRole: body.primaryRole,
-        secondaryRole: body.secondaryRole || null,
-        currentRank: body.currentRank || null,
-        notes: body.notes || null,
+        playerName: String(profile?.displayName || body.playerName || "").trim(),
+        email: String(profile?.email || body.email || "").trim(),
+        riotName: String(profile?.riotName || body.riotName || "").trim(),
+        riotTag: String(profile?.riotTag || body.riotTag || "").trim(),
+        primaryRole: String(profile?.primaryRole || body.primaryRole || "").trim(),
+        secondaryRole: profile?.secondaryRole || body.secondaryRole ? String(profile?.secondaryRole || body.secondaryRole).trim() : null,
+        currentRank: profile?.currentRank || body.currentRank ? String(profile?.currentRank || body.currentRank).trim() : null,
+        notes: body.notes ? String(body.notes).trim() : null,
       },
     });
 

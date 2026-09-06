@@ -20,6 +20,7 @@ import {
   Save,
   Search,
   ShieldCheck,
+  ShieldPlus,
   Trash2,
   Trophy,
   UserCog,
@@ -38,10 +39,12 @@ type AdminSection =
   | "elo"
   | "admins"
   | "messages"
+  | "worldCup"
   | "news";
 
 const sections: Array<{ id: AdminSection; label: string; icon: LucideIcon }> = [
   { id: "dashboard", label: "Dashboard", icon: Activity },
+  { id: "worldCup", label: "World Cup", icon: ShieldPlus },
   { id: "users", label: "Users", icon: Users },
   { id: "matches", label: "Match History", icon: CalendarDays },
   { id: "elo", label: "ELO / LP", icon: Gauge },
@@ -111,6 +114,16 @@ type AdminOverview = {
     title: string;
     status: string;
   }>;
+};
+
+type WorldCupTeamRegistration = {
+  id: string;
+  teamName: string;
+  captainName: string;
+  captainEmail: string;
+  players: unknown;
+  status: string;
+  submittedAt: string;
 };
 
 const emptyOverview: AdminOverview = {
@@ -251,6 +264,7 @@ export default function AdminPage() {
             {active === "elo" && <EloSection />}
             {active === "admins" && <AdminsSection admins={overview.adminUsers} loading={overviewLoading} />}
             {active === "messages" && <MessagesSection />}
+            {active === "worldCup" && <WorldCupSection />}
             {active === "news" && <NewsSection drafts={overview.newsDrafts} loading={overviewLoading} />}
           </div>
         </section>
@@ -1139,6 +1153,205 @@ function MessagesSection() {
         ))}
       </div>
     </Panel>
+  );
+}
+
+function WorldCupSection() {
+  const [teams, setTeams] = useState<WorldCupTeamRegistration[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyTeamId, setBusyTeamId] = useState("");
+  const [message, setMessage] = useState("");
+
+  async function loadTeams() {
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const res = await fetch("/api/team?registrations=1", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load World Cup teams.");
+      setTeams(Array.isArray(data) ? data : []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to load World Cup teams.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadTeams();
+  }, []);
+
+  async function updateStatus(teamId: string, status: "approved" | "rejected" | "pending") {
+    setBusyTeamId(teamId);
+    setMessage("");
+
+    try {
+      const res = await fetch(`/api/team/${teamId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to update team.");
+      setMessage(`Team ${status}.`);
+      await loadTeams();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to update team.");
+    } finally {
+      setBusyTeamId("");
+    }
+  }
+
+  async function deleteTeam(teamId: string) {
+    const team = teams.find((item) => item.id === teamId);
+    if (!window.confirm(`Delete ${team?.teamName ?? "this team"}?`)) return;
+
+    setBusyTeamId(teamId);
+    setMessage("");
+
+    try {
+      const res = await fetch(`/api/team/${teamId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to delete team.");
+      setMessage("Team deleted.");
+      await loadTeams();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to delete team.");
+    } finally {
+      setBusyTeamId("");
+    }
+  }
+
+  const counts = {
+    total: teams.length,
+    pending: teams.filter((team) => team.status === "pending").length,
+    approved: teams.filter((team) => team.status === "approved").length,
+    rejected: teams.filter((team) => team.status === "rejected").length,
+  };
+
+  return (
+    <div className="space-y-5">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Teams" value={loading ? "..." : String(counts.total)} note="All registrations" icon={ShieldPlus} />
+        <MetricCard label="Pending" value={loading ? "..." : String(counts.pending)} note="Needs review" icon={AlertTriangle} />
+        <MetricCard label="Approved" value={loading ? "..." : String(counts.approved)} note="Visible on Hub" icon={ShieldCheck} />
+        <MetricCard label="Rejected" value={loading ? "..." : String(counts.rejected)} note="Not listed" icon={X} />
+      </section>
+
+      <Panel title="World Cup Teams" icon={ShieldPlus}>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-[#8d8d8d]">
+            Review team registrations, approve rosters, and open captain dashboards.
+          </p>
+          <button
+            type="button"
+            onClick={loadTeams}
+            disabled={loading}
+            className="inline-flex min-h-9 items-center gap-2 rounded-xl bg-white/[0.06] px-3 text-xs font-black text-[#d8d8d8] transition hover:bg-white/[0.12] disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
+
+        {message && (
+          <p className="mb-4 rounded-xl border border-[#242424] bg-[#101010] p-3 text-xs font-black text-[#d8d8d8]">
+            {message}
+          </p>
+        )}
+
+        <div className="space-y-3">
+          {loading && <EmptyAdminState text="Loading World Cup teams..." />}
+          {!loading && teams.length === 0 && <EmptyAdminState text="No World Cup teams have been created yet." />}
+          {teams.map((team) => {
+            const players = Array.isArray(team.players)
+              ? team.players.filter((player) => {
+                  if (!player || typeof player !== "object") return false;
+                  const record = player as Record<string, unknown>;
+                  return Boolean(
+                    String(record.playerName || record.name || record.riotName || record.riotTag || "").trim(),
+                  );
+                })
+              : [];
+            const isBusy = busyTeamId === team.id;
+
+            return (
+              <article key={team.id} className="rounded-xl border border-[#242424] bg-[#101010] p-4">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="break-words text-xl font-black text-white">{team.teamName}</h3>
+                      <span className="rounded-full border border-[#b11226]/35 bg-[#b11226]/12 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.1em] text-[#ff8c9a]">
+                        {team.status}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid gap-2 text-sm font-semibold text-[#8d8d8d] sm:grid-cols-3">
+                      <span>Captain: {team.captainName || "-"}</span>
+                      <span>Profile link: {team.captainEmail ? "Created from Hub account" : "Missing Hub link"}</span>
+                      <span>Roster: {Math.min(players.length, 6)}/6</span>
+                    </div>
+                    <p className="mt-2 text-xs font-bold text-[#666]">
+                      Submitted {new Date(team.submittedAt).toLocaleString()}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <ActionButton
+                      label="Approve"
+                      icon={ShieldCheck}
+                      disabled={isBusy}
+                      onClick={() => updateStatus(team.id, "approved")}
+                    />
+                    <ActionButton
+                      label="Reject"
+                      icon={X}
+                      danger
+                      disabled={isBusy}
+                      onClick={() => updateStatus(team.id, "rejected")}
+                    />
+                    <ActionButton
+                      label="Pending"
+                      icon={RefreshCw}
+                      disabled={isBusy}
+                      onClick={() => updateStatus(team.id, "pending")}
+                    />
+                    <Link
+                      href={`/admin/teams/${team.id}/edit`}
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-white/[0.06] px-3 text-xs font-black text-[#d8d8d8] transition hover:bg-white/[0.12]"
+                    >
+                      <Edit3 size={14} />
+                      Edit
+                    </Link>
+                    <Link
+                      href={`/hub/world-cup/team/${team.id}`}
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-white/[0.06] px-3 text-xs font-black text-[#d8d8d8] transition hover:bg-white/[0.12]"
+                    >
+                      <Trophy size={14} />
+                      Dashboard
+                    </Link>
+                    <ActionButton
+                      label="Delete"
+                      icon={Trash2}
+                      danger
+                      disabled={isBusy}
+                      onClick={() => deleteTeam(team.id)}
+                    />
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </Panel>
+    </div>
   );
 }
 

@@ -3,6 +3,14 @@ import { ArrowRight, CalendarClock, Trophy } from "lucide-react";
 
 const tournaments = [
   {
+    title: "ECL World Cup",
+    label: "Upcoming",
+    description:
+      "National rosters, no Elo requirement, double elimination, and one world champion.",
+    href: "/tournaments/world-cup",
+    accent: "from-[#0755C9]/34",
+  },
+  {
     title: "Winter Cup",
     label: "Archived",
     description:
@@ -28,17 +36,17 @@ export default function TournamentsPage() {
         <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(90deg,#fff_1px,transparent_1px),linear-gradient(#fff_1px,transparent_1px)] [background-size:76px_76px]" />
 
         <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:py-28">
-          <p className="text-sm font-black uppercase tracking-[0.22em] text-[#b11226]">
-            Tournament history
+          <p className="text-sm font-black uppercase tracking-[0.22em] text-[#0797F2]">
+            ECL events
           </p>
           <h1 className="mt-5 max-w-4xl text-[clamp(4rem,9vw,8rem)] font-black uppercase leading-[0.82] text-white [font-family:Anton,Impact,Arial_Black,Arial,sans-serif]">
-            Past
-            <span className="block text-[#b11226]">Tournaments</span>
+            Tournaments
+            <span className="block text-[#b11226]">Archive</span>
           </h1>
           <p className="mt-7 max-w-2xl text-lg leading-8 text-[#9ca3af]">
-            ECL tournament archives live here as historical records. Ranked
-            inhouses are the future, but past cups still carry rosters,
-            brackets, match results, awards, and team storylines.
+            Current and past ECL events live here: World Cup information,
+            archived cups, rosters, brackets, match results, awards, and team
+            storylines.
           </p>
         </div>
       </section>
@@ -67,7 +75,7 @@ export default function TournamentsPage() {
                 </div>
 
                 <div className="mt-12">
-                  <Trophy className="text-[#b11226]" size={30} />
+                  <Trophy className={event.label === "Upcoming" ? "text-[#36D7FF]" : "text-[#b11226]"} size={30} />
                   <h2 className="mt-5 text-4xl font-black uppercase leading-none text-white [font-family:Anton,Impact,Arial_Black,Arial,sans-serif]">
                     {event.title}
                   </h2>
@@ -77,7 +85,7 @@ export default function TournamentsPage() {
                 </div>
 
                 <div className="mt-auto flex items-center justify-between pt-8 text-sm font-black uppercase tracking-[0.12em] text-white">
-                  Open Archive
+                  {event.label === "Upcoming" ? "Open Info" : "Open Archive"}
                   <ArrowRight
                     size={18}
                     className="transition group-hover:translate-x-1"

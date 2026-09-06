@@ -86,7 +86,7 @@ export default async function RankedLadderPage() {
       <section className="overflow-hidden border border-white/[0.08] bg-[#24252d] shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] bg-[#191a21] px-5 py-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#ff1728]">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#36D7FF]">
               Ranked Inhouse
             </p>
             <h2 className="mt-1 text-2xl font-black uppercase text-white">
@@ -129,7 +129,7 @@ export default async function RankedLadderPage() {
                     <td className="px-4 py-4">
                       {row.profileId ? (
                         <Link href={`/hub/players/${row.profileId}`} className="group">
-                          <p className="text-xl font-black text-white group-hover:text-[#ffd84d]">
+                          <p className="text-xl font-black text-white group-hover:text-[#77CFFF]">
                             {row.displayName}
                           </p>
                           {row.riotId && (
@@ -145,7 +145,7 @@ export default async function RankedLadderPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-4 text-center text-2xl font-black text-[#ffd84d]">
+                    <td className="px-4 py-4 text-center text-2xl font-black text-[#77CFFF]">
                       {row.elo}
                     </td>
                     <td className="px-4 py-4 text-center text-xl font-black text-white">

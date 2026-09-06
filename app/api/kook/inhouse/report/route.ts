@@ -615,9 +615,10 @@ export async function POST(request: Request) {
     },
   });
 
-  // Revalidate live match/profile surfaces immediately; the ranked ladder stays on its daily window.
+  // Revalidate live match/profile/ladder surfaces immediately after LP is applied.
   revalidatePath("/hub/inhouses");
   revalidatePath("/hub/me");
+  revalidatePath("/hub/leaderboard");
 
   return NextResponse.json({
     ok: true,

@@ -45,6 +45,14 @@ type TeamPlayerJson = {
   notes?: string;
 };
 
+function isRosterPlayer(player: TeamPlayerJson) {
+  return Boolean(
+    cleanText(player.playerName || player.name) ||
+      cleanText(player.riotName) ||
+      cleanText(player.riotTag)
+  );
+}
+
 function sameRosterPlayer(
   player: TeamPlayerJson,
   freeAgentId: string,
@@ -349,6 +357,12 @@ export async function PATCH(
                 nextPlayerName
               )
             );
+
+            const realRosterCount = existingPlayers.filter(isRosterPlayer).length;
+
+            if (!alreadyExists && realRosterCount >= 6) {
+              throw new Error("That World Cup roster already has 6 players.");
+            }
 
             const nextPlayers = alreadyExists
               ? existingPlayers.map((player) =>

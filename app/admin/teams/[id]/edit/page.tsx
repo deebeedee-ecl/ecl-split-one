@@ -193,7 +193,7 @@ export default async function EditTeamPage({
   const players = normalizePlayers(team.players);
   const paddedPlayers = [...players];
 
-  while (paddedPlayers.length < 7) {
+  while (paddedPlayers.length < 6) {
     paddedPlayers.push({});
   }
 
@@ -249,7 +249,7 @@ export default async function EditTeamPage({
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-white/80">
-                  Captain Email
+                  Captain Account Contact
                 </label>
                 <input
                   name="captainEmail"

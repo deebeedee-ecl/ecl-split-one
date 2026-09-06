@@ -32,10 +32,10 @@ export function LeaderboardCountdown({ nextUpdateAt }: { nextUpdateAt: string })
   }, [nextUpdateAt]);
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[#1a1b22] px-3 py-2 text-xs font-black tracking-[0.12em] text-[#8f98c0]">
+    <div className="flex items-center gap-2 rounded-lg border border-[#36D7FF]/18 bg-[#061C4A] px-3 py-2 text-xs font-black tracking-[0.12em] text-[#C9DFEB]">
       <RefreshCw size={11} className="shrink-0 opacity-60" />
       <span className="uppercase">Next update</span>
-      <span className="text-[#ffd84d]">{display}</span>
+      <span className="text-[#77CFFF]">{display}</span>
     </div>
   );
 }

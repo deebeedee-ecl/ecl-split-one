@@ -3,10 +3,12 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import type { ChampionStatsRow } from "@/lib/champion-stats";
 
 type Role = "ALL" | "TOP" | "JNG" | "MID" | "ADC" | "SUPP";
 type ChampionTier = "OP" | "1" | "2" | "3";
+type SortMode = "score" | "winRate" | "pickRate" | "banRate" | "games";
 
 type ChampionRow = ChampionStatsRow;
 
@@ -23,6 +25,14 @@ const roles: Array<{ id: Role; label: string }> = [
   { id: "MID", label: "Middle" },
   { id: "ADC", label: "Bottom" },
   { id: "SUPP", label: "Support" },
+];
+
+const sortOptions: Array<{ value: SortMode; label: string }> = [
+  { value: "score", label: "Tier score" },
+  { value: "winRate", label: "Win rate" },
+  { value: "pickRate", label: "Pick rate" },
+  { value: "banRate", label: "Ban rate" },
+  { value: "games", label: "Games" },
 ];
 
 const roleIcons: Record<Exclude<Role, "ALL">, string> = {
@@ -51,6 +61,9 @@ const tierRank: Record<ChampionTier, number> = {
 
 export function ChampionsClient({ championRows }: { championRows: ChampionRow[] }) {
   const [selectedRole, setSelectedRole] = useState<Role>("ALL");
+  const [sortMode, setSortMode] = useState<SortMode>("score");
+  const [championQuery, setChampionQuery] = useState("");
+  const [minimumGames, setMinimumGames] = useState("0");
   const roleStatRanges = useMemo(() => getRoleStatRanges(championRows), [championRows]);
   const opByRole = useMemo(
     () => getOpByRole(championRows, roleStatRanges),
@@ -61,8 +74,25 @@ export function ChampionsClient({ championRows }: { championRows: ChampionRow[] 
       selectedRole === "ALL"
         ? championRows
         : championRows.filter((row) => row.role === selectedRole);
+    const query = championQuery.trim().toLowerCase();
+    const minGames = Math.max(0, Number(minimumGames) || 0);
 
-    return [...rows].sort((a, b) => {
+    return rows
+      .filter((row) => {
+        const matchesName = !query || row.champion.toLowerCase().includes(query);
+        const matchesGames = row.games >= minGames;
+
+        return matchesName && matchesGames;
+      })
+      .sort((a, b) => {
+      if (sortMode !== "score") {
+        const delta = b[sortMode] - a[sortMode];
+        if (delta !== 0) return delta;
+        const gamesDelta = b.games - a.games;
+        if (gamesDelta !== 0) return gamesDelta;
+        return a.champion.localeCompare(b.champion);
+      }
+
       const tierDelta =
         tierRank[getTier(a, opByRole, roleStatRanges)] -
         tierRank[getTier(b, opByRole, roleStatRanges)];
@@ -82,25 +112,68 @@ export function ChampionsClient({ championRows }: { championRows: ChampionRow[] 
 
       return a.champion.localeCompare(b.champion);
     });
-  }, [championRows, opByRole, roleStatRanges, selectedRole]);
+  }, [championQuery, championRows, minimumGames, opByRole, roleStatRanges, selectedRole, sortMode]);
 
   return (
     <section className="overflow-hidden border border-white/[0.08] bg-[#24252d] shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
-      <div className="flex flex-wrap gap-2 border-b border-white/[0.08] bg-[#191a21] p-3">
-        {roles.map((role) => (
-          <button
-            key={role.id}
-            type="button"
-            onClick={() => setSelectedRole(role.id)}
-            className={`min-h-10 min-w-24 border px-4 text-sm font-black uppercase tracking-[0.08em] text-white transition ${
-              selectedRole === role.id
-                ? "border-[#5588e8] bg-[#5588e8]"
-                : "border-white/[0.10] bg-[#2c2d38] hover:border-white/[0.24] hover:bg-[#353746]"
-            }`}
-          >
-            {role.label}
-          </button>
-        ))}
+      <div className="border-b border-white/[0.08] bg-[#191a21] p-3">
+        <div className="flex flex-wrap gap-2">
+          {roles.map((role) => (
+            <button
+              key={role.id}
+              type="button"
+              onClick={() => setSelectedRole(role.id)}
+              className={`min-h-10 min-w-24 border px-4 text-sm font-black uppercase tracking-[0.08em] text-white transition ${
+                selectedRole === role.id
+                  ? "border-[#5588e8] bg-[#5588e8]"
+                  : "border-white/[0.10] bg-[#2c2d38] hover:border-white/[0.24] hover:bg-[#353746]"
+              }`}
+            >
+              {role.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_12rem_10rem]">
+          <label className="relative block">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#98a1c7]"
+            />
+            <input
+              value={championQuery}
+              onChange={(event) => setChampionQuery(event.target.value)}
+              className="h-11 w-full border border-white/[0.10] bg-[#2c2d38] pl-10 pr-3 text-sm font-bold text-white outline-none transition placeholder:text-[#98a1c7]/60 focus:border-[#5588e8]"
+              placeholder="Filter champion"
+            />
+          </label>
+          <label className="relative block">
+            <SlidersHorizontal
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#98a1c7]"
+            />
+            <select
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as SortMode)}
+              className="h-11 w-full border border-white/[0.10] bg-[#2c2d38] pl-10 pr-3 text-sm font-black uppercase tracking-[0.08em] text-white outline-none transition focus:border-[#5588e8]"
+            >
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={minimumGames}
+            onChange={(event) => setMinimumGames(event.target.value)}
+            className="h-11 w-full border border-white/[0.10] bg-[#2c2d38] px-3 text-sm font-black uppercase tracking-[0.08em] text-white outline-none transition placeholder:text-[#98a1c7]/60 focus:border-[#5588e8]"
+            placeholder="Min games"
+            aria-label="Minimum games"
+          />
+        </div>
       </div>
 
       <div className="overflow-x-auto">

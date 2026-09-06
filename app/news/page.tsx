@@ -3,29 +3,35 @@ import { ArrowRight, CalendarDays, Megaphone, Newspaper, Sparkles } from "lucide
 
 const featured = {
   label: "Patch Notes",
-  date: "Jun 15, 2026",
-  title: "ECL Hub beta is opening",
-  text: "The first Hub release brings player profiles, ranked ladder views, champion intelligence, and inhouse match history into one home for the community.",
+  date: "Sep 6, 2026",
+  title: "Patch 2.0: World Cup, Coach, and Hub upgrades",
+  text: "Patch 2.0 rebuilds the Hub around the ECL World Cup, improves ECL.GG stat refresh reliability, connects site messages to the KOOK admin channel, and starts moving inhouse reporting away from link-based workflows.",
 };
 
 const posts = [
   {
-    type: "Event",
-    title: "Ranked inhouse test nights",
-    date: "Beta window",
-    text: "Queue tests will help tune ELO ranges, role demand, reporting flow, and KOOK bot commands.",
+    type: "Tournament",
+    title: "ECL World Cup hub opens",
+    date: "Teams due Sep 13",
+    text: "The Hub dashboard now focuses on the ECL World Cup: national rosters, no Elo requirement, team creation, team applications, standings, fixtures, and captain dashboards.",
   },
   {
-    type: "Patch Notes",
-    title: "Champion and objective icons added",
-    date: "Jun 15, 2026",
-    text: "CommunityDragon assets are now available for champion pools, match reports, and objective summaries.",
+    type: "Systems",
+    title: "ECL.GG refresh is now server-backed",
+    date: "Patch 2.0",
+    text: "Profile refreshes can now run through the Vercel job path instead of relying only on a user browser. Failed refreshes are queued, retried, and visible to admins.",
   },
   {
-    type: "Announcement",
-    title: "Player profiles enter beta",
-    date: "Jun 15, 2026",
-    text: "Profiles include banners, avatars, titles, role identity, champion pools, awards, and analytics cards.",
+    type: "KOOK",
+    title: "Coach is becoming the bridge",
+    date: "Patch 2.0",
+    text: "The KOOK bot now has API routes for inhouse reporting and admin notifications. Contact messages from the website are relayed to the ECL admin channel.",
+  },
+  {
+    type: "Hub",
+    title: "Cleaner player and match views",
+    date: "Patch 2.0",
+    text: "The player directory moved toward a readable list layout with filters, inhouse match history was tightened for smaller screens, and champion stats gained pick, ban, win-rate, role, and minimum-game filters.",
   },
 ];
 
@@ -70,6 +76,20 @@ export default function NewsPage() {
             <p className="mt-5 max-w-3xl text-base leading-7 text-[#9ca3af]">
               {featured.text}
             </p>
+            <div className="mt-6 grid gap-3 text-sm font-semibold leading-6 text-[#c9d4e7] md:grid-cols-2">
+              <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
+                World Cup begins Sep 18. Teams should be submitted by Sep 13.
+              </p>
+              <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
+                Team access now follows verified Hub profiles, not manual contact IDs.
+              </p>
+              <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
+                Inhouse reporting is being anchored to the same data flow that works in the admin dashboard.
+              </p>
+              <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
+                World Cup team dashboards show rosters, top champions, applications, and tournament performance stats.
+              </p>
+            </div>
             <Link
               href="/hub/dashboard"
               className="mt-8 inline-flex items-center gap-2 bg-[#b11226] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#d11a2a]"
@@ -86,15 +106,15 @@ export default function NewsPage() {
             What appears here?
           </h2>
           <div className="mt-5 space-y-3 text-sm leading-6 text-[#9ca3af]">
-            <p>Hub patch notes and feature changes.</p>
-            <p>Inhouse event dates and queue tests.</p>
-            <p>Tournament announcements and community updates.</p>
+            <p>Patch 2.0 is focused on reliability and tournament readiness.</p>
+            <p>The ECL World Cup begins Sep 18, with team submissions due Sep 13.</p>
+            <p>Coach, the Hub, and the admin dashboard are being tied together so match reporting and player data are easier to manage.</p>
           </div>
         </aside>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {posts.map((post) => (
             <article key={post.title} className="border border-[#1f1f1f] bg-[#0d0d0d] p-6">
               <Newspaper className="text-[#b11226]" size={24} />
