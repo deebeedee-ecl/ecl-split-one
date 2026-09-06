@@ -439,8 +439,12 @@ export default async function WorldCupTeamDashboardPage({
               Review tournament performance, player stats, champion coverage, and applicants before admin final approval.
             </p>
           </div>
-          <div className="min-w-48 border border-[#36D7FF]/18 bg-[#020817]/42 p-3 text-sm font-black text-[#C9DFEB]">
-            <WorldCupFlag code={teamCountryCode(teamCountry)} label={playerCountryName(teamCountry[0] ?? {})} />
+          <div className="flex min-w-36 justify-center border border-[#36D7FF]/18 bg-[#020817]/42 p-4">
+            <WorldCupFlag
+              code={teamCountryCode(teamCountry)}
+              label={playerCountryName(teamCountry[0] ?? {})}
+              size="hero"
+            />
           </div>
         </div>
       </header>

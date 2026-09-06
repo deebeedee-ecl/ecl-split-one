@@ -2,6 +2,11 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import {
+  countryByCode,
+  countryFlagImagePath,
+  worldCupCountries,
+} from "@/lib/world-cup-countries";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +22,12 @@ type TeamPlayer = {
   rank?: string;
   email?: string;
   notes?: string;
+  nationality?: string;
+  countryCode?: string;
+  countryFlag?: string;
+  teamCountry?: string;
+  teamCountryCode?: string;
+  teamCountryFlag?: string;
 };
 
 const roleOptions = ["Top", "Jungle", "Mid", "ADC", "Support", "Fill"];
@@ -60,6 +71,14 @@ function normalizePlayers(players: unknown): TeamPlayer[] {
   return Array.isArray(players) ? (players as TeamPlayer[]) : [];
 }
 
+function teamCountryCode(players: TeamPlayer[]) {
+  const first = players.find(
+    (player) => cleanText(player.teamCountryCode) || cleanText(player.countryCode),
+  );
+
+  return cleanText(first?.teamCountryCode) || cleanText(first?.countryCode);
+}
+
 async function saveTeam(formData: FormData) {
   "use server";
 
@@ -72,8 +91,8 @@ async function saveTeam(formData: FormData) {
   const teamName = cleanText(String(formData.get("teamName") || ""));
   const captainName = cleanText(String(formData.get("captainName") || ""));
   const captainEmail = cleanText(String(formData.get("captainEmail") || ""));
-  const logoUrl = cleanText(String(formData.get("logoUrl") || ""));
-  const kitUrl = cleanText(String(formData.get("kitUrl") || ""));
+  const countryCode = cleanText(String(formData.get("teamCountryCode") || "")).toUpperCase();
+  const country = countryByCode(countryCode);
 
   const playerNames = formData.getAll("playerName");
   const riotNames = formData.getAll("riotName");
@@ -117,6 +136,9 @@ async function saveTeam(formData: FormData) {
         currentRank,
         email: email || undefined,
         notes: note || undefined,
+        teamCountry: country?.name || undefined,
+        teamCountryCode: country?.code || undefined,
+        teamCountryFlag: country?.flag || undefined,
       };
     })
     .filter(Boolean) as TeamPlayer[];
@@ -135,13 +157,13 @@ async function saveTeam(formData: FormData) {
     where: { name: teamName },
     update: {
       name: teamName,
-      logoUrl: logoUrl || null,
-      kitUrl: kitUrl || null,
+      logoUrl: null,
+      kitUrl: null,
     },
     create: {
       name: teamName,
-      logoUrl: logoUrl || null,
-      kitUrl: kitUrl || null,
+      logoUrl: null,
+      kitUrl: null,
     },
   });
 
@@ -150,6 +172,9 @@ async function saveTeam(formData: FormData) {
   revalidatePath(`/admin/teams/${teamId}/edit`);
   revalidatePath("/teams");
   revalidatePath("/free-agents");
+  revalidatePath("/hub/world-cup/find-team");
+  revalidatePath("/hub/world-cup/standings");
+  revalidatePath(`/hub/world-cup/team/${teamId}`);
 
   redirect("/admin/teams?message=saved");
 }
@@ -184,18 +209,16 @@ export default async function EditTeamPage({
     );
   }
 
-  const savedTeam = await prisma.team.findFirst({
-    where: {
-      name: team.teamName,
-    },
-  });
-
   const players = normalizePlayers(team.players);
   const paddedPlayers = [...players];
 
   while (paddedPlayers.length < 6) {
     paddedPlayers.push({});
   }
+
+  const selectedCountryCode = teamCountryCode(players);
+  const selectedCountry = countryByCode(selectedCountryCode);
+  const selectedFlagSrc = countryFlagImagePath(selectedCountryCode);
 
   return (
     <main className="min-h-screen bg-black px-6 py-10 text-white">
@@ -214,7 +237,7 @@ export default async function EditTeamPage({
             Edit Team
           </h1>
           <p className="mt-2 text-white/60">
-            Update team details, branding, and roster information.
+            Update team details, World Cup flag, and roster information.
           </p>
         </div>
 
@@ -261,67 +284,42 @@ export default async function EditTeamPage({
           </section>
 
           <section className="rounded-2xl border border-white/10 bg-white/5 p-6">
-            <h2 className="mb-4 text-2xl font-bold">Branding</h2>
+            <h2 className="mb-4 text-2xl font-bold">World Cup Flag</h2>
 
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+              <div>
                 <label className="mb-2 block text-sm font-semibold text-white/80">
-                  Logo URL
+                  Team Country
                 </label>
-                <input
-                  name="logoUrl"
-                  defaultValue={savedTeam?.logoUrl || ""}
-                  placeholder="/logos/mfg.png"
+                <select
+                  name="teamCountryCode"
+                  defaultValue={selectedCountryCode}
                   className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-white"
-                />
-
+                >
+                  <option value="">Select country</option>
+                  {worldCupCountries.map((country) => (
+                    <option key={country.code} value={country.code}>
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
                 <p className="mt-2 text-xs text-white/45">
-                  Example: /logos/mfg.png
+                  This flag is used as the World Cup team identity across Hub pages.
                 </p>
-
-                <div className="mt-4 flex h-32 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
-                  {savedTeam?.logoUrl ? (
-                    <img
-                      src={savedTeam.logoUrl}
-                      alt={`${team.teamName} logo preview`}
-                      className="max-h-24 max-w-full object-contain"
-                    />
-                  ) : (
-                    <span className="text-xs uppercase tracking-[0.18em] text-white/30">
-                      No logo preview
-                    </span>
-                  )}
-                </div>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <label className="mb-2 block text-sm font-semibold text-white/80">
-                  Kit URL
-                </label>
-                <input
-                  name="kitUrl"
-                  defaultValue={savedTeam?.kitUrl || ""}
-                  placeholder="/kit/mfg.png"
-                  className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-white"
-                />
-
-                <p className="mt-2 text-xs text-white/45">
-                  Example: /kit/mfg.png
-                </p>
-
-                <div className="mt-4 flex h-40 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-                  {savedTeam?.kitUrl ? (
-                    <img
-                      src={savedTeam.kitUrl}
-                      alt={`${team.teamName} kit preview`}
-                      className="h-full max-h-36 w-auto object-contain"
-                    />
-                  ) : (
-                    <span className="text-xs uppercase tracking-[0.18em] text-white/30">
-                      No kit preview
-                    </span>
-                  )}
-                </div>
+              <div className="flex min-h-32 items-center justify-center rounded-2xl border border-white/10 bg-black/20 p-4">
+                {selectedFlagSrc ? (
+                  <img
+                    src={selectedFlagSrc}
+                    alt={selectedCountry?.name || "Team flag"}
+                    className="h-20 w-32 rounded object-cover shadow-[0_0_0_1px_rgba(255,255,255,0.2)]"
+                  />
+                ) : (
+                  <span className="text-xs uppercase tracking-[0.18em] text-white/30">
+                    No flag selected
+                  </span>
+                )}
               </div>
             </div>
           </section>
