@@ -116,8 +116,8 @@ export default function HubDashboard() {
         loop
         preload="auto"
       />
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <div className="relative min-h-[31rem] overflow-hidden border border-[#0797F2]/35 bg-[#020817] shadow-[0_24px_90px_rgba(0,0,0,0.5),0_0_54px_rgba(54,215,255,0.16)]">
+      <section className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="relative min-h-[28rem] overflow-hidden border border-[#0797F2]/35 bg-[#020817] shadow-[0_24px_90px_rgba(0,0,0,0.5),0_0_54px_rgba(54,215,255,0.16)] lg:min-h-[31rem]">
           <video
             className="absolute inset-0 h-full w-full object-cover"
             src="/ecl-earth.mp4"
@@ -132,7 +132,7 @@ export default function HubDashboard() {
           <div className="absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(0deg,rgba(2,8,23,0.98),transparent)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_76%_18%,rgba(45,107,255,0.24),transparent_34%)]" />
 
-          <div className="relative flex min-h-[31rem] flex-col justify-between p-7 lg:p-10">
+          <div className="relative flex min-h-[28rem] flex-col justify-between p-5 sm:p-7 lg:min-h-[31rem] lg:p-10">
             <button
               type="button"
               onClick={toggleAudio}
@@ -152,7 +152,7 @@ export default function HubDashboard() {
                 className="h-20 w-auto object-contain md:h-24"
                 priority
               />
-              <h2 className="mt-4 max-w-3xl text-5xl font-black uppercase leading-[0.98] tracking-normal text-white lg:text-7xl">
+              <h2 className="mt-4 max-w-3xl text-4xl font-black uppercase leading-[0.98] tracking-normal text-white sm:text-5xl lg:text-6xl 2xl:text-7xl">
                 World Cup
               </h2>
               <p className="mt-5 max-w-xl text-xl font-black uppercase leading-8 text-[#F5F5F2]">
@@ -176,7 +176,7 @@ export default function HubDashboard() {
           </div>
         </div>
 
-        <aside className="border border-[#0797F2]/30 bg-[#061C4A]/92 p-7 shadow-[0_24px_90px_rgba(0,0,0,0.34),0_0_44px_rgba(54,215,255,0.12)]">
+        <aside className="border border-[#0797F2]/30 bg-[#061C4A]/92 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.34),0_0_44px_rgba(54,215,255,0.12)] lg:p-7">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-[#36D7FF]">
             Tournament Brief
           </p>

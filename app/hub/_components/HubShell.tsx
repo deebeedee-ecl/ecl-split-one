@@ -69,9 +69,9 @@ export function HubShell({
 
   return (
     <main className={`fixed inset-0 z-[200] overflow-auto ${pageBackground} text-[#f2f2f2] [font-family:Poppins,Arial,sans-serif]`}>
-      <div className="flex min-h-screen min-w-[72rem] gap-5 p-0">
+      <div className="flex min-h-screen min-w-0 gap-3 p-0 lg:gap-5">
         <HubSidebar active={active} />
-        <section className="my-5 mr-5 min-w-0 flex-1 border border-white/[0.08] bg-[#111216]/94 p-6 shadow-[0_24px_90px_rgba(0,0,0,0.48)] backdrop-blur-sm">
+        <section className="my-3 mr-3 min-w-0 flex-1 border border-white/[0.08] bg-[#111216]/94 p-3 shadow-[0_24px_90px_rgba(0,0,0,0.48)] backdrop-blur-sm sm:p-4 lg:my-5 lg:mr-5 lg:p-6">
           {!hideHeader && (
             <div className="mb-5 flex items-end justify-between gap-6">
               <div>
