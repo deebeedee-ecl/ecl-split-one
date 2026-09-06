@@ -126,6 +126,43 @@ function formatGameTime(match: LzyumiRecentMatch) {
   return match.title || "Unknown time";
 }
 
+function parseLzyumiGameTime(match: LzyumiRecentMatch, referenceDate: Date) {
+  const raw = `${match.titleTime ?? ""} ${match.title ?? ""}`;
+  const parsed = raw.match(/(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!parsed) return null;
+
+  const year = referenceDate.getFullYear();
+  const candidate = new Date(
+    year,
+    Number(parsed[1]) - 1,
+    Number(parsed[2]),
+    Number(parsed[3]),
+    Number(parsed[4]),
+    Number(parsed[5] ?? 0),
+  );
+
+  if (Number.isNaN(candidate.getTime())) return null;
+
+  const monthDelta = candidate.getTime() - referenceDate.getTime();
+  if (monthDelta > 180 * 24 * 60 * 60 * 1000) {
+    candidate.setFullYear(year - 1);
+  }
+
+  return candidate;
+}
+
+function reportCandidateSortValue(
+  candidate: ReportMatchCandidate,
+  sessionCreatedAt: Date,
+) {
+  const gameTime = parseLzyumiGameTime(candidate.recentMatch, sessionCreatedAt);
+  if (!gameTime) return Number.MAX_SAFE_INTEGER;
+
+  const delta = gameTime.getTime() - sessionCreatedAt.getTime();
+  const beforePenalty = delta < 0 ? 24 * 60 * 60 * 1000 : 0;
+  return Math.abs(delta) + beforePenalty;
+}
+
 function formatReporterLine(
   player: LzyumiPlayerDetail | null,
   championNames: ReadonlyMap<string, string>,
@@ -294,6 +331,7 @@ async function findMatchingReportCandidate({
     })
     .slice(0, REPORT_CANDIDATE_LIMIT);
 
+  const exactMatches: ReportMatchCandidate[] = [];
   let bestCandidate: ReportMatchCandidate | null = null;
 
   for (const recentMatch of sortedCandidates) {
@@ -321,8 +359,16 @@ async function findMatchingReportCandidate({
     }
 
     if (rosterMatch.matched.length >= REQUIRED_REPORT_MATCHES) {
-      return candidate;
+      exactMatches.push(candidate);
     }
+  }
+
+  if (exactMatches.length > 0) {
+    return exactMatches.sort(
+      (a, b) =>
+        reportCandidateSortValue(a, session.createdAt) -
+        reportCandidateSortValue(b, session.createdAt),
+    )[0];
   }
 
   return bestCandidate;
@@ -748,7 +794,6 @@ export async function formatReportPreviewMessage(kookUserId: string, args: strin
     "",
     formatReporterLine(candidate.player, championNames),
     `Time: ${formatGameTime(candidate.recentMatch)}`,
-    `ECL.GG game: ${candidate.recentMatch.gameId}`,
     "",
     "Submit this result?",
     "Type !yes to submit, or !no to cancel.",
