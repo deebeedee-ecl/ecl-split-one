@@ -260,6 +260,82 @@ function summarizeReporter(job, detail, game) {
   ].join("\n");
 }
 
+function cliValue(name, fallback = "") {
+  const index = process.argv.indexOf(name);
+  if (index < 0) return fallback;
+  return clean(process.argv[index + 1]) || fallback;
+}
+
+function findDetailPlayerForSource(source, detail) {
+  const detailPlayers = detail?.data?.wgBattleDetailInfo || [];
+  const openId = clean(source.openId);
+  if (openId) {
+    const byOpenId = detailPlayers.find((entry) => entry.openIdNow === openId);
+    if (byOpenId) return byOpenId;
+  }
+
+  return detailPlayers.find((entry) => {
+    const keys = detailKeys(entry);
+    return keys.includes(riotIdKey(source.player.riotName, source.player.riotTag)) ||
+      keys.includes(riotNameKey(source.player.riotName));
+  });
+}
+
+async function debugCheckPlayer() {
+  const riot = cliValue("--check-player");
+  const areaId = Number(cliValue("--area-id", "1")) || 1;
+  const limit = Number(cliValue("--limit", "8")) || 8;
+  const { name, tag } = splitRiotId(riot);
+
+  if (!name) {
+    throw new Error('Usage: node worker.js --check-player "Soul#67126" --area-id 1');
+  }
+
+  const player = {
+    displayName: name,
+    riotName: name,
+    riotTag: tag || null,
+    chinaServerId: areaId,
+  };
+  const source = await fetchRecentGamesForPlayer(player);
+
+  if (!source) {
+    console.log(`No recent ECL.GG games found for ${riot || name} on area ${areaId}.`);
+    return;
+  }
+
+  const championNames = loadChampionNames();
+  const games = source.games.slice(0, limit);
+  console.log(`Found ${source.games.length} recent game(s) for ${riot || name}. Showing ${games.length}.`);
+
+  for (const game of games) {
+    try {
+      const detail = await lzyumiFetch(
+        lzyumiDetailUrl({
+          openId: source.openId,
+          gameId: game.gameId,
+          areaId: source.areaId,
+        }),
+      );
+      const detailPlayer = findDetailPlayerForSource(source, detail);
+      const result = String(detailPlayer?.win || "").toLowerCase();
+      const outcome = ["1", "true", "win"].includes(result)
+        ? "Win"
+        : ["0", "false", "fail", "loss", "lose"].includes(result)
+          ? "Loss"
+          : "Unknown";
+      const champion = championNames.get(String(detailPlayer?.detailChampionId || "")) ||
+        (detailPlayer?.detailChampionId ? `Champion ${detailPlayer.detailChampionId}` : "Champion unavailable");
+      const kda = clean(detailPlayer?.scoreInfo) || "KDA unknown";
+      const time = clean(game.titleTime) || clean(game.title) || "Unknown time";
+      const title = clean(game.title).replace(/<br>/g, " ");
+      console.log(`- ${time} | ${outcome} | ${champion} | ${kda} | ${title}`);
+    } catch (error) {
+      console.log(`- ${game.gameId}: detail lookup failed (${error.message || error})`);
+    }
+  }
+}
+
 async function findMatchingGame(job) {
   const players = job.session.players;
   const searchPlayers = [
@@ -410,4 +486,11 @@ async function main() {
   }
 }
 
-main();
+if (process.argv.includes("--check-player")) {
+  debugCheckPlayer().catch((error) => {
+    console.error(error.message || error);
+    process.exitCode = 1;
+  });
+} else {
+  main();
+}
