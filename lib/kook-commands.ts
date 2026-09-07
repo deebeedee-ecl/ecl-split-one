@@ -3,6 +3,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { STARTING_ELO } from "@/lib/elo";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
+import { enqueueInhouseReportJob } from "@/lib/inhouse-report-jobs";
 import {
   getFrozenInhouseLeaderboardRows,
   type InhouseLeaderboardRow,
@@ -818,7 +819,11 @@ export async function formatStatusMessage(members: KookInhouseMember[] = []) {
   ].join("\n");
 }
 
-export async function formatReportPreviewMessage(kookUserId: string, args: string[] = []) {
+export async function formatReportPreviewMessage(
+  kookUserId: string,
+  args: string[] = [],
+  responseChannelId?: string | null,
+) {
   const profile = await findVerifiedProfile(kookUserId);
 
   if (!profile) {
@@ -841,75 +846,27 @@ export async function formatReportPreviewMessage(kookUserId: string, args: strin
     return multipleSessionMessage(sessions);
   }
 
-  const server = getChinaServer(profile.chinaServerId);
-  let candidate: ReportMatchCandidate | null;
-  try {
-    candidate = await findMatchingReportCandidate({
-      session,
-      profile,
-      areaId: server.id,
-    });
-  } catch (error) {
-    console.error("KOOK report ECL.GG lookup failed:", error);
-    return "I could not reach ECL.GG for the report check. Please try !report again in a moment.";
-  }
-
-  if (!candidate?.recentMatch.gameId || !candidate.detail) {
+  const existingPending = pendingReportFromJson(session.reportRawJson);
+  if (existingPending?.reporterKookUserId === kookUserId) {
     return [
-      `I could not find recent ECL.GG games for your verified Riot ID: ${formatRiotId(profile.riotName, profile.riotTag) ?? profile.displayName}.`,
+      `I already found a report for ${session.gameLabel ?? "this inhouse"}.`,
       "",
-      "Ask another player from the inhouse to type !report, or ask an admin to submit the match from the dashboard.",
+      "Type !yes to submit, or !no to cancel.",
     ].join("\n");
   }
 
-  const rosterMatch = candidate.rosterMatch;
-  if (rosterMatch.matched.length < REQUIRED_REPORT_MATCHES) {
-    await prisma.inhouseSession.update({
-      where: { id: session.id },
-      data: { reportRawJson: Prisma.JsonNull },
-    });
-
-    return [
-      `I searched your recent ECL.GG games, but none look like ${session.gameLabel ?? "this inhouse"}.`,
-      "",
-      `Closest recent match: ${rosterMatch.matched.length}/10 inhouse players.`,
-      rosterMatch.missing.length > 0
-        ? `Missing: ${rosterMatch.missing.join(", ")}`
-        : "Missing players could not be identified.",
-      "",
-      "I did not create a report confirmation. Wait for ECL.GG to show the inhouse game, or ask an admin to submit it from the dashboard.",
-    ].join("\n");
-  }
-
-  const championNames = await loadChampionNamesForKook();
-
-  await prisma.inhouseSession.update({
-    where: { id: session.id },
-    data: {
-      reportRawJson: toJson({
-        source: "kook-report-preview",
-        pendingConfirmation: {
-          reporterKookUserId: kookUserId,
-          gameId: candidate.recentMatch.gameId,
-          createdAt: new Date().toISOString(),
-          rawMatchData: {
-            profile: candidate.profile,
-            gameId: candidate.recentMatch.gameId,
-            detail: candidate.detail,
-          },
-        },
-      } satisfies PendingKookReport),
-    },
+  await enqueueInhouseReportJob({
+    sessionId: session.id,
+    requestedByKookId: kookUserId,
+    responseChannelId,
   });
 
   return [
-    `Report check: ${session.gameLabel ?? "Ranked Inhouse"}`,
+    `Checking ${session.gameLabel ?? "this inhouse"} through ECL Report Engine.`,
     "",
-    formatReporterLine(candidate.player, championNames),
-    `Time: ${formatGameTime(candidate.recentMatch)}`,
+    "I will post the result here when the match is found.",
     "",
-    "Submit this result?",
-    "Type !yes to submit, or !no to cancel.",
+    "If it does not appear soon, an admin can still submit it from the inhouse reporter dashboard.",
   ].join("\n");
 }
 

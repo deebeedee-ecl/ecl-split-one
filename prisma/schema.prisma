@@ -314,6 +314,7 @@ model InhouseSession {
   completedAt      DateTime?
   updatedAt        DateTime               @updatedAt
   players          InhouseSessionPlayer[]
+  reportJobs       InhouseReportJob[]
 
   @@index([status])
   @@index([createdAt])
@@ -340,6 +341,29 @@ model InhouseSessionPlayer {
   @@index([sessionId])
   @@index([kookUserId])
   @@index([playerId])
+}
+
+model InhouseReportJob {
+  id                String   @id @default(uuid())
+  sessionId         String
+  requestedByKookId String
+  responseChannelId String?
+  status            String   @default("PENDING")
+  attempts          Int      @default(0)
+  lockedAt          DateTime?
+  lockedBy          String?
+  rawMatchData      Json?
+  lastError         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  completedAt       DateTime?
+
+  session InhouseSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([sessionId])
+  @@index([requestedByKookId])
+  @@index([lockedAt])
 }
 
 enum MatchStage {

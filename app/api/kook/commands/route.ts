@@ -20,6 +20,7 @@ type CommandBody = {
   command?: string;
   action?: string;
   kookUserId?: string;
+  channelId?: string;
   members?: KookInhouseMember[];
   voiceMembers?: KookInhouseMember[];
   isAdmin?: boolean;
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
         break;
       case "report":
       case "result":
-        reply = await formatReportPreviewMessage(kookUserId, args);
+        reply = await formatReportPreviewMessage(kookUserId, args, clean(body.channelId));
         break;
       case "yes":
       case "confirm":
