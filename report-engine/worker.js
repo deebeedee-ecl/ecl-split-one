@@ -173,10 +173,11 @@ async function lzyumiFetch(url) {
   }
 }
 
-function lzyumiInfoUrl({ nickname, areaId, filter, allCount = 5 }) {
+function lzyumiInfoUrl({ nickname, openId, areaId, filter, allCount = 5 }) {
   const { lzyumiSign, signStr } = createLzyumiSignature();
   const areaName = CHINA_SERVERS[areaId] || CHINA_SERVERS[1];
   const encodedNickname = clean(nickname).replace(/#/g, "*~*~*");
+  const encodedOpenId = encodeURIComponent(clean(openId));
   const params = [
     `nickname=${encodeURIComponent(encodedNickname)}`,
     `allCount=${allCount}`,
@@ -184,7 +185,7 @@ function lzyumiInfoUrl({ nickname, areaId, filter, allCount = 5 }) {
     `areaName=${encodeURIComponent(areaName)}`,
     "seleMe=1",
     `filter=${filter}`,
-    "openId=",
+    `openId=${encodedOpenId}`,
     `lzyumiSign=${lzyumiSign}`,
     `signStr=${signStr}`,
   ];
@@ -204,12 +205,24 @@ function lzyumiDetailUrl({ openId, gameId, areaId }) {
 
 async function fetchRecentGamesForPlayer(player) {
   const areaId = player.chinaServerId || 1;
-  const attempts = [clean(player.riotName), riotId(player)].filter(Boolean);
+  const savedOpenId = clean(player.openId);
+  const lookupNames = [clean(player.riotName), riotId(player)].filter(Boolean);
+  const attempts = savedOpenId
+    ? [
+        ...lookupNames.map((nickname) => ({ nickname, openId: savedOpenId })),
+        { nickname: "", openId: savedOpenId },
+        ...lookupNames.map((nickname) => ({ nickname, openId: "" })),
+      ]
+    : lookupNames.map((nickname) => ({ nickname, openId: "" }));
+  const seenAttempts = new Set();
 
-  for (const nickname of [...new Set(attempts)]) {
+  for (const attempt of attempts) {
+    const attemptKey = `${attempt.nickname}::${attempt.openId}`;
+    if (seenAttempts.has(attemptKey)) continue;
+    seenAttempts.add(attemptKey);
     const responses = await Promise.all(
       LZYUMI_FILTERS.map((filter) =>
-        lzyumiFetch(lzyumiInfoUrl({ nickname, areaId, filter })).catch(() => null),
+        lzyumiFetch(lzyumiInfoUrl({ ...attempt, areaId, filter })).catch(() => null),
       ),
     );
     const hasData = responses.some(
@@ -219,7 +232,7 @@ async function fetchRecentGamesForPlayer(player) {
     if (!hasData) continue;
 
     const profile = responses.find((response) => response?.battleInfo?.openId) || null;
-    const openId = profile?.battleInfo?.openId;
+    const openId = clean(profile?.battleInfo?.openId) || attempt.openId;
     const gamesById = new Map();
 
     for (const response of responses) {
@@ -234,7 +247,7 @@ async function fetchRecentGamesForPlayer(player) {
       return {
         player,
         areaId,
-        profile,
+        profile: profile || { battleInfo: { openId } },
         openId,
         games: [...gamesById.values()],
       };
@@ -364,17 +377,19 @@ async function debugCheckPlayer() {
   const riot = cliValue("--check-player");
   const areaId = Number(cliValue("--area-id", "1")) || 1;
   const limit = Number(cliValue("--limit", "8")) || 8;
+  const openId = cliValue("--open-id");
   const { name, tag } = splitRiotId(riot);
 
-  if (!name) {
+  if (!name && !openId) {
     throw new Error('Usage: node worker.js --check-player "Soul#67126" --area-id 1');
   }
 
   const player = {
-    displayName: name,
+    displayName: name || "Player",
     riotName: name,
     riotTag: tag || null,
     chinaServerId: areaId,
+    openId: openId || null,
   };
   const source = await fetchRecentGamesForPlayer(player);
 
