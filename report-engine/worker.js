@@ -12,6 +12,7 @@ const KOOK_BOT_TOKEN = process.env.KOOK_BOT_TOKEN;
 const WORKER_ID = process.env.REPORT_ENGINE_WORKER_ID || "ecl-report-engine";
 const POLL_MS = Number(process.env.REPORT_ENGINE_POLL_MS || 5000);
 const LZYUMI_TIMEOUT_MS = Number(process.env.REPORT_ENGINE_LZYUMI_TIMEOUT_MS || 15000);
+const FETCH_MODE = clean(process.env.REPORT_ENGINE_FETCH_MODE || "browser").toLowerCase();
 const LZYUMI_BASE = "https://a.2025lol.top/lzyumi/lol";
 const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
@@ -33,6 +34,9 @@ const LZYUMI_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
 };
+
+let browserPromise = null;
+let browserPagePromise = null;
 
 function clean(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -86,12 +90,87 @@ function createLzyumiSignature() {
   };
 }
 
-async function lzyumiFetch(url) {
+async function lzyumiFetchDirect(url) {
   const response = await axios.get(url, {
     headers: LZYUMI_HEADERS,
     timeout: LZYUMI_TIMEOUT_MS,
   });
   return response.data;
+}
+
+async function getBrowserPage() {
+  if (!browserPromise) {
+    const { chromium } = require("playwright");
+    browserPromise = chromium.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-blink-features=AutomationControlled",
+      ],
+    });
+  }
+
+  if (!browserPagePromise) {
+    browserPagePromise = browserPromise.then(async (browser) => {
+      const context = await browser.newContext({
+        locale: "zh-CN",
+        timezoneId: "Asia/Shanghai",
+        userAgent: LZYUMI_HEADERS["User-Agent"],
+        extraHTTPHeaders: {
+          Accept: LZYUMI_HEADERS.Accept,
+        },
+      });
+      const page = await context.newPage();
+      await page.goto("https://a.2025lol.top/", {
+        waitUntil: "domcontentloaded",
+        timeout: LZYUMI_TIMEOUT_MS,
+      }).catch(() => null);
+      return page;
+    });
+  }
+
+  return browserPagePromise;
+}
+
+async function lzyumiFetchBrowser(url) {
+  const page = await getBrowserPage();
+  return page.evaluate(
+    async ({ requestUrl, timeoutMs }) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(requestUrl, {
+          headers: {
+            Accept: "application/json, text/plain, */*",
+          },
+          credentials: "include",
+          signal: controller.signal,
+        });
+        const text = await response.text();
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
+        }
+        return JSON.parse(text);
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+    { requestUrl: url, timeoutMs: LZYUMI_TIMEOUT_MS },
+  );
+}
+
+async function lzyumiFetch(url) {
+  if (FETCH_MODE === "direct") return lzyumiFetchDirect(url);
+
+  try {
+    return await lzyumiFetchBrowser(url);
+  } catch (error) {
+    if (FETCH_MODE === "browser-strict") throw error;
+    console.warn(`Browser Lzyumi fetch failed, falling back to direct fetch: ${error.message || error}`);
+    return lzyumiFetchDirect(url);
+  }
 }
 
 function lzyumiInfoUrl({ nickname, areaId, filter, allCount = 5 }) {
@@ -475,7 +554,7 @@ async function main() {
     throw new Error("Missing ECL_REPORT_ENGINE_SECRET, ECL_JOB_SECRET, or ECL_KOOK_BOT_SECRET.");
   }
 
-  console.log(`ECL Report Engine polling ${SITE_URL}`);
+  console.log(`ECL Report Engine polling ${SITE_URL} using ${FETCH_MODE} Lzyumi fetch`);
   for (;;) {
     try {
       await processNextJob();
