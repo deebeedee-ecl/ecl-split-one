@@ -19,13 +19,17 @@ function toJson(value: unknown): Prisma.InputJsonValue {
 }
 
 export function unauthorizedReportWorker(request: Request) {
-  const expectedSecret = process.env.ECL_REPORT_ENGINE_SECRET ?? process.env.ECL_JOB_SECRET ?? process.env.ECL_KOOK_BOT_SECRET;
+  const expectedSecrets = [
+    process.env.ECL_REPORT_ENGINE_SECRET,
+    process.env.ECL_JOB_SECRET,
+    process.env.ECL_KOOK_BOT_SECRET,
+  ].map(clean).filter(Boolean);
   const suppliedSecret =
     request.headers.get("x-ecl-report-engine-secret") ??
     request.headers.get("x-ecl-job-secret") ??
     request.headers.get("x-ecl-kook-secret");
 
-  return !expectedSecret || suppliedSecret !== expectedSecret;
+  return expectedSecrets.length === 0 || !expectedSecrets.includes(clean(suppliedSecret));
 }
 
 export async function enqueueInhouseReportJob({
