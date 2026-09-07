@@ -13,6 +13,10 @@ const WORKER_ID = process.env.REPORT_ENGINE_WORKER_ID || "ecl-report-engine";
 const POLL_MS = Number(process.env.REPORT_ENGINE_POLL_MS || 5000);
 const LZYUMI_TIMEOUT_MS = Number(process.env.REPORT_ENGINE_LZYUMI_TIMEOUT_MS || 15000);
 const FETCH_MODE = clean(process.env.REPORT_ENGINE_FETCH_MODE || "browser").toLowerCase();
+const PROXY_URL = clean(process.env.REPORT_ENGINE_PROXY_URL);
+const PROXY_SERVER = clean(process.env.REPORT_ENGINE_PROXY_SERVER);
+const PROXY_USERNAME = clean(process.env.REPORT_ENGINE_PROXY_USERNAME);
+const PROXY_PASSWORD = clean(process.env.REPORT_ENGINE_PROXY_PASSWORD);
 const LZYUMI_BASE = "https://a.2025lol.top/lzyumi/lol";
 const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
@@ -76,6 +80,51 @@ function detailKeys(player) {
   });
 }
 
+function reportEngineProxy() {
+  if (PROXY_URL) {
+    const parsed = new URL(PROXY_URL);
+    const username = decodeURIComponent(parsed.username || "");
+    const password = decodeURIComponent(parsed.password || "");
+    parsed.username = "";
+    parsed.password = "";
+
+    return {
+      server: parsed.toString().replace(/\/$/, ""),
+      username,
+      password,
+    };
+  }
+
+  if (!PROXY_SERVER) return null;
+
+  return {
+    server: PROXY_SERVER,
+    username: PROXY_USERNAME,
+    password: PROXY_PASSWORD,
+  };
+}
+
+function reportEngineProxyUrl() {
+  if (PROXY_URL) return PROXY_URL;
+  if (!PROXY_SERVER) return "";
+  if (!PROXY_USERNAME && !PROXY_PASSWORD) return PROXY_SERVER;
+
+  const parsed = new URL(PROXY_SERVER);
+  parsed.username = PROXY_USERNAME;
+  parsed.password = PROXY_PASSWORD;
+  return parsed.toString();
+}
+
+function proxyLabel(proxy) {
+  if (!proxy?.server) return "no proxy";
+  try {
+    const parsed = new URL(proxy.server);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return "configured proxy";
+  }
+}
+
 function createLzyumiSignature() {
   const now = new Date();
   const month = String(now.getMonth() + 1);
@@ -91,9 +140,14 @@ function createLzyumiSignature() {
 }
 
 async function lzyumiFetchDirect(url) {
+  const proxyUrl = reportEngineProxyUrl();
+  const agent = proxyUrl ? new (require("proxy-agent").ProxyAgent)(proxyUrl) : null;
   const response = await axios.get(url, {
     headers: LZYUMI_HEADERS,
     timeout: LZYUMI_TIMEOUT_MS,
+    httpAgent: agent,
+    httpsAgent: agent,
+    proxy: false,
   });
   return response.data;
 }
@@ -101,8 +155,16 @@ async function lzyumiFetchDirect(url) {
 async function getBrowserPage() {
   if (!browserPromise) {
     const { chromium } = require("playwright");
+    const proxy = reportEngineProxy();
     browserPromise = chromium.launch({
       headless: true,
+      proxy: proxy?.server
+        ? {
+            server: proxy.server,
+            username: proxy.username || undefined,
+            password: proxy.password || undefined,
+          }
+        : undefined,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
@@ -569,7 +631,9 @@ async function main() {
     throw new Error("Missing ECL_REPORT_ENGINE_SECRET, ECL_JOB_SECRET, or ECL_KOOK_BOT_SECRET.");
   }
 
-  console.log(`ECL Report Engine polling ${SITE_URL} using ${FETCH_MODE} Lzyumi fetch`);
+  console.log(
+    `ECL Report Engine polling ${SITE_URL} using ${FETCH_MODE} Lzyumi fetch with ${proxyLabel(reportEngineProxy())}`,
+  );
   for (;;) {
     try {
       await processNextJob();
