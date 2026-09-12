@@ -285,7 +285,7 @@ function lzyumiInfoUrl({ nickname, openId, areaId, filter, allCount = 5 }) {
 
 function lzyumiDetailUrl({ openId, gameId, areaId }) {
   const { lzyumiSign, signStr } = createLzyumiSignature();
-  const url = new URL(`${LZYUMI_BASE}/findOrderDetailInfoAll`);
+  const url = new URL(`${LZYUMI_BASE}/info/findOrderDetailInfoAll`);
   url.searchParams.set("openId", openId);
   url.searchParams.set("gameId", gameId);
   url.searchParams.set("areaId", String(areaId));
