@@ -5,7 +5,7 @@ const featured = {
   label: "Patch Notes",
   date: "Sep 12, 2026",
   title: "Patch 2.1: Pure KOOK reporting and ranked LP tuning",
-  text: "Patch 2.1 completes the ranked inhouse report loop through KOOK, moves Lzyumi lookups to the always-on Report Engine, tunes LP gains and decay, cleans up Split One archive data, and adds Arabia to the World Cup country list.",
+  text: "Patch 2.1 completes the ranked inhouse report loop through KOOK, moves Lzyumi lookups to the dedicated Ubuntu Report Engine server, tunes LP gains and decay, cleans up Split One archive data, and adds Arabia to the World Cup country list.",
 };
 
 const posts = [
@@ -13,7 +13,7 @@ const posts = [
     type: "KOOK",
     title: "Report Engine is live",
     date: "Patch 2.1",
-    text: "Players can use !report after an inhouse, confirm with !yes, and let Coach submit the match without opening the website. The Report Engine now finds recent Lzyumi games and match details from the HK worker.",
+    text: "Players can use !report after an inhouse, confirm with !yes, and let Coach submit the match without opening the website. The dedicated Ubuntu Report Engine now finds recent Lzyumi games and match details from the HK worker.",
   },
   {
     type: "Ranked IH",
@@ -90,7 +90,7 @@ export default function NewsPage() {
             </p>
             <div className="mt-6 grid gap-3 text-sm font-semibold leading-6 text-[#c9d4e7] md:grid-cols-2">
               <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
-                KOOK reporting now runs through the Ubuntu Report Engine and returns a readable confirmation message.
+                KOOK reporting now runs through the dedicated Ubuntu Report Engine server and returns a readable confirmation message.
               </p>
               <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
                 Ranked LP gains now include a flat win bonus, streak bonuses, and Thursday/Friday first-win double LP.
@@ -119,7 +119,7 @@ export default function NewsPage() {
           </h2>
           <div className="mt-5 space-y-3 text-sm leading-6 text-[#9ca3af]">
             <p>Patch 2.1 is focused on ranked inhouse quality of life.</p>
-            <p>Coach can now carry the report flow from !report to !yes through the Report Engine.</p>
+            <p>Coach can now carry the report flow from !report to !yes through the dedicated Ubuntu Report Engine server.</p>
             <p>LP rules, inactive players, tournament archives, and World Cup flags all received cleanup passes.</p>
           </div>
         </aside>
