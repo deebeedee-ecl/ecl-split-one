@@ -42,7 +42,7 @@ const slides: Array<{ id: SlideId; label: string; title: string; eyebrow: string
     label: "ELO Leaderboard",
     eyebrow: "Player Ranking",
     title: "ELO Leaderboard",
-    description: "Split One player list ordered by current ELO with tournament stat context.",
+    description: "Locked Split One player list recovered from the final archive screenshot.",
   },
 ];
 
@@ -428,7 +428,7 @@ export function SplitOneArchiveCarousel({
           </div>
           <div className="border border-[#1f1f1f] bg-[#0d0d0d] p-4">
             <BarChart3 className="mb-2 text-[#b11226]" size={18} />
-            ELO read from player records
+            ELO locked from archive
           </div>
         </div>
       </div>

@@ -4,25 +4,24 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { buildKnockoutBracket } from "@/lib/knockout-bracket";
 import { lockedStandings } from "@/lib/locked-standings";
-import { BarChart3, Crown, Shield, Swords, Trophy } from "lucide-react";
+import {
+  Crosshair,
+  Flame,
+  Handshake,
+  Shield,
+  ShieldCheck,
+  Swords,
+  Trophy,
+} from "lucide-react";
 import { SplitOneArchiveCarousel } from "./SplitOneArchiveCarousel";
+import {
+  splitOneChampionSummary,
+  splitOneLockedLeaderboard,
+  splitOneStandoutAwards,
+  type SplitOneStandoutAward,
+} from "@/lib/split-one-archive";
 
 export const dynamic = "force-dynamic";
-
-type PlayerAggregate = {
-  playerId: string;
-  name: string;
-  teamName: string;
-  games: number;
-  wins: number;
-  kills: number;
-  deaths: number;
-  assists: number;
-  damage: number;
-  gold: number;
-  mvps: number;
-  svps: number;
-};
 
 function getTeamTag(name: string) {
   const words = name
@@ -83,42 +82,17 @@ function formatDate(value?: Date | null) {
   }).format(value);
 }
 
-function kda(player: PlayerAggregate) {
-  return ((player.kills + player.assists) / Math.max(1, player.deaths)).toFixed(2);
-}
+function getAwardIcon(icon: SplitOneStandoutAward["icon"]) {
+  const icons = {
+    target: Crosshair,
+    shield: ShieldCheck,
+    flame: Flame,
+    trophy: Trophy,
+    assist: Handshake,
+    swords: Swords,
+  };
 
-function AwardStars({ player }: { player: PlayerAggregate }) {
-  if (player.mvps <= 0 && player.svps <= 0) {
-    return null;
-  }
-
-  return (
-    <span className="ml-2 inline-flex items-center justify-end gap-1 text-base leading-none">
-      {player.mvps > 0 && (
-        <span
-          className="text-[#f5c542] drop-shadow-[0_0_8px_rgba(245,197,66,0.35)]"
-          aria-label={`${player.mvps} MVP gold stars`}
-          title={`${player.mvps} MVP`}
-        >
-          {"★".repeat(player.mvps)}
-        </span>
-      )}
-      {player.svps > 0 && (
-        <span
-          className="text-[#c7cbd1] drop-shadow-[0_0_8px_rgba(199,203,209,0.25)]"
-          aria-label={`${player.svps} SVP silver stars`}
-          title={`${player.svps} SVP`}
-        >
-          {"★".repeat(player.svps)}
-        </span>
-      )}
-    </span>
-  );
-}
-
-function perGame(total: number, games: number) {
-  if (!games) return "0.0";
-  return (total / games).toFixed(1);
+  return icons[icon];
 }
 
 function getPointsText(points: number) {
@@ -244,111 +218,16 @@ export default async function SplitOneArchivePage() {
     }
   })();
 
-  const { teams, knockoutStoredMatches, completedMatches, playerStats, dataError } = archiveData;
+  const { knockoutStoredMatches, completedMatches, playerStats, dataError } = archiveData;
 
   const bracketMatches = buildKnockoutBracket(knockoutStoredMatches);
-  const teamById = new Map(teams.map((team) => [team.id, team]));
-
-  const playerMap = new Map<string, PlayerAggregate>();
-
-  for (const stat of playerStats) {
-    const existing = playerMap.get(stat.playerId) ?? {
-      playerId: stat.playerId,
-      name: stat.player.name,
-      teamName: stat.team?.name ?? "No team",
-      games: 0,
-      wins: 0,
-      kills: 0,
-      deaths: 0,
-      assists: 0,
-      damage: 0,
-      gold: 0,
-      mvps: 0,
-      svps: 0,
-    };
-
-    existing.games += 1;
-    existing.wins += stat.isWin ? 1 : 0;
-    existing.kills += stat.kills;
-    existing.deaths += stat.deaths;
-    existing.assists += stat.assists;
-    existing.damage += stat.damage ?? 0;
-    existing.gold += stat.gold ?? 0;
-    existing.mvps += stat.isMVP ? 1 : 0;
-    existing.svps += stat.isSVP ? 1 : 0;
-
-    playerMap.set(stat.playerId, existing);
-  }
-
-  const players = Array.from(playerMap.values());
   const lockedMatchCount = getLockedMatchCount();
   const lockedGameCount = getLockedGameCount();
   const uniqueGameCount =
     new Set(playerStats.map((stat) => stat.matchGameId)).size || lockedGameCount;
   const matchCount = completedMatches.length || lockedMatchCount;
-  const trackedPlayerCount = players.length || "Pending";
-  const mvpLeader = players.slice().sort((a, b) => b.mvps - a.mvps || b.kills - a.kills)[0];
-  const killLeader = players.slice().sort((a, b) => b.kills - a.kills)[0];
-  const kdaLeader = players
-    .filter((player) => player.games >= 2)
-    .sort((a, b) => Number(kda(b)) - Number(kda(a)))[0];
-  const hasArchivedPlayerStats = playerStats.length > 0;
-
-  const awards = [
-    {
-      label: "Champion",
-      value: lockedStandings[0]?.teamName ?? "TBC",
-      note: "Split One table leader and archived champion slot",
-      icon: Crown,
-    },
-    {
-      label: "MVP Leader",
-      value: mvpLeader?.name ?? "Archive pending",
-      note: mvpLeader ? `${mvpLeader.mvps} MVP games - ${mvpLeader.teamName}` : "No Split One MVP rows are archived yet",
-      icon: Trophy,
-    },
-    {
-      label: "Kill Leader",
-      value: killLeader?.name ?? "Archive pending",
-      note: killLeader ? `${killLeader.kills} kills - ${perGame(killLeader.kills, killLeader.games)} per game` : "No Split One stat rows are archived yet",
-      icon: Swords,
-    },
-    {
-      label: "KDA Leader",
-      value: kdaLeader?.name ?? "Archive pending",
-      note: kdaLeader ? `${kda(kdaLeader)} KDA across ${kdaLeader.games} games` : "Minimum 2 archived Split One games required",
-      icon: BarChart3,
-    },
-  ];
-
-  const eloLeaderboard = teams
-    .flatMap((team) =>
-      team.players.map((player) => {
-        const aggregate = playerMap.get(player.id);
-
-        return {
-          id: player.id,
-          name: player.name,
-          riotLine:
-            player.riotName || player.riotTag
-              ? [player.riotName, player.riotTag].filter(Boolean).join("#")
-              : null,
-          teamName: team.name,
-          teamLogoUrl: team.logoUrl,
-          elo: player.elo,
-          games: aggregate?.games ?? 0,
-          wins: aggregate?.wins ?? 0,
-          kda: aggregate ? kda(aggregate) : "0.00",
-          mvps: aggregate?.mvps ?? 0,
-          svps: aggregate?.svps ?? 0,
-        };
-      })
-    )
-    .sort((a, b) => {
-      if (b.elo !== a.elo) return b.elo - a.elo;
-      if (b.games !== a.games) return b.games - a.games;
-      return a.name.localeCompare(b.name);
-    });
+  const trackedPlayerCount = splitOneLockedLeaderboard.length;
+  const eloLeaderboard = splitOneLockedLeaderboard;
 
   return (
     <main className="min-h-screen bg-[#050505] text-white">
@@ -378,8 +257,8 @@ export default async function SplitOneArchivePage() {
           </h1>
           <p className="mt-9 max-w-4xl text-xl leading-9 text-[#e5e7eb] drop-shadow-[0_8px_24px_rgba(0,0,0,0.8)]">
             Historical home for the Split One table, knockout path, player
-            awards, results, and team-by-team records. This archive reads the
-            existing season data without changing live records.
+            awards, results, and team-by-team records. The core archive is
+            locked from final standings and recovered season screenshots.
           </p>
 
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -397,38 +276,113 @@ export default async function SplitOneArchivePage() {
         eloLeaderboard={eloLeaderboard}
       />
 
+      <section className="border-b border-[#1f1f1f] bg-[#050505]">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
+          <div className="grid overflow-hidden border border-[#332a0c] bg-[linear-gradient(120deg,rgba(255,214,10,0.22),rgba(5,5,5,0.86)_38%,rgba(20,83,45,0.26))] shadow-[0_24px_90px_rgba(0,0,0,0.45)] lg:grid-cols-[0.92fr_1.35fr]">
+            <div className="p-6 sm:p-10">
+              <div className="relative flex aspect-[1.12] items-center justify-center border border-[#3a3517] bg-black/62">
+                <div className="absolute left-5 top-5 bg-[#ffd60a] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-black">
+                  Champions
+                </div>
+                <Image
+                  src={splitOneChampionSummary.logoUrl}
+                  alt={splitOneChampionSummary.champion}
+                  width={300}
+                  height={300}
+                  className="h-56 w-56 object-contain sm:h-72 sm:w-72"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-center p-6 sm:p-10">
+              <p className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.26em] text-[#fff4a3]">
+                <Trophy size={18} />
+                Spring Split Champions
+              </p>
+              <h2 className="mt-5 text-5xl font-black uppercase leading-none text-white [font-family:Anton,Impact,Arial_Black,Arial,sans-serif] sm:text-7xl">
+                {splitOneChampionSummary.champion}
+              </h2>
+              <p className="mt-6 max-w-3xl text-base leading-8 text-[#f3f4f6]">
+                {splitOneChampionSummary.body}
+              </p>
+
+              <div className="mt-7 grid gap-3 sm:grid-cols-3">
+                <MiniStat label="Finals" value={splitOneChampionSummary.finalsScore} />
+                <MiniStat label="Run" value={splitOneChampionSummary.run} />
+                <MiniStat label="Crown" value={splitOneChampionSummary.crown} />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 border border-[#1f1f1f] bg-[#0d0d0d] p-6 md:grid-cols-[1fr_auto] md:items-center">
+            <div>
+              <p className="text-sm font-black uppercase tracking-[0.22em] text-[#4ade80]">
+                Split MVP
+              </p>
+              <h3 className="mt-3 text-4xl font-black uppercase text-white [font-family:Anton,Impact,Arial_Black,Arial,sans-serif]">
+                {splitOneChampionSummary.mvp.name}
+              </h3>
+              <p className="mt-3 text-sm leading-6 text-[#9ca3af]">
+                {splitOneChampionSummary.mvp.note}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <MiniStat label="ELO" value={splitOneChampionSummary.mvp.elo} />
+              <MiniStat label="KDA" value={splitOneChampionSummary.mvp.kda} />
+              <MiniStat label="WR" value={splitOneChampionSummary.mvp.winRate} />
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="border-b border-[#1f1f1f] bg-[#080808]">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
           <SectionHeader
-            eyebrow="Awards"
-            title="Season Leaders"
-            description="Automatically summarized from archived Split One player stat rows where available."
+            eyebrow="Split Awards"
+            title="Season Standouts"
+            description="Recovered from the final Split One archive screenshots and locked for historical display."
           />
 
-          {(dataError || !hasArchivedPlayerStats) && (
-            <div className="mt-8 border border-[#2a2a2a] bg-[#101010] p-5 text-sm leading-6 text-[#b8bec8]">
-              {dataError
-                ? "Split One standings and bracket data are available. Player stat rows are waiting on archive recovery."
-                : "Split One standings and season totals are available. Player stat leaders will return after the historical player rows are restored."}
-            </div>
-          )}
-
-          <div className={`${hasArchivedPlayerStats && !dataError ? "mt-8" : "mt-4"} grid gap-4 md:grid-cols-2 xl:grid-cols-4`}>
-            {awards.map((award) => {
-              const Icon = award.icon;
+          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {splitOneStandoutAwards.map((award) => {
+              const Icon = getAwardIcon(award.icon);
 
               return (
                 <div key={award.label} className="border border-[#1f1f1f] bg-[#0d0d0d] p-6">
-                  <Icon className="text-[#b11226]" size={28} />
-                  <p className="mt-5 text-xs font-black uppercase tracking-[0.16em] text-[#9ca3af]">
-                    {award.label}
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.22em] text-[#777]">
+                        {award.qualifier}
+                      </p>
+                      <h3 className="mt-3 text-lg font-black uppercase text-white">
+                        {award.label}
+                      </h3>
+                    </div>
+                    <span className="flex size-10 items-center justify-center border border-[#14532d] bg-[#052e16] text-[#4ade80]">
+                      <Icon size={20} />
+                    </span>
+                  </div>
+
+                  <p className="mt-5 text-4xl font-black text-[#fff7b2]">
+                    {award.value}
                   </p>
-                  <h3 className="mt-2 text-2xl font-black text-white">{award.value}</h3>
-                  <p className="mt-3 text-sm leading-6 text-[#9ca3af]">{award.note}</p>
+                  <p className="mt-2 text-sm font-black text-white">{award.player}</p>
+                  <p className="mt-1 text-xs text-[#6b7280]">{award.riotLine}</p>
+                  <p className="mt-5 text-sm leading-6 text-[#9ca3af]">
+                    {award.description}
+                  </p>
                 </div>
               );
             })}
           </div>
+
+          {dataError && (
+            <div className="mt-8 border border-[#2a2a2a] bg-[#101010] p-5 text-sm leading-6 text-[#b8bec8]">
+              Live database rows failed to load, so this page is showing the locked screenshot
+              archive only.
+            </div>
+          )}
         </div>
       </section>
 
@@ -437,21 +391,24 @@ export default async function SplitOneArchivePage() {
           <SectionHeader
             eyebrow="Teams"
             title="Team by Team"
-            description="Open each team card for roster, record, recent archived matches, and player KDA leaders. MVP = gold star, SVP = silver star."
+            description="Open each team card for locked standings, recovered leaderboard names, and screenshot-backed award mentions."
           />
 
           <div className="mt-8 grid gap-4 lg:grid-cols-2">
             {lockedStandings.map((standing, index) => {
-              const team = teamById.get(standing.teamId);
               const teamMatches = completedMatches.filter(
                 (match) =>
                   match.homeTeamId === standing.teamId ||
                   match.awayTeamId === standing.teamId
               );
-              const playerRows = players
-                .filter((player) => player.teamName === standing.teamName)
-                .sort((a, b) => Number(kda(b)) - Number(kda(a)) || b.mvps - a.mvps)
-                .slice(0, 5);
+              const archivedRows = splitOneLockedLeaderboard.filter(
+                (player) => player.teamName === standing.teamName
+              );
+              const recoveredAwards = splitOneStandoutAwards.filter((award) =>
+                archivedRows.some(
+                  (player) => player.name.toLowerCase() === award.player.toLowerCase()
+                )
+              );
 
               return (
                 <details key={standing.teamId} className="group border border-[#1f1f1f] bg-[#0d0d0d]">
@@ -480,32 +437,34 @@ export default async function SplitOneArchivePage() {
 
                   <div className="border-t border-[#1f1f1f] p-5">
                     <div className="grid gap-4 md:grid-cols-3">
-                      <MiniStat label="Roster" value={team?.players.length || "Pending"} />
+                      <MiniStat label="Recovered Players" value={archivedRows.length || "None"} />
                       <MiniStat label="Matches" value={teamMatches.length || standing.played} />
-                      <MiniStat label="Top KDA" value={playerRows[0] ? kda(playerRows[0]) : "Pending"} />
+                      <MiniStat label="Top ELO" value={archivedRows[0]?.elo ?? "Locked"} />
                     </div>
 
                     <div className="mt-5 grid gap-5 lg:grid-cols-2">
                       <div>
                         <h4 className="text-sm font-black uppercase tracking-[0.16em] text-white">
-                          Roster
+                          Recovered leaderboard
                         </h4>
                         <div className="mt-3 space-y-2">
-                          {(team?.players ?? []).length === 0 ? (
-                            <p className="text-sm text-[#9ca3af]">No roster data archived.</p>
+                          {archivedRows.length === 0 ? (
+                            <p className="text-sm text-[#9ca3af]">
+                              No screenshot-backed player rows recovered for this team.
+                            </p>
                           ) : (
-                            team?.players.map((player) => (
+                            archivedRows.map((player) => (
                               <div
                                 key={player.id}
-                                className="border border-[#1f1f1f] bg-black/25 px-3 py-2 text-sm"
+                                className="grid grid-cols-[1fr_auto] gap-3 border border-[#1f1f1f] bg-black/25 px-3 py-2 text-sm"
                               >
-                                <span className="font-bold text-white">{player.name}</span>
-                                {player.riotName && (
-                                  <span className="ml-2 text-[#9ca3af]">
-                                    {player.riotName}
-                                    {player.riotTag ? `#${player.riotTag}` : ""}
-                                  </span>
-                                )}
+                                <span>
+                                  <span className="font-bold text-white">{player.name}</span>
+                                  {player.riotLine && (
+                                    <span className="ml-2 text-[#6b7280]">{player.riotLine}</span>
+                                  )}
+                                </span>
+                                <span className="font-black text-[#4ade80]">{player.elo}</span>
                               </div>
                             ))
                           )}
@@ -514,21 +473,25 @@ export default async function SplitOneArchivePage() {
 
                       <div>
                         <h4 className="text-sm font-black uppercase tracking-[0.16em] text-white">
-                          Player leaders
+                          Recovered awards
                         </h4>
                         <div className="mt-3 space-y-2">
-                          {playerRows.length === 0 ? (
-                            <p className="text-sm text-[#9ca3af]">No Split One stat rows archived.</p>
+                          {recoveredAwards.length === 0 ? (
+                            <p className="text-sm text-[#9ca3af]">
+                              No screenshot-backed award rows recovered for this team.
+                            </p>
                           ) : (
-                            playerRows.map((player) => (
+                            recoveredAwards.map((award) => (
                               <div
-                                key={player.playerId}
+                                key={`${standing.teamId}-${award.label}`}
                                 className="grid grid-cols-[1fr_auto] gap-3 border border-[#1f1f1f] bg-black/25 px-3 py-2 text-sm"
                               >
-                                <span className="font-bold text-white">{player.name}</span>
-                                <span className="text-right text-[#9ca3af]">
-                                  <span className="font-black text-white">{kda(player)} KDA</span>
-                                  <AwardStars player={player} />
+                                <span>
+                                  <span className="font-bold text-white">{award.label}</span>
+                                  <span className="ml-2 text-[#6b7280]">{award.player}</span>
+                                </span>
+                                <span className="text-right font-black text-[#fff7b2]">
+                                  {award.value}
                                 </span>
                               </div>
                             ))
