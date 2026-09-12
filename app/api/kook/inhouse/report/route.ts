@@ -459,9 +459,10 @@ export async function POST(request: Request) {
     .map((sessionPlayer) => {
       const key = riotIdKey(sessionPlayer.riotName, sessionPlayer.riotTag);
       const nameKey = riotNameKey(sessionPlayer.riotName);
+      const hasTag = Boolean(normalizeRiotTag(sessionPlayer.riotTag));
       const detailPlayer =
         (key ? detailByRiotKey.get(key) : undefined) ??
-        (nameKey ? detailByNameKey.get(nameKey) ?? undefined : undefined);
+        (!hasTag && nameKey ? detailByNameKey.get(nameKey) ?? undefined : undefined);
       return detailPlayer ? { sessionPlayer, detailPlayer } : null;
     })
     .filter(

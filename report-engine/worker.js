@@ -80,11 +80,35 @@ function riotNameKey(name) {
   return normalize(name).replace(RIOT_KEY_SPACING_PATTERN, "");
 }
 
-function detailKeys(player) {
-  return [player.nickNameStr, player.nickName].flatMap((value) => {
-    const parts = splitRiotId(value);
-    return [riotIdKey(parts.name, parts.tag), riotNameKey(parts.name)].filter(Boolean);
-  });
+function resolvedRiotIdMatches(resolvedName, riotName, riotTag) {
+  const resolved = splitRiotId(resolvedName);
+  return riotIdKey(resolved.name, resolved.tag) === riotIdKey(riotName, riotTag);
+}
+
+function detailRiotKeys(player) {
+  return [player.nickNameStr, player.nickName].map(splitRiotId)
+    .map((parts) => riotIdKey(parts.name, parts.tag))
+    .filter(Boolean);
+}
+
+function detailNameKeys(player) {
+  return [player.nickNameStr, player.nickName].map(splitRiotId)
+    .map((parts) => riotNameKey(parts.name))
+    .filter(Boolean);
+}
+
+function hasRiotTag(player) {
+  return Boolean(normalize(player.riotTag).replace(/^#+/, "").replace(RIOT_KEY_SPACING_PATTERN, ""));
+}
+
+function detailPlayerMatches(player, detailPlayer) {
+  const fullKey = riotIdKey(player.riotName, player.riotTag);
+  if (fullKey && detailRiotKeys(detailPlayer).includes(fullKey)) return true;
+
+  if (hasRiotTag(player)) return false;
+
+  const nameKey = riotNameKey(player.riotName);
+  return Boolean(nameKey && detailNameKeys(detailPlayer).includes(nameKey));
 }
 
 function reportEngineProxy() {
@@ -349,6 +373,18 @@ async function fetchRecentGamesForPlayer(player) {
     if (!hasData) continue;
 
     const profile = responses.find((response) => response?.battleInfo?.openId) || null;
+    const expectedRiotKey = riotIdKey(player.riotName, player.riotTag);
+    const resolvedName = clean(profile?.battleInfo?.nameInfoNew);
+
+    if (expectedRiotKey && !resolvedRiotIdMatches(resolvedName, player.riotName, player.riotTag)) {
+      debugLzyumi("identity-mismatch", {
+        player: riotId(player) || clean(player.displayName),
+        suppliedOpenId: Boolean(clean(attempt.openId)),
+        resolvedName,
+      });
+      continue;
+    }
+
     const openId = clean(profile?.battleInfo?.openId) || attempt.openId;
     const gamesById = new Map();
 
@@ -375,14 +411,12 @@ async function fetchRecentGamesForPlayer(player) {
 }
 
 function matchRoster(players, detail) {
-  const detailPlayerKeys = new Set((detail?.data?.wgBattleDetailInfo || []).flatMap(detailKeys));
+  const detailPlayers = detail?.data?.wgBattleDetailInfo || [];
   const matched = [];
   const missing = [];
 
   for (const player of players) {
-    const fullKey = riotIdKey(player.riotName, player.riotTag);
-    const nameKey = riotNameKey(player.riotName);
-    if ((fullKey && detailPlayerKeys.has(fullKey)) || (nameKey && detailPlayerKeys.has(nameKey))) {
+    if (detailPlayers.some((detailPlayer) => detailPlayerMatches(player, detailPlayer))) {
       matched.push(player.displayName);
     } else {
       missing.push(player.displayName);
@@ -476,11 +510,7 @@ function summarizeReporter(job, detail, game, rosterMatch) {
   const detailPlayers = detail?.data?.wgBattleDetailInfo || [];
   const player =
     detailPlayers.find((entry) => reporterOpenId && entry.openIdNow === reporterOpenId) ||
-    detailPlayers.find((entry) => {
-      const keys = detailKeys(entry);
-      return keys.includes(riotIdKey(reporter.riotName, reporter.riotTag)) ||
-        keys.includes(riotNameKey(reporter.riotName));
-    });
+    detailPlayers.find((entry) => detailPlayerMatches(reporter, entry));
 
   const result = String(player?.win || "").toLowerCase();
   const outcome = ["1", "true", "win"].includes(result)
@@ -529,9 +559,7 @@ function findDetailPlayerForSource(source, detail) {
   }
 
   return detailPlayers.find((entry) => {
-    const keys = detailKeys(entry);
-    return keys.includes(riotIdKey(source.player.riotName, source.player.riotTag)) ||
-      keys.includes(riotNameKey(source.player.riotName));
+    return detailPlayerMatches(source.player, entry);
   });
 }
 

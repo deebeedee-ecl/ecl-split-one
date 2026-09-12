@@ -81,6 +81,7 @@ export function findLzyumiPlayer(
 ) {
   const targetKey = riotIdKey(riotName, riotTag);
   const targetNameKey = riotNameKey(riotName);
+  const hasTargetTag = Boolean(riotTag?.trim().replace(/^#+/, ""));
   if (!targetKey && !targetNameKey) return null;
 
   const fullMatch = targetKey
@@ -91,6 +92,8 @@ export function findLzyumiPlayer(
     : null;
 
   if (fullMatch) return fullMatch;
+
+  if (hasTargetTag) return null;
 
   if (!targetNameKey) return null;
 

@@ -46,7 +46,7 @@ function toJson(value: unknown): Prisma.InputJsonValue {
 
 const ACTIVE_REPORT_HOURS = 48;
 const REPORT_CONFIRM_MINUTES = 20;
-const REQUIRED_REPORT_MATCHES = 10;
+const REQUIRED_REPORT_MATCHES = Number(process.env.INHOUSE_REPORT_REQUIRED_MATCHES || 8);
 const REPORT_CANDIDATE_LIMIT = 8;
 const REPORT_GAME_EARLY_GRACE_MS = Number(process.env.INHOUSE_REPORT_EARLY_GRACE_MINUTES || 10) * 60 * 1000;
 const REPORT_GAME_LATE_WINDOW_MS = Number(process.env.INHOUSE_REPORT_LATE_WINDOW_HOURS || 6) * 60 * 60 * 1000;
@@ -330,9 +330,10 @@ function matchSessionPlayersToDetail(
     const riotTag = sessionPlayer.riotTag;
     const key = riotIdKey(riotName, riotTag);
     const nameKey = riotNameKey(riotName);
+    const hasTag = Boolean(normalizeRiotTag(riotTag));
     const detailPlayer =
       (key ? detailByRiotKey.get(key) : undefined) ??
-      (nameKey ? detailByNameKey.get(nameKey) ?? undefined : undefined);
+      (!hasTag && nameKey ? detailByNameKey.get(nameKey) ?? undefined : undefined);
 
     if (detailPlayer) {
       matched.push(sessionPlayer.displayName);
@@ -384,10 +385,18 @@ async function findMatchingReportCandidate({
       );
 
       const attempts = searchOpenId
-        ? [{ riotName: searchRiotId, openId: searchOpenId, trustedOpenId: true }]
-        : lookupNames.map((riotName) => ({ riotName, openId: "", trustedOpenId: false }));
+        ? [
+            { riotName: searchRiotId, openId: searchOpenId },
+            ...lookupNames.map((riotName) => ({ riotName, openId: "" })),
+          ]
+        : lookupNames.map((riotName) => ({ riotName, openId: "" }));
+      const seenAttempts = new Set<string>();
 
       for (const attempt of attempts) {
+        const attemptKey = `${attempt.riotName}::${attempt.openId}`;
+        if (seenAttempts.has(attemptKey)) continue;
+        seenAttempts.add(attemptKey);
+
         const result = await fetchLzyumiRecentGames({
           riotName: attempt.riotName,
           openId: attempt.openId,
@@ -398,13 +407,15 @@ async function findMatchingReportCandidate({
         const resolvedName = result.profile?.battleInfo?.nameInfoNew;
         const resolvedOpenId = clean(result.profile?.battleInfo?.openId) || attempt.openId;
         const isExactProfile =
-          attempt.trustedOpenId ||
-          (resolvedOpenId &&
+          Boolean(
+            resolvedOpenId &&
+            resolvedName &&
             isResolvedRiotIdMatch(
               resolvedName,
               searchPlayer.riotName ?? "",
               normalizeRiotTag(searchPlayer.riotTag),
-            ));
+            ),
+          );
 
         if (!isExactProfile || !resolvedOpenId || result.games.length === 0) continue;
 
