@@ -143,76 +143,100 @@ export default async function SplitOneArchivePage() {
     ],
   } satisfies Prisma.MatchWhereInput;
 
-  const [teams, knockoutStoredMatches, completedMatches, playerStats] =
-    await Promise.all([
-      prisma.team.findMany({
-        where: {
-          OR: [{ id: { in: splitOneTeamIds } }, { name: { in: splitOneTeamNames } }],
-        },
-        include: {
-          players: {
+  const archiveData = await (async () => {
+    try {
+      const [teams, knockoutStoredMatches, completedMatches, playerStats] =
+        await Promise.all([
+          prisma.team.findMany({
+            where: {
+              OR: [{ id: { in: splitOneTeamIds } }, { name: { in: splitOneTeamNames } }],
+            },
+            include: {
+              players: {
+                orderBy: {
+                  name: "asc",
+                },
+              },
+            },
             orderBy: {
               name: "asc",
             },
-          },
-        },
-        orderBy: {
-          name: "asc",
-        },
-      }),
-      prisma.match.findMany({
-        where: {
-          stage: {
-            in: ["PLAYOFFS", "SEMIFINALS", "FINALS"],
-          },
-          ...splitOneMatchWhere,
-        },
-        include: {
-          homeTeam: true,
-          awayTeam: true,
-          winnerTeam: true,
-        },
-        orderBy: [{ scheduledAt: "asc" }, { createdAt: "desc" }],
-      }),
-      prisma.match.findMany({
-        where: {
-          status: {
-            in: ["COMPLETED", "FORFEIT"],
-          },
-          ...splitOneMatchWhere,
-        },
-        include: {
-          homeTeam: true,
-          awayTeam: true,
-          winnerTeam: true,
-          games: {
+          }),
+          prisma.match.findMany({
+            where: {
+              stage: {
+                in: ["PLAYOFFS", "SEMIFINALS", "FINALS"],
+              },
+              ...splitOneMatchWhere,
+            },
             include: {
+              homeTeam: true,
+              awayTeam: true,
               winnerTeam: true,
             },
-            orderBy: {
-              gameNumber: "asc",
-            },
-          },
-        },
-        orderBy: [{ scheduledAt: "asc" }, { createdAt: "asc" }],
-      }),
-      prisma.matchGamePlayerStat.findMany({
-        where: {
-          matchGame: {
-            match: {
+            orderBy: [{ scheduledAt: "asc" }, { createdAt: "desc" }],
+          }),
+          prisma.match.findMany({
+            where: {
               status: {
                 in: ["COMPLETED", "FORFEIT"],
               },
               ...splitOneMatchWhere,
             },
-          },
-        },
-        include: {
-          player: true,
-          team: true,
-        },
-      }),
-    ]);
+            include: {
+              homeTeam: true,
+              awayTeam: true,
+              winnerTeam: true,
+              games: {
+                include: {
+                  winnerTeam: true,
+                },
+                orderBy: {
+                  gameNumber: "asc",
+                },
+              },
+            },
+            orderBy: [{ scheduledAt: "asc" }, { createdAt: "asc" }],
+          }),
+          prisma.matchGamePlayerStat.findMany({
+            where: {
+              matchGame: {
+                match: {
+                  status: {
+                    in: ["COMPLETED", "FORFEIT"],
+                  },
+                  ...splitOneMatchWhere,
+                },
+              },
+            },
+            include: {
+              player: true,
+              team: true,
+            },
+          }),
+        ]);
+
+      return {
+        teams,
+        knockoutStoredMatches,
+        completedMatches,
+        playerStats,
+        dataError: false,
+      };
+    } catch (error) {
+      console.error("Split One archive data failed to load", error);
+
+      return {
+        teams: [],
+        knockoutStoredMatches: [],
+        completedMatches: [],
+        playerStats: [],
+        dataError: true,
+      };
+    }
+  })();
+
+  const { teams, knockoutStoredMatches, completedMatches, playerStats, dataError } = archiveData;
 
   const bracketMatches = buildKnockoutBracket(knockoutStoredMatches);
   const teamById = new Map(teams.map((team) => [team.id, team]));
@@ -368,13 +392,15 @@ export default async function SplitOneArchivePage() {
             description="Automatically summarized from archived Split One player stat rows where available."
           />
 
-          {!hasArchivedPlayerStats && (
+          {(dataError || !hasArchivedPlayerStats) && (
             <div className="mt-8 border border-[#b11226]/45 bg-[#21070b] p-5 text-sm leading-6 text-[#f3c4ca]">
-              Ranked inhouse stats are now excluded from this archive. Historical Split One player-stat rows are not currently attached in the database, so stat leaders will return after those rows are restored.
+              {dataError
+                ? "The Split One archive database rows could not be read, so this page is showing the locked archive shell. Refresh later or check the deployment logs."
+                : "Ranked inhouse stats are now excluded from this archive. Historical Split One player-stat rows are not currently attached in the database, so stat leaders will return after those rows are restored."}
             </div>
           )}
 
-          <div className={`${hasArchivedPlayerStats ? "mt-8" : "mt-4"} grid gap-4 md:grid-cols-2 xl:grid-cols-4`}>
+          <div className={`${hasArchivedPlayerStats && !dataError ? "mt-8" : "mt-4"} grid gap-4 md:grid-cols-2 xl:grid-cols-4`}>
             {awards.map((award) => {
               const Icon = award.icon;
 
