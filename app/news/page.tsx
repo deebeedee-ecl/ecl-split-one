@@ -3,12 +3,36 @@ import { ArrowRight, CalendarDays, Megaphone, Newspaper, Sparkles } from "lucide
 
 const featured = {
   label: "Patch Notes",
-  date: "Sep 6, 2026",
-  title: "Patch 2.0: World Cup, Coach, and Hub upgrades",
-  text: "Patch 2.0 rebuilds the Hub around the ECL World Cup, improves ECL.GG stat refresh reliability, connects site messages to the KOOK admin channel, and starts moving inhouse reporting away from link-based workflows.",
+  date: "Sep 12, 2026",
+  title: "Patch 2.1: Pure KOOK reporting and ranked LP tuning",
+  text: "Patch 2.1 completes the ranked inhouse report loop through KOOK, moves Lzyumi lookups to the always-on Report Engine, tunes LP gains and decay, cleans up Split One archive data, and adds Arabia to the World Cup country list.",
 };
 
 const posts = [
+  {
+    type: "KOOK",
+    title: "Report Engine is live",
+    date: "Patch 2.1",
+    text: "Players can use !report after an inhouse, confirm with !yes, and let Coach submit the match without opening the website. The Report Engine now finds recent Lzyumi games and match details from the HK worker.",
+  },
+  {
+    type: "Ranked IH",
+    title: "LP rules updated",
+    date: "Patch 2.1",
+    text: "Wins now get +5 LP, W3+ streaks gain bonus LP, Thursday and Friday first wins can double positive LP, and inactivity decay starts after seven days but cannot decay a player below 600 LP.",
+  },
+  {
+    type: "Archive",
+    title: "Split One data cleaned",
+    date: "Patch 2.1",
+    text: "Past tournament pages were checked in production mode. Split One archive data is now scoped to Split One teams and matches so ranked inhouse stats no longer mix into the tournament archive.",
+  },
+  {
+    type: "World Cup",
+    title: "Arabia added",
+    date: "Patch 2.1",
+    text: "Arabia is now available in the World Cup country and flag list, with a matching flag asset for team and player identity pages.",
+  },
   {
     type: "Tournament",
     title: "ECL World Cup hub opens",
@@ -17,21 +41,9 @@ const posts = [
   },
   {
     type: "Systems",
-    title: "ECL.GG refresh is now server-backed",
+    title: "Patch 2.0: ECL.GG refresh became server-backed",
     date: "Patch 2.0",
     text: "Profile refreshes can now run through the Vercel job path instead of relying only on a user browser. Failed refreshes are queued, retried, and visible to admins.",
-  },
-  {
-    type: "KOOK",
-    title: "Coach is becoming the bridge",
-    date: "Patch 2.0",
-    text: "The KOOK bot now has API routes for inhouse reporting and admin notifications. Contact messages from the website are relayed to the ECL admin channel.",
-  },
-  {
-    type: "Hub",
-    title: "Cleaner player and match views",
-    date: "Patch 2.0",
-    text: "The player directory moved toward a readable list layout with filters, inhouse match history was tightened for smaller screens, and champion stats gained pick, ban, win-rate, role, and minimum-game filters.",
   },
 ];
 
@@ -78,16 +90,16 @@ export default function NewsPage() {
             </p>
             <div className="mt-6 grid gap-3 text-sm font-semibold leading-6 text-[#c9d4e7] md:grid-cols-2">
               <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
-                World Cup begins Sep 18. Teams should be submitted by Sep 13.
+                KOOK reporting now runs through the Ubuntu Report Engine and returns a readable confirmation message.
               </p>
               <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
-                Team access now follows verified Hub profiles, not manual contact IDs.
+                Ranked LP gains now include a flat win bonus, streak bonuses, and Thursday/Friday first-win double LP.
               </p>
               <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
-                Inhouse reporting is being anchored to the same data flow that works in the admin dashboard.
+                Inactivity decay starts after seven days and cannot decay a player below 600 LP.
               </p>
               <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
-                World Cup team dashboards show rosters, top champions, applications, and tournament performance stats.
+                Split One archive pages were checked and scoped so ranked inhouse stats stay out of tournament history.
               </p>
             </div>
             <Link
@@ -106,9 +118,9 @@ export default function NewsPage() {
             What appears here?
           </h2>
           <div className="mt-5 space-y-3 text-sm leading-6 text-[#9ca3af]">
-            <p>Patch 2.0 is focused on reliability and tournament readiness.</p>
-            <p>The ECL World Cup begins Sep 18, with team submissions due Sep 13.</p>
-            <p>Coach, the Hub, and the admin dashboard are being tied together so match reporting and player data are easier to manage.</p>
+            <p>Patch 2.1 is focused on ranked inhouse quality of life.</p>
+            <p>Coach can now carry the report flow from !report to !yes through the Report Engine.</p>
+            <p>LP rules, inactive players, tournament archives, and World Cup flags all received cleanup passes.</p>
           </div>
         </aside>
       </section>
