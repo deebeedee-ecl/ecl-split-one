@@ -5,6 +5,7 @@ export type WorldCupCountry = {
 };
 
 export const worldCupCountries: WorldCupCountry[] = [
+  { code: "AB", name: "Arabia", flag: "🇵🇸" },
   { code: "AR", name: "Argentina", flag: "🇦🇷" },
   { code: "AU", name: "Australia", flag: "🇦🇺" },
   { code: "BR", name: "Brazil", flag: "🇧🇷" },

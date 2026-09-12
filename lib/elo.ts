@@ -5,6 +5,8 @@ export const PLACEMENT_GAME_COUNT = 3;
 export const LP_SCALING_START = 1400;
 export const INACTIVITY_GRACE_DAYS = 7;
 export const INACTIVITY_LP_LOSS_PER_DAY = 10;
+export const INACTIVITY_LP_FLOOR = 600;
+export const WIN_LP_BONUS = 5;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const CHINA_OFFSET_MS = 8 * 60 * 60 * 1000;
@@ -54,7 +56,12 @@ export function applyInactivityDecay(
   lastPlayedAt?: Date | string | null,
   now = new Date(),
 ) {
-  return Math.max(0, Math.round(elo - inactivityPenalty(lastPlayedAt, now)));
+  const penalty = Math.min(
+    inactivityPenalty(lastPlayedAt, now),
+    Math.max(0, elo - INACTIVITY_LP_FLOOR),
+  );
+
+  return Math.round(elo - penalty);
 }
 
 export function calculateLpChange({
@@ -92,11 +99,14 @@ export function calculateLpChange({
 }) {
   const kda = (kills + assists) / Math.max(1, deaths);
   const rules = getEloRuleConfig();
-  const inactivityLoss = inactivityPenalty(lastPlayedAt, playedAt);
+  const inactivityLoss = Math.min(
+    inactivityPenalty(lastPlayedAt, playedAt),
+    Math.max(0, currentElo - INACTIVITY_LP_FLOOR),
+  );
   const effectiveElo = Math.max(0, currentElo - inactivityLoss);
 
   if (gamesPlayed < PLACEMENT_GAME_COUNT) {
-    const placementLp = win ? 60 : 0;
+    const placementLp = win ? 60 + WIN_LP_BONUS : 0;
     const doubledPlacementLp =
       win && doubleLpEligible && isDoubleLpWinDay(playedAt) && !hasPlayedOnDoubleLpDay
         ? placementLp * 2
@@ -121,7 +131,7 @@ export function calculateLpChange({
   const winBase = Math.max(1, rules.baseWinLp - winScalingPenalty + winStreakBonus);
   const lossBase = Math.max(1, rules.baseLossLp + lossScalingPenalty + lossStreakPenalty);
   const resultLp = win
-    ? winBase + (isMVP ? rules.mvpBonus : 0)
+    ? winBase + WIN_LP_BONUS + (isMVP ? rules.mvpBonus : 0)
     : -Math.max(0, lossBase - (isSVP ? rules.svpLossReduction : 0));
   const doubleLpApplied =
     win && doubleLpEligible && isDoubleLpWinDay(playedAt) && !hasPlayedOnDoubleLpDay;
