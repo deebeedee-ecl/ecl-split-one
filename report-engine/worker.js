@@ -155,12 +155,12 @@ function debugLzyumi(label, detail) {
 }
 
 function createLzyumiSignature() {
-  const now = new Date();
-  const month = String(now.getMonth() + 1);
-  const day = String(now.getDate());
-  const hours = String(now.getHours());
-  const minutes = String(now.getMinutes());
-  const seconds = String(now.getSeconds());
+  const china = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  const month = String(china.getUTCMonth() + 1);
+  const day = String(china.getUTCDate());
+  const hours = String(china.getUTCHours());
+  const minutes = String(china.getUTCMinutes());
+  const seconds = String(china.getUTCSeconds());
   const signSource = `dld${month.padStart(2, "0")}o${day.padStart(2, "0")}u${hours.padStart(2, "0")}d${minutes.padStart(2, "0")}o${seconds.padStart(2, "0")}dld`;
   return {
     lzyumiSign: crypto.createHash("md5").update(signSource).digest("hex"),
