@@ -7,6 +7,7 @@ export const REPORT_JOB_LOCK_MS = 2 * 60 * 1000;
 export type ReportJobRawMatchData = {
   profile: unknown;
   gameId: string;
+  game?: unknown;
   detail: unknown;
 };
 

@@ -48,6 +48,8 @@ const ACTIVE_REPORT_HOURS = 48;
 const REPORT_CONFIRM_MINUTES = 20;
 const REQUIRED_REPORT_MATCHES = 10;
 const REPORT_CANDIDATE_LIMIT = 8;
+const REPORT_GAME_EARLY_GRACE_MS = Number(process.env.INHOUSE_REPORT_EARLY_GRACE_MINUTES || 10) * 60 * 1000;
+const REPORT_GAME_LATE_WINDOW_MS = Number(process.env.INHOUSE_REPORT_LATE_WINDOW_HOURS || 6) * 60 * 60 * 1000;
 const LZYUMI_INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
 
 let championNamesCache: Map<string, string> | null = null;
@@ -170,6 +172,14 @@ function reportGameSortValue(
   const delta = gameTime.getTime() - sessionCreatedAt.getTime();
   const beforePenalty = delta < 0 ? 24 * 60 * 60 * 1000 : 0;
   return Math.abs(delta) + beforePenalty;
+}
+
+function isReportGameInTimeWindow(match: LzyumiRecentMatch, sessionCreatedAt: Date) {
+  const gameTime = parseLzyumiGameTime(match, sessionCreatedAt);
+  if (!gameTime) return true;
+
+  const delta = gameTime.getTime() - sessionCreatedAt.getTime();
+  return delta >= -REPORT_GAME_EARLY_GRACE_MS && delta <= REPORT_GAME_LATE_WINDOW_MS;
 }
 
 function formatReporterLine(
@@ -408,6 +418,7 @@ async function findMatchingReportCandidate({
   );
   const sortedCandidates = recentGames
     .filter(([gameId]) => !reportedGameIds.has(gameId))
+    .filter(([, source]) => isReportGameInTimeWindow(source.game, session.createdAt))
     .sort(([, a], [, b]) => {
       const aIsInhouse = clean(a.game.title).includes(LZYUMI_INHOUSE_LABEL) ? 0 : 1;
       const bIsInhouse = clean(b.game.title).includes(LZYUMI_INHOUSE_LABEL) ? 0 : 1;

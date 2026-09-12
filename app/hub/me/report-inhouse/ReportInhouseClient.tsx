@@ -328,6 +328,7 @@ export default function ReportInhouseClient() {
           rawMatchData: {
             profile: rawProfile,
             gameId: selectedGameId,
+            game: games.find((game) => game.gameId === selectedGameId) ?? { gameId: selectedGameId },
             detail,
           },
         }),

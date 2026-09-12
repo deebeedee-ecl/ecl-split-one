@@ -24,6 +24,8 @@ const LZYUMI_BASE = "https://a.2025lol.top/lzyumi/lol";
 const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
 const REQUIRED_MATCHES = Number(process.env.REPORT_ENGINE_REQUIRED_MATCHES || 8);
+const REPORT_GAME_EARLY_GRACE_MS = Number(process.env.REPORT_ENGINE_EARLY_GRACE_MINUTES || 10) * 60 * 1000;
+const REPORT_GAME_LATE_WINDOW_MS = Number(process.env.REPORT_ENGINE_LATE_WINDOW_HOURS || 6) * 60 * 60 * 1000;
 
 const CHINA_SERVERS = {
   1: "\u827e\u6b27\u5c3c\u4e9a",
@@ -439,6 +441,24 @@ function gameSortValue(game, sessionCreatedAt) {
   return Math.abs(delta) + (delta < 0 ? 24 * 60 * 60 * 1000 : 0);
 }
 
+function gameTimeWindowIssue(game, sessionCreatedAt) {
+  const gameTime = parseGameTime(game, sessionCreatedAt);
+  if (!gameTime) return "";
+
+  const sessionTime = new Date(sessionCreatedAt);
+  const delta = gameTime.getTime() - sessionTime.getTime();
+
+  if (delta < -REPORT_GAME_EARLY_GRACE_MS) {
+    return `closest candidate started ${Math.round(Math.abs(delta) / 60000)} minutes before the inhouse was created`;
+  }
+
+  if (delta > REPORT_GAME_LATE_WINDOW_MS) {
+    return `closest candidate started ${Math.round(delta / 60000)} minutes after the inhouse was created`;
+  }
+
+  return "";
+}
+
 function loadChampionNames() {
   try {
     const file = path.join(__dirname, "..", "public", "lol", "champions", "champions.json");
@@ -590,13 +610,18 @@ async function findMatchingGame(job) {
     }
   }
 
-  const candidates = [...gamesById.values()]
+  const sortedCandidates = [...gamesById.values()]
     .sort((a, b) => {
       const aIsInhouse = clean(a.game.title).includes(INHOUSE_LABEL) ? 0 : 1;
       const bIsInhouse = clean(b.game.title).includes(INHOUSE_LABEL) ? 0 : 1;
       if (aIsInhouse !== bIsInhouse) return aIsInhouse - bIsInhouse;
       return gameSortValue(a.game, job.session.createdAt) - gameSortValue(b.game, job.session.createdAt);
-    })
+    });
+  const outOfWindowCandidate = sortedCandidates.find(({ game }) =>
+    gameTimeWindowIssue(game, job.session.createdAt),
+  );
+  const candidates = sortedCandidates
+    .filter(({ game }) => !gameTimeWindowIssue(game, job.session.createdAt))
     .slice(0, 12);
 
   const checked = (
@@ -634,6 +659,11 @@ async function findMatchingGame(job) {
   throw new Error(
     best
       ? formatRosterMiss(best.rosterMatch)
+      : outOfWindowCandidate
+        ? `No matching inhouse found in the expected time window; ${gameTimeWindowIssue(
+            outOfWindowCandidate.game,
+            job.session.createdAt,
+          )}.`
       : "No recent ECL.GG games were found for this inhouse roster.",
   );
 }
@@ -687,6 +717,7 @@ async function processNextJob() {
       rawMatchData: {
         profile: match.source.profile,
         gameId: match.game.gameId,
+        game: match.game,
         detail: match.detail,
       },
       reply,

@@ -26,10 +26,13 @@ export const dynamic = "force-dynamic";
 
 const ACTIVE_SESSION_HOURS = 48;
 const REQUIRED_MATCHED_PLAYERS = Number(process.env.INHOUSE_REPORT_REQUIRED_MATCHES || 8);
+const REPORT_GAME_EARLY_GRACE_MS = Number(process.env.INHOUSE_REPORT_EARLY_GRACE_MINUTES || 10) * 60 * 1000;
+const REPORT_GAME_LATE_WINDOW_MS = Number(process.env.INHOUSE_REPORT_LATE_WINDOW_HOURS || 6) * 60 * 60 * 1000;
 
 type RawMatchData = {
   profile: LzyumiLookupResponse;
   gameId: string;
+  game?: LzyumiRecentMatch;
   detail: LzyumiDetailResponse;
 };
 
@@ -47,6 +50,40 @@ type SessionPlayer = Awaited<ReturnType<typeof findActiveSessionForReporter>>["p
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function parseReportGameTime(game: Pick<LzyumiRecentMatch, "title" | "titleTime">, sessionCreatedAt: Date) {
+  const raw = `${game.titleTime || ""} ${game.title || ""}`;
+  const match = raw.match(/(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!match) return null;
+
+  const candidate = new Date(
+    sessionCreatedAt.getFullYear(),
+    Number(match[1]) - 1,
+    Number(match[2]),
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5] || 0),
+  );
+
+  return Number.isNaN(candidate.getTime()) ? null : candidate;
+}
+
+function reportGameTimeIssue(game: Pick<LzyumiRecentMatch, "title" | "titleTime">, sessionCreatedAt: Date) {
+  const gameTime = parseReportGameTime(game, sessionCreatedAt);
+  if (!gameTime) return "";
+
+  const delta = gameTime.getTime() - sessionCreatedAt.getTime();
+
+  if (delta < -REPORT_GAME_EARLY_GRACE_MS) {
+    return `That ECL.GG game started ${Math.round(Math.abs(delta) / 60000)} minutes before this inhouse was created.`;
+  }
+
+  if (delta > REPORT_GAME_LATE_WINDOW_MS) {
+    return `That ECL.GG game started ${Math.round(delta / 60000)} minutes after this inhouse was created.`;
+  }
+
+  return "";
 }
 
 function playerRiotKeys(player: LzyumiPlayerDetail) {
@@ -282,7 +319,7 @@ export async function POST(request: Request) {
 
   if (body.rawMatchData?.profile && body.rawMatchData?.gameId && body.rawMatchData?.detail) {
     // Bot pre-fetched lzyumi data from residential IP — use it directly.
-    const { profile, gameId, detail } = body.rawMatchData;
+    const { profile, gameId, game, detail } = body.rawMatchData;
     const openId = profile.battleInfo?.openId;
 
     if (!openId) {
@@ -308,7 +345,7 @@ export async function POST(request: Request) {
       matchDetail = detail;
     }
 
-    recentMatch = { gameId };
+    recentMatch = game ?? { gameId };
   } else {
     // Fall back to server-side fetch (works if not IP-blocked).
     if (!reporterProfile) {
@@ -334,6 +371,17 @@ export async function POST(request: Request) {
 
     recentMatch = latest.recentMatch;
     matchDetail = latest.detail;
+  }
+
+  const timeIssue = reportGameTimeIssue(recentMatch, session.createdAt);
+  if (timeIssue) {
+    return NextResponse.json(
+      {
+        status: "MATCH_TIME_MISMATCH",
+        reply: `${timeIssue} I did not ingest it because it is probably a different inhouse game.`,
+      },
+      { status: 409 },
+    );
   }
 
   const alreadyReported = await prisma.inhouseSession.findUnique({

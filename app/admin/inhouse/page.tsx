@@ -297,6 +297,7 @@ export default function AdminInhousePage() {
           rawMatchData: {
             profile: rawProfile,
             gameId: selectedGameId,
+            game: games.find((game) => game.gameId === selectedGameId) ?? { gameId: selectedGameId },
             detail,
           },
         }),
