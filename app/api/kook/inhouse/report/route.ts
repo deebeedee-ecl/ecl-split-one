@@ -25,7 +25,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const ACTIVE_SESSION_HOURS = 48;
-const REQUIRED_MATCHED_PLAYERS = 10;
+const REQUIRED_MATCHED_PLAYERS = Number(process.env.INHOUSE_REPORT_REQUIRED_MATCHES || 8);
 
 type RawMatchData = {
   profile: LzyumiLookupResponse;

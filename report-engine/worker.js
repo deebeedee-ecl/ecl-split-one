@@ -44,13 +44,15 @@ const LZYUMI_HEADERS = {
 
 let browserPromise = null;
 let browserPagePromise = null;
+const INVISIBLE_CONTROL_PATTERN = /[\p{Cc}\p{Cf}]/gu;
+const RIOT_KEY_SPACING_PATTERN = /[\s\p{Zs}\u1160\uFFA0]+/gu;
 
 function clean(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
 function normalize(value) {
-  return clean(value).toLowerCase();
+  return clean(value).normalize("NFKC").replace(INVISIBLE_CONTROL_PATTERN, "").toLowerCase();
 }
 
 function riotId(player) {
@@ -67,13 +69,13 @@ function splitRiotId(value) {
 }
 
 function riotIdKey(name, tag) {
-  const normalizedName = normalize(name);
-  const normalizedTag = normalize(tag);
+  const normalizedName = riotNameKey(name);
+  const normalizedTag = normalize(tag).replace(/^#+/, "").replace(RIOT_KEY_SPACING_PATTERN, "");
   return normalizedName && normalizedTag ? `${normalizedName}#${normalizedTag}` : "";
 }
 
 function riotNameKey(name) {
-  return normalize(name);
+  return normalize(name).replace(RIOT_KEY_SPACING_PATTERN, "");
 }
 
 function detailKeys(player) {
