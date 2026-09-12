@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { buildKnockoutBracket } from "@/lib/knockout-bracket";
 import { lockedStandings } from "@/lib/locked-standings";
@@ -126,14 +127,27 @@ function getPointsText(points: number) {
 
 export default async function SplitOneArchivePage() {
   const splitOneTeamIds = lockedStandings.map((team) => team.teamId);
+  const splitOneTeamNames = lockedStandings.map((team) => team.teamName);
+  const splitOneMatchWhere = {
+    OR: [
+      { homeTeamId: { in: splitOneTeamIds } },
+      { awayTeamId: { in: splitOneTeamIds } },
+      { homeTeam: { name: { in: splitOneTeamNames } } },
+      { awayTeam: { name: { in: splitOneTeamNames } } },
+    ],
+    NOT: [
+      { roundLabel: { startsWith: "IH" } },
+      { matchLabel: { startsWith: "IH" } },
+      { homeTeam: { name: { startsWith: "Ranked IH" } } },
+      { awayTeam: { name: { startsWith: "Ranked IH" } } },
+    ],
+  } satisfies Prisma.MatchWhereInput;
 
   const [teams, knockoutStoredMatches, completedMatches, playerStats] =
     await Promise.all([
       prisma.team.findMany({
         where: {
-          id: {
-            in: splitOneTeamIds,
-          },
+          OR: [{ id: { in: splitOneTeamIds } }, { name: { in: splitOneTeamNames } }],
         },
         include: {
           players: {
@@ -151,10 +165,7 @@ export default async function SplitOneArchivePage() {
           stage: {
             in: ["PLAYOFFS", "SEMIFINALS", "FINALS"],
           },
-          OR: [
-            { homeTeamId: { in: splitOneTeamIds } },
-            { awayTeamId: { in: splitOneTeamIds } },
-          ],
+          ...splitOneMatchWhere,
         },
         include: {
           homeTeam: true,
@@ -168,10 +179,7 @@ export default async function SplitOneArchivePage() {
           status: {
             in: ["COMPLETED", "FORFEIT"],
           },
-          OR: [
-            { homeTeamId: { in: splitOneTeamIds } },
-            { awayTeamId: { in: splitOneTeamIds } },
-          ],
+          ...splitOneMatchWhere,
         },
         include: {
           homeTeam: true,
@@ -190,15 +198,12 @@ export default async function SplitOneArchivePage() {
       }),
       prisma.matchGamePlayerStat.findMany({
         where: {
-          teamId: {
-            in: splitOneTeamIds,
-          },
           matchGame: {
             match: {
-              OR: [
-                { homeTeamId: { in: splitOneTeamIds } },
-                { awayTeamId: { in: splitOneTeamIds } },
-              ],
+              status: {
+                in: ["COMPLETED", "FORFEIT"],
+              },
+              ...splitOneMatchWhere,
             },
           },
         },
@@ -250,6 +255,7 @@ export default async function SplitOneArchivePage() {
   const kdaLeader = players
     .filter((player) => player.games >= 2)
     .sort((a, b) => Number(kda(b)) - Number(kda(a)))[0];
+  const hasArchivedPlayerStats = playerStats.length > 0;
 
   const awards = [
     {
@@ -260,20 +266,20 @@ export default async function SplitOneArchivePage() {
     },
     {
       label: "MVP Leader",
-      value: mvpLeader?.name ?? "TBC",
-      note: mvpLeader ? `${mvpLeader.mvps} MVP games - ${mvpLeader.teamName}` : "No MVP data yet",
+      value: mvpLeader?.name ?? "Archive pending",
+      note: mvpLeader ? `${mvpLeader.mvps} MVP games - ${mvpLeader.teamName}` : "No Split One MVP rows are archived yet",
       icon: Trophy,
     },
     {
       label: "Kill Leader",
-      value: killLeader?.name ?? "TBC",
-      note: killLeader ? `${killLeader.kills} kills - ${perGame(killLeader.kills, killLeader.games)} per game` : "No stat data yet",
+      value: killLeader?.name ?? "Archive pending",
+      note: killLeader ? `${killLeader.kills} kills - ${perGame(killLeader.kills, killLeader.games)} per game` : "No Split One stat rows are archived yet",
       icon: Swords,
     },
     {
       label: "KDA Leader",
-      value: kdaLeader?.name ?? "TBC",
-      note: kdaLeader ? `${kda(kdaLeader)} KDA across ${kdaLeader.games} games` : "Minimum 2 games",
+      value: kdaLeader?.name ?? "Archive pending",
+      note: kdaLeader ? `${kda(kdaLeader)} KDA across ${kdaLeader.games} games` : "Minimum 2 archived Split One games required",
       icon: BarChart3,
     },
   ];
@@ -359,10 +365,16 @@ export default async function SplitOneArchivePage() {
           <SectionHeader
             eyebrow="Awards"
             title="Season Leaders"
-            description="Automatically summarized from recorded player stat rows where available."
+            description="Automatically summarized from archived Split One player stat rows where available."
           />
 
-          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {!hasArchivedPlayerStats && (
+            <div className="mt-8 border border-[#b11226]/45 bg-[#21070b] p-5 text-sm leading-6 text-[#f3c4ca]">
+              Ranked inhouse stats are now excluded from this archive. Historical Split One player-stat rows are not currently attached in the database, so stat leaders will return after those rows are restored.
+            </div>
+          )}
+
+          <div className={`${hasArchivedPlayerStats ? "mt-8" : "mt-4"} grid gap-4 md:grid-cols-2 xl:grid-cols-4`}>
             {awards.map((award) => {
               const Icon = award.icon;
 
@@ -467,7 +479,7 @@ export default async function SplitOneArchivePage() {
                         </h4>
                         <div className="mt-3 space-y-2">
                           {playerRows.length === 0 ? (
-                            <p className="text-sm text-[#9ca3af]">No stat rows archived.</p>
+                            <p className="text-sm text-[#9ca3af]">No Split One stat rows archived.</p>
                           ) : (
                             playerRows.map((player) => (
                               <div
