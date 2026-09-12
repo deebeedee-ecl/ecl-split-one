@@ -13,6 +13,9 @@ const WORKER_ID = process.env.REPORT_ENGINE_WORKER_ID || "ecl-report-engine";
 const POLL_MS = Number(process.env.REPORT_ENGINE_POLL_MS || 5000);
 const LZYUMI_TIMEOUT_MS = Number(process.env.REPORT_ENGINE_LZYUMI_TIMEOUT_MS || 15000);
 const FETCH_MODE = clean(process.env.REPORT_ENGINE_FETCH_MODE || "browser").toLowerCase();
+const DEBUG_LZYUMI = ["1", "true", "yes", "on"].includes(
+  clean(process.env.REPORT_ENGINE_DEBUG_LZYUMI).toLowerCase(),
+);
 const PROXY_URL = clean(process.env.REPORT_ENGINE_PROXY_URL);
 const PROXY_SERVER = clean(process.env.REPORT_ENGINE_PROXY_SERVER);
 const PROXY_USERNAME = clean(process.env.REPORT_ENGINE_PROXY_USERNAME);
@@ -123,6 +126,32 @@ function proxyLabel(proxy) {
   } catch {
     return "configured proxy";
   }
+}
+
+function lzyumiResponseSummary(response) {
+  if (!response || typeof response !== "object") {
+    return { type: typeof response };
+  }
+
+  return {
+    keys: Object.keys(response),
+    publicInfo: response.publicInfo ?? null,
+    hasBattleInfo: Boolean(response.battleInfo),
+    hasBattleOpenId: Boolean(response.battleInfo?.openId),
+    dataLength: Array.isArray(response.data) ? response.data.length : null,
+    firstGame: response.data?.[0]?.gameId
+      ? {
+          gameId: response.data[0].gameId,
+          title: clean(response.data[0].title).slice(0, 80),
+          titleTime: clean(response.data[0].titleTime),
+        }
+      : null,
+  };
+}
+
+function debugLzyumi(label, detail) {
+  if (!DEBUG_LZYUMI) return;
+  console.log(`[lzyumi-debug] ${label} ${JSON.stringify(detail)}`);
 }
 
 function createLzyumiSignature() {
@@ -284,7 +313,29 @@ async function fetchRecentGamesForPlayer(player) {
     seenAttempts.add(attemptKey);
     const responses = await Promise.all(
       LZYUMI_FILTERS.map((filter) =>
-        lzyumiFetch(lzyumiInfoUrl({ ...attempt, areaId, filter })).catch(() => null),
+        lzyumiFetch(lzyumiInfoUrl({ ...attempt, areaId, filter }))
+          .then((response) => {
+            debugLzyumi("info", {
+              player: riotId(player) || clean(player.displayName),
+              areaId,
+              filter,
+              nicknameSupplied: Boolean(clean(attempt.nickname)),
+              openIdSupplied: Boolean(clean(attempt.openId)),
+              response: lzyumiResponseSummary(response),
+            });
+            return response;
+          })
+          .catch((error) => {
+            debugLzyumi("info-error", {
+              player: riotId(player) || clean(player.displayName),
+              areaId,
+              filter,
+              nicknameSupplied: Boolean(clean(attempt.nickname)),
+              openIdSupplied: Boolean(clean(attempt.openId)),
+              error: error.message || String(error),
+            });
+            return null;
+          }),
       ),
     );
     const hasData = responses.some(
