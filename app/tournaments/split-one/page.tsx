@@ -125,6 +125,14 @@ function getPointsText(points: number) {
   return `${points} pt${points === 1 ? "" : "s"}`;
 }
 
+function getLockedMatchCount() {
+  return lockedStandings.reduce((total, standing) => total + standing.played, 0) / 2;
+}
+
+function getLockedGameCount() {
+  return lockedStandings.reduce((total, standing) => total + standing.gameW, 0);
+}
+
 export default async function SplitOneArchivePage() {
   const splitOneTeamIds = lockedStandings.map((team) => team.teamId);
   const splitOneTeamNames = lockedStandings.map((team) => team.teamName);
@@ -273,7 +281,12 @@ export default async function SplitOneArchivePage() {
   }
 
   const players = Array.from(playerMap.values());
-  const uniqueGameCount = new Set(playerStats.map((stat) => stat.matchGameId)).size;
+  const lockedMatchCount = getLockedMatchCount();
+  const lockedGameCount = getLockedGameCount();
+  const uniqueGameCount =
+    new Set(playerStats.map((stat) => stat.matchGameId)).size || lockedGameCount;
+  const matchCount = completedMatches.length || lockedMatchCount;
+  const trackedPlayerCount = players.length || "Pending";
   const mvpLeader = players.slice().sort((a, b) => b.mvps - a.mvps || b.kills - a.kills)[0];
   const killLeader = players.slice().sort((a, b) => b.kills - a.kills)[0];
   const kdaLeader = players
@@ -371,8 +384,8 @@ export default async function SplitOneArchivePage() {
 
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <HeroStat label="Teams" value={lockedStandings.length} />
-            <HeroStat label="Matches" value={completedMatches.length} />
-            <HeroStat label="Tracked Players" value={players.length} />
+            <HeroStat label="Matches" value={matchCount} />
+            <HeroStat label="Tracked Players" value={trackedPlayerCount} />
             <HeroStat label="Games Logged" value={uniqueGameCount} />
           </div>
         </div>
@@ -393,10 +406,10 @@ export default async function SplitOneArchivePage() {
           />
 
           {(dataError || !hasArchivedPlayerStats) && (
-            <div className="mt-8 border border-[#b11226]/45 bg-[#21070b] p-5 text-sm leading-6 text-[#f3c4ca]">
+            <div className="mt-8 border border-[#2a2a2a] bg-[#101010] p-5 text-sm leading-6 text-[#b8bec8]">
               {dataError
-                ? "The Split One archive database rows could not be read, so this page is showing the locked archive shell. Refresh later or check the deployment logs."
-                : "Ranked inhouse stats are now excluded from this archive. Historical Split One player-stat rows are not currently attached in the database, so stat leaders will return after those rows are restored."}
+                ? "Split One standings and bracket data are available. Player stat rows are waiting on archive recovery."
+                : "Split One standings and season totals are available. Player stat leaders will return after the historical player rows are restored."}
             </div>
           )}
 
@@ -467,9 +480,9 @@ export default async function SplitOneArchivePage() {
 
                   <div className="border-t border-[#1f1f1f] p-5">
                     <div className="grid gap-4 md:grid-cols-3">
-                      <MiniStat label="Roster" value={team?.players.length ?? 0} />
-                      <MiniStat label="Matches" value={teamMatches.length} />
-                      <MiniStat label="Top KDA" value={playerRows[0] ? kda(playerRows[0]) : "0.00"} />
+                      <MiniStat label="Roster" value={team?.players.length || "Pending"} />
+                      <MiniStat label="Matches" value={teamMatches.length || standing.played} />
+                      <MiniStat label="Top KDA" value={playerRows[0] ? kda(playerRows[0]) : "Pending"} />
                     </div>
 
                     <div className="mt-5 grid gap-5 lg:grid-cols-2">
