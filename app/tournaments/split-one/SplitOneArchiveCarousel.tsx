@@ -42,7 +42,7 @@ const slides: Array<{ id: SlideId; label: string; title: string; eyebrow: string
     label: "ELO Leaderboard",
     eyebrow: "Player Ranking",
     title: "ELO Leaderboard",
-    description: "Locked Split One player list recovered from the final archive screenshot.",
+    description: "Locked Split One player list calculated from the June 16 database safelock.",
   },
 ];
 

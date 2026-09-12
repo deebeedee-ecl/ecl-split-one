@@ -258,7 +258,7 @@ export default async function SplitOneArchivePage() {
           <p className="mt-9 max-w-4xl text-xl leading-9 text-[#e5e7eb] drop-shadow-[0_8px_24px_rgba(0,0,0,0.8)]">
             Historical home for the Split One table, knockout path, player
             awards, results, and team-by-team records. The core archive is
-            locked from final standings and recovered season screenshots.
+            locked from final standings and the June 16 database safelock.
           </p>
 
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -341,7 +341,7 @@ export default async function SplitOneArchivePage() {
           <SectionHeader
             eyebrow="Split Awards"
             title="Season Standouts"
-            description="Recovered from the final Split One archive screenshots and locked for historical display."
+            description="Calculated from the June 16 database safelock and locked for historical display."
           />
 
           <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -379,7 +379,7 @@ export default async function SplitOneArchivePage() {
 
           {dataError && (
             <div className="mt-8 border border-[#2a2a2a] bg-[#101010] p-5 text-sm leading-6 text-[#b8bec8]">
-              Live database rows failed to load, so this page is showing the locked screenshot
+              Live database rows failed to load, so this page is showing the locked safelock
               archive only.
             </div>
           )}
@@ -391,7 +391,7 @@ export default async function SplitOneArchivePage() {
           <SectionHeader
             eyebrow="Teams"
             title="Team by Team"
-            description="Open each team card for locked standings, recovered leaderboard names, and screenshot-backed award mentions."
+            description="Open each team card for locked standings, calculated leaderboard rows, and recovered award mentions."
           />
 
           <div className="mt-8 grid gap-4 lg:grid-cols-2">
@@ -450,7 +450,7 @@ export default async function SplitOneArchivePage() {
                         <div className="mt-3 space-y-2">
                           {archivedRows.length === 0 ? (
                             <p className="text-sm text-[#9ca3af]">
-                              No screenshot-backed player rows recovered for this team.
+                              No safelock player rows recovered for this team.
                             </p>
                           ) : (
                             archivedRows.map((player) => (
@@ -478,7 +478,7 @@ export default async function SplitOneArchivePage() {
                         <div className="mt-3 space-y-2">
                           {recoveredAwards.length === 0 ? (
                             <p className="text-sm text-[#9ca3af]">
-                              No screenshot-backed award rows recovered for this team.
+                              No safelock award rows recovered for this team.
                             </p>
                           ) : (
                             recoveredAwards.map((award) => (
