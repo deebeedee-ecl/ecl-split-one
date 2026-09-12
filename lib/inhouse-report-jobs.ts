@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { reportedLzyumiGameIds } from "@/lib/lzyumi-report-dedupe";
 import { prisma } from "@/lib/prisma";
 
 export const REPORT_JOB_ACTIVE_STATUSES = ["PENDING", "PROCESSING"] as const;
@@ -114,7 +115,7 @@ export async function claimNextInhouseReportJob(workerId: string) {
     .filter((player) => !player.profileId)
     .map((player) => player.kookUserId);
 
-  const [profilesById, profilesByKook, reporterProfile, reportedSessions] = await Promise.all([
+  const [profilesById, profilesByKook, reporterProfile, reportedGameIds] = await Promise.all([
     profileIds.length > 0
       ? prisma.accountProfile.findMany({
           where: { id: { in: profileIds } },
@@ -155,12 +156,7 @@ export async function claimNextInhouseReportJob(workerId: string) {
         openId: true,
       },
     }),
-    prisma.inhouseSession.findMany({
-      where: { status: "COMPLETED", lzyumiGameId: { not: null } },
-      orderBy: { completedAt: "desc" },
-      take: 200,
-      select: { lzyumiGameId: true },
-    }),
+    reportedLzyumiGameIds([], claimed.sessionId),
   ]);
 
   const profileById = new Map(profilesById.map((profile) => [profile.id, profile]));
@@ -194,9 +190,7 @@ export async function claimNextInhouseReportJob(workerId: string) {
       }),
     },
     reporter: reporterProfile,
-    reportedGameIds: reportedSessions
-      .map((session) => session.lzyumiGameId)
-      .filter((gameId): gameId is string => Boolean(gameId)),
+    reportedGameIds,
   };
 }
 

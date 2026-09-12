@@ -12,6 +12,7 @@ import {
   type LzyumiPlayerDetail,
   type LzyumiRecentMatch,
 } from "@/lib/lzyumi";
+import { isLzyumiGameAlreadyReported } from "@/lib/lzyumi-report-dedupe";
 import { syncPlayerForProfile } from "@/lib/player-profile-sync";
 import { prisma } from "@/lib/prisma";
 import {
@@ -394,13 +395,14 @@ export async function POST(request: Request) {
       status: true,
     },
   });
+  const storedDuplicate = await isLzyumiGameAlreadyReported(recentMatch.gameId, session.id);
 
-  if (alreadyReported && alreadyReported.id !== session.id) {
+  if ((alreadyReported && alreadyReported.id !== session.id) || storedDuplicate) {
     return NextResponse.json(
       {
         status: "ALREADY_REPORTED",
         reply: "That ECL.GG game has already been reported to ECL.",
-        sessionId: alreadyReported.id,
+        sessionId: alreadyReported?.id,
       },
       { status: 409 },
     );

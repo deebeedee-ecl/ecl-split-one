@@ -8,6 +8,7 @@ import {
   getFrozenInhouseLeaderboardRows,
   type InhouseLeaderboardRow,
 } from "@/lib/inhouse-leaderboard";
+import { reportedLzyumiGameIds } from "@/lib/lzyumi-report-dedupe";
 import { translateLzyumiTier } from "@/lib/hub-profile";
 import {
   fetchLzyumiMatchDetail,
@@ -447,21 +448,7 @@ async function findMatchingReportCandidate({
 
   const candidateGameIds = recentGames
     .map(([gameId]) => gameId);
-  const reportedSessions =
-    candidateGameIds.length > 0
-      ? await prisma.inhouseSession.findMany({
-          where: {
-            lzyumiGameId: { in: candidateGameIds },
-            NOT: { id: session.id },
-          },
-          select: { lzyumiGameId: true },
-        })
-      : [];
-  const reportedGameIds = new Set(
-    reportedSessions
-      .map((reportedSession) => reportedSession.lzyumiGameId)
-      .filter((gameId): gameId is string => Boolean(gameId)),
-  );
+  const reportedGameIds = new Set(await reportedLzyumiGameIds(candidateGameIds, session.id));
   const sortedCandidates = recentGames
     .filter(([gameId]) => !reportedGameIds.has(gameId))
     .filter(([, source]) => isReportGameInTimeWindow(source.game, session.createdAt))
