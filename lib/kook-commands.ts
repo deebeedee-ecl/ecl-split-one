@@ -169,21 +169,22 @@ function parseLzyumiGameTime(match: LzyumiRecentMatch, referenceDate: Date) {
   const parsed = raw.match(/(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if (!parsed) return null;
 
-  const year = referenceDate.getFullYear();
-  const candidate = new Date(
+  const referenceChina = new Date(referenceDate.getTime() + 8 * 60 * 60 * 1000);
+  const year = referenceChina.getUTCFullYear();
+  const candidate = new Date(Date.UTC(
     year,
     Number(parsed[1]) - 1,
     Number(parsed[2]),
-    Number(parsed[3]),
+    Number(parsed[3]) - 8,
     Number(parsed[4]),
     Number(parsed[5] ?? 0),
-  );
+  ));
 
   if (Number.isNaN(candidate.getTime())) return null;
 
   const monthDelta = candidate.getTime() - referenceDate.getTime();
   if (monthDelta > 180 * 24 * 60 * 60 * 1000) {
-    candidate.setFullYear(year - 1);
+    candidate.setUTCFullYear(year - 1);
   }
 
   return candidate;

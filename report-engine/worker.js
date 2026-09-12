@@ -456,14 +456,15 @@ function parseGameTime(game, sessionCreatedAt) {
   if (!match) return null;
 
   const reference = new Date(sessionCreatedAt);
-  const candidate = new Date(
-    reference.getFullYear(),
+  const referenceChina = new Date(reference.getTime() + 8 * 60 * 60 * 1000);
+  const candidate = new Date(Date.UTC(
+    referenceChina.getUTCFullYear(),
     Number(match[1]) - 1,
     Number(match[2]),
-    Number(match[3]),
+    Number(match[3]) - 8,
     Number(match[4]),
     Number(match[5] || 0),
-  );
+  ));
 
   return Number.isNaN(candidate.getTime()) ? null : candidate;
 }

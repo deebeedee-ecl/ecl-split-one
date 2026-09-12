@@ -57,14 +57,15 @@ function parseReportGameTime(game: Pick<LzyumiRecentMatch, "title" | "titleTime"
   const match = raw.match(/(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if (!match) return null;
 
-  const candidate = new Date(
-    sessionCreatedAt.getFullYear(),
+  const referenceChina = new Date(sessionCreatedAt.getTime() + 8 * 60 * 60 * 1000);
+  const candidate = new Date(Date.UTC(
+    referenceChina.getUTCFullYear(),
     Number(match[1]) - 1,
     Number(match[2]),
-    Number(match[3]),
+    Number(match[3]) - 8,
     Number(match[4]),
     Number(match[5] || 0),
-  );
+  ));
 
   return Number.isNaN(candidate.getTime()) ? null : candidate;
 }
