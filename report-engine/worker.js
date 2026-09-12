@@ -23,7 +23,7 @@ const PROXY_PASSWORD = clean(process.env.REPORT_ENGINE_PROXY_PASSWORD);
 const LZYUMI_BASE = "https://a.2025lol.top/lzyumi/lol";
 const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
-const REQUIRED_MATCHES = 10;
+const REQUIRED_MATCHES = Number(process.env.REPORT_ENGINE_REQUIRED_MATCHES || 8);
 
 const CHINA_SERVERS = {
   1: "\u827e\u6b27\u5c3c\u4e9a",
@@ -388,6 +388,30 @@ function matchRoster(players, detail) {
   return { matched, missing };
 }
 
+function formatRosterMiss(rosterMatch) {
+  const matchedCount = rosterMatch?.matched?.length || 0;
+  const missing = Array.isArray(rosterMatch?.missing) ? rosterMatch.missing.filter(Boolean) : [];
+  const parts = [`No matching inhouse found. Closest match was ${matchedCount}/10 players.`];
+
+  if (missing.length) {
+    parts.push(`Missing from closest match: ${missing.join(", ")}.`);
+  }
+
+  return parts.join(" ");
+}
+
+function rosterMatchWarning(rosterMatch) {
+  const matchedCount = rosterMatch?.matched?.length || 0;
+  const missing = Array.isArray(rosterMatch?.missing) ? rosterMatch.missing.filter(Boolean) : [];
+
+  if (matchedCount >= 10 || !missing.length) return "";
+
+  return [
+    `Roster Match: ${matchedCount}/10 players`,
+    `Missing from Lzyumi detail: ${missing.join(", ")}`,
+  ].join("\n");
+}
+
 function parseGameTime(game, sessionCreatedAt) {
   const raw = `${game.titleTime || ""} ${game.title || ""}`;
   const match = raw.match(/(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
@@ -423,7 +447,7 @@ function loadChampionNames() {
   }
 }
 
-function summarizeReporter(job, detail, game) {
+function summarizeReporter(job, detail, game, rosterMatch) {
   const championNames = loadChampionNames();
   const reporter = job.reporter || {};
   const reporterOpenId = clean(reporter.openId);
@@ -451,6 +475,7 @@ function summarizeReporter(job, detail, game) {
     "Reporter";
   const time = clean(game.titleTime) || clean(game.title) || "Unknown time";
 
+  const warning = rosterMatchWarning(rosterMatch);
   return [
     "ECL Inhouse Report",
     "",
@@ -460,6 +485,7 @@ function summarizeReporter(job, detail, game) {
     `Result: ${outcome}`,
     `Champion: ${champion}`,
     `KDA: ${kda}`,
+    ...(warning ? ["", warning] : []),
     "",
     "Submit this result?",
     "Type !yes to submit, or !no to cancel.",
@@ -605,7 +631,7 @@ async function findMatchingGame(job) {
   const best = checked.sort((a, b) => b.rosterMatch.matched.length - a.rosterMatch.matched.length)[0];
   throw new Error(
     best
-      ? `No matching inhouse found. Closest match was ${best.rosterMatch.matched.length}/10 players.`
+      ? formatRosterMiss(best.rosterMatch)
       : "No recent ECL.GG games were found for this inhouse roster.",
   );
 }
@@ -652,7 +678,7 @@ async function processNextJob() {
 
   try {
     const match = await findMatchingGame(job);
-    const reply = summarizeReporter(job, match.detail, match.game);
+    const reply = summarizeReporter(job, match.detail, match.game, match.rosterMatch);
     const result = await sitePost("/api/jobs/inhouse-report", {
       jobId: job.id,
       status: "FOUND",
