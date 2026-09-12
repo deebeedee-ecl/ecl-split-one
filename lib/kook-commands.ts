@@ -68,6 +68,40 @@ type PendingKookReport = {
   };
 };
 
+function normalizeReportSelector(value: unknown) {
+  return clean(value)
+    .toLowerCase()
+    .replace(/^ih\s*#?\s*/, "")
+    .replace(/^#/, "")
+    .replace(/^0+(?=\d)/, "");
+}
+
+function reportSessionNumber(session: { gameLabel?: string | null }) {
+  const label = clean(session.gameLabel);
+  const match = label.match(/\b(?:ih|inhouse)\s*#?\s*0*(\d+)\b/i);
+  return match?.[1] ?? "";
+}
+
+function reportSessionSelector(session: { gameLabel?: string | null }) {
+  const number = reportSessionNumber(session);
+  return number ? `!report ${number}` : "";
+}
+
+function formatReportSessionTime(date: Date) {
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Shanghai",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
+  } catch {
+    return date.toISOString().slice(5, 16).replace("T", " ");
+  }
+}
+
 function parseScore(value: unknown) {
   if (typeof value !== "string") return null;
   const match = value.match(/(\d+)\s*\/\s*(\d+)\s*\/\s*(\d+)/);
@@ -524,9 +558,18 @@ async function findReportSessions(kookUserId: string) {
   });
 }
 
-function pickReportSession<T extends { id: string }>(sessions: T[], args: string[] = []) {
-  const selector = clean(args[0]);
+function pickReportSession<T extends { id: string; gameLabel?: string | null }>(
+  sessions: T[],
+  args: string[] = [],
+) {
+  const selector = normalizeReportSelector(args[0]);
   if (!selector) return sessions.length === 1 ? sessions[0] : null;
+
+  const labelMatch = sessions.find((session) => {
+    const number = reportSessionNumber(session);
+    return number && normalizeReportSelector(number) === selector;
+  });
+  if (labelMatch) return labelMatch;
 
   const numeric = Number(selector);
   if (Number.isInteger(numeric) && numeric >= 1 && numeric <= sessions.length) {
@@ -543,10 +586,11 @@ function multipleSessionMessage(sessions: Awaited<ReturnType<typeof findReportSe
     ...sessions.map((session, index) => {
       const blue = session.players.filter((player) => player.side === "BLUE").map((player) => player.displayName).join(", ");
       const red = session.players.filter((player) => player.side === "RED").map((player) => player.displayName).join(", ");
-      return `${index + 1}. ${session.gameLabel ?? "Ranked Inhouse"} - Blue: ${blue || "-"} / Red: ${red || "-"}`;
+      const selector = reportSessionSelector(session) || `!report ${index + 1}`;
+      return `${index + 1}. ${session.gameLabel ?? "Ranked Inhouse"} (${formatReportSessionTime(session.createdAt)}) - use ${selector} - Blue: ${blue || "-"} / Red: ${red || "-"}`;
     }),
     "",
-    "Type !report 1, !report 2, etc.",
+    "Type the command shown next to the right game, for example !report 27.",
   ].join("\n");
 }
 
@@ -622,6 +666,7 @@ export function formatHelpMessage() {
     "!forceready - admin only: force start if admins accept the risk",
     "!status - show current inhouse status",
     "!report - report the completed inhouse through ECL.GG",
+    "!report 27 - report a specific pending inhouse, such as IH #027",
     "!cancel - admin only: cancel the active inhouse session",
     "!welcome - show the ECL welcome message",
   ].join("\n");
