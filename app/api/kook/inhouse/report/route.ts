@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
-import { calculateLpChange } from "@/lib/elo";
+import { calculateLpChange, chinaDayBounds } from "@/lib/elo";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import {
   fetchLatestLzyumiMatch,
@@ -522,15 +522,37 @@ export async function POST(request: Request) {
   });
 
   let appliedPlayers = 0;
+  const reportedAt = new Date();
+  const doubleLpDayBounds = chinaDayBounds(reportedAt);
 
   for (const row of matchedRows) {
     const player = await findOrCreatePlayer(row.sessionPlayer);
-    const gamesPlayed = await prisma.matchGamePlayerStat.count({
-      where: {
-        playerId: player.id,
-        ...INHOUSE_MATCH_FILTER,
-      },
-    });
+    const [gamesPlayed, latestInhouseStat, inhouseGamesToday] = await Promise.all([
+      prisma.matchGamePlayerStat.count({
+        where: {
+          playerId: player.id,
+          ...INHOUSE_MATCH_FILTER,
+        },
+      }),
+      prisma.matchGamePlayerStat.findFirst({
+        where: {
+          playerId: player.id,
+          ...INHOUSE_MATCH_FILTER,
+        },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      }),
+      prisma.matchGamePlayerStat.count({
+        where: {
+          playerId: player.id,
+          createdAt: {
+            gte: doubleLpDayBounds.start,
+            lt: doubleLpDayBounds.end,
+          },
+          ...INHOUSE_MATCH_FILTER,
+        },
+      }),
+    ]);
     const side = row.sessionPlayer.side;
     const teamId = side === "BLUE" ? blueTeam.id : redTeam.id;
     const isWin = teamId === game.winnerTeamId;
@@ -546,6 +568,10 @@ export async function POST(request: Request) {
       gamesPlayed,
       winStreak: player.winStreak,
       lossStreak: player.lossStreak,
+      lastPlayedAt: latestInhouseStat?.createdAt,
+      playedAt: reportedAt,
+      hasPlayedOnDoubleLpDay: inhouseGamesToday > 0,
+      doubleLpEligible: true,
     }).lpChange;
     const eloAfter = player.elo + lp;
 

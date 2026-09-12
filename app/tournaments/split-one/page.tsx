@@ -125,9 +125,16 @@ function getPointsText(points: number) {
 }
 
 export default async function SplitOneArchivePage() {
+  const splitOneTeamIds = lockedStandings.map((team) => team.teamId);
+
   const [teams, knockoutStoredMatches, completedMatches, playerStats] =
     await Promise.all([
       prisma.team.findMany({
+        where: {
+          id: {
+            in: splitOneTeamIds,
+          },
+        },
         include: {
           players: {
             orderBy: {
@@ -144,6 +151,10 @@ export default async function SplitOneArchivePage() {
           stage: {
             in: ["PLAYOFFS", "SEMIFINALS", "FINALS"],
           },
+          OR: [
+            { homeTeamId: { in: splitOneTeamIds } },
+            { awayTeamId: { in: splitOneTeamIds } },
+          ],
         },
         include: {
           homeTeam: true,
@@ -157,6 +168,10 @@ export default async function SplitOneArchivePage() {
           status: {
             in: ["COMPLETED", "FORFEIT"],
           },
+          OR: [
+            { homeTeamId: { in: splitOneTeamIds } },
+            { awayTeamId: { in: splitOneTeamIds } },
+          ],
         },
         include: {
           homeTeam: true,
@@ -174,6 +189,19 @@ export default async function SplitOneArchivePage() {
         orderBy: [{ scheduledAt: "asc" }, { createdAt: "asc" }],
       }),
       prisma.matchGamePlayerStat.findMany({
+        where: {
+          teamId: {
+            in: splitOneTeamIds,
+          },
+          matchGame: {
+            match: {
+              OR: [
+                { homeTeamId: { in: splitOneTeamIds } },
+                { awayTeamId: { in: splitOneTeamIds } },
+              ],
+            },
+          },
+        },
         include: {
           player: true,
           team: true,

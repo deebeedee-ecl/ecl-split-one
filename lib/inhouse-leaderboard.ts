@@ -1,4 +1,4 @@
-import { STARTING_ELO } from "@/lib/elo";
+import { STARTING_ELO, applyInactivityDecay } from "@/lib/elo";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import { prisma } from "@/lib/prisma";
 
@@ -73,7 +73,8 @@ export async function getInhouseLeaderboardRows() {
       const losses = gamesPlayed - wins;
       const winRate = gamesPlayed === 0 ? "-" : `${Math.round((wins / gamesPlayed) * 100)}%`;
       const latestStat = player.gameStats[0];
-      const elo = latestStat?.eloAfter ?? fallbackElo(player.gameStats);
+      const storedElo = latestStat?.eloAfter ?? fallbackElo(player.gameStats);
+      const elo = applyInactivityDecay(storedElo, latestStat?.createdAt);
       const streak = inhouseStreak(player.gameStats);
       const totalKills = player.gameStats.reduce((sum, stat) => sum + stat.kills, 0);
       const totalDeaths = player.gameStats.reduce((sum, stat) => sum + stat.deaths, 0);
