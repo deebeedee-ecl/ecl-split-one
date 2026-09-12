@@ -452,13 +452,14 @@ function summarizeReporter(job, detail, game) {
   const time = clean(game.titleTime) || clean(game.title) || "Unknown time";
 
   return [
-    `Report check: ${job.session.gameLabel || "Ranked Inhouse"}`,
+    "ECL Inhouse Report",
     "",
-    `Player: ${name}`,
+    `Match: ${job.session.gameLabel || "Ranked Inhouse"}`,
+    `Game Time: ${time}`,
+    `Reporter: ${name}`,
     `Result: ${outcome}`,
     `Champion: ${champion}`,
     `KDA: ${kda}`,
-    `Time: ${time}`,
     "",
     "Submit this result?",
     "Type !yes to submit, or !no to cancel.",
