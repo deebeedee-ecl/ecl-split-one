@@ -44,10 +44,16 @@ const CHINA_SERVERS = {
 
 const LZYUMI_HEADERS = {
   Accept: "application/json, text/plain, */*",
-  "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+  "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,nl;q=0.6",
   Referer: "https://a.2025lol.top/",
+  "Sec-CH-UA": '"Not=A?Brand";v="99", "Opera";v="135", "Chromium";v="151"',
+  "Sec-CH-UA-Mobile": "?0",
+  "Sec-CH-UA-Platform": '"Windows"',
+  "Sec-Fetch-Dest": "empty",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Site": "same-origin",
   "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 OPR/135.0.0.0",
 };
 
 let browserContextPromise = null;
@@ -262,6 +268,9 @@ async function getBrowserPage() {
       extraHTTPHeaders: {
         Accept: LZYUMI_HEADERS.Accept,
         "Accept-Language": LZYUMI_HEADERS["Accept-Language"],
+        "Sec-CH-UA": LZYUMI_HEADERS["Sec-CH-UA"],
+        "Sec-CH-UA-Mobile": LZYUMI_HEADERS["Sec-CH-UA-Mobile"],
+        "Sec-CH-UA-Platform": LZYUMI_HEADERS["Sec-CH-UA-Platform"],
       },
     }).then(async (context) => {
       await context.addInitScript(() => {
