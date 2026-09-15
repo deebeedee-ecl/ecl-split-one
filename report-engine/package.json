@@ -11,6 +11,7 @@
     "axios": "^1.14.0",
     "dotenv": "^17.2.3",
     "playwright": "1.63.0",
-    "proxy-agent": "^6.5.0"
+    "proxy-agent": "^6.5.0",
+    "socks-proxy-agent": "^8.0.5"
   }
 }

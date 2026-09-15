@@ -170,6 +170,19 @@ function proxyLabel(proxy) {
   }
 }
 
+function nodeProxyAgent(proxyUrl = reportEngineProxyUrl()) {
+  if (!proxyUrl) return null;
+
+  const protocol = new URL(proxyUrl).protocol.toLowerCase();
+  if (protocol.startsWith("socks")) {
+    const { SocksProxyAgent } = require("socks-proxy-agent");
+    return new SocksProxyAgent(proxyUrl);
+  }
+
+  const { ProxyAgent } = require("proxy-agent");
+  return new ProxyAgent(proxyUrl);
+}
+
 function lzyumiResponseSummary(response) {
   if (!response || typeof response !== "object") {
     return { type: typeof response };
@@ -211,8 +224,7 @@ function createLzyumiSignature() {
 }
 
 async function lzyumiFetchDirect(url) {
-  const proxyUrl = reportEngineProxyUrl();
-  const agent = proxyUrl ? new (require("proxy-agent").ProxyAgent)(proxyUrl) : null;
+  const agent = nodeProxyAgent();
   const response = await axios.get(url, {
     headers: LZYUMI_HEADERS,
     timeout: LZYUMI_TIMEOUT_MS,
@@ -315,32 +327,28 @@ async function lzyumiFetchBrowserOnce(url) {
 }
 
 async function browserTextFetch(url) {
-  const page = await getBrowserPage();
-  return page.evaluate(
-    async ({ requestUrl, timeoutMs }) => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        const response = await fetch(requestUrl, {
-          credentials: "include",
-          signal: controller.signal,
-        });
-        return {
-          ok: response.ok,
-          status: response.status,
-          text: await response.text(),
-        };
-      } finally {
-        clearTimeout(timeout);
-      }
-    },
-    { requestUrl: url, timeoutMs: LZYUMI_TIMEOUT_MS },
-  );
+  await getBrowserPage().catch(() => null);
+  const context = await browserContextPromise;
+  const page = await context.newPage();
+
+  try {
+    const response = await page.goto(url, {
+      waitUntil: "domcontentloaded",
+      timeout: LZYUMI_TIMEOUT_MS,
+    });
+    const text = await page.locator("body").innerText({ timeout: 5000 }).catch(async () => page.content());
+    return {
+      ok: Boolean(response?.ok()),
+      status: response?.status() || 0,
+      text,
+    };
+  } finally {
+    await page.close().catch(() => null);
+  }
 }
 
 async function directTextFetch(url) {
-  const proxyUrl = reportEngineProxyUrl();
-  const agent = proxyUrl ? new (require("proxy-agent").ProxyAgent)(proxyUrl) : null;
+  const agent = nodeProxyAgent();
   const response = await axios.get(url, {
     headers: LZYUMI_HEADERS,
     timeout: LZYUMI_TIMEOUT_MS,
