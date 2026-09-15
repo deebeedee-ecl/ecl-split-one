@@ -505,6 +505,27 @@ function gameTimeWindowIssue(game, sessionCreatedAt) {
   return "";
 }
 
+function candidateTimeLabel(game) {
+  return clean(game?.titleTime) || clean(game?.title).replace(/<br>/g, " ") || "unknown time";
+}
+
+function formatCandidateSummary(candidate, sessionCreatedAt) {
+  if (!candidate?.game) return "";
+
+  const matched = candidate.rosterMatch?.matched?.length ?? 0;
+  const missing = candidate.rosterMatch?.missing ?? [];
+  const timeIssue = gameTimeWindowIssue(candidate.game, sessionCreatedAt);
+  const parts = [
+    `${candidateTimeLabel(candidate.game)}`,
+    `${matched}/10 players`,
+  ];
+
+  if (timeIssue) parts.push(timeIssue);
+  if (missing.length) parts.push(`missing ${missing.slice(0, 4).join(", ")}${missing.length > 4 ? "..." : ""}`);
+
+  return parts.join(" - ");
+}
+
 async function loadChampionNames() {
   if (championNamesPromise) return championNamesPromise;
 
@@ -661,6 +682,12 @@ async function findMatchingGame(job) {
   const sources = (await Promise.all(searchPlayers.map(fetchRecentGamesForPlayer))).filter(Boolean);
   const gamesById = new Map();
 
+  if (sources.length === 0) {
+    throw new Error(
+      `No recent ECL.GG games were found for this inhouse roster. Checked ${searchPlayers.length} players, but Lzyumi returned no recent game lists.`,
+    );
+  }
+
   for (const source of sources) {
     for (const game of source.games) {
       if (!game?.gameId || job.reportedGameIds.includes(game.gameId) || gamesById.has(game.gameId)) {
@@ -668,6 +695,12 @@ async function findMatchingGame(job) {
       }
       gamesById.set(game.gameId, { source, game });
     }
+  }
+
+  if (gamesById.size === 0) {
+    throw new Error(
+      `No unreported ECL.GG games were found for this inhouse roster. Lzyumi returned games for ${sources.length}/${searchPlayers.length} players, but they were already reported or missing game IDs.`,
+    );
   }
 
   const sortedCandidates = [...gamesById.values()]
@@ -683,6 +716,16 @@ async function findMatchingGame(job) {
   const candidates = sortedCandidates
     .filter(({ game }) => !gameTimeWindowIssue(game, job.session.createdAt))
     .slice(0, REPORT_CANDIDATE_LIMIT);
+
+  if (candidates.length === 0) {
+    throw new Error(
+      outOfWindowCandidate
+        ? `No matching inhouse found in the expected time window. Closest candidate: ${candidateTimeLabel(
+            outOfWindowCandidate.game,
+          )}; ${gameTimeWindowIssue(outOfWindowCandidate.game, job.session.createdAt)}.`
+        : `No Lzyumi candidates remained after filtering ${gamesById.size} recent games.`,
+    );
+  }
 
   const checked = (
     await Promise.all(
@@ -709,6 +752,10 @@ async function findMatchingGame(job) {
     )
   ).filter(Boolean);
 
+  if (checked.length === 0) {
+    throw new Error(`Lzyumi returned ${candidates.length} candidate games, but every detail lookup failed.`);
+  }
+
   const exact = checked
     .filter((candidate) => candidate.rosterMatch.matched.length >= REQUIRED_MATCHES)
     .sort((a, b) => gameSortValue(a.game, job.session.createdAt) - gameSortValue(b.game, job.session.createdAt));
@@ -718,7 +765,7 @@ async function findMatchingGame(job) {
   const best = checked.sort((a, b) => b.rosterMatch.matched.length - a.rosterMatch.matched.length)[0];
   throw new Error(
     best
-      ? formatRosterMiss(best.rosterMatch)
+      ? `${formatRosterMiss(best.rosterMatch)} Best candidate: ${formatCandidateSummary(best, job.session.createdAt)}.`
       : outOfWindowCandidate
         ? `No matching inhouse found in the expected time window; ${gameTimeWindowIssue(
             outOfWindowCandidate.game,
