@@ -308,7 +308,7 @@ async function lzyumiFetchBrowserOnce(url) {
 }
 
 function isEmptyLzyumiInfoResponse(url, response) {
-  if (!url.includes("/lzyumi/lol/info?")) return false;
+  if (url && !url.includes("/lzyumi/lol/info?")) return false;
   if (!response || typeof response !== "object") return false;
   return (
     !response.battleInfo?.openId &&
@@ -316,25 +316,11 @@ function isEmptyLzyumiInfoResponse(url, response) {
   );
 }
 
-async function lzyumiFetchBrowser(url) {
-  const first = await lzyumiFetchBrowserOnce(url);
-
-  if (!isEmptyLzyumiInfoResponse(url, first)) return first;
-
-  await resetBrowserSession("empty-info-response");
-  const second = await lzyumiFetchBrowserOnce(url);
-  debugLzyumi("browser-empty-retry", {
-    first: lzyumiResponseSummary(first),
-    second: lzyumiResponseSummary(second),
-  });
-  return second;
-}
-
 async function lzyumiFetch(url) {
   if (FETCH_MODE === "direct") return lzyumiFetchDirect(url);
 
   try {
-    return await lzyumiFetchBrowser(url);
+    return await lzyumiFetchBrowserOnce(url);
   } catch (error) {
     if (FETCH_MODE === "browser-strict") throw error;
     console.warn(`Browser Lzyumi fetch failed, falling back to direct fetch: ${error.message || error}`);
@@ -342,23 +328,27 @@ async function lzyumiFetch(url) {
   }
 }
 
-function lzyumiInfoUrl({ nickname, openId, areaId, filter, allCount = LZYUMI_ALL_COUNT }) {
+function lzyumiInfoUrl({ nickname, openId, areaId, filter, allCount = LZYUMI_ALL_COUNT, minimalOpenId = false }) {
   const { lzyumiSign, signStr } = createLzyumiSignature();
   const areaName = CHINA_SERVERS[areaId] || CHINA_SERVERS[1];
   const encodedNickname = clean(nickname).replace(/#/g, "*~*~*");
-  const encodedOpenId = encodeURIComponent(clean(openId));
-  const params = [
-    `nickname=${encodeURIComponent(encodedNickname)}`,
-    `allCount=${allCount}`,
-    `areaId=${areaId}`,
-    `areaName=${encodeURIComponent(areaName)}`,
-    "seleMe=1",
-    `filter=${filter}`,
-    `openId=${encodedOpenId}`,
-    `lzyumiSign=${lzyumiSign}`,
-    `signStr=${signStr}`,
-  ];
-  return `${LZYUMI_BASE}/info?${params.join("&")}`;
+  const url = new URL(`${LZYUMI_BASE}/info`);
+
+  if (!minimalOpenId) {
+    url.searchParams.set("nickname", encodedNickname);
+  }
+  url.searchParams.set("allCount", String(allCount));
+  url.searchParams.set("areaId", String(areaId));
+  if (!minimalOpenId) {
+    url.searchParams.set("areaName", areaName);
+  }
+  url.searchParams.set("seleMe", "1");
+  url.searchParams.set("filter", String(filter));
+  url.searchParams.set("openId", clean(openId));
+  url.searchParams.set("lzyumiSign", lzyumiSign);
+  url.searchParams.set("signStr", signStr);
+
+  return url.toString();
 }
 
 function lzyumiDetailUrl({ openId, gameId, areaId }) {
@@ -378,20 +368,23 @@ async function fetchRecentGamesForPlayer(player) {
   const lookupNames = [clean(player.riotName), riotId(player)].filter(Boolean);
   const attempts = savedOpenId
     ? [
-        ...lookupNames.map((nickname) => ({ nickname, openId: savedOpenId })),
-        { nickname: "", openId: savedOpenId },
-        ...lookupNames.map((nickname) => ({ nickname, openId: "" })),
+        ...lookupNames.map((nickname) => ({ nickname, openId: savedOpenId, minimalOpenId: false })),
+        { nickname: "", openId: savedOpenId, minimalOpenId: false },
+        { nickname: "", openId: savedOpenId, minimalOpenId: true },
+        ...lookupNames.map((nickname) => ({ nickname, openId: "", minimalOpenId: false })),
       ]
-    : lookupNames.map((nickname) => ({ nickname, openId: "" }));
+    : lookupNames.map((nickname) => ({ nickname, openId: "", minimalOpenId: false }));
   const seenAttempts = new Set();
 
   for (const attempt of attempts) {
-    const attemptKey = `${attempt.nickname}::${attempt.openId}`;
+    const attemptKey = `${attempt.nickname}::${attempt.openId}::${attempt.minimalOpenId ? "minimal" : "full"}`;
     if (seenAttempts.has(attemptKey)) continue;
     seenAttempts.add(attemptKey);
-    const responses = await Promise.all(
-      LZYUMI_FILTERS.map((filter) =>
-        lzyumiFetch(lzyumiInfoUrl({ ...attempt, areaId, filter }))
+
+    const runAttempt = () => Promise.all(
+      LZYUMI_FILTERS.map((filter) => {
+        const url = lzyumiInfoUrl({ ...attempt, areaId, filter });
+        return lzyumiFetch(url)
           .then((response) => {
             debugLzyumi("info", {
               player: riotId(player) || clean(player.displayName),
@@ -399,6 +392,7 @@ async function fetchRecentGamesForPlayer(player) {
               filter,
               nicknameSupplied: Boolean(clean(attempt.nickname)),
               openIdSupplied: Boolean(clean(attempt.openId)),
+              minimalOpenId: Boolean(attempt.minimalOpenId),
               response: lzyumiResponseSummary(response),
             });
             return response;
@@ -410,17 +404,32 @@ async function fetchRecentGamesForPlayer(player) {
               filter,
               nicknameSupplied: Boolean(clean(attempt.nickname)),
               openIdSupplied: Boolean(clean(attempt.openId)),
+              minimalOpenId: Boolean(attempt.minimalOpenId),
               error: error.message || String(error),
             });
             return null;
-          }),
-      ),
+          });
+      }),
     );
+
+    let responses = await runAttempt();
     const hasData = responses.some(
       (response) => response?.battleInfo?.openId || response?.data?.length,
     );
 
-    if (!hasData) continue;
+    if (!hasData && responses.some((response) => isEmptyLzyumiInfoResponse("", response))) {
+      await resetBrowserSession("empty-player-attempt");
+      responses = await runAttempt();
+      debugLzyumi("player-attempt-retry", {
+        player: riotId(player) || clean(player.displayName),
+        nicknameSupplied: Boolean(clean(attempt.nickname)),
+        openIdSupplied: Boolean(clean(attempt.openId)),
+        minimalOpenId: Boolean(attempt.minimalOpenId),
+        hasData: responses.some((response) => response?.battleInfo?.openId || response?.data?.length),
+      });
+    }
+
+    if (!responses.some((response) => response?.battleInfo?.openId || response?.data?.length)) continue;
 
     const profile = responses.find((response) => response?.battleInfo?.openId) || null;
     const expectedRiotKey = riotIdKey(player.riotName, player.riotTag);
