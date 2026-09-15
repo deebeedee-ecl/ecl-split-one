@@ -26,7 +26,7 @@ const PROXY_PASSWORD = clean(process.env.REPORT_ENGINE_PROXY_PASSWORD);
 const LZYUMI_BASE = "https://a.2025lol.top/lzyumi/lol";
 const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
-const LZYUMI_ALL_COUNT = Number(process.env.REPORT_ENGINE_LZYUMI_ALL_COUNT || 20);
+const LZYUMI_ALL_COUNT = Number(process.env.REPORT_ENGINE_LZYUMI_ALL_COUNT || 10);
 const REPORT_CANDIDATE_LIMIT = Number(process.env.REPORT_ENGINE_CANDIDATE_LIMIT || 24);
 const REQUIRED_MATCHES = Number(process.env.REPORT_ENGINE_REQUIRED_MATCHES || 8);
 const REPORT_GAME_EARLY_GRACE_MS = Number(process.env.REPORT_ENGINE_EARLY_GRACE_MINUTES || 10) * 60 * 1000;
@@ -55,6 +55,7 @@ let browserPagePromise = null;
 let championNamesPromise = null;
 const INVISIBLE_CONTROL_PATTERN = /[\p{Cc}\p{Cf}]/gu;
 const RIOT_KEY_SPACING_PATTERN = /[\s\p{Zs}\u1160\uFFA0]+/gu;
+const LZYUMI_RIOT_TAG_ISOLATE = "\u2066";
 
 function clean(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -389,20 +390,20 @@ async function lzyumiFetch(url) {
 function lzyumiInfoUrl({ nickname, openId, areaId, filter, allCount = LZYUMI_ALL_COUNT }) {
   const { lzyumiSign, signStr } = createLzyumiSignature();
   const areaName = CHINA_SERVERS[areaId] || CHINA_SERVERS[1];
-  const encodedNickname = clean(nickname).replace(/#/g, "*~*~*");
-  const url = new URL(`${LZYUMI_BASE}/info`);
+  const encodedNickname = clean(nickname).replace(/#/g, `*~*~*${LZYUMI_RIOT_TAG_ISOLATE}`);
+  const params = [
+    `nickname=${encodeURIComponent(encodedNickname)}`,
+    `allCount=${allCount}`,
+    `areaId=${areaId}`,
+    `areaName=${encodeURIComponent(areaName)}`,
+    "seleMe=1",
+    `filter=${filter}`,
+    `openId=${encodeURIComponent(clean(openId))}`,
+    `lzyumiSign=${lzyumiSign}`,
+    `signStr=${signStr}`,
+  ];
 
-  url.searchParams.set("nickname", encodedNickname);
-  url.searchParams.set("allCount", String(allCount));
-  url.searchParams.set("areaId", String(areaId));
-  url.searchParams.set("areaName", areaName);
-  url.searchParams.set("seleMe", "1");
-  url.searchParams.set("filter", String(filter));
-  url.searchParams.set("openId", clean(openId));
-  url.searchParams.set("lzyumiSign", lzyumiSign);
-  url.searchParams.set("signStr", signStr);
-
-  return url.toString();
+  return `${LZYUMI_BASE}/info?${params.join("&")}`;
 }
 
 function lzyumiDetailUrl({ openId, gameId, areaId }) {
