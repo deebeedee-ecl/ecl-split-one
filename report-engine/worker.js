@@ -13,6 +13,9 @@ const WORKER_ID = process.env.REPORT_ENGINE_WORKER_ID || "ecl-report-engine";
 const POLL_MS = Number(process.env.REPORT_ENGINE_POLL_MS || 5000);
 const LZYUMI_TIMEOUT_MS = Number(process.env.REPORT_ENGINE_LZYUMI_TIMEOUT_MS || 15000);
 const FETCH_MODE = clean(process.env.REPORT_ENGINE_FETCH_MODE || "browser").toLowerCase();
+const LZYUMI_PROFILE_DIR = clean(process.env.REPORT_ENGINE_LZYUMI_PROFILE_DIR) ||
+  path.join(__dirname, ".lzyumi-browser-profile");
+const LZYUMI_WARMUP_MS = Number(process.env.REPORT_ENGINE_LZYUMI_WARMUP_MS || 2500);
 const DEBUG_LZYUMI = ["1", "true", "yes", "on"].includes(
   clean(process.env.REPORT_ENGINE_DEBUG_LZYUMI).toLowerCase(),
 );
@@ -41,12 +44,13 @@ const CHINA_SERVERS = {
 
 const LZYUMI_HEADERS = {
   Accept: "application/json, text/plain, */*",
+  "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
   Referer: "https://a.2025lol.top/",
   "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
 };
 
-let browserPromise = null;
+let browserContextPromise = null;
 let browserPagePromise = null;
 let championNamesPromise = null;
 const INVISIBLE_CONTROL_PATTERN = /[\p{Cc}\p{Cf}]/gu;
@@ -213,10 +217,10 @@ async function lzyumiFetchDirect(url) {
 }
 
 async function getBrowserPage() {
-  if (!browserPromise) {
+  if (!browserContextPromise) {
     const { chromium } = require("playwright");
     const proxy = reportEngineProxy();
-    browserPromise = chromium.launch({
+    browserContextPromise = chromium.launchPersistentContext(LZYUMI_PROFILE_DIR, {
       headless: true,
       proxy: proxy?.server
         ? {
@@ -231,24 +235,32 @@ async function getBrowserPage() {
         "--disable-dev-shm-usage",
         "--disable-blink-features=AutomationControlled",
       ],
+      locale: "zh-CN",
+      timezoneId: "Asia/Shanghai",
+      userAgent: LZYUMI_HEADERS["User-Agent"],
+      viewport: { width: 1365, height: 768 },
+      extraHTTPHeaders: {
+        Accept: LZYUMI_HEADERS.Accept,
+        "Accept-Language": LZYUMI_HEADERS["Accept-Language"],
+      },
+    }).then(async (context) => {
+      await context.addInitScript(() => {
+        Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+        Object.defineProperty(navigator, "languages", { get: () => ["zh-CN", "zh", "en-US", "en"] });
+        Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3, 4, 5] });
+      });
+      return context;
     });
   }
 
   if (!browserPagePromise) {
-    browserPagePromise = browserPromise.then(async (browser) => {
-      const context = await browser.newContext({
-        locale: "zh-CN",
-        timezoneId: "Asia/Shanghai",
-        userAgent: LZYUMI_HEADERS["User-Agent"],
-        extraHTTPHeaders: {
-          Accept: LZYUMI_HEADERS.Accept,
-        },
-      });
-      const page = await context.newPage();
+    browserPagePromise = browserContextPromise.then(async (context) => {
+      const page = context.pages()[0] || await context.newPage();
       await page.goto("https://a.2025lol.top/", {
-        waitUntil: "domcontentloaded",
+        waitUntil: "networkidle",
         timeout: LZYUMI_TIMEOUT_MS,
       }).catch(() => null);
+      await page.waitForTimeout(LZYUMI_WARMUP_MS).catch(() => null);
       return page;
     });
   }
@@ -256,7 +268,19 @@ async function getBrowserPage() {
   return browserPagePromise;
 }
 
-async function lzyumiFetchBrowser(url) {
+async function resetBrowserSession(reason) {
+  debugLzyumi("browser-reset", { reason: reason || "unknown" });
+
+  const context = await browserContextPromise?.catch(() => null);
+  browserPagePromise = null;
+  browserContextPromise = null;
+
+  if (context) {
+    await context.close().catch(() => null);
+  }
+}
+
+async function lzyumiFetchBrowserOnce(url) {
   const page = await getBrowserPage();
   return page.evaluate(
     async ({ requestUrl, timeoutMs }) => {
@@ -281,6 +305,29 @@ async function lzyumiFetchBrowser(url) {
     },
     { requestUrl: url, timeoutMs: LZYUMI_TIMEOUT_MS },
   );
+}
+
+function isEmptyLzyumiInfoResponse(url, response) {
+  if (!url.includes("/lzyumi/lol/info?")) return false;
+  if (!response || typeof response !== "object") return false;
+  return (
+    !response.battleInfo?.openId &&
+    (!Array.isArray(response.data) || response.data.length === 0)
+  );
+}
+
+async function lzyumiFetchBrowser(url) {
+  const first = await lzyumiFetchBrowserOnce(url);
+
+  if (!isEmptyLzyumiInfoResponse(url, first)) return first;
+
+  await resetBrowserSession("empty-info-response");
+  const second = await lzyumiFetchBrowserOnce(url);
+  debugLzyumi("browser-empty-retry", {
+    first: lzyumiResponseSummary(first),
+    second: lzyumiResponseSummary(second),
+  });
+  return second;
 }
 
 async function lzyumiFetch(url) {
