@@ -314,6 +314,49 @@ async function lzyumiFetchBrowserOnce(url) {
   );
 }
 
+async function browserTextFetch(url) {
+  const page = await getBrowserPage();
+  return page.evaluate(
+    async ({ requestUrl, timeoutMs }) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(requestUrl, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        return {
+          ok: response.ok,
+          status: response.status,
+          text: await response.text(),
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+    { requestUrl: url, timeoutMs: LZYUMI_TIMEOUT_MS },
+  );
+}
+
+async function directTextFetch(url) {
+  const proxyUrl = reportEngineProxyUrl();
+  const agent = proxyUrl ? new (require("proxy-agent").ProxyAgent)(proxyUrl) : null;
+  const response = await axios.get(url, {
+    headers: LZYUMI_HEADERS,
+    timeout: LZYUMI_TIMEOUT_MS,
+    httpAgent: agent,
+    httpsAgent: agent,
+    proxy: false,
+    responseType: "text",
+    transformResponse: [(data) => data],
+  });
+  return {
+    ok: response.status >= 200 && response.status < 300,
+    status: response.status,
+    text: String(response.data || ""),
+  };
+}
+
 function isEmptyLzyumiInfoResponse(url, response) {
   if (url && !url.includes("/lzyumi/lol/info?")) return false;
   if (!response || typeof response !== "object") return false;
@@ -728,6 +771,32 @@ async function debugCheckPlayer() {
   }
 }
 
+function printTrace(label, result) {
+  const lines = String(result.text || "")
+    .split(/\r?\n/)
+    .filter((line) => /^(ip|colo|loc|warp|gateway)=/.test(line));
+
+  console.log(`${label}: HTTP ${result.status}`);
+  console.log(lines.length ? lines.join("\n") : String(result.text || "").slice(0, 500));
+}
+
+async function debugProbeNetwork() {
+  console.log(`Report Engine proxy: ${reportEngineProxyUrl() || "(none)"}`);
+
+  const traceUrl = "https://www.cloudflare.com/cdn-cgi/trace";
+  const directTrace = await directTextFetch(traceUrl).catch((error) => ({
+    status: 0,
+    text: error.message || String(error),
+  }));
+  printTrace("Node fetch", directTrace);
+
+  const browserTrace = await browserTextFetch(traceUrl).catch((error) => ({
+    status: 0,
+    text: error.message || String(error),
+  }));
+  printTrace("Browser fetch", browserTrace);
+}
+
 async function findMatchingGame(job) {
   const players = job.session.players;
   const searchPlayers = [
@@ -917,7 +986,12 @@ async function main() {
   }
 }
 
-if (process.argv.includes("--check-player")) {
+if (process.argv.includes("--probe-network")) {
+  debugProbeNetwork().catch((error) => {
+    console.error(error.message || error);
+    process.exitCode = 1;
+  });
+} else if (process.argv.includes("--check-player")) {
   debugCheckPlayer().catch((error) => {
     console.error(error.message || error);
     process.exitCode = 1;
