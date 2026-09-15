@@ -411,12 +411,13 @@ async function findMatchingReportCandidate({
         const isExactProfile =
           Boolean(
             resolvedOpenId &&
-            resolvedName &&
-            isResolvedRiotIdMatch(
-              resolvedName,
-              searchPlayer.riotName ?? "",
-              normalizeRiotTag(searchPlayer.riotTag),
-            ),
+            (resolvedName
+              ? isResolvedRiotIdMatch(
+                  resolvedName,
+                  searchPlayer.riotName ?? "",
+                  normalizeRiotTag(searchPlayer.riotTag),
+                )
+              : attempt.openId),
           );
 
         if (!isExactProfile || !resolvedOpenId || result.games.length === 0) continue;

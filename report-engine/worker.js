@@ -46,6 +46,7 @@ const LZYUMI_HEADERS = {
 
 let browserPromise = null;
 let browserPagePromise = null;
+let championNamesPromise = null;
 const INVISIBLE_CONTROL_PATTERN = /[\p{Cc}\p{Cf}]/gu;
 const RIOT_KEY_SPACING_PATTERN = /[\s\p{Zs}\u1160\uFFA0]+/gu;
 
@@ -376,11 +377,19 @@ async function fetchRecentGamesForPlayer(player) {
     const expectedRiotKey = riotIdKey(player.riotName, player.riotTag);
     const resolvedName = clean(profile?.battleInfo?.nameInfoNew);
 
-    if (expectedRiotKey && !resolvedRiotIdMatches(resolvedName, player.riotName, player.riotTag)) {
+    if (expectedRiotKey && resolvedName && !resolvedRiotIdMatches(resolvedName, player.riotName, player.riotTag)) {
       debugLzyumi("identity-mismatch", {
         player: riotId(player) || clean(player.displayName),
         suppliedOpenId: Boolean(clean(attempt.openId)),
         resolvedName,
+      });
+      continue;
+    }
+
+    if (expectedRiotKey && !resolvedName && !clean(attempt.openId)) {
+      debugLzyumi("identity-unverified", {
+        player: riotId(player) || clean(player.displayName),
+        suppliedOpenId: false,
       });
       continue;
     }
@@ -494,18 +503,38 @@ function gameTimeWindowIssue(game, sessionCreatedAt) {
   return "";
 }
 
-function loadChampionNames() {
-  try {
-    const file = path.join(__dirname, "..", "public", "lol", "champions", "champions.json");
-    const champions = JSON.parse(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
-    return new Map(champions.map((champion) => [String(champion.id), champion.name]));
-  } catch {
-    return new Map();
-  }
+async function loadChampionNames() {
+  if (championNamesPromise) return championNamesPromise;
+
+  championNamesPromise = (async () => {
+    const localFiles = [
+      path.join(__dirname, "champions.json"),
+      path.join(__dirname, "..", "public", "lol", "champions", "champions.json"),
+    ];
+
+    for (const file of localFiles) {
+      try {
+        const champions = JSON.parse(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
+        return new Map(champions.map((champion) => [String(champion.id), champion.name]));
+      } catch {
+        // Try the next source.
+      }
+    }
+
+    try {
+      const response = await axios.get(`${SITE_URL}/lol/champions/champions.json`, { timeout: 10000 });
+      const champions = Array.isArray(response.data) ? response.data : [];
+      return new Map(champions.map((champion) => [String(champion.id), champion.name]));
+    } catch {
+      return new Map();
+    }
+  })();
+
+  return championNamesPromise;
 }
 
-function summarizeReporter(job, detail, game, rosterMatch) {
-  const championNames = loadChampionNames();
+async function summarizeReporter(job, detail, game, rosterMatch) {
+  const championNames = await loadChampionNames();
   const reporter = job.reporter || {};
   const reporterOpenId = clean(reporter.openId);
   const detailPlayers = detail?.data?.wgBattleDetailInfo || [];
@@ -589,7 +618,7 @@ async function debugCheckPlayer() {
     return;
   }
 
-  const championNames = loadChampionNames();
+  const championNames = await loadChampionNames();
   const games = source.games.slice(0, limit);
   console.log(`Found ${source.games.length} recent game(s) for ${riot || name}. Showing ${games.length}.`);
 
@@ -739,7 +768,7 @@ async function processNextJob() {
 
   try {
     const match = await findMatchingGame(job);
-    const reply = summarizeReporter(job, match.detail, match.game, match.rosterMatch);
+    const reply = await summarizeReporter(job, match.detail, match.game, match.rosterMatch);
     const result = await sitePost("/api/jobs/inhouse-report", {
       jobId: job.id,
       status: "FOUND",
