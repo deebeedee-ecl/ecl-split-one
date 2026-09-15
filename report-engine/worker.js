@@ -77,6 +77,13 @@ function splitRiotId(value) {
   return { name: raw.slice(0, index), tag: raw.slice(index + 1) };
 }
 
+function parseRiotId(value) {
+  const raw = clean(value);
+  const index = raw.lastIndexOf("#");
+  if (index < 0) return { name: raw, tag: "" };
+  return { name: raw.slice(0, index), tag: raw.slice(index + 1) };
+}
+
 function riotIdKey(name, tag) {
   const normalizedName = riotNameKey(name);
   const normalizedTag = normalize(tag).replace(/^#+/, "").replace(RIOT_KEY_SPACING_PATTERN, "");
@@ -328,20 +335,16 @@ async function lzyumiFetch(url) {
   }
 }
 
-function lzyumiInfoUrl({ nickname, openId, areaId, filter, allCount = LZYUMI_ALL_COUNT, minimalOpenId = false }) {
+function lzyumiInfoUrl({ nickname, openId, areaId, filter, allCount = LZYUMI_ALL_COUNT }) {
   const { lzyumiSign, signStr } = createLzyumiSignature();
   const areaName = CHINA_SERVERS[areaId] || CHINA_SERVERS[1];
   const encodedNickname = clean(nickname).replace(/#/g, "*~*~*");
   const url = new URL(`${LZYUMI_BASE}/info`);
 
-  if (!minimalOpenId) {
-    url.searchParams.set("nickname", encodedNickname);
-  }
+  url.searchParams.set("nickname", encodedNickname);
   url.searchParams.set("allCount", String(allCount));
   url.searchParams.set("areaId", String(areaId));
-  if (!minimalOpenId) {
-    url.searchParams.set("areaName", areaName);
-  }
+  url.searchParams.set("areaName", areaName);
   url.searchParams.set("seleMe", "1");
   url.searchParams.set("filter", String(filter));
   url.searchParams.set("openId", clean(openId));
@@ -368,16 +371,15 @@ async function fetchRecentGamesForPlayer(player) {
   const lookupNames = [clean(player.riotName), riotId(player)].filter(Boolean);
   const attempts = savedOpenId
     ? [
-        ...lookupNames.map((nickname) => ({ nickname, openId: savedOpenId, minimalOpenId: false })),
-        { nickname: "", openId: savedOpenId, minimalOpenId: false },
-        { nickname: "", openId: savedOpenId, minimalOpenId: true },
-        ...lookupNames.map((nickname) => ({ nickname, openId: "", minimalOpenId: false })),
+        ...lookupNames.map((nickname) => ({ nickname, openId: savedOpenId })),
+        { nickname: "", openId: savedOpenId },
+        ...lookupNames.map((nickname) => ({ nickname, openId: "" })),
       ]
-    : lookupNames.map((nickname) => ({ nickname, openId: "", minimalOpenId: false }));
+    : lookupNames.map((nickname) => ({ nickname, openId: "" }));
   const seenAttempts = new Set();
 
   for (const attempt of attempts) {
-    const attemptKey = `${attempt.nickname}::${attempt.openId}::${attempt.minimalOpenId ? "minimal" : "full"}`;
+    const attemptKey = `${attempt.nickname}::${attempt.openId}`;
     if (seenAttempts.has(attemptKey)) continue;
     seenAttempts.add(attemptKey);
 
@@ -392,7 +394,6 @@ async function fetchRecentGamesForPlayer(player) {
               filter,
               nicknameSupplied: Boolean(clean(attempt.nickname)),
               openIdSupplied: Boolean(clean(attempt.openId)),
-              minimalOpenId: Boolean(attempt.minimalOpenId),
               response: lzyumiResponseSummary(response),
             });
             return response;
@@ -404,7 +405,6 @@ async function fetchRecentGamesForPlayer(player) {
               filter,
               nicknameSupplied: Boolean(clean(attempt.nickname)),
               openIdSupplied: Boolean(clean(attempt.openId)),
-              minimalOpenId: Boolean(attempt.minimalOpenId),
               error: error.message || String(error),
             });
             return null;
@@ -424,7 +424,6 @@ async function fetchRecentGamesForPlayer(player) {
         player: riotId(player) || clean(player.displayName),
         nicknameSupplied: Boolean(clean(attempt.nickname)),
         openIdSupplied: Boolean(clean(attempt.openId)),
-        minimalOpenId: Boolean(attempt.minimalOpenId),
         hasData: responses.some((response) => response?.battleInfo?.openId || response?.data?.length),
       });
     }
@@ -677,7 +676,7 @@ async function debugCheckPlayer() {
   const areaId = Number(cliValue("--area-id", "1")) || 1;
   const limit = Number(cliValue("--limit", "8")) || 8;
   const openId = cliValue("--open-id");
-  const { name, tag } = splitRiotId(riot);
+  const { name, tag } = parseRiotId(riot);
 
   if (!name && !openId) {
     throw new Error('Usage: node worker.js --check-player "Soul#67126" --area-id 1');
