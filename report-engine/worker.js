@@ -23,6 +23,8 @@ const PROXY_PASSWORD = clean(process.env.REPORT_ENGINE_PROXY_PASSWORD);
 const LZYUMI_BASE = "https://a.2025lol.top/lzyumi/lol";
 const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
+const LZYUMI_ALL_COUNT = Number(process.env.REPORT_ENGINE_LZYUMI_ALL_COUNT || 20);
+const REPORT_CANDIDATE_LIMIT = Number(process.env.REPORT_ENGINE_CANDIDATE_LIMIT || 24);
 const REQUIRED_MATCHES = Number(process.env.REPORT_ENGINE_REQUIRED_MATCHES || 8);
 const REPORT_GAME_EARLY_GRACE_MS = Number(process.env.REPORT_ENGINE_EARLY_GRACE_MINUTES || 10) * 60 * 1000;
 const REPORT_GAME_LATE_WINDOW_MS = Number(process.env.REPORT_ENGINE_LATE_WINDOW_HOURS || 6) * 60 * 60 * 1000;
@@ -293,7 +295,7 @@ async function lzyumiFetch(url) {
   }
 }
 
-function lzyumiInfoUrl({ nickname, openId, areaId, filter, allCount = 5 }) {
+function lzyumiInfoUrl({ nickname, openId, areaId, filter, allCount = LZYUMI_ALL_COUNT }) {
   const { lzyumiSign, signStr } = createLzyumiSignature();
   const areaName = CHINA_SERVERS[areaId] || CHINA_SERVERS[1];
   const encodedNickname = clean(nickname).replace(/#/g, "*~*~*");
@@ -680,7 +682,7 @@ async function findMatchingGame(job) {
   );
   const candidates = sortedCandidates
     .filter(({ game }) => !gameTimeWindowIssue(game, job.session.createdAt))
-    .slice(0, 12);
+    .slice(0, REPORT_CANDIDATE_LIMIT);
 
   const checked = (
     await Promise.all(

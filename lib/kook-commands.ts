@@ -48,7 +48,8 @@ function toJson(value: unknown): Prisma.InputJsonValue {
 const ACTIVE_REPORT_HOURS = 48;
 const REPORT_CONFIRM_MINUTES = 20;
 const REQUIRED_REPORT_MATCHES = Number(process.env.INHOUSE_REPORT_REQUIRED_MATCHES || 8);
-const REPORT_CANDIDATE_LIMIT = 8;
+const REPORT_CANDIDATE_LIMIT = Number(process.env.INHOUSE_REPORT_CANDIDATE_LIMIT || 24);
+const REPORT_LZYUMI_ALL_COUNT = Number(process.env.INHOUSE_REPORT_LZYUMI_ALL_COUNT || 20);
 const REPORT_GAME_EARLY_GRACE_MS = Number(process.env.INHOUSE_REPORT_EARLY_GRACE_MINUTES || 10) * 60 * 1000;
 const REPORT_GAME_LATE_WINDOW_MS = Number(process.env.INHOUSE_REPORT_LATE_WINDOW_HOURS || 6) * 60 * 60 * 1000;
 const LZYUMI_INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
@@ -403,8 +404,8 @@ async function findMatchingReportCandidate({
           riotName: attempt.riotName,
           openId: attempt.openId,
           areaId: searchAreaId,
-          allCount: 5,
-          timeoutMs: 7000,
+          allCount: REPORT_LZYUMI_ALL_COUNT,
+          timeoutMs: 12000,
         });
         const resolvedName = result.profile?.battleInfo?.nameInfoNew;
         const resolvedOpenId = clean(result.profile?.battleInfo?.openId) || attempt.openId;
