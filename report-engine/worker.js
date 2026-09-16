@@ -405,6 +405,29 @@ async function firstVisibleLocator(page, selector) {
   return null;
 }
 
+async function visibleControlSummary(page) {
+  return page.evaluate(() => {
+    const isVisible = (element) => {
+      const style = window.getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style && style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+    };
+
+    return [...document.querySelectorAll("input, button, a, [role='button'], div, span")]
+      .filter(isVisible)
+      .map((element) => ({
+        tag: element.tagName.toLowerCase(),
+        type: element.getAttribute("type") || "",
+        name: element.getAttribute("name") || "",
+        id: element.id || "",
+        value: element.getAttribute("value") || "",
+        text: (element.textContent || "").trim().slice(0, 40),
+      }))
+      .filter((item) => item.type || item.name || item.id || item.value || item.text)
+      .slice(0, 30);
+  }).catch(() => []);
+}
+
 async function lzyumiLogin() {
   if (!LZYUMI_LOGIN_ID || !LZYUMI_LOGIN_PASSWORD) {
     throw new Error("Missing REPORT_ENGINE_LZYUMI_LOGIN_ID or REPORT_ENGINE_LZYUMI_LOGIN_PASSWORD.");
@@ -442,21 +465,29 @@ async function lzyumiLogin() {
     [
       'button[type="submit"]',
       'input[type="submit"]',
+      'input[type="button"]',
+      '[role="button"]',
+      'a:has-text("登录")',
       'button:has-text("登录")',
-      'button:has-text("登 录")',
+      'div:has-text("登录")',
       'input[value*="登录"]',
       'button',
     ].join(", "),
   );
 
-  if (!submit) {
-    throw new Error("Could not find a visible Lzyumi login button.");
+  if (submit) {
+    await Promise.all([
+      page.waitForLoadState("networkidle", { timeout: LZYUMI_TIMEOUT_MS }).catch(() => null),
+      submit.click(),
+    ]);
+  } else {
+    console.log("Could not find a visible Lzyumi login button; trying Enter from password field.");
+    console.log(`Visible controls: ${JSON.stringify(await visibleControlSummary(page))}`);
+    await Promise.all([
+      page.waitForLoadState("networkidle", { timeout: LZYUMI_TIMEOUT_MS }).catch(() => null),
+      passwordInput.press("Enter"),
+    ]);
   }
-
-  await Promise.all([
-    page.waitForLoadState("networkidle", { timeout: LZYUMI_TIMEOUT_MS }).catch(() => null),
-    submit.click(),
-  ]);
   await page.waitForTimeout(2000);
 
   const cookies = await page.context().cookies();
