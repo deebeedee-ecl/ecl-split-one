@@ -336,6 +336,57 @@ async function lzyumiFetchBrowserOnce(url) {
   );
 }
 
+async function lzyumiFetchPageFlow({ nickname, openId, areaId, filter = 1, allCount = LZYUMI_ALL_COUNT }) {
+  const page = await getBrowserPage();
+  await page.waitForFunction(
+    () => typeof window.findOrderSeleMe === "function" && typeof window.$ === "function",
+    null,
+    { timeout: LZYUMI_TIMEOUT_MS },
+  );
+
+  const responsePromise = page.waitForResponse(
+    (response) => response.request().method() === "GET" && response.url().includes("/lzyumi/lol/info?"),
+    { timeout: LZYUMI_TIMEOUT_MS },
+  );
+
+  await page.evaluate(
+    ({ nicknameValue, openIdValue, areaIdValue, filterValue, allCountValue }) => {
+      const setValue = (selector, value) => {
+        const element = document.querySelector(selector);
+        if (element) element.value = value;
+      };
+
+      setValue("#orderSku", nicknameValue);
+      setValue("#allCount", String(allCountValue));
+      setValue("#areaId", String(areaIdValue));
+      setValue("#filter", String(filterValue));
+      setValue("#seleMe", "1");
+      window.findOrderSeleMe("", 0, Number(areaIdValue), openIdValue || "");
+    },
+    {
+      nicknameValue: clean(nickname),
+      openIdValue: clean(openId),
+      areaIdValue: areaId || 1,
+      filterValue: filter || 1,
+      allCountValue: allCount || LZYUMI_ALL_COUNT,
+    },
+  );
+
+  const response = await responsePromise;
+  const text = await response.text();
+  if (!response.ok()) {
+    throw new Error(`HTTP ${response.status()}: ${text.slice(0, 200)}`);
+  }
+
+  const json = JSON.parse(text);
+  debugLzyumi("page-flow-info", {
+    status: response.status(),
+    requestUrl: response.url(),
+    response: lzyumiResponseSummary(json),
+  });
+  return json;
+}
+
 async function browserTextFetch(url) {
   await getBrowserPage().catch(() => null);
   const context = await browserContextPromise;
@@ -791,6 +842,39 @@ async function debugCheckPlayer() {
   }
 }
 
+async function debugPageCheckPlayer() {
+  const riot = cliValue("--page-check-player");
+  const areaId = Number(cliValue("--area-id", "1")) || 1;
+  const filter = Number(cliValue("--filter", "1")) || 1;
+  const limit = Number(cliValue("--limit", "8")) || 8;
+  const openId = cliValue("--open-id");
+  const { name, tag } = parseRiotId(riot);
+  const nickname = name && tag ? `${name}#${tag}` : name;
+
+  if (!nickname && !openId) {
+    throw new Error('Usage: node worker.js --page-check-player "deebeedee#34323" --area-id 1');
+  }
+
+  const response = await lzyumiFetchPageFlow({
+    nickname,
+    openId,
+    areaId,
+    filter,
+    allCount: Math.max(limit, LZYUMI_ALL_COUNT),
+  });
+
+  const summary = lzyumiResponseSummary(response);
+  console.log(`Page-flow Lzyumi summary for ${riot || nickname || openId}:`);
+  console.log(JSON.stringify(summary, null, 2));
+
+  const games = Array.isArray(response.data) ? response.data.slice(0, limit) : [];
+  for (const game of games) {
+    const time = clean(game.titleTime) || clean(game.title) || "Unknown time";
+    const title = clean(game.title).replace(/<br>/g, " ");
+    console.log(`- ${game.gameId || "no-game-id"} | ${time} | ${title}`);
+  }
+}
+
 function printTrace(label, result) {
   const lines = String(result.text || "")
     .split(/\r?\n/)
@@ -1008,6 +1092,11 @@ async function main() {
 
 if (process.argv.includes("--probe-network")) {
   debugProbeNetwork().catch((error) => {
+    console.error(error.message || error);
+    process.exitCode = 1;
+  });
+} else if (process.argv.includes("--page-check-player")) {
+  debugPageCheckPlayer().catch((error) => {
     console.error(error.message || error);
     process.exitCode = 1;
   });
