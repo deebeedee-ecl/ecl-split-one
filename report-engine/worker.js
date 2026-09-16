@@ -19,6 +19,7 @@ const LZYUMI_WARMUP_MS = Number(process.env.REPORT_ENGINE_LZYUMI_WARMUP_MS || 25
 const LZYUMI_HEADLESS = !["0", "false", "no", "off"].includes(
   clean(process.env.REPORT_ENGINE_LZYUMI_HEADLESS).toLowerCase(),
 );
+const BROWSER_EXECUTABLE_PATH = clean(process.env.REPORT_ENGINE_BROWSER_EXECUTABLE_PATH);
 const DEBUG_LZYUMI = ["1", "true", "yes", "on"].includes(
   clean(process.env.REPORT_ENGINE_DEBUG_LZYUMI).toLowerCase(),
 );
@@ -251,6 +252,7 @@ async function getBrowserPage() {
     const proxy = reportEngineProxy();
     browserContextPromise = chromium.launchPersistentContext(LZYUMI_PROFILE_DIR, {
       headless: LZYUMI_HEADLESS,
+      executablePath: BROWSER_EXECUTABLE_PATH || undefined,
       proxy: proxy?.server
         ? {
             server: proxy.server,
