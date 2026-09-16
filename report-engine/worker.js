@@ -23,6 +23,7 @@ const BROWSER_EXECUTABLE_PATH = clean(process.env.REPORT_ENGINE_BROWSER_EXECUTAB
 const LZYUMI_LOGIN_URL = clean(process.env.REPORT_ENGINE_LZYUMI_LOGIN_URL) || "https://l.lzyumi.top/login.html";
 const LZYUMI_LOGIN_ID = clean(process.env.REPORT_ENGINE_LZYUMI_LOGIN_ID);
 const LZYUMI_LOGIN_PASSWORD = clean(process.env.REPORT_ENGINE_LZYUMI_LOGIN_PASSWORD);
+const LZYUMI_LOGIN_TARGET = clean(process.env.REPORT_ENGINE_LZYUMI_LOGIN_TARGET) || "PC";
 const DEBUG_LZYUMI = ["1", "true", "yes", "on"].includes(
   clean(process.env.REPORT_ENGINE_DEBUG_LZYUMI).toLowerCase(),
 );
@@ -470,6 +471,9 @@ async function lzyumiLogin() {
       'a:has-text("登录")',
       'button:has-text("登录")',
       'div:has-text("登录")',
+      `div:text-is("${LZYUMI_LOGIN_TARGET}")`,
+      `span:text-is("${LZYUMI_LOGIN_TARGET}")`,
+      `a:text-is("${LZYUMI_LOGIN_TARGET}")`,
       'input[value*="登录"]',
       'button',
     ].join(", "),
