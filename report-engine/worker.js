@@ -20,6 +20,9 @@ const LZYUMI_HEADLESS = !["0", "false", "no", "off"].includes(
   clean(process.env.REPORT_ENGINE_LZYUMI_HEADLESS).toLowerCase(),
 );
 const BROWSER_EXECUTABLE_PATH = clean(process.env.REPORT_ENGINE_BROWSER_EXECUTABLE_PATH);
+const LZYUMI_LOGIN_URL = clean(process.env.REPORT_ENGINE_LZYUMI_LOGIN_URL) || "https://l.lzyumi.top/login.html";
+const LZYUMI_LOGIN_ID = clean(process.env.REPORT_ENGINE_LZYUMI_LOGIN_ID);
+const LZYUMI_LOGIN_PASSWORD = clean(process.env.REPORT_ENGINE_LZYUMI_LOGIN_PASSWORD);
 const DEBUG_LZYUMI = ["1", "true", "yes", "on"].includes(
   clean(process.env.REPORT_ENGINE_DEBUG_LZYUMI).toLowerCase(),
 );
@@ -390,6 +393,80 @@ async function lzyumiFetchPageFlow({ nickname, openId, areaId, filter = 1, allCo
     response: lzyumiResponseSummary(json),
   });
   return json;
+}
+
+async function firstVisibleLocator(page, selector) {
+  const locator = page.locator(selector);
+  const count = await locator.count();
+  for (let index = 0; index < count; index += 1) {
+    const candidate = locator.nth(index);
+    if (await candidate.isVisible().catch(() => false)) return candidate;
+  }
+  return null;
+}
+
+async function lzyumiLogin() {
+  if (!LZYUMI_LOGIN_ID || !LZYUMI_LOGIN_PASSWORD) {
+    throw new Error("Missing REPORT_ENGINE_LZYUMI_LOGIN_ID or REPORT_ENGINE_LZYUMI_LOGIN_PASSWORD.");
+  }
+
+  const page = await getBrowserPage();
+  await page.goto(LZYUMI_LOGIN_URL, {
+    waitUntil: "domcontentloaded",
+    timeout: LZYUMI_TIMEOUT_MS,
+  });
+  await page.waitForTimeout(1000);
+
+  const userInput = await firstVisibleLocator(
+    page,
+    [
+      'input[name*="user" i]',
+      'input[name*="account" i]',
+      'input[name*="login" i]',
+      'input[name*="id" i]',
+      'input[type="text"]',
+      'input:not([type])',
+    ].join(", "),
+  );
+  const passwordInput = await firstVisibleLocator(page, 'input[type="password"]');
+
+  if (!userInput || !passwordInput) {
+    throw new Error("Could not find visible login/password inputs on Lzyumi login page.");
+  }
+
+  await userInput.fill(LZYUMI_LOGIN_ID);
+  await passwordInput.fill(LZYUMI_LOGIN_PASSWORD);
+
+  const submit = await firstVisibleLocator(
+    page,
+    [
+      'button[type="submit"]',
+      'input[type="submit"]',
+      'button:has-text("登录")',
+      'button:has-text("登 录")',
+      'input[value*="登录"]',
+      'button',
+    ].join(", "),
+  );
+
+  if (!submit) {
+    throw new Error("Could not find a visible Lzyumi login button.");
+  }
+
+  await Promise.all([
+    page.waitForLoadState("networkidle", { timeout: LZYUMI_TIMEOUT_MS }).catch(() => null),
+    submit.click(),
+  ]);
+  await page.waitForTimeout(2000);
+
+  const cookies = await page.context().cookies();
+  const localStorageKeys = await page.evaluate(() => Object.keys(window.localStorage || {})).catch(() => []);
+
+  console.log("Lzyumi login attempted.");
+  console.log(`Login page URL: ${page.url()}`);
+  console.log(`Login page title: ${await page.title().catch(() => "")}`);
+  console.log(`Cookies saved: ${cookies.length}`);
+  console.log(`LocalStorage keys: ${localStorageKeys.join(", ") || "(none)"}`);
 }
 
 async function browserTextFetch(url) {
@@ -848,6 +925,10 @@ async function debugCheckPlayer() {
 }
 
 async function debugPageCheckPlayer() {
+  if (process.argv.includes("--lzyumi-login")) {
+    await lzyumiLogin();
+  }
+
   const riot = cliValue("--page-check-player");
   const areaId = Number(cliValue("--area-id", "1")) || 1;
   const filter = Number(cliValue("--filter", "1")) || 1;
@@ -1102,6 +1183,11 @@ if (process.argv.includes("--probe-network")) {
   });
 } else if (process.argv.includes("--page-check-player")) {
   debugPageCheckPlayer().catch((error) => {
+    console.error(error.message || error);
+    process.exitCode = 1;
+  });
+} else if (process.argv.includes("--lzyumi-login")) {
+  lzyumiLogin().catch((error) => {
     console.error(error.message || error);
     process.exitCode = 1;
   });
