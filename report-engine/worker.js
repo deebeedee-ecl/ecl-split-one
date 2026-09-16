@@ -432,9 +432,11 @@ async function fetchRecentGamesForPlayer(player) {
   const lookupNames = [clean(player.riotName), riotId(player)].filter(Boolean);
   const attempts = savedOpenId
     ? [
+        ...lookupNames.map((nickname) => ({ nickname, openId: "" })),
+        // Lzyumi's own browser page searches by nickname first, then uses the resolved openId.
+        // A stale saved openId can make an otherwise valid nickname lookup return "unknown".
         ...lookupNames.map((nickname) => ({ nickname, openId: savedOpenId })),
         { nickname: "", openId: savedOpenId },
-        ...lookupNames.map((nickname) => ({ nickname, openId: "" })),
       ]
     : lookupNames.map((nickname) => ({ nickname, openId: "" }));
   const seenAttempts = new Set();
