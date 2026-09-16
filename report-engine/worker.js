@@ -16,6 +16,9 @@ const FETCH_MODE = clean(process.env.REPORT_ENGINE_FETCH_MODE || "browser").toLo
 const LZYUMI_PROFILE_DIR = clean(process.env.REPORT_ENGINE_LZYUMI_PROFILE_DIR) ||
   path.join(__dirname, ".lzyumi-browser-profile");
 const LZYUMI_WARMUP_MS = Number(process.env.REPORT_ENGINE_LZYUMI_WARMUP_MS || 2500);
+const LZYUMI_HEADLESS = !["0", "false", "no", "off"].includes(
+  clean(process.env.REPORT_ENGINE_LZYUMI_HEADLESS).toLowerCase(),
+);
 const DEBUG_LZYUMI = ["1", "true", "yes", "on"].includes(
   clean(process.env.REPORT_ENGINE_DEBUG_LZYUMI).toLowerCase(),
 );
@@ -247,7 +250,7 @@ async function getBrowserPage() {
     const { chromium } = require("playwright");
     const proxy = reportEngineProxy();
     browserContextPromise = chromium.launchPersistentContext(LZYUMI_PROFILE_DIR, {
-      headless: true,
+      headless: LZYUMI_HEADLESS,
       proxy: proxy?.server
         ? {
             server: proxy.server,
