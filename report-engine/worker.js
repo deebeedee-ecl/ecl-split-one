@@ -32,7 +32,7 @@ const PROXY_URL = clean(process.env.REPORT_ENGINE_PROXY_URL);
 const PROXY_SERVER = clean(process.env.REPORT_ENGINE_PROXY_SERVER);
 const PROXY_USERNAME = clean(process.env.REPORT_ENGINE_PROXY_USERNAME);
 const PROXY_PASSWORD = clean(process.env.REPORT_ENGINE_PROXY_PASSWORD);
-const LZYUMI_BASE = "https://a.2025lol.top/lzyumi/lol";
+const LZYUMI_BASE = clean(process.env.REPORT_ENGINE_LZYUMI_BASE) || "https://a.2025lol.top/lzyumi/lol";
 const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
 const LZYUMI_ALL_COUNT = Number(process.env.REPORT_ENGINE_LZYUMI_ALL_COUNT || 10);
@@ -627,6 +627,8 @@ async function fetchRecentGamesForPlayer(player) {
               player: riotId(player) || clean(player.displayName),
               areaId,
               filter,
+              base: LZYUMI_BASE,
+              tokenSupplied: Boolean(LZYUMI_TOKENSTR),
               nicknameSupplied: Boolean(clean(attempt.nickname)),
               openIdSupplied: Boolean(clean(attempt.openId)),
               response: lzyumiResponseSummary(response),
@@ -638,6 +640,8 @@ async function fetchRecentGamesForPlayer(player) {
               player: riotId(player) || clean(player.displayName),
               areaId,
               filter,
+              base: LZYUMI_BASE,
+              tokenSupplied: Boolean(LZYUMI_TOKENSTR),
               nicknameSupplied: Boolean(clean(attempt.nickname)),
               openIdSupplied: Boolean(clean(attempt.openId)),
               error: error.message || String(error),
