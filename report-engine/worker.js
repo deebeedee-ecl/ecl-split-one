@@ -24,6 +24,7 @@ const LZYUMI_LOGIN_URL = clean(process.env.REPORT_ENGINE_LZYUMI_LOGIN_URL) || "h
 const LZYUMI_LOGIN_ID = clean(process.env.REPORT_ENGINE_LZYUMI_LOGIN_ID);
 const LZYUMI_LOGIN_PASSWORD = clean(process.env.REPORT_ENGINE_LZYUMI_LOGIN_PASSWORD);
 const LZYUMI_LOGIN_TARGET = clean(process.env.REPORT_ENGINE_LZYUMI_LOGIN_TARGET) || "PC";
+const LZYUMI_TOKENSTR = clean(process.env.REPORT_ENGINE_LZYUMI_TOKENSTR);
 const DEBUG_LZYUMI = ["1", "true", "yes", "on"].includes(
   clean(process.env.REPORT_ENGINE_DEBUG_LZYUMI).toLowerCase(),
 );
@@ -579,6 +580,9 @@ function lzyumiInfoUrl({ nickname, openId, areaId, filter, allCount = LZYUMI_ALL
     `lzyumiSign=${lzyumiSign}`,
     `signStr=${signStr}`,
   ];
+  if (LZYUMI_TOKENSTR) {
+    params.push(`lzyumitokenstr=${encodeURIComponent(LZYUMI_TOKENSTR)}`);
+  }
 
   return `${LZYUMI_BASE}/info?${params.join("&")}`;
 }
