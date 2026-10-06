@@ -33,6 +33,14 @@ const PROXY_SERVER = clean(process.env.REPORT_ENGINE_PROXY_SERVER);
 const PROXY_USERNAME = clean(process.env.REPORT_ENGINE_PROXY_USERNAME);
 const PROXY_PASSWORD = clean(process.env.REPORT_ENGINE_PROXY_PASSWORD);
 const LZYUMI_BASE = clean(process.env.REPORT_ENGINE_LZYUMI_BASE) || "https://a.2025lol.top/lzyumi/lol";
+const WEGAME_COOKIE = clean(process.env.REPORT_ENGINE_WEGAME_COOKIE);
+const WEGAME_BASE = clean(process.env.REPORT_ENGINE_WEGAME_BASE) ||
+  "https://www.wegame.com.cn/api/v1/wegame.pallas.game.LolBattle";
+const WEGAME_TIMEOUT_MS = Number(process.env.REPORT_ENGINE_WEGAME_TIMEOUT_MS || 15000);
+const MATCH_SOURCE = clean(process.env.REPORT_ENGINE_MATCH_SOURCE || (WEGAME_COOKIE ? "wegame" : "lzyumi")).toLowerCase();
+const DEBUG_WEGAME = ["1", "true", "yes", "on"].includes(
+  clean(process.env.REPORT_ENGINE_DEBUG_WEGAME).toLowerCase(),
+);
 const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
 const LZYUMI_ALL_COUNT = Number(process.env.REPORT_ENGINE_LZYUMI_ALL_COUNT || 10);
@@ -598,7 +606,232 @@ function lzyumiDetailUrl({ openId, gameId, areaId }) {
   return url.toString();
 }
 
-async function fetchRecentGamesForPlayer(player) {
+function debugWeGame(label, detail) {
+  if (!DEBUG_WEGAME) return;
+  console.log(`[wegame-debug] ${label} ${JSON.stringify(detail)}`);
+}
+
+function requireWeGameCookie() {
+  if (!WEGAME_COOKIE) {
+    throw new Error("Missing REPORT_ENGINE_WEGAME_COOKIE.");
+  }
+}
+
+async function wegamePost(endpoint, payload) {
+  requireWeGameCookie();
+  const agent = nodeProxyAgent();
+  const response = await axios.post(`${WEGAME_BASE}/${endpoint}`, payload, {
+    headers: {
+      Accept: "application/json, text/plain, */*",
+      "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,nl;q=0.6",
+      "Content-Type": "application/json;charset=UTF-8",
+      Cookie: WEGAME_COOKIE,
+      Origin: "https://www.wegame.com.cn",
+      Referer: "https://www.wegame.com.cn/",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36 OPR/136.0.0.0",
+    },
+    timeout: WEGAME_TIMEOUT_MS,
+    httpAgent: agent,
+    httpsAgent: agent,
+    proxy: false,
+  });
+
+  debugWeGame(endpoint, {
+    payload: endpoint === "SearchPlayer" ? payload : { ...payload, id: payload.id ? "[redacted]" : payload.id },
+    result: response.data?.result,
+  });
+  return response.data;
+}
+
+function decodeWeGameName(value) {
+  const raw = clean(value);
+  if (!raw) return "";
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function wegamePlayerIdentityKey(player) {
+  const full = riotId(player);
+  return clean(full) || clean(player.riotName) || clean(player.displayName);
+}
+
+async function findWeGamePlayerIdentity(player) {
+  const areaId = player.chinaServerId || 1;
+  const expectedKey = riotIdKey(player.riotName, player.riotTag);
+  const searchName = wegamePlayerIdentityKey(player);
+  const responses = [];
+
+  if (searchName) {
+    responses.push(await wegamePost("SearchPlayer", {
+      nickname: searchName,
+      tag: 0,
+      page_size: 20,
+      from_src: "lol_helper",
+    }));
+  }
+
+  if (player.riotName && player.riotTag && searchName !== player.riotName) {
+    responses.push(await wegamePost("SearchPlayer", {
+      nickname: player.riotName,
+      tag: 0,
+      page_size: 50,
+      from_src: "lol_helper",
+    }));
+  }
+
+  for (const response of responses) {
+    const candidates = Array.isArray(response?.players) ? response.players : [];
+    const exact = candidates.find((candidate) => {
+      const candidateKey = riotIdKey(player.riotName, String(candidate.tag_num || ""));
+      return (!expectedKey || candidateKey === expectedKey) && Number(candidate.area) === Number(areaId);
+    });
+    if (exact?.openid) return exact;
+  }
+
+  const savedOpenId = clean(player.openId);
+  if (savedOpenId) {
+    return {
+      openid: savedOpenId,
+      area: areaId,
+      tag_num: clean(player.riotTag) || null,
+    };
+  }
+
+  return null;
+}
+
+function wegameGameTimeLabel(game) {
+  const value = Number(game?.game_start_time);
+  if (!Number.isFinite(value)) return "";
+  const china = new Date(value + 8 * 60 * 60 * 1000);
+  const month = String(china.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(china.getUTCDate()).padStart(2, "0");
+  const hours = String(china.getUTCHours()).padStart(2, "0");
+  const minutes = String(china.getUTCMinutes()).padStart(2, "0");
+  return `${month}-${day} ${hours}:${minutes}`;
+}
+
+function adaptWeGameRecentGame(game) {
+  const gameId = clean(game?.game_id || game?.gameId);
+  return {
+    ...game,
+    gameId,
+    titleTime: wegameGameTimeLabel(game),
+    title: [
+      game?.game_queue_id ? `queue ${game.game_queue_id}` : "WeGame match",
+      game?.champion_id ? `champion ${game.champion_id}` : "",
+      clean(game?.win),
+    ].filter(Boolean).join(" | "),
+    isWin: clean(game?.win).toLowerCase() === "win" ? 1 : 0,
+  };
+}
+
+function adaptWeGamePlayerDetail(player) {
+  const name = decodeWeGameName(player?.tagName || player?.name);
+  const kills = Number(player?.championsKilled ?? player?.kills ?? 0) || 0;
+  const deaths = Number(player?.numDeaths ?? player?.deaths ?? 0) || 0;
+  const assists = Number(player?.assists ?? 0) || 0;
+  const battleHonour = player?.battleHonour || {};
+
+  return {
+    ...player,
+    nickName: name,
+    nickNameStr: name,
+    scoreInfo: `${kills}/${deaths}/${assists}`,
+    scoreInfoNum: Number(player?.gameScore || 0) || undefined,
+    detailChampionId: String(player?.championId ?? player?.originchampionId ?? ""),
+    duanweiInfo: clean(player?.battleHonour?.gameLevel),
+    wasMvp: String(battleHonour.isMvp || 0),
+    wasSvp: String(battleHonour.isSvp || 0),
+    openIdNow: clean(player?.openid),
+    translateAreaId: Number(player?.translate_areaId || player?.original_area_id || 0) || undefined,
+    totalDamageDealt: Number(player?.totalDamageToChampions ?? player?.totalDamageDealt ?? 0) || 0,
+    echartsMap: {
+      goldEarned: Number(player?.goldEarned || 0) || 0,
+      totalDamageDealt: Number(player?.totalDamageToChampions ?? player?.totalDamageDealt ?? 0) || 0,
+    },
+  };
+}
+
+function adaptWeGameDetail(detail) {
+  const battle = detail?.battle_detail || {};
+  return {
+    ...detail,
+    code: detail?.result?.error_code ?? 1,
+    message: detail?.result?.error_message || "success",
+    data: {
+      ...battle,
+      gameType: battle.game_type,
+      gameMode: battle.game_mode,
+      teamDetails: battle.team_details || [],
+      wgBattleDetailInfo: (battle.player_details || []).map(adaptWeGamePlayerDetail),
+    },
+  };
+}
+
+async function wegameGetBattleList({ openId, areaId, count = LZYUMI_ALL_COUNT }) {
+  const response = await wegamePost("GetBattleList", {
+    account_type: 2,
+    area: areaId,
+    id: openId,
+    count,
+    filter: "",
+    offset: 0,
+    from_src: "lol_helper",
+  });
+
+  const games = (response?.battles || []).map(adaptWeGameRecentGame).filter((game) => game.gameId);
+  return { response, games };
+}
+
+async function wegameGetBattleDetail({ openId, areaId, gameId }) {
+  const response = await wegamePost("GetBattleDetail", {
+    account_type: 2,
+    area: areaId,
+    id: openId,
+    game_id: gameId,
+    from_src: "lol_helper",
+  });
+  return adaptWeGameDetail(response);
+}
+
+async function fetchRecentGamesForPlayerViaWeGame(player) {
+  const identity = await findWeGamePlayerIdentity(player);
+  if (!identity?.openid) return null;
+
+  const areaId = Number(identity.area || player.chinaServerId || 1) || 1;
+  const { response, games } = await wegameGetBattleList({
+    openId: identity.openid,
+    areaId,
+    count: Math.max(LZYUMI_ALL_COUNT, REPORT_CANDIDATE_LIMIT),
+  });
+
+  if (!games.length) return null;
+
+  return {
+    source: "wegame",
+    player,
+    areaId,
+    profile: {
+      battleInfo: {
+        openId: identity.openid,
+        areaId,
+        nameInfoNew: riotId(player),
+        wegamePlayer: identity,
+      },
+      wegameSearch: identity,
+      wegameBattleList: response,
+    },
+    openId: identity.openid,
+    games,
+  };
+}
+
+async function fetchRecentGamesForPlayerViaLzyumi(player) {
   const areaId = player.chinaServerId || 1;
   const savedOpenId = clean(player.openId);
   const lookupNames = [clean(player.riotName), riotId(player)].filter(Boolean);
@@ -713,6 +946,24 @@ async function fetchRecentGamesForPlayer(player) {
   }
 
   return null;
+}
+
+async function fetchRecentGamesForPlayer(player) {
+  if (MATCH_SOURCE !== "lzyumi" && WEGAME_COOKIE) {
+    try {
+      const source = await fetchRecentGamesForPlayerViaWeGame(player);
+      if (source) return source;
+      if (MATCH_SOURCE === "wegame") return null;
+    } catch (error) {
+      debugWeGame("fetch-player-error", {
+        player: riotId(player) || clean(player.displayName),
+        error: error.response?.data || error.message || String(error),
+      });
+      if (MATCH_SOURCE === "wegame") throw error;
+    }
+  }
+
+  return fetchRecentGamesForPlayerViaLzyumi(player);
 }
 
 function matchRoster(players, detail) {
@@ -897,6 +1148,24 @@ function cliValue(name, fallback = "") {
   return clean(process.argv[index + 1]) || fallback;
 }
 
+async function fetchDetailForSource(source, game) {
+  if (source?.source === "wegame") {
+    return wegameGetBattleDetail({
+      openId: source.openId,
+      gameId: game.gameId,
+      areaId: source.areaId,
+    });
+  }
+
+  return lzyumiFetch(
+    lzyumiDetailUrl({
+      openId: source.openId,
+      gameId: game.gameId,
+      areaId: source.areaId,
+    }),
+  );
+}
+
 function findDetailPlayerForSource(source, detail) {
   const detailPlayers = detail?.data?.wgBattleDetailInfo || [];
   const openId = clean(source.openId);
@@ -911,7 +1180,7 @@ function findDetailPlayerForSource(source, detail) {
 }
 
 async function debugCheckPlayer() {
-  const riot = cliValue("--check-player");
+  const riot = cliValue("--check-player") || cliValue("--wegame-check-player");
   const areaId = Number(cliValue("--area-id", "1")) || 1;
   const limit = Number(cliValue("--limit", "8")) || 8;
   const openId = cliValue("--open-id");
@@ -937,17 +1206,12 @@ async function debugCheckPlayer() {
 
   const championNames = await loadChampionNames();
   const games = source.games.slice(0, limit);
-  console.log(`Found ${source.games.length} recent game(s) for ${riot || name}. Showing ${games.length}.`);
+  console.log(`Found ${source.games.length} recent game(s) for ${riot || name} via ${source.source || "lzyumi"}. Showing ${games.length}.`);
 
   for (const game of games) {
     try {
-      const detail = await lzyumiFetch(
-        lzyumiDetailUrl({
-          openId: source.openId,
-          gameId: game.gameId,
-          areaId: source.areaId,
-        }),
-      );
+      const detail = await fetchDetailForSource(source, game);
+
       const detailPlayer = findDetailPlayerForSource(source, detail);
       const result = String(detailPlayer?.win || "").toLowerCase();
       const outcome = ["1", "true", "win"].includes(result)
@@ -1041,7 +1305,7 @@ async function findMatchingGame(job) {
 
   if (sources.length === 0) {
     throw new Error(
-      `No recent ECL.GG games were found for this inhouse roster. Checked ${searchPlayers.length} players, but Lzyumi returned no recent game lists.`,
+      `No recent ECL.GG games were found for this inhouse roster. Checked ${searchPlayers.length} players, but the configured match source returned no recent game lists.`,
     );
   }
 
@@ -1056,7 +1320,7 @@ async function findMatchingGame(job) {
 
   if (gamesById.size === 0) {
     throw new Error(
-      `No unreported ECL.GG games were found for this inhouse roster. Lzyumi returned games for ${sources.length}/${searchPlayers.length} players, but they were already reported or missing game IDs.`,
+      `No unreported ECL.GG games were found for this inhouse roster. The configured match source returned games for ${sources.length}/${searchPlayers.length} players, but they were already reported or missing game IDs.`,
     );
   }
 
@@ -1080,7 +1344,7 @@ async function findMatchingGame(job) {
         ? `No matching inhouse found in the expected time window. Closest candidate: ${candidateTimeLabel(
             outOfWindowCandidate.game,
           )}; ${gameTimeWindowIssue(outOfWindowCandidate.game, job.session.createdAt)}.`
-        : `No Lzyumi candidates remained after filtering ${gamesById.size} recent games.`,
+        : `No match candidates remained after filtering ${gamesById.size} recent games.`,
     );
   }
 
@@ -1088,13 +1352,8 @@ async function findMatchingGame(job) {
     await Promise.all(
       candidates.map(async ({ source, game }) => {
         try {
-          const detail = await lzyumiFetch(
-            lzyumiDetailUrl({
-              openId: source.openId,
-              gameId: game.gameId,
-              areaId: source.areaId,
-            }),
-          );
+          const detail = await fetchDetailForSource(source, game);
+
           return {
             source,
             game,
@@ -1110,7 +1369,7 @@ async function findMatchingGame(job) {
   ).filter(Boolean);
 
   if (checked.length === 0) {
-    throw new Error(`Lzyumi returned ${candidates.length} candidate games, but every detail lookup failed.`);
+    throw new Error(`The configured match source returned ${candidates.length} candidate games, but every detail lookup failed.`);
   }
 
   const exact = checked
@@ -1206,8 +1465,12 @@ async function main() {
     throw new Error("Missing ECL_REPORT_ENGINE_SECRET, ECL_JOB_SECRET, or ECL_KOOK_BOT_SECRET.");
   }
 
+  if (MATCH_SOURCE === "wegame" && !WEGAME_COOKIE) {
+    throw new Error("Missing REPORT_ENGINE_WEGAME_COOKIE while REPORT_ENGINE_MATCH_SOURCE=wegame.");
+  }
+
   console.log(
-    `ECL Report Engine polling ${SITE_URL} using ${FETCH_MODE} Lzyumi fetch with ${proxyLabel(reportEngineProxy())}`,
+    `ECL Report Engine polling ${SITE_URL} using ${MATCH_SOURCE} match source with ${proxyLabel(reportEngineProxy())}`,
   );
   for (;;) {
     try {
@@ -1234,7 +1497,7 @@ if (process.argv.includes("--probe-network")) {
     console.error(error.message || error);
     process.exitCode = 1;
   });
-} else if (process.argv.includes("--check-player")) {
+} else if (process.argv.includes("--check-player") || process.argv.includes("--wegame-check-player")) {
   debugCheckPlayer().catch((error) => {
     console.error(error.message || error);
     process.exitCode = 1;
