@@ -126,7 +126,53 @@ function qqNumberFromUin(uin) {
 
 function loginPayloads({ uin, skey, pskey }) {
   const qq = qqNumberFromUin(uin);
-  return [
+  const payloads = [
+    {
+      label: "clientapi_login_info_type6_pskey",
+      payload: {
+        login_info: {
+          qq_info_type: 6,
+          uin: qq,
+          sig: pskey,
+          qqinfo_ext: skey
+            ? [
+                {
+                  qq_info_type: 3,
+                  sig: skey,
+                },
+              ]
+            : [],
+        },
+        config_params: {
+          lang_type: 0,
+        },
+        mappid: "10001",
+        mcode: "",
+        clienttype: "1000005",
+      },
+    },
+  ];
+
+  if (skey) {
+    payloads.push({
+      label: "clientapi_login_info_type3_skey",
+      payload: {
+        login_info: {
+          qq_info_type: 3,
+          uin: qq,
+          sig: skey,
+        },
+        config_params: {
+          lang_type: 0,
+        },
+        mappid: "10001",
+        mcode: "",
+        clienttype: "1000005",
+      },
+    });
+  }
+
+  payloads.push(
     {
       label: "qqinfo_ext_with_skey_pskey",
       payload: {
@@ -157,9 +203,10 @@ function loginPayloads({ uin, skey, pskey }) {
         p_skey: pskey,
       },
     },
-  ];
-}
+  );
 
+  return payloads;
+}
 async function testSearch(cookieHeaderValue, searchName) {
   const response = await postJson(
     SEARCH_PLAYER_URL,
@@ -207,8 +254,9 @@ async function main() {
   }
 
   for (const attempt of loginPayloads({ uin, skey, pskey })) {
+    const loginInfo = attempt.payload.login_info || attempt.payload;
     console.log(`\ntrying ${attempt.label}`, {
-      qq: redact(attempt.payload.qq),
+      qq: redact(attempt.payload.qq || loginInfo.uin),
       hasSkey: Boolean(skey),
       hasPskey: Boolean(pskey),
     });
@@ -219,19 +267,23 @@ async function main() {
       existingCookie ? { Cookie: existingCookie } : {},
     );
     const mintedCookies = cookiesFromSetCookie(login.headers["set-cookie"]);
-    const mergedCookie = cookieHeader({ ...parsedCookie, ...mintedCookies });
+    const mintedCookie = cookieHeader(mintedCookies);
+    const hasFreshTicket = Boolean(mintedCookies.tgp_ticket);
 
     console.log("login_by_qq", {
       http: login.status,
       result: login.json?.result || login.json || login.text.slice(0, 200),
       setCookies: Object.keys(mintedCookies),
-      tgpId: redact(mintedCookies.tgp_id || parsedCookie.tgp_id),
-      hasTgpTicket: Boolean(mintedCookies.tgp_ticket || parsedCookie.tgp_ticket),
+      tgpId: redact(mintedCookies.tgp_id),
+      hasFreshTgpTicket: hasFreshTicket,
     });
 
-    if (!mergedCookie) continue;
+    if (!hasFreshTicket || !mintedCookie) {
+      console.log("minted-cookie-search skipped: login_by_qq did not return fresh tgp_ticket cookies.");
+      continue;
+    }
 
-    const search = await testSearch(mergedCookie, searchName);
+    const search = await testSearch(mintedCookie, searchName);
     console.log("minted-cookie-search", {
       http: search.status,
       result: search.json?.result || null,
