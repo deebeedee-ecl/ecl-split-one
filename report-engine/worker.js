@@ -37,6 +37,11 @@ const WEGAME_COOKIE = clean(process.env.REPORT_ENGINE_WEGAME_COOKIE);
 const WEGAME_BASE = clean(process.env.REPORT_ENGINE_WEGAME_BASE) ||
   "https://www.wegame.com.cn/api/v1/wegame.pallas.game.LolBattle";
 const WEGAME_TIMEOUT_MS = Number(process.env.REPORT_ENGINE_WEGAME_TIMEOUT_MS || 15000);
+const WEGAME_LOGIN_BY_QQ_URL = clean(process.env.REPORT_ENGINE_WEGAME_LOGIN_BY_QQ_URL) ||
+  "https://www.wegame.com.cn/api/middle/clientapi/auth/login_by_qq";
+const WEGAME_AUTH_MODE = clean(process.env.REPORT_ENGINE_WEGAME_AUTH_MODE || "auto").toLowerCase();
+const WEGAME_REFRESH_MARGIN_MS = Number(process.env.REPORT_ENGINE_WEGAME_REFRESH_MARGIN_SECONDS || 60) * 1000;
+const WEGAME_LIST_COUNT = Number(process.env.REPORT_ENGINE_WEGAME_LIST_COUNT || 8);
 const MATCH_SOURCE = clean(process.env.REPORT_ENGINE_MATCH_SOURCE || (WEGAME_COOKIE ? "wegame" : "lzyumi")).toLowerCase();
 const DEBUG_WEGAME = ["1", "true", "yes", "on"].includes(
   clean(process.env.REPORT_ENGINE_DEBUG_WEGAME).toLowerCase(),
@@ -76,6 +81,8 @@ const LZYUMI_HEADERS = {
 let browserContextPromise = null;
 let browserPagePromise = null;
 let championNamesPromise = null;
+let wegameTicketState = null;
+let wegameTicketPromise = null;
 const INVISIBLE_CONTROL_PATTERN = /[\p{Cc}\p{Cf}]/gu;
 const RIOT_KEY_SPACING_PATTERN = /[\s\p{Zs}\u1160\uFFA0]+/gu;
 const LZYUMI_RIOT_TAG_ISOLATE = "\u2066";
@@ -617,15 +624,157 @@ function requireWeGameCookie() {
   }
 }
 
-async function wegamePost(endpoint, payload) {
+function parseCookieHeader(header) {
+  const cookies = {};
+  for (const part of clean(header).split(";")) {
+    const index = part.indexOf("=");
+    if (index <= 0) continue;
+    cookies[part.slice(0, index).trim()] = part.slice(index + 1).trim();
+  }
+  return cookies;
+}
+
+function cookieHeaderFromObject(cookies) {
+  return Object.entries(cookies)
+    .filter(([, value]) => clean(value))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("; ");
+}
+
+function cookiesFromSetCookie(setCookie) {
+  const cookies = {};
+  for (const header of setCookie || []) {
+    const pair = String(header).split(";", 1)[0];
+    const index = pair.indexOf("=");
+    if (index <= 0) continue;
+    cookies[pair.slice(0, index)] = pair.slice(index + 1);
+  }
+  return cookies;
+}
+
+function qqNumberFromUin(uin) {
+  return clean(uin).replace(/^o/, "").replace(/^0+/, "");
+}
+
+function wegameSeedCookies() {
+  requireWeGameCookie();
+  return parseCookieHeader(WEGAME_COOKIE);
+}
+
+function shouldUseWeGameTicketRefresh(seedCookies) {
+  if (WEGAME_AUTH_MODE === "static" || WEGAME_AUTH_MODE === "cookie") return false;
+  if (WEGAME_AUTH_MODE === "ticket") return true;
+  return Boolean(clean(seedCookies.p_uin) && clean(seedCookies.p_skey));
+}
+
+async function mintWeGameTicket(seedCookies) {
+  const uin = clean(seedCookies.p_uin);
+  const pskey = clean(seedCookies.p_skey);
+  if (!uin || !pskey) {
+    throw new Error("Missing p_uin or p_skey in REPORT_ENGINE_WEGAME_COOKIE; cannot refresh WeGame ticket.");
+  }
+
+  const agent = nodeProxyAgent();
+  const response = await axios.post(
+    WEGAME_LOGIN_BY_QQ_URL,
+    {
+      login_info: {
+        qq_info_type: 6,
+        uin: qqNumberFromUin(uin),
+        sig: pskey,
+        qqinfo_ext: [],
+      },
+      config_params: {
+        lang_type: 0,
+      },
+      mappid: "10001",
+      mcode: "",
+      clienttype: "1000005",
+    },
+    {
+      headers: {
+        Accept: "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,nl;q=0.6",
+        "Content-Type": "application/json;charset=UTF-8",
+        Cookie: WEGAME_COOKIE,
+        Origin: "https://www.wegame.com.cn",
+        Referer: "https://www.wegame.com.cn/",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36 OPR/136.0.0.0",
+      },
+      timeout: WEGAME_TIMEOUT_MS,
+      httpAgent: agent,
+      httpsAgent: agent,
+      proxy: false,
+    },
+  );
+
+  const data = response.data?.data || {};
+  const mintedCookies = cookiesFromSetCookie(response.headers["set-cookie"]);
+  if (!mintedCookies.tgp_ticket) {
+    throw new Error(`WeGame login_by_qq did not return tgp_ticket: ${JSON.stringify(response.data)}`);
+  }
+
+  const now = Date.now();
+  const refreshSeconds = Number(data.refresh_wt_span || 1800) || 1800;
+  const expiresSeconds = Number(data.expires || 604800) || 604800;
+  const refreshAt = now + Math.max(60, refreshSeconds - 60) * 1000;
+  const expiresAt = now + Math.max(120, expiresSeconds) * 1000 - WEGAME_REFRESH_MARGIN_MS;
+  const cookie = cookieHeaderFromObject({ ...seedCookies, ...mintedCookies });
+
+  debugWeGame("ticket-refresh", {
+    result: response.data?.code ?? data.error_code,
+    expiresSeconds,
+    refreshSeconds,
+    setCookies: Object.keys(mintedCookies),
+  });
+
+  return {
+    cookie,
+    refreshAt: Math.min(refreshAt, expiresAt),
+    expiresAt,
+  };
+}
+
+async function wegameCookieForRequest() {
+  const seedCookies = wegameSeedCookies();
+  if (!shouldUseWeGameTicketRefresh(seedCookies)) return WEGAME_COOKIE;
+
+  const now = Date.now();
+  if (wegameTicketState?.cookie && now < wegameTicketState.refreshAt) {
+    return wegameTicketState.cookie;
+  }
+
+  if (!wegameTicketPromise) {
+    wegameTicketPromise = mintWeGameTicket(seedCookies)
+      .then((ticket) => {
+        wegameTicketState = ticket;
+        return ticket;
+      })
+      .finally(() => {
+        wegameTicketPromise = null;
+      });
+  }
+
+  const ticket = await wegameTicketPromise;
+  return ticket.cookie;
+}
+
+function isWeGameLoginExpired(data) {
+  const code = Number(data?.result?.error_code ?? data?.data?.error_code ?? data?.code);
+  return code === 8025004;
+}
+
+async function wegamePost(endpoint, payload, options = {}) {
   requireWeGameCookie();
   const agent = nodeProxyAgent();
+  const cookie = await wegameCookieForRequest();
   const response = await axios.post(`${WEGAME_BASE}/${endpoint}`, payload, {
     headers: {
       Accept: "application/json, text/plain, */*",
       "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,nl;q=0.6",
       "Content-Type": "application/json;charset=UTF-8",
-      Cookie: WEGAME_COOKIE,
+      Cookie: cookie,
       Origin: "https://www.wegame.com.cn",
       Referer: "https://www.wegame.com.cn/",
       "User-Agent":
@@ -636,6 +785,12 @@ async function wegamePost(endpoint, payload) {
     httpsAgent: agent,
     proxy: false,
   });
+
+  if (options.retry !== false && isWeGameLoginExpired(response.data)) {
+    wegameTicketState = null;
+    debugWeGame("login-expired-retry", { endpoint });
+    return wegamePost(endpoint, payload, { retry: false });
+  }
 
   debugWeGame(endpoint, {
     payload: endpoint === "SearchPlayer" ? payload : { ...payload, id: payload.id ? "[redacted]" : payload.id },
@@ -773,7 +928,7 @@ function adaptWeGameDetail(detail) {
   };
 }
 
-async function wegameGetBattleList({ openId, areaId, count = LZYUMI_ALL_COUNT }) {
+async function wegameGetBattleList({ openId, areaId, count = WEGAME_LIST_COUNT }) {
   const response = await wegamePost("GetBattleList", {
     account_type: 2,
     area: areaId,
@@ -807,7 +962,7 @@ async function fetchRecentGamesForPlayerViaWeGame(player) {
   const { response, games } = await wegameGetBattleList({
     openId: identity.openid,
     areaId,
-    count: Math.max(LZYUMI_ALL_COUNT, REPORT_CANDIDATE_LIMIT),
+    count: WEGAME_LIST_COUNT,
   });
 
   if (!games.length) return null;
