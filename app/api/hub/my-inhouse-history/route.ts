@@ -2,64 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAccountFromRequest } from "@/lib/account-auth";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import { prisma } from "@/lib/prisma";
+import { inhouseRawPlayer, inhouseChampionId, normalizeInhouseRole } from "@/lib/inhouse-player-display";
 import {
   normalizeRiotPart,
   normalizeRiotTag,
-  riotIdKey,
-  splitRiotId,
 } from "@/lib/riot-id";
 
 export const dynamic = "force-dynamic";
-
-type RawPlayer = {
-  nickNameStr?: string;
-  nickName?: string;
-  detailChampionId?: string | number;
-  position?: string;
-  scoreInfoNum?: number;
-  goldEarned?: number;
-  totalDamageDealt?: number;
-  echartsMap?: {
-    goldEarned?: number;
-    totalDamageDealt?: number;
-    killAssisScore?: number;
-  };
-};
-
-type StoredReport = {
-  detail?: { data?: { wgBattleDetailInfo?: RawPlayer[] } };
-};
 
 const ROLES = ["TOP", "JGL", "MID", "ADC", "SUP"] as const;
 
 function clamp(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
-}
-
-function normalizeRole(position?: string | null) {
-  const role = position?.trim().toUpperCase();
-  if (role === "TOP" || role === "TOP_LANE") return "TOP";
-  if (role === "JUNGLE" || role === "JGL") return "JGL";
-  if (role === "MID" || role === "MIDDLE" || role === "MID_LANE") return "MID";
-  if (role === "ADC" || role === "BOT" || role === "BOTTOM") return "ADC";
-  if (role === "SUP" || role === "SUPPORT" || role === "UTILITY") return "SUP";
-  return null;
-}
-
-function rawPlayerFor(
-  report: unknown,
-  riotName: string | null | undefined,
-  riotTag: string | null | undefined,
-) {
-  const target = riotIdKey(riotName, riotTag);
-  if (!target) return null;
-  const players = (report as StoredReport | null)?.detail?.data?.wgBattleDetailInfo ?? [];
-  return (
-    players.find((player) => {
-      const parsed = splitRiotId(player.nickNameStr ?? player.nickName);
-      return riotIdKey(parsed.riotName, parsed.riotTag) === target;
-    }) ?? null
-  );
 }
 
 function average(values: number[]) {
@@ -68,6 +22,8 @@ function average(values: number[]) {
 
 export async function GET(request: NextRequest) {
   const requestedProfileId = request.nextUrl.searchParams.get("profileId")?.trim();
+  const statId = request.nextUrl.searchParams.get("statId");
+  if (statId && (requestedProfileId || !/^[a-zA-Z0-9_-]{1,128}$/.test(statId))) return NextResponse.json({ message: "Invalid match request" }, { status: 400 });
   const account = requestedProfileId ? null : await getAccountFromRequest(request);
   if (!requestedProfileId && !account) {
     return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
@@ -104,6 +60,9 @@ export async function GET(request: NextRequest) {
     where: { playerId: player.id, ...INHOUSE_MATCH_FILTER },
     select: {
       id: true,
+      matchGameId: true,
+      riotName: true,
+      riotTag: true,
       isWin: true,
       kills: true,
       deaths: true,
@@ -127,13 +86,27 @@ export async function GET(request: NextRequest) {
     take: 100,
   });
 
+  if (statId) {
+    const own = stats.find(stat => stat.id === statId);
+    if (!own) return NextResponse.json({ message: "Match not found in your history" }, { status: 404 });
+    const players = await prisma.matchGamePlayerStat.findMany({
+      where: { ...INHOUSE_MATCH_FILTER, matchGameId: own.matchGameId },
+      take: 10,
+      select: { riotName: true, riotTag: true, kills: true, deaths: true, assists: true, damage: true, gold: true, visionScore: true, cs: true, isWin: true, player: { select: { name: true, riotName: true, riotTag: true } } },
+    });
+    return NextResponse.json({ scoreboard: { id: own.id, label: own.matchGame.match.roundLabel ?? own.matchGame.match.matchLabel ?? "IH Game", date: own.createdAt.toISOString(), players: players.map(stat => {
+      const raw = inhouseRawPlayer(own.matchGame.ocrRawJson, stat.riotName ?? stat.player.riotName, stat.riotTag ?? stat.player.riotTag);
+      return { name: stat.player.name, championId: inhouseChampionId(raw), role: normalizeInhouseRole(raw?.position), isWin: stat.isWin, kills: stat.kills, deaths: stat.deaths, assists: stat.assists, damage: stat.damage, gold: stat.gold, vision: stat.visionScore, cs: stat.cs };
+    }) } }, { headers: { "Cache-Control": "private, no-store" } });
+  }
+
   const enriched = stats.map((stat) => {
-    const raw = rawPlayerFor(stat.matchGame.ocrRawJson, player.riotName, player.riotTag);
+    const raw = inhouseRawPlayer(stat.matchGame.ocrRawJson, stat.riotName ?? player.riotName, stat.riotTag ?? player.riotTag);
     return {
       stat,
       raw,
-      role: normalizeRole(raw?.position),
-      championId: raw?.detailChampionId ? String(raw.detailChampionId) : null,
+      role: normalizeInhouseRole(raw?.position),
+      championId: inhouseChampionId(raw),
       score: Number(raw?.scoreInfoNum) || 0,
       gold: Number(raw?.echartsMap?.goldEarned ?? stat.gold ?? 0),
       damage: Number(raw?.echartsMap?.totalDamageDealt ?? stat.damage ?? 0),
