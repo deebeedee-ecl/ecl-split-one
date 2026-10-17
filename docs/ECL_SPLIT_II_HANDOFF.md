@@ -4,12 +4,15 @@ Updated: October 17, 2026 (Asia/Shanghai).
 
 ## Registration Release Status
 
-The minimum registration release is implemented and tested locally. Read
+The minimum registration release is implemented, tested and deployed. Read
 `docs/ECL_SPLIT_II_RELEASE.md` before proceeding. The user approved the separate
 Supabase foundation: both new tables and one DRAFT event were created October 17.
-There are zero registrations; GitHub has NOT been pushed and signup is NOT open.
-The user subsequently approved publication and opening at noon; checks and release
-are in progress. See
+Release commit `f0845652ffa438b44565a91d4b5bcf1659299279` is pushed and deployed.
+Vercel and report-engine checks succeeded. The user approved publication and
+opening at noon; the live API reports scheduled for October 17, 12:00 China time,
+capacity 30 and zero registrations. Signup unlocks automatically at that instant.
+Production routes, anonymous rejection, consent page, preview exclusion and audio
+passed smoke checks. The translated KOOK notice was chat-only for group posting. See
 `docs/database/tournaments/LIVE_PREPARATION.md` before any further SQL operation.
 
 - User's latest confirmation is **October 17, 2026, 12:00 noon China time** (UTC
@@ -17,7 +20,10 @@ are in progress. See
   instant, it opens immediately. Draft October 23;
   play begins October 24; **finals November 20**. Teams drawn at random; first
   prize 3,000 RMB. Closing time is unset; close manually before the draft.
-- Real client routes: `/split-ii`, `/hub/dashboard`, `/hub/split-ii`. They use the
+- Public `/split-ii` is now an ECL SPLIT II landing page directing visitors to
+  log into the Hub, with the dates, prize and eligibility/rules information.
+  The homepage announcement uses the same Hub signup wording.
+- Real registration client routes: `/hub/dashboard`, `/hub/split-ii`. They use the
   authenticated server API at `/api/tournaments/split-ii/registration`. The two
   Hub routes retain the existing access gate in every environment.
 - Mock controls/fixtures are isolated to development-only
@@ -62,8 +68,8 @@ are in progress. See
   profiles, 4 without complete server/openId identity. Identity policy and the
   limitations of cross-account matching are described in the release record.
 - Live site `https://eclchina.lol` is on Vercel, with successful public GitHub
-  deployment status. Local/remote main match commit
-  `1c87ef62a8a1f2ea5ae21859d8eb4e11ae33f43b`; a no-op dry-run push passed. The
+  deployment status for release commit
+  `f0845652ffa438b44565a91d4b5bcf1659299279`. The
   Vercel plugin was suggested but is not confirmed connected; the existing Git
   pipeline is available without relying on that connection.
 - `vercel.json` selects the tested webpack build. An existing admin teams page
@@ -84,7 +90,9 @@ We have two related projects:
 1. Build the ECL Split II 2026 registration experience in the existing website.
 2. Develop ECL Companion, a lightweight local Windows collector for Chinese League matches.
 
-The immediate website milestone is a localhost registration prototype using mock data. Match collection is a separate investigation and does not need to block registration design.
+The registration website milestone has shipped. Current work is launch monitoring,
+draft/tournament operations before October 23/24, and the separate desktop match
+collector investigation. Collection does not block accepting registrations.
 
 Disregard the externally proposed HTML preview and ZIP package. Build the design directly in the existing Next.js application using the requirements below. Do not wait for those files.
 
@@ -131,9 +139,35 @@ Disregard the externally proposed HTML preview and ZIP package. Build the design
 - `components/account/client-account.ts`: existing client-side profile/session helpers.
 - `app/hub/_components/HubAccessGate.tsx`: existing Hub access flow. Having a profile/Hub access is not equivalent to verified Split II eligibility.
 - `app/hub/_components/HubShell.tsx` and surrounding Hub components: existing layout/navigation.
-- `Tournament` and `TournamentRegistration` now exist as local Prisma definitions, mapped to dedicated `tournaments` and `tournament_registrations` tables. They have not been created in a live database. The draft SQL, security/capacity guards, event seed, rollback and outstanding decisions are in `docs/database/tournaments/README.md`.
+- `Tournament` and `TournamentRegistration` map to dedicated live `tournaments` and `tournament_registrations` tables. The approved foundation and noon opening schedule were applied. SQL, security/capacity guards, event seed and rollback are in `docs/database/tournaments/README.md`; do not rerun creation.
 
 ## Split II Implementation Roadmap
+
+### Current position: October 17, 2026
+
+| Workstream | Status | Next work |
+| --- | --- | --- |
+| Phase 1: design | Approved and shipped | Address real user feedback if needed. |
+| Phase 2: eligibility/data plan | Implemented in separate live tables | Registration closing time, replacements and random-draw rules still need decisions. |
+| Phase 3: signup integration | Implemented and tested | Confirm the first genuine player's saved entry after opening. |
+| Phase 4: release | Deployed; opening scheduled for October 17, noon China time | Monitor failed registrations and capacity. Latest public check: scheduled, 0/30. |
+| Draft and tournament operations | Not implemented by this registration release | Prepare admin roster/export, role handling and an auditable random draw before October 23; tournament-scoped teams, fixtures/results and reporting before play begins October 24. |
+| ECL Companion desktop collector | Investigation/prototype | Prove reliable complete post-game retrieval, then build durable collection/upload and connect existing reporting/scoring. |
+
+The tournament closes with finals on November 20. Decide the match format,
+schedule, no-show/replacement handling and reporting fallback before play begins.
+Future teams, matches and statistics must be scoped to their tournament; the
+registration foundation alone does not isolate future match ingestion.
+
+Lyzumi remains the source for League ranks and ranked profile statistics. The
+existing My Profile page refreshes missing data or snapshots older than 12 hours;
+login to the dashboard alone does not initiate this browser refresh. No interval
+or trigger change was approved or implemented in the clarification discussion.
+Inhouse ELO/results remain sourced from stored ECL match records. The future
+desktop app will collect/report those matches; it does not replace Lyzumi profile
+updates. The desktop ingestion path is not yet proven end to end.
+
+The detailed original phase checklists below remain as acceptance criteria.
 
 ### Phase 1: Inspect and Build the Local Design
 

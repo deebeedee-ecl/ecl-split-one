@@ -1,12 +1,25 @@
-# Split II registration release: database prepared
+# Split II registration release: published and scheduled
 
 Latest confirmed opening: **October 17, 2026, 12:00 noon Asia/Shanghai**
 (`2026-10-17T04:00:00Z`), replacing the earlier midnight request. If enabled after that instant, registration opens
 immediately. On October 17, the user approved and retried creation of the separate
 Supabase foundation. Both tournament tables and one DRAFT event now exist, with
 zero registrations. The user subsequently approved publication and scheduled
-opening at noon on October 17. Release checks and publication are in progress.
+opening at noon on October 17. Release commit
+`f0845652ffa438b44565a91d4b5bcf1659299279` is published; Vercel and the report-engine
+deployment checks succeeded. Production smoke checks passed before scheduling.
+The live API now reports `scheduled`, opening `2026-10-17T04:00:00.000Z`, capacity
+30 and zero registrations. No genuine signup was created during release checks.
 See [the preparation record](database/tournaments/LIVE_PREPARATION.md).
+
+## Public landing page follow-up
+
+At the user's request, `/split-ii` is now a simple public event landing page
+headed ECL SPLIT II. Its primary action links to `/hub/dashboard` to sign in and
+register; the homepage announcement also says to sign up through the Hub. Dates,
+prize, verification requirement and the rules link remain visible. The public page
+does not render the registration client or roster. Hub registration, backend
+eligibility/consent/capacity checks and the approved opening time are unchanged.
 
 ## Included
 
@@ -49,10 +62,17 @@ waitlists and cancellation are outside this registration release.
    server. No closing time has been supplied, so close registration manually
    before the October 23 draw using the close operation below.
 
-Steps 1 and 2 were approved and completed on October 17. The user then confirmed
-"12:00 noon, October 17" and authorized scheduled opening. Publish and smoke-check
-before applying step 4. Do not repeat table creation. The schedule SQL safely
-updates the original midnight value only for an empty DRAFT event.
+All four steps were approved and completed on October 17. The user confirmed
+"12:00 noon, October 17". After production checks, the exact tested schedule SQL
+updated the empty DRAFT event's original midnight value and enabled its noon gate.
+Do not repeat table creation. Use the read-only check before further operations.
+
+Production `/split-ii`, `/split-ii/rules`, `/hub/dashboard`, `/hub/split-ii` and the
+World Cup archive return 200. The mock preview returns 404; anonymous signup is
+401; registration GET is no-store; audio byte ranges return 206 audio/mpeg. Both
+the closed state before scheduling and scheduled state afterward were verified.
+The bilingual KOOK verification announcement was supplied only in chat for group
+posting, as requested; no Chinese notice was added to the site.
 
 ## Completed verification
 
@@ -98,7 +118,8 @@ opening; do not create fake accounts/registrations in the live player pool.
 
 ## Local review
 
-- Real client (registration remains closed): `http://127.0.0.1:3002/split-ii`
+- Public landing page: `http://127.0.0.1:3002/split-ii`
+- Real registration client: `http://127.0.0.1:3002/hub/dashboard`
 - Desktop design/music with isolated fixtures: `http://127.0.0.1:3002/hub/split-ii/preview`
 - Frozen consent text: `http://127.0.0.1:3002/split-ii/rules`
 - Production-mode smoke server: `http://127.0.0.1:3003/split-ii`

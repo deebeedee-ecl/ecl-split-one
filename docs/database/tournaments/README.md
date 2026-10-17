@@ -2,8 +2,10 @@
 
 The registration release is implemented and tested locally. The user approved
 the separate Supabase foundation, which was created on October 17, 2026. Split II
-remains DRAFT with zero registrations. The user subsequently approved publication
-and opening at noon on October 17; release is in progress. See
+was initially DRAFT with zero registrations. After approved publication and live
+checks, the noon schedule was applied: status REGISTRATION_OPEN with the opening
+gate at October 17, 12:00 China time (04:00 UTC). The API reports scheduled until
+that instant; zero registrations existed at verification. See
 [the release record](../../ECL_SPLIT_II_RELEASE.md) for exact checks and steps.
 
 ## Separate data
@@ -45,8 +47,9 @@ when implementing later phases; do not create another scoring engine.
 
 `create-tournaments.draft.sql` and `seed-split-ii.draft.sql` were applied live on
 October 17, 2026. The filenames retain their reviewed names; do not rerun creation.
-See [the live preparation record](LIVE_PREPARATION.md). Opening and rollback SQL
-have not been applied live.
+See [the live preparation record](LIVE_PREPARATION.md). The revised noon schedule
+was subsequently applied after release approval and production checks. Rollback
+has not been applied live.
 
 - create-tournaments.draft.sql: additive tables, constraints, guards, RLS/grants.
 - seed-split-ii.draft.sql: one DRAFT event; no fixture player entries.
