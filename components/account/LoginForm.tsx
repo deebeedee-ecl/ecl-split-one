@@ -32,7 +32,7 @@ export default function LoginForm() {
       setHubAccessCache(profile ? "ready" : "profile");
       setMessage(
         profile
-          ? "Logged in. Opening the World Cup dashboard."
+          ? "Logged in. Opening the Split II dashboard."
           : "Logged in. Opening your dashboard."
       );
 

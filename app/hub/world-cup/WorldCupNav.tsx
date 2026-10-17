@@ -11,7 +11,7 @@ type WorldCupNavItem = {
 };
 
 const items: WorldCupNavItem[] = [
-  { label: "Dashboard", href: "/hub/dashboard", icon: Globe2 },
+  { label: "Archive", href: "/tournaments/world-cup", icon: Globe2 },
   { label: "Teams", href: "/hub/world-cup/find-team", icon: Users },
   { label: "Players", href: "/hub/world-cup/players", icon: BarChart3 },
   { label: "Standings", href: "/hub/world-cup/standings", icon: Table2 },
@@ -29,7 +29,7 @@ export function WorldCupNav({
         const Icon = item.icon;
         const isActive =
           (active === "teams" && item.label === "Teams") ||
-          (active === "dashboard" && item.label === "Dashboard") ||
+          (active === "dashboard" && item.label === "Archive") ||
           (active === "players" && item.label === "Players") ||
           (active === "standings" && item.label === "Standings") ||
           (active === "fixtures" && item.label === "Fixtures");

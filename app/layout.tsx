@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 const competitiveLinks = [
-  { href: "/tournaments/world-cup", label: "ECL World Cup" },
+  { href: "/split-ii", label: "Split II: Draft" },
   { href: "/tournaments", label: "Past Tournaments" },
 ];
 

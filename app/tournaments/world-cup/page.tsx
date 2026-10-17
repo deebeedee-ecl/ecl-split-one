@@ -5,24 +5,24 @@ import { ArrowRight, CalendarDays, Globe2, ShieldCheck, Trophy, Users } from "lu
 const pillars = [
   {
     icon: Users,
-    title: "Find A Roster",
-    text: "Build around national identity. Each squad has six slots, with up to two imports allowed.",
+    title: "National Rosters",
+    text: "Teams formed around national identity, with six roster slots and up to two imports allowed.",
   },
   {
     icon: ShieldCheck,
     title: "No Elo Requirement",
-    text: "The World Cup is not gated by ladder position. Bring commitment, communication, and national pride.",
+    text: "Entry was open regardless of ladder position, bringing the community together through national pride.",
   },
   {
     icon: Trophy,
-    title: "A World To Win",
-    text: "A double elimination knockout bracket decides the ECL world champions.",
+    title: "Double Elimination",
+    text: "The tournament used a double elimination knockout bracket.",
   },
 ];
 
 const dates = [
-  { label: "Team Deadline", value: "Sep 13th" },
-  { label: "Tournament Begins", value: "Sep 18th" },
+  { label: "Status", value: "Completed" },
+  { label: "Tournament Began", value: "Sep 18th" },
   { label: "Format", value: "Double Elimination" },
 ];
 
@@ -55,18 +55,18 @@ export default function WorldCupInfoPage() {
               priority
             />
             <p className="mt-8 text-xs font-black uppercase tracking-[0.24em] text-[#77CFFF]">
-              Upcoming Tournament
+              Completed Tournament / Archive
             </p>
             <h1 className="mt-4 text-[clamp(4rem,11vw,9rem)] font-black uppercase leading-[0.82] tracking-normal text-[#F5F5F2] [font-family:Anton,Impact,Arial_Black,Arial,sans-serif]">
               World Cup
             </h1>
             <p className="mt-7 max-w-2xl text-2xl font-black uppercase leading-8 text-white">
-              A world to win.
+              The World Cup archive.
             </p>
             <p className="mt-5 max-w-2xl text-base font-semibold leading-8 text-[#C9DFEB]">
-              The ECL World Cup is a national-roster tournament for the Hub:
-              teams form around country identity, admins approve final squads,
-              and the bracket plays out through a double elimination format.
+              The ECL World Cup has ended. This archive preserves the event
+              information and links to its national rosters, standings,
+              and fixtures.
             </p>
           </div>
 
@@ -120,15 +120,15 @@ export default function WorldCupInfoPage() {
               National rosters.
             </h2>
             <p className="mt-5 max-w-xl text-base font-semibold leading-8 text-[#C9DFEB]">
-              Captains create teams, players apply through the Hub, and ECL
-              admins approve the final roster before teams appear publicly.
+              Captains formed national teams through the Hub, with ECL
+              admins reviewing and approving the final rosters.
             </p>
           </div>
 
           <div className="grid gap-4">
             <InfoRow icon={<Globe2 size={18} />} title="Roster Identity" text="Countrymen and countrywomen first, with limited import flexibility for final squads." />
-            <InfoRow icon={<CalendarDays size={18} />} title="Submission Window" text="Teams should be submitted by Sep 13th so admins have time to review and lock rosters." />
-            <InfoRow icon={<Trophy size={18} />} title="Tournament Play" text="Fixtures, standings, and reporting tools will move into the Hub once the bracket opens." />
+            <InfoRow icon={<CalendarDays size={18} />} title="Former Submission Window" text="The team submission deadline was Sep 13th. The tournament has now ended." />
+            <InfoRow icon={<Trophy size={18} />} title="Tournament Records" text="Existing fixtures, standings, and team records remain available in the Hub." />
           </div>
         </div>
       </section>
@@ -137,25 +137,25 @@ export default function WorldCupInfoPage() {
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-12 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.2em] text-[#77CFFF]">
-              Player Hub
+              Tournament Archive
             </p>
             <h2 className="mt-2 text-3xl font-black uppercase text-white">
-              Ready to build or join a roster?
+              Explore the tournament records.
             </h2>
           </div>
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/hub/world-cup/create-team"
+              href="/hub/world-cup/standings"
               className="inline-flex min-h-11 items-center gap-2 bg-[#0755C9] px-5 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#0797F2]"
             >
-              Create Team
+              View Standings
               <ArrowRight size={16} />
             </Link>
             <Link
-              href="/hub/world-cup/find-team"
+              href="/hub/world-cup/fixtures"
               className="inline-flex min-h-11 items-center gap-2 border border-[#77CFFF]/35 px-5 text-xs font-black uppercase tracking-[0.12em] text-[#F5F5F2] transition hover:border-white hover:bg-[#0797F2]/18"
             >
-              Find Team
+              View Fixtures
               <ArrowRight size={16} />
             </Link>
           </div>

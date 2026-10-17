@@ -80,7 +80,7 @@ export default function WorldCupCreateTeamPage() {
     >
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <Link
-          href="/hub/dashboard"
+          href="/tournaments/world-cup"
           className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#77CFFF] transition hover:text-white"
         >
           <ArrowLeft size={15} />

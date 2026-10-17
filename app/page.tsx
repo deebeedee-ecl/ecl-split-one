@@ -23,6 +23,11 @@ const howItWorks = [
 export default function Home() {
   return (
     <main className="min-h-screen bg-[#050505] text-white">
+      <Link href="/split-ii" className="flex min-h-12 flex-wrap items-center justify-center gap-x-5 gap-y-1 bg-[#0035f8] px-4 py-3 text-xs font-bold text-white transition hover:bg-[#002bd0]">
+        <span>EXPAT CHINA LEAGUE / 2026</span>
+        <span className="inline-flex items-center gap-2">Split II: Draft <ArrowRight size={15} /></span>
+        <span className="text-[10px] font-normal text-white/75">Registration / 30 player places</span>
+      </Link>
       <section className="relative isolate overflow-hidden border-b border-[#1f1f1f] bg-[#050505]">
         <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(177,18,38,0.18),transparent_34%),radial-gradient(circle_at_72%_18%,rgba(209,26,42,0.2),transparent_26%)]" />
         <div className="absolute inset-0 opacity-[0.055] [background-image:linear-gradient(90deg,#fff_1px,transparent_1px),linear-gradient(#fff_1px,transparent_1px)] [background-size:76px_76px]" />

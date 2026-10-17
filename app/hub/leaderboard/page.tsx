@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Minus } from "lucide-react";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   getFrozenInhouseLeaderboardRows,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/hub-profile";
 import { HubShell } from "../_components/HubShell";
 import { riotIdKey } from "@/lib/riot-id";
+import LadderUnavailable from "./LadderUnavailable";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +35,7 @@ function cleanTag(value: string | null | undefined) {
   return (value ?? "").trim().replace(/^#+/, "");
 }
 
-export default async function RankedLadderPage() {
+async function loadLadderData() {
   // Get all verified profiles for display names + role + profile links
   const profiles = await prisma.accountProfile.findMany({
     where: { verificationStatus: "VERIFIED", accountStatus: "ACTIVE" },
@@ -46,8 +48,31 @@ export default async function RankedLadderPage() {
     },
   });
 
+  return { profiles, standings: await getFrozenInhouseLeaderboardRows() };
+}
+
+export default async function RankedLadderPage() {
+  let data: Awaited<ReturnType<typeof loadLadderData>>;
+  try {
+    data = await loadLadderData();
+  } catch (error) {
+    const unavailable = error instanceof Prisma.PrismaClientInitializationError
+      || (error instanceof Prisma.PrismaClientKnownRequestError
+        && ["P1001", "P1002", "P1008", "P1017", "P2024"].includes(error.code));
+    if (!unavailable) throw error;
+
+    // Keep infrastructure details in server logs; do not substitute mock/empty standings.
+    console.warn("Ranked ladder database unavailable", error instanceof Prisma.PrismaClientInitializationError ? error.errorCode : error.code);
+    return (
+      <HubShell active="ladder" eyebrow="Ranked Inhouse" title="Ranked Ladder" description="ECL ranked inhouse standings.">
+        <LadderUnavailable />
+      </HubShell>
+    );
+  }
+  const { profiles, standings } = data;
+
   // Build ladder rows from every reported ranked inhouse.
-  const ladderRows: LadderRow[] = (await getFrozenInhouseLeaderboardRows())
+  const ladderRows: LadderRow[] = standings
     .map((p, index) => {
       const playerRiotKey = riotIdKey(p.riotName, p.riotTag);
       const profile = profiles.find(

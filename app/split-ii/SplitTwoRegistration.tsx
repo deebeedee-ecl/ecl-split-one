@@ -1,0 +1,174 @@
+"use client";
+
+import Link from "next/link";
+import Image from "next/image";
+import { useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import {
+  ArrowDown, ArrowRight, Check, CheckCheck, ChevronRight, CircleAlert,
+  Clock3, FlaskConical, LoaderCircle, LockKeyhole, RotateCcw,
+  Settings2, ShieldCheck, Ticket, Trophy, UserRound, Users, X,
+} from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SPLIT_II_REGISTRATION_RULES } from "@/lib/tournaments/split-ii-config";
+import { useSplitTwoRegistration } from "./useSplitTwoRegistration";
+import BroadcastType from "./BroadcastType";
+import DashboardAudio from "./DashboardAudio";
+import styles from "./split-ii.module.css";
+
+export default function SplitTwoRegistration({ inDashboard = false, preview = false }: { inDashboard?: boolean; preview?: boolean }) {
+  const isPreview = preview && process.env.NODE_ENV === "development";
+  const state = useSplitTwoRegistration(isPreview);
+  const { players, player, registration, slot, account, capacity, loaded, requestState } = state;
+  const [dialog, setDialog] = useState<"claim" | "signin" | "verify" | null>(null);
+  const [accepted, setAccepted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState("");
+  const [controlsOpen, setControlsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"roster" | "details">("roster");
+  const [announcement, setAnnouncement] = useState("");
+  const reducedMotion = useReducedMotion();
+  const count = players.length;
+  const remaining = capacity - count;
+  const capacityState = count >= capacity ? "full" : count >= 25 ? "limited" : "open";
+  const windowOpen = state.window === "open";
+  const capacityLabel = !loaded ? requestState === "loading" ? "Loading registration" : "Registration unavailable"
+    : state.window === "scheduled" ? "Opens 17 Oct, 12:00" : !windowOpen ? "Registration closed"
+    : count >= capacity ? "Roster full" : count >= 25 ? "Final places" : "Registration open";
+
+  function openClaim() {
+    setAccepted(false);
+    setSubmissionError("");
+    if (registration || count >= capacity || !loaded || !windowOpen || requestState !== "idle") return;
+    setDialog(account === "signed-out" ? "signin" : account === "eligible" ? "claim" : "verify");
+  }
+
+  async function confirmClaim() {
+    if (!accepted || submitting || registration || account !== "eligible" || requestState !== "idle" || !windowOpen || count >= capacity) return;
+    setSubmitting(true);
+    setSubmissionError("");
+    try {
+      await state.confirm();
+      setDialog(null);
+      setAnnouncement(`Your ${isPreview ? "mock " : ""}entry is confirmed. Your role is taken from your ECL profile.`);
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : "Could not confirm your entry. Please try again.");
+    } finally { setSubmitting(false); }
+  }
+
+  function previewCapacity(value: number) {
+    state.previewCapacity(value);
+    setAnnouncement("");
+  }
+
+  return (
+    <main className={styles.page} data-capacity={capacityState}>
+      {!inDashboard && <div className={styles.previewNotice}>
+        <span>{isPreview ? <><FlaskConical size={13} />Design preview / Mock registrations</> : <>Registration opens 17 October, 12:00 noon China time</>}</span>
+        <Link href="/hub" prefetch={false}>Back to the Hub <ArrowRight size={13} /></Link>
+      </div>}
+      <section className={styles.titleBand} aria-labelledby="split-title">
+        <div className={styles.titleMeta}><span>EXPAT CHINA LEAGUE</span><div className={styles.musicControls}><span>LEAGUE OF LEGENDS</span>{inDashboard && <DashboardAudio />}</div></div>
+        <div className={styles.brandRow}>
+          <h1 id="split-title"><span className={styles.srOnly}>Expat China League / Split II / 2026 signup</span><BroadcastType text="ECL" className={styles.brandType} /></h1>
+        </div>
+      </section>
+      <div className={styles.broadcastStrip} aria-label="Draft 2026">
+        <BroadcastType text="DRAFT" className={styles.seasonType} />
+        <span className={styles.eventLogo}><Image src="/ecl-logo.png" alt="ECL logo" width={150} height={100} preload /></span>
+        <BroadcastType text="2026" className={styles.yearType} />
+      </div>
+      <section className={styles.signupBand} aria-labelledby="signup-title">
+        <h2 id="signup-title"><BroadcastType text="SPLIT II" className={styles.signupType} /></h2>
+        <div className={styles.signupFooter}><span>30 PLAYERS / ONE ROSTER</span><span className={styles.catchphrase}>AGAINST ALL ODDS</span></div>
+      </section>
+      <section className={styles.draftBand} aria-label="Split II registration capacity">
+        <div className={styles.capacityBlock}>
+          <div className={styles.counter} aria-live="polite"><strong>{loaded ? String(count).padStart(2, "0") : "--"}</strong><span>/ {capacity}</span></div>
+          <div className={styles.capacityStatus}><i />{capacityLabel}</div>
+          <p>{!loaded ? "Checking availability" : remaining === 0 ? "All places have been claimed" : `${remaining} ${remaining === 1 ? "place" : "places"} still available`}</p>
+        </div>
+        <div className={styles.capacityTrack} role="progressbar" aria-label="Registration capacity" aria-busy={!loaded} aria-valuenow={loaded ? count : undefined} aria-valuemin={0} aria-valuemax={capacity}>{Array.from({ length: capacity }, (_, i) => <span key={i} data-filled={loaded && i < count} />)}</div>
+      </section>
+      <section className={styles.eventDetails} aria-label="Tournament dates and team draw">
+        <div><span>Draft day</span><strong>23 October</strong></div>
+        <div><span>Tournament begins</span><strong>24 October</strong></div>
+        <div><span>Finals</span><strong>20 November</strong></div>
+        <div><span>Team selection</span><strong>Random draw</strong></div>
+      </section>
+      <div className={styles.registrationLayout}>
+        <section className={styles.rosterSection} aria-label="Split II roster">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "roster" | "details")}>
+          <TabsList className={styles.tabs} variant="line" aria-label="Split II information">
+            <TabsTrigger value="roster"><Users size={15} />Registered players <span>{loaded ? count : "--"}</span></TabsTrigger>
+            <TabsTrigger value="details"><Trophy size={15} />Season details</TabsTrigger>
+          </TabsList>
+          <TabsContent value="roster">
+            <div className={styles.sectionHeading}><div><p>SPLIT II / PLAYER POOL</p><h3>Who&apos;s in.</h3></div><span><Clock3 size={13} /> Signup order</span></div>
+            {requestState === "loading" ? <div className={styles.rosterFeedback} role="status"><LoaderCircle className={styles.spinner} size={25} /><h4>Loading the roster</h4></div> : requestState === "error" ? <div className={styles.rosterFeedback} role="alert"><CircleAlert size={25} /><h4>The roster couldn&apos;t load.</h4><p>{state.message}</p><button onClick={() => void state.refresh()}><RotateCcw size={15} />Try again</button></div> : players.length === 0 ? <div className={styles.rosterFeedback}><Users size={25} /><h4>The player pool starts here.</h4><p>Confirmed entries will appear in signup order.</p></div> : <ol className={styles.playerList} aria-label="Registered players in signup order">
+              {players.map((entry, i) => (
+                <motion.li key={entry.id} layout={reducedMotion ? false : "position"} transition={{ duration: reducedMotion ? 0 : 0.18 }} data-you={entry.id === registration?.id || undefined}>
+                  <span className={styles.listNumber}>{String(i + 1).padStart(2, "0")}</span>
+                  <span className={styles.listName}>{entry.name}{entry.id === registration?.id && <em>You</em>}</span>
+                  <span className={styles.listRole}>{entry.role}</span>
+                  <Check size={12} aria-label="Registered" />
+                </motion.li>
+              ))}
+            </ol>}
+            <div className={styles.rosterFooter}><span><i />{loaded ? `${count} confirmed` : "Checking roster"}</span><span>{loaded ? `${remaining} open places` : "Availability pending"} <ArrowDown size={12} /></span></div>
+          </TabsContent>
+          <TabsContent value="details" className={styles.seasonDetails}>
+            <p>EXCLUSIVE TO THE ECL COMMUNITY</p><h3>The next chapter.</h3>
+            <p>Split II brings the ECL community together for a fresh competitive season. Claim a place in the player pool before the draft.</p>
+            <dl><div><dt>Player pool</dt><dd>30 places</dd></div><div><dt>1st prize</dt><dd className={styles.prize}>3000 RMB</dd></div><div><dt>Season</dt><dd>Split II / 2026</dd></div><div><dt>Draft date</dt><dd>23 October</dd></div><div><dt>Tournament begins</dt><dd>24 October</dd></div><div><dt>Finals</dt><dd>20 November</dd></div><div><dt>Team selection</dt><dd>Teams drawn at random</dd></div><div><dt>Match format</dt><dd>To be announced</dd></div></dl>
+            <p>Entry is for existing, active and verified ECL players. Your role comes from your ECL profile. <Link href="/split-ii/rules">Read the registration rules and terms.</Link></p>
+          </TabsContent>
+          </Tabs>
+        </section>
+        <aside className={styles.entryColumn} aria-label="Your registration">
+          <article className={styles.ticket} data-registered={Boolean(registration)}>
+            <div className={styles.ticketTop}><span>ECL / SPLIT II</span><Ticket size={19} /></div>
+            <p className={styles.ticketEyebrow}>{registration ? "YOU'RE ON THE ROSTER" : "YOUR NEXT CHAPTER"}</p>
+            <h3>{registration ? <>You&apos;re<br />locked in.</> : <>Your place.<br />Your split.</>}</h3>
+            <div className={styles.ticketIdentity}><div className={styles.avatar}><UserRound size={20} /></div><div><strong>{player.name}</strong><span>{account === "signed-out" ? "Existing ECL account required" : player.riotId}</span></div>{account === "eligible" && <ShieldCheck size={19} className={styles.verifiedIcon} aria-label="Verified ECL account" />}</div>
+            <dl className={styles.ticketSpecs}><div><dt>Season</dt><dd>2026 / Split II</dd></div><div><dt>Role from profile</dt><dd>{registration?.role ?? (account === "signed-out" ? "Sign in to view" : player.role || "Complete profile")}</dd></div><div><dt>Status</dt><dd>{registration ? "Confirmed" : !loaded ? "Checking registration" : !windowOpen ? state.window === "scheduled" ? "Opening soon" : "Registration closed" : count >= capacity ? "Roster full" : "Awaiting entry"}</dd></div></dl>
+            <div className={styles.perforation} />
+            <div className={styles.ticketAction}>
+              {registration ? <><span className={styles.confirmedLabel}><CheckCheck size={17} /> Place confirmed</span><div className={styles.ticketSerial}>ECL / II / {String(slot).padStart(3, "0")}</div></> : <button className={styles.claimButton} onClick={openClaim} disabled={!loaded || !windowOpen || count >= capacity || requestState !== "idle"}>{!loaded ? "Checking registration" : !windowOpen ? state.window === "scheduled" ? "Opens 17 Oct, 12:00" : "Registration closed" : count >= capacity ? "Registration full" : account === "signed-out" ? "Sign in to claim a place" : account !== "eligible" ? "Check eligibility" : "Claim your place"}{!windowOpen || count >= capacity ? <LockKeyhole size={16} /> : <ArrowRight size={17} />}</button>}
+              <span className={styles.ticketNote}>{registration ? isPreview ? "Your place is saved in this preview only." : "Your entry is saved to your ECL account." : "Your role is taken from your ECL profile."}</span>
+              <div className={styles.barcode} aria-hidden="true" /><div className={styles.barcodeCaption}><span>EXPAT CHINA LEAGUE</span><span>II / 2026</span></div>
+            </div>
+          </article>
+          <div className={styles.entryFootnote}><ShieldCheck size={16} /><p>Reserved for the ECL community.<br /><span>Verified players. A fresh start.</span></p></div>
+        </aside>
+      </div>
+      <section className={styles.stepsBand} aria-label="Registration process"><div><span>01</span><div><h3>Sign in.</h3><p>Your existing ECL account.</p></div><UserRound size={19} /></div><div><span>02</span><div><h3>Claim your place.</h3><p>One of 30 player entries.</p></div><Ticket size={19} /></div><div><span>03</span><div><h3>Be draft-ready.</h3><p>The next chapter is yours.</p></div><Trophy size={19} /></div></section>
+      <div className={styles.pageEnd}><span>EXPAT CHINA LEAGUE</span><span>ECL / SPLIT II / 2026 <ArrowRight size={14} /></span></div>
+      <p className={styles.srOnly} role="status">{announcement}</p>
+      <Dialog open={dialog !== null} onOpenChange={(open) => { if (!open && !submitting) setDialog(null); }}>
+        <DialogContent className={styles.modal} overlayClassName={styles.modalOverlay} showCloseButton={false}>
+          <button className={styles.modalClose} title="Close" aria-label="Close dialog" onClick={() => setDialog(null)} disabled={submitting}><X size={19} /></button>
+          <Ticket size={26} className={styles.modalIcon} /><span className={styles.modalEyebrow}>SPLIT II / {isPreview ? "DESIGN PREVIEW" : "PLAYER REGISTRATION"}</span>
+          <DialogTitle className={styles.modalTitle}>{dialog === "signin" ? "Your ECL account." : dialog === "verify" ? "One more step." : "Ready to sign up?"}</DialogTitle>
+          <DialogDescription className={styles.modalDescription}>{dialog === "signin" ? isPreview ? "Continue with the sample ECL player to try registration." : "Sign in with your existing ECL account to register. Your profile name and role will be filled in for you." : dialog === "verify" ? "Registration requires an active, verified ECL profile with a player name, League identity and primary role. Check your profile in settings or contact an ECL admin for help." : "By registering, you accept the ECL Terms of Service and the tournament registration rules. Your player name and role will be taken from your ECL profile."}</DialogDescription>
+          {dialog === "claim" ? <form className={styles.consentForm} onSubmit={(event) => { event.preventDefault(); void confirmClaim(); }}>
+            <div className={styles.reviewRow}><strong>{player.name}</strong><span>{player.riotId}</span><span className={styles.profileRole}><ShieldCheck size={14} />{player.role}<small>From your ECL profile</small></span></div>
+            <details className={styles.consentRules}>
+              <summary>Tournament registration rules</summary>
+              <ul>{SPLIT_II_REGISTRATION_RULES.map(rule => <li key={rule}>{rule}</li>)}</ul>
+            </details>
+            <label className={styles.acceptLabel}><input type="checkbox" required checked={accepted} disabled={submitting} onChange={(event) => setAccepted(event.target.checked)} /><span>I have read and accept the <Link href="/split-ii/rules" target="_blank" rel="noopener noreferrer" prefetch={false}>Terms of Service and tournament registration rules</Link>.</span></label>
+            {submissionError && <p className={styles.submissionError} role="alert">{submissionError}</p>}
+            <button type="submit" className={styles.claimButton} disabled={!accepted || submitting || !windowOpen || count >= capacity}>{submitting ? <><LoaderCircle size={17} className={styles.spinner} />Signing up</> : <>Accept &amp; sign up<ArrowRight size={17} /></>}</button>
+            <p className={styles.consentPreview}>{isPreview ? "Design preview only. No real registration or consent record is saved." : "Your registration includes a record of the terms and rules you accept."}</p>
+          </form> : isPreview ? <button className={styles.claimButton} onClick={() => { state.previewAccount("eligible"); setDialog("claim"); }}>{dialog === "signin" ? "Continue as demo player" : "Preview verified player"}<ChevronRight size={17} /></button> : <Link className={styles.claimButton} href={dialog === "signin" ? "/login" : "/hub/settings"}>{dialog === "signin" ? "Sign in to ECL" : "Open profile settings"}<ChevronRight size={17} /></Link>}
+        </DialogContent>
+      </Dialog>
+      {isPreview && <div className={styles.previewTools}>
+        {controlsOpen && <div className={styles.controlPanel}><div className={styles.controlHeading}><strong>Preview states</strong><button title="Close preview controls" aria-label="Close preview controls" onClick={() => setControlsOpen(false)}><X size={15} /></button></div><label>Capacity<select aria-label="Preview capacity" value={count} onChange={(event) => previewCapacity(Number(event.target.value))}>{![5, 18, 28, 30].includes(count) && <option value={count}>{count} / 30</option>}{[5, 18, 28, 30].map((value) => <option key={value} value={value}>{value} / 30</option>)}</select></label><label>Account<select aria-label="Preview account" value={account} onChange={(event) => state.previewAccount(event.target.value as "eligible" | "signed-out" | "unverified")}><option value="eligible">Verified player</option><option value="signed-out">Signed out</option><option value="unverified">Unverified player</option></select></label><label>Roster<select aria-label="Preview roster state" value={requestState} onChange={(event) => state.previewRequest(event.target.value as "idle" | "loading" | "error")}><option value="idle">Loaded</option><option value="loading">Loading</option><option value="error">Error</option></select></label><button className={styles.resetButton} onClick={() => { previewCapacity(18); state.previewAccount("eligible"); setActiveTab("roster"); }}><RotateCcw size={13} />Reset preview</button></div>}
+        <button className={styles.toolsTrigger} onClick={() => setControlsOpen(!controlsOpen)} title="Preview controls" aria-label="Preview controls" aria-expanded={controlsOpen}><Settings2 size={18} /></button>
+      </div>}
+    </main>
+  );
+}

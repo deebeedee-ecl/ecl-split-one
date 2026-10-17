@@ -40,6 +40,13 @@ export default function HubInteractive() {
                 Enter the Hub
                 <ArrowRight size={20} />
               </Link>
+              <Link
+                href="/hub/split-ii"
+                className="inline-flex items-center justify-center gap-3 rounded-md border border-[#506cff] bg-[#0035f8] px-8 py-4 text-base font-black text-white transition hover:bg-[#0028c2]"
+              >
+                Split II: Draft
+                <ArrowRight size={20} />
+              </Link>
             </div>
           </div>
 

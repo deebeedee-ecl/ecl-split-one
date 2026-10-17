@@ -4,9 +4,9 @@ import { ArrowRight, CalendarClock, Trophy } from "lucide-react";
 const tournaments = [
   {
     title: "ECL World Cup",
-    label: "Upcoming",
+    label: "Archived",
     description:
-      "National rosters, no Elo requirement, double elimination, and one world champion.",
+      "Completed national-roster tournament. Browse the World Cup information and tournament records.",
     href: "/tournaments/world-cup",
     accent: "from-[#0755C9]/34",
   },
@@ -44,7 +44,7 @@ export default function TournamentsPage() {
             <span className="block text-[#b11226]">Archive</span>
           </h1>
           <p className="mt-7 max-w-2xl text-lg leading-8 text-[#9ca3af]">
-            Current and past ECL events live here: World Cup information,
+            Past ECL events live here: World Cup information,
             archived cups, rosters, brackets, match results, awards, and team
             storylines.
           </p>

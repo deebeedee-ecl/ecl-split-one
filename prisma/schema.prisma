@@ -52,6 +52,7 @@ model AccountProfile {
   updatedAt           DateTime            @updatedAt
   kookVerifications   KookVerification[]
   lzyumiRefreshQueue  LzyumiRefreshQueue?
+  tournamentRegistrations TournamentRegistration[]
 
   @@index([email])
   @@index([riotName, riotTag])
@@ -60,6 +61,69 @@ model AccountProfile {
   @@index([kookUsername])
   @@index([verificationStatus])
   @@index([accountStatus])
+}
+
+// Dedicated event data, separate from legacy TeamRegistration/FreeAgentRegistration.
+// The draft SQL and release notes are in docs/database/tournaments/.
+model Tournament {
+  id                    String           @id @default(uuid())
+  slug                  String           @unique
+  name                  String
+  year                  Int
+  tagline               String?
+  status                TournamentStatus @default(DRAFT)
+  capacity              Int              @default(30)
+  teamFormation         String           @default("LOTTERY_DRAFT") @map("team_formation")
+  firstPrizeRmb         Int              @default(0) @map("first_prize_rmb")
+  draftDate             DateTime?        @map("draft_date") @db.Date
+  startsOn              DateTime?        @map("starts_on") @db.Date
+  endsOn                DateTime?        @map("ends_on") @db.Date
+  timezone              String           @default("Asia/Shanghai")
+  registrationOpensAt   DateTime?        @map("registration_opens_at") @db.Timestamptz(3)
+  registrationClosesAt  DateTime?        @map("registration_closes_at") @db.Timestamptz(3)
+  termsVersion          String?          @map("terms_version")
+  rulesVersion          String?          @map("rules_version")
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  registrations         TournamentRegistration[]
+
+  @@index([status])
+  @@map("tournaments")
+}
+
+model TournamentRegistration {
+  id                    String         @id @default(uuid())
+  tournamentId          String         @map("tournament_id")
+  profileId             String         @map("profile_id")
+  tournament            Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Restrict)
+  profile               AccountProfile @relation(fields: [profileId], references: [id], onDelete: Restrict)
+  displayNameSnapshot   String         @map("display_name_snapshot")
+  primaryRoleSnapshot   String         @map("primary_role_snapshot")
+  secondaryRoleSnapshot String?        @map("secondary_role_snapshot")
+  riotNameSnapshot      String         @map("riot_name_snapshot")
+  riotTagSnapshot       String         @map("riot_tag_snapshot")
+  chinaServerIdSnapshot Int?           @map("china_server_id_snapshot")
+  // Server-derived server/openId key when available; never supplied by the browser.
+  gameIdentityKey       String?        @map("game_identity_key")
+  termsVersion          String         @map("terms_version")
+  rulesVersion          String         @map("rules_version")
+  consentedAt           DateTime       @map("consented_at") @db.Timestamptz(3)
+  registeredAt          DateTime       @default(now()) @map("registered_at") @db.Timestamptz(3)
+
+  @@unique([tournamentId, profileId])
+  @@unique([tournamentId, gameIdentityKey])
+  @@index([tournamentId, registeredAt, id])
+  @@index([profileId])
+  @@map("tournament_registrations")
+}
+
+enum TournamentStatus {
+  DRAFT
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
 }
 
 model LzyumiRefreshQueue {

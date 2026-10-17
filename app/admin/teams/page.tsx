@@ -91,13 +91,14 @@ async function updateTeamStatus(formData: FormData) {
 export default async function AdminTeamsPage({
   searchParams,
 }: {
-  searchParams?: { message?: string | string[] };
+  searchParams?: Promise<{ message?: string | string[] }>;
 }) {
+  const query = await searchParams;
   const message =
-    typeof searchParams?.message === "string"
-      ? searchParams.message
-      : Array.isArray(searchParams?.message)
-      ? searchParams.message[0]
+    typeof query?.message === "string"
+      ? query.message
+      : Array.isArray(query?.message)
+      ? query.message[0]
       : undefined;
 
   const [teams, savedTeams] = await Promise.all([

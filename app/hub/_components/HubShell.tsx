@@ -5,7 +5,6 @@ import {
   Award,
   DoorOpen,
   Gauge,
-  Globe2,
   Settings,
   Swords,
   Trophy,
@@ -35,8 +34,7 @@ type HubMenuItem = {
 };
 
 const primaryItems: HubMenuItem[] = [
-  { id: "dashboard", label: "World Cup", description: "Tournament overview, dates, and entry.", href: "/hub/dashboard", icon: Gauge },
-  { id: "world-cup", label: "My World Cup Team", description: "Your roster, application, or captain dashboard.", href: "/hub/world-cup/my", icon: Globe2 },
+  { id: "dashboard", label: "Dashboard", description: "Split II: Draft and player registration.", href: "/hub/dashboard", icon: Gauge },
   { id: "profile", label: "My Profile", description: "Your ELO, identity, champions, and awards.", href: "/hub/me", icon: UserCircle },
   { id: "ladder", label: "Ranked Ladder", description: "Top players, form trends, and live ladder events.", href: "/hub/leaderboard", icon: Trophy },
   { id: "players", label: "Players", description: "Browse every registered ECL player profile.", href: "/hub/players", icon: Users },
@@ -54,6 +52,7 @@ export function HubShell({
   title,
   description,
   hideHeader = false,
+  preview = false,
   children,
 }: {
   active: HubSection;
@@ -61,6 +60,7 @@ export function HubShell({
   title: string;
   description: string;
   hideHeader?: boolean;
+  preview?: boolean;
   theme?: "red" | "blue";
   children: ReactNode;
 }) {
@@ -90,9 +90,11 @@ export function HubShell({
               </div>
             </div>
           )}
-          <HubAccessGate allowProfileSetup={active === "settings"}>
-            {children}
-          </HubAccessGate>
+          {preview && process.env.NODE_ENV === "development" ? children : (
+            <HubAccessGate allowProfileSetup={active === "settings"}>
+              {children}
+            </HubAccessGate>
+          )}
         </section>
       </div>
     </main>
