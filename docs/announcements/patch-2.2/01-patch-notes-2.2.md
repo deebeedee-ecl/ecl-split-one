@@ -1,13 +1,12 @@
-> EDITOR: Upcoming-release draft. Publish as a preview until deployment and season activation are verified. Patch 2.2 is the community update number, not the installer version.
-
+> EDITOR: Ranked season launch copy. The separate Hub reporting pilot is still pending.
 # ECL Patch 2.2 — ECL Hub and a fresh ranked season
 
 Patch 2.2 brings the ECL Hub desktop app, a fresh ranked ladder and a clearer
-KOOK reporting flow. Everyone will begin the next season at **800 LP**, with
+KOOK reporting flow. The new season is live and everyone starts at **800 LP**, with
 prizes for the top three players when the ladder ends on **14 January 2027**.
 
-The season start and reporting activation will be announced in KOOK. This
-preview does not mark the beginning of the new ladder.
+The ranked season is live from **18 October 2026** (China time). The
+KOOK-to-Hub reporting pilot will be announced separately.
 
 ## ECL Hub for Windows
 
@@ -31,7 +30,7 @@ option selected so Hub can connect. Windows may ask you to approve the launch.
 
 ## Ranked reset
 
-The next season starts everyone at **800 LP**. Season wins, losses and streaks
+The new season starts everyone at **800 LP**. Season wins, losses and streaks
 restart from zero. **Old match history stays available.**
 
 The opening three-game placement bonus is removed. Normal scoring applies from
@@ -89,9 +88,8 @@ enabled pilot reporters and administrator review.
 
 ## Ladder finish and prizes
 
-The ranked ladder ends **14 January 2027**. The exact closing time, season
-start and final standings/eligibility details will be announced in KOOK before
-the season begins.
+The ranked ladder ends **14 January 2027**. The exact closing time and final
+standings/eligibility details will be announced in KOOK.
 
 | Final place | Prize |
 | --- | --- |

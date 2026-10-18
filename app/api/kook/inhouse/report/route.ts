@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { calculateLpChange, chinaDayBounds } from "@/lib/elo";
-import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
+import { getRankedSeason, loadRankedSeasonStates, currentRankedFilter } from "@/lib/ranked-season";
 import {
   fetchLatestLzyumiMatch,
   fetchLzyumiMatchDetail,
@@ -521,6 +521,10 @@ export async function POST(request: Request) {
     },
   });
 
+  const currentSeason = getRankedSeason();
+  if (currentSeason && session.createdAt < currentSeason.startedAt) {
+    return NextResponse.json({ message: "This ready session belongs to the previous ranked season. Create a fresh !ready roster before reporting." }, { status: 409 });
+  }
   const match = await prisma.match.create({
     data: {
       stage: "REGULAR_SEASON",
@@ -575,6 +579,8 @@ export async function POST(request: Request) {
 
   let appliedPlayers = 0;
   const reportedAt = new Date();
+  const season = currentSeason;
+  const rankedFilter = currentRankedFilter(season);
   const doubleLpDayBounds = chinaDayBounds(reportedAt);
 
   for (const row of matchedRows) {
@@ -583,25 +589,25 @@ export async function POST(request: Request) {
       prisma.matchGamePlayerStat.count({
         where: {
           playerId: player.id,
-          ...INHOUSE_MATCH_FILTER,
+          ...rankedFilter,
         },
       }),
       prisma.matchGamePlayerStat.findFirst({
         where: {
           playerId: player.id,
-          ...INHOUSE_MATCH_FILTER,
+          ...rankedFilter,
         },
         orderBy: { createdAt: "desc" },
         select: { createdAt: true },
       }),
       prisma.matchGamePlayerStat.count({
         where: {
+          ...rankedFilter,
           playerId: player.id,
           createdAt: {
-            gte: doubleLpDayBounds.start,
+            gte: season && season.startedAt > doubleLpDayBounds.start ? season.startedAt : doubleLpDayBounds.start,
             lt: doubleLpDayBounds.end,
           },
-          ...INHOUSE_MATCH_FILTER,
         },
       }),
     ]);
@@ -609,6 +615,7 @@ export async function POST(request: Request) {
     const teamId = side === "BLUE" ? blueTeam.id : redTeam.id;
     const isWin = teamId === game.winnerTeamId;
     const score = parseScoreInfo(row.detailPlayer.scoreInfo);
+    const state = season ? (await loadRankedSeasonStates([player.id], season)).get(player.id)! : null;
     const lp = calculateLpChange({
       win: isWin,
       kills: score.kills,
@@ -616,16 +623,17 @@ export async function POST(request: Request) {
       assists: score.assists,
       isMVP: row.detailPlayer.wasMvp === "1",
       isSVP: row.detailPlayer.wasSvp === "1",
-      currentElo: player.elo,
+      currentElo: state?.elo ?? player.elo,
       gamesPlayed,
-      winStreak: player.winStreak,
-      lossStreak: player.lossStreak,
+      winStreak: state?.winStreak ?? player.winStreak,
+      lossStreak: state?.lossStreak ?? player.lossStreak,
       lastPlayedAt: latestInhouseStat?.createdAt,
       playedAt: reportedAt,
       hasPlayedOnDoubleLpDay: inhouseGamesToday > 0,
       doubleLpEligible: true,
     }).lpChange;
-    const eloAfter = player.elo + lp;
+    const eloBefore = state?.elo ?? player.elo;
+    const eloAfter = eloBefore + lp;
 
     await prisma.matchGamePlayerStat.create({
       data: {
@@ -645,7 +653,7 @@ export async function POST(request: Request) {
         isMVP: row.detailPlayer.wasMvp === "1",
         isSVP: row.detailPlayer.wasSvp === "1",
         lpChange: lp,
-        eloBefore: player.elo,
+        eloBefore,
         eloAfter,
       },
     });
@@ -656,8 +664,8 @@ export async function POST(request: Request) {
       },
       data: {
         elo: eloAfter,
-        winStreak: isWin ? player.winStreak + 1 : 0,
-        lossStreak: isWin ? 0 : player.lossStreak + 1,
+        winStreak: isWin ? (state?.winStreak ?? player.winStreak) + 1 : 0,
+        lossStreak: isWin ? 0 : (state?.lossStreak ?? player.lossStreak) + 1,
       },
     });
 

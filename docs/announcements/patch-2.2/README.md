@@ -32,10 +32,10 @@ budget. The announcements are written as previews until the rollout is verified.
 
 ## Release status and outstanding decisions
 
-The reset and new bot/reporting backend are kept on a separate review branch,
-not activated by the news publication. The copy uses an upcoming-release announcement, with a
-separate season-start/reporting-activation notice. No post says the reset has
-already happened or that the new bot commands are currently live.
+The owner subsequently approved starting the ranked season on 18 October
+2026. The site articles now announce the live 800 LP season. The separate
+KOOK-to-Hub reporting backend remains on its review branch and is not activated
+by this launch. KOOK drafts must retain that reporting distinction.
 
 Before converting this to a live-season launch announcement:
 

@@ -1,8 +1,8 @@
-**ECL PATCH 2.2 — NEW APP. FRESH LADDER.**
+# ECL PATCH 2.2 — NEW APP. FRESH LADDER.
 
-**ECL Hub is coming to your desktop — and everyone gets a fresh start.**
+**The new ECL ranked season is live — everyone gets a fresh start.**
 
-The next ranked season will start at **800 LP** for everyone, with fresh
+The ranked season started **18 October 2026** at **800 LP** for everyone, with fresh
 records and streaks. Your old match history stays. The opening three-game
 placement bonus is removed: normal LP scoring applies from game one.
 
@@ -18,7 +18,7 @@ Your ECL profile, ladder, match history and scoreboards in a Windows app, with
 English/Chinese support and local match collection. The installer and setup
 guide will be pinned in **ECL HUB DESKTOP APP** — channel **5590769063605712**.
 
-**The new reporting flow**
+**Upcoming Hub reporting pilot**
 **!inhouse → !ready → play → !report IH_NUMBER GAME_ID → Hub upload → admin review**
 
 ⚠ At least one participant needs Hub installed and connected, with reporting
@@ -26,8 +26,8 @@ enabled. **The person sending !report must be that Hub reporter.** All ten
 players need verified ECL profiles.
 
 Uploads require administrator review. **No automatic LP, and no !yes step.**
-The reporting pilot and fresh season are not active just because Hub is installed.
+The separate Hub reporting pilot is not enabled by this ranked reset.
 
-We’ll post the season start, reporting activation, exact closing time and final
-season details before play begins. For now: get verified, watch the app channel
-and get ready to climb.
+Keep using the current ranked reporting flow until the Hub pilot is announced.
+The exact closing time and final season details will follow in KOOK.
+Get verified, watch the app channel and start climbing.

@@ -1,5 +1,4 @@
-> EDITOR: App news preview. The installer must be attached/pinned before publishing download instructions as available. Bot/reporting activation and ranked reset are still pending.
-
+> EDITOR: Ranked season launch copy. The separate Hub reporting pilot is still pending.
 # Meet ECL Hub — your ECL desktop app
 
 We’re bringing ECL to your desktop with **ECL Hub for Windows**: one place for
@@ -33,7 +32,7 @@ award LP. We’ll announce when the reporting pilot is enabled.
 
 ## A fresh ladder to climb
 
-Alongside Patch 2.2, the next ranked season will reset everyone to **800 LP**,
+The Patch 2.2 ranked season is now live, with everyone reset to **800 LP**,
 with fresh records and streaks. Your old match history stays available, and
 normal LP scoring applies from game one without the three-game placement bonus.
 
@@ -41,6 +40,6 @@ The ladder ends **14 January 2027**, with **signed Faker merchandise or other
 pro-player merchandise, subject to availability**, for first place, **300 RMB**
 for second and **150 RMB** for third.
 
-The start date, exact closing time and final season details will follow in
-KOOK. Get your ECL account verified and watch the app channel for the installer
+The season started **18 October 2026** (China time). The exact closing time
+and final season details will follow in KOOK. Get your ECL account verified and watch the app channel for the installer
 and pinned setup guide.

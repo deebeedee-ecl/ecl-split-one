@@ -15,6 +15,7 @@ import {
 import { HubShell } from "../_components/HubShell";
 import { riotIdKey } from "@/lib/riot-id";
 import LadderUnavailable from "./LadderUnavailable";
+import { getRankedSeason } from "@/lib/ranked-season";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +49,8 @@ async function loadLadderData() {
     },
   });
 
-  return { profiles, standings: await getFrozenInhouseLeaderboardRows() };
+  const season = getRankedSeason();
+  return { profiles, standings: await getFrozenInhouseLeaderboardRows(season), season };
 }
 
 export default async function RankedLadderPage() {
@@ -69,7 +71,7 @@ export default async function RankedLadderPage() {
       </HubShell>
     );
   }
-  const { profiles, standings } = data;
+  const { profiles, standings, season } = data;
 
   // Build ladder rows from every reported ranked inhouse.
   const ladderRows: LadderRow[] = standings
@@ -102,7 +104,7 @@ export default async function RankedLadderPage() {
       active="ladder"
       eyebrow="Ranked Inhouse"
       title="Ranked Ladder"
-      description="ECL ranked inhouse standings. Updates after every reported game."
+      description={season ? `${season.name}. Everyone starts at 800 LP. Normal scoring applies from game one. Previous matches remain in history.` : "ECL ranked inhouse standings. Updates after every reported game."}
     >
       <section className="overflow-hidden border border-white/[0.08] bg-[#24252d] shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] bg-[#191a21] px-5 py-4">
@@ -111,7 +113,7 @@ export default async function RankedLadderPage() {
               Ranked Inhouse
             </p>
             <h2 className="mt-1 text-2xl font-black uppercase text-white">
-              Ranked Standings
+              {season?.name ?? "Ranked Standings"}
             </h2>
           </div>
           <div className="rounded-lg border border-[#36D7FF]/18 bg-[#061C4A] px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#77CFFF]">

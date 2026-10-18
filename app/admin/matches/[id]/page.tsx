@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { STARTING_ELO, calculateLpChange } from "@/lib/elo";
 import { MatchStage, MatchStatus, Prisma } from "@prisma/client";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
+import { getRankedSeason, isRankedInhouse, assertCurrentRankedWrite } from "@/lib/ranked-season";
+import { chinaDayBounds } from "@/lib/elo";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -146,7 +148,8 @@ function getPlayerDisplayName(player: {
 type TxClient = Prisma.TransactionClient;
 
 async function recalculateAllPlayerStats(tx: TxClient) {
-  await tx.player.updateMany({
+  const season = getRankedSeason();
+  if (!season) await tx.player.updateMany({
     data: {
       elo: STARTING_ELO,
       winStreak: 0,
@@ -171,6 +174,7 @@ async function recalculateAllPlayerStats(tx: TxClient) {
         winStreak: 0,
         lossStreak: 0,
         gamesPlayed: 0,
+        lastPlayedAt: undefined as Date | undefined,
       },
     ])
   );
@@ -184,6 +188,7 @@ async function recalculateAllPlayerStats(tx: TxClient) {
               scheduledAt: true,
               createdAt: true,
               status: true,
+              roundLabel: true,
             },
           },
         },
@@ -193,11 +198,12 @@ async function recalculateAllPlayerStats(tx: TxClient) {
 
   const relevantStats = allStats.filter(
     (stat) =>
-      stat.matchGame.match.status === "COMPLETED" ||
-      stat.matchGame.match.status === "FORFEIT"
+      (stat.matchGame.match.status === "COMPLETED" || stat.matchGame.match.status === "FORFEIT")
+      && (!season || (isRankedInhouse(stat.matchGame.match.roundLabel) && stat.createdAt >= season.startedAt))
   );
 
   relevantStats.sort((a, b) => {
+    if (season) return a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id);
     const aTime =
       a.matchGame.match.scheduledAt?.getTime() ??
       a.matchGame.match.createdAt.getTime();
@@ -219,6 +225,7 @@ async function recalculateAllPlayerStats(tx: TxClient) {
       winStreak: 0,
       lossStreak: 0,
       gamesPlayed: 0,
+      lastPlayedAt: undefined as Date | undefined,
     };
 
     const { lpChange } = calculateLpChange({
@@ -234,6 +241,7 @@ async function recalculateAllPlayerStats(tx: TxClient) {
       gamesPlayed: current.gamesPlayed,
       winStreak: current.winStreak,
       lossStreak: current.lossStreak,
+      ...(season ? { playedAt: stat.createdAt, lastPlayedAt: current.lastPlayedAt, doubleLpEligible: true, hasPlayedOnDoubleLpDay: !!current.lastPlayedAt && current.lastPlayedAt >= chinaDayBounds(stat.createdAt).start } : {}),
     });
 
     const eloBefore = current.elo;
@@ -245,12 +253,14 @@ async function recalculateAllPlayerStats(tx: TxClient) {
           winStreak: current.winStreak + 1,
           lossStreak: 0,
           gamesPlayed: current.gamesPlayed + 1,
+          lastPlayedAt: stat.createdAt,
         }
       : {
           elo: eloAfter,
           winStreak: 0,
           lossStreak: current.lossStreak + 1,
           gamesPlayed: current.gamesPlayed + 1,
+          lastPlayedAt: stat.createdAt,
         };
 
     await tx.matchGamePlayerStat.update({
@@ -308,6 +318,7 @@ async function updateMatch(formData: FormData) {
     if (!existingMatch) {
       redirect("/admin/matches?error=match_not_found");
     }
+    assertCurrentRankedWrite(existingMatch.createdAt, existingMatch.roundLabel);
 
     const stage = String(formData.get("stage") || "").trim() as MatchStage;
     const roundLabel = String(formData.get("roundLabel") || "").trim();
@@ -743,6 +754,7 @@ async function saveGamePlayerRows(formData: FormData) {
     if (!match) {
       redirect("/admin/matches?error=match_not_found");
     }
+    assertCurrentRankedWrite(match.createdAt, match.roundLabel);
 
     const game = match.games.find((g) => g.gameNumber === gameNumber);
 
@@ -1098,6 +1110,8 @@ async function deleteMatch(formData: FormData) {
       redirect("/admin/matches?error=missing_match_id");
     }
 
+    const existing = await prisma.match.findUnique({ where: { id }, select: { createdAt: true, roundLabel: true } });
+    if (existing) assertCurrentRankedWrite(existing.createdAt, existing.roundLabel);
     await prisma.match.delete({
       where: { id },
     });

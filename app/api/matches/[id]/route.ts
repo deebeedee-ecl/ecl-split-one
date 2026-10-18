@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { MatchStage, MatchStatus } from "@prisma/client";
+import { assertCurrentRankedWrite, ArchivedRankedMatchError } from "@/lib/ranked-season";
 
 type RouteContext = {
   params: Promise<{
@@ -60,6 +61,7 @@ export async function PATCH(
       );
     }
 
+    assertCurrentRankedWrite(existingMatch.createdAt, existingMatch.roundLabel);
     const {
       homeTeamId,
       awayTeamId,
@@ -185,6 +187,7 @@ export async function PATCH(
 
     return NextResponse.json(updatedMatch);
   } catch (error) {
+    if (error instanceof ArchivedRankedMatchError) return NextResponse.json({ error: error.message }, { status: 409 });
     console.error("PATCH /api/matches/[id] error:", error);
     return NextResponse.json(
       { error: "Failed to update match." },
@@ -211,12 +214,14 @@ export async function DELETE(
       );
     }
 
+    assertCurrentRankedWrite(existingMatch.createdAt, existingMatch.roundLabel);
     await prisma.match.delete({
       where: { id },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof ArchivedRankedMatchError) return NextResponse.json({ error: error.message }, { status: 409 });
     console.error("DELETE /api/matches/[id] error:", error);
     return NextResponse.json(
       { error: "Failed to delete match." },

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { calculateLpChange } from "@/lib/elo";
+import { calculateLpChange, chinaDayBounds } from "@/lib/elo";
+import { getRankedSeason, isRankedInhouse, assertCurrentRankedWrite, loadRankedSeasonStates, ArchivedRankedMatchError } from "@/lib/ranked-season";
 
 export async function POST(req: Request) {
   try {
@@ -70,6 +71,7 @@ export async function POST(req: Request) {
     // Get match game so we can auto-detect win/loss
     const matchGame = await prisma.matchGame.findUnique({
       where: { id: matchGameId },
+      include: { match: { select: { roundLabel: true, createdAt: true } } },
     });
 
     if (!matchGame) {
@@ -83,6 +85,10 @@ export async function POST(req: Request) {
       );
     }
 
+    const season = getRankedSeason();
+    assertCurrentRankedWrite(matchGame.match.createdAt, matchGame.match.roundLabel, season);
+    const state = season && isRankedInhouse(matchGame.match.roundLabel) ? (await loadRankedSeasonStates([player.id], season)).get(player.id)! : null;
+    const playedAt = new Date();
     const isWin = teamId === matchGame.winnerTeamId;
 
     // Duplicate protection
@@ -112,17 +118,19 @@ export async function POST(req: Request) {
       assists: numericAssists,
       isMVP,
       isSVP,
-      currentElo: player.elo,
-      gamesPlayed: player._count.gameStats,
-      winStreak: player.winStreak,
-      lossStreak: player.lossStreak,
+      currentElo: state?.elo ?? player.elo,
+      gamesPlayed: state?.gamesPlayed ?? player._count.gameStats,
+      winStreak: state?.winStreak ?? player.winStreak,
+      lossStreak: state?.lossStreak ?? player.lossStreak,
+      ...(state ? { playedAt, lastPlayedAt: state.lastPlayedAt, doubleLpEligible: true, hasPlayedOnDoubleLpDay: !!state.lastPlayedAt && state.lastPlayedAt >= chinaDayBounds(playedAt).start } : {}),
     });
 
-    const newElo = player.elo + lpChange;
+    const eloBefore = state?.elo ?? player.elo;
+    const newElo = eloBefore + lpChange;
 
     // Update streaks
-    let newWinStreak = player.winStreak;
-    let newLossStreak = player.lossStreak;
+    let newWinStreak = state?.winStreak ?? player.winStreak;
+    let newLossStreak = state?.lossStreak ?? player.lossStreak;
 
     if (isWin) {
       newWinStreak += 1;
@@ -144,7 +152,7 @@ export async function POST(req: Request) {
         isSVP,
         isWin,
         lpChange,
-        eloBefore: player.elo,
+        eloBefore,
         eloAfter: newElo,
       },
     });
@@ -162,12 +170,13 @@ export async function POST(req: Request) {
       success: true,
       isWin,
       lpChange,
-      eloBefore: player.elo,
+      eloBefore,
       eloAfter: newElo,
       winStreak: newWinStreak,
       lossStreak: newLossStreak,
     });
   } catch (err) {
+    if (err instanceof ArchivedRankedMatchError) return NextResponse.json({ error: err.message }, { status: 409 });
     console.error("POST /api/match-game-player-stat error:", err);
     return NextResponse.json(
       { error: "Failed to create player stat" },

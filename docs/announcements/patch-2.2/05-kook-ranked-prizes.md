@@ -1,6 +1,6 @@
-> EDITOR: Short preview/pinned prize post. Year inferred as 2027; exact closing time and season start remain unconfirmed. Do not imply the reset is already live.
+> EDITOR: Ranked season launch approved. The separate Hub reporting pilot remains pending.
 
-# ECL RANKED LADDER — NEXT SEASON
+# ECL RANKED LADDER — SEASON LIVE
 
 **Everyone starts at 800 LP.**
 Fresh wins/losses and streaks. Old match history retained.
@@ -18,5 +18,5 @@ Subject to availability.
 
 **450 RMB in cash prizes, plus the first-place merchandise prize.**
 
-The season start and final eligibility/standings details will be announced
-before play begins. Watch KOOK for the official start notice.
+Season started **18 October 2026** (China time).
+Final eligibility/standings details will follow in KOOK.

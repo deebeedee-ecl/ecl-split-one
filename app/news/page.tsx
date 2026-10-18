@@ -89,7 +89,7 @@ export default function NewsPage() {
                 ECL Hub brings profiles, match history, the ladder and local collection to Windows, in English and Chinese.
               </p>
               <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
-                The next ranked season starts at 800 LP with fresh records and no opening three-game placement bonus. Old history stays available.
+                The ranked season is live at 800 LP with fresh records and no opening three-game placement bonus. Old history stays available.
               </p>
               <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
                 The ladder ends 14 January 2027: merchandise for first, 300 RMB for second and 150 RMB for third.
@@ -111,10 +111,10 @@ export default function NewsPage() {
         <aside className="border border-[#1f1f1f] bg-[#0d0d0d] p-7">
           <Megaphone className="text-[#b11226]" size={28} />
           <h2 className="mt-5 text-3xl font-black uppercase leading-none text-white">
-            Upcoming release
+            Ranked season is live
           </h2>
           <div className="mt-5 space-y-3 text-sm leading-6 text-[#9ca3af]">
-            <p>The season start and reporting activation will be announced in KOOK. This preview does not begin the new ladder.</p>
+            <p>The ranked season started 18 October 2026 (China time) and ends 14 January 2027. The separate Hub reporting pilot will be announced in KOOK.</p>
             <p>The Windows installer will be pinned in ECL HUB DESKTOP APP on KOOK. The tester installer is version 1.0.1; Patch 2.2 is the community update.</p>
             <Link href="/news/meet-ecl-hub" className="inline-flex items-center gap-2 font-bold text-white hover:text-blue-300">Meet the desktop app <ArrowRight size={17} /></Link>
           </div>

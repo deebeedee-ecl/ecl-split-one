@@ -3,18 +3,18 @@
     "slug": "patch-2-2",
     "title": "Patch 2.2: ECL Hub and a fresh ranked season",
     "category": "Patch Notes",
-    "summary": "ECL Hub for Windows, an upcoming 800 LP ranked reset and a clearer KOOK reporting flow. The ladder ends 14 January 2027, with merchandise for first place and 300/150 RMB for second and third.",
+    "summary": "The new ranked season is live at 800 LP with fresh records and normal scoring from game one. Old match history stays available. The ladder ends 14 January 2027, with merchandise for first and 300/150 RMB for second and third.",
     "publishedAt": "2026-10-18",
     "dateLabel": "18 October 2026",
-    "status": "Upcoming release",
+    "status": "Ranked season live; Hub reporting pilot upcoming",
     "blocks": [
       {
         "kind": "paragraph",
-        "text": "Patch 2.2 brings the ECL Hub desktop app, a fresh ranked ladder and a clearer KOOK reporting flow. Everyone will begin the next season at **800 LP**, with prizes for the top three players when the ladder ends on **14 January 2027**."
+        "text": "Patch 2.2 brings the ECL Hub desktop app, a fresh ranked ladder and a clearer KOOK reporting flow. The new season is live and everyone starts at **800 LP**, with prizes for the top three players when the ladder ends on **14 January 2027**."
       },
       {
         "kind": "paragraph",
-        "text": "The season start and reporting activation will be announced in KOOK. This preview does not mark the beginning of the new ladder."
+        "text": "The ranked season is live from **18 October 2026** (China time). The KOOK-to-Hub reporting pilot will be announced separately."
       },
       {
         "kind": "heading",
@@ -49,7 +49,7 @@
       },
       {
         "kind": "paragraph",
-        "text": "The next season starts everyone at **800 LP**. Season wins, losses and streaks restart from zero. **Old match history stays available.**"
+        "text": "The new season starts everyone at **800 LP**. Season wins, losses and streaks restart from zero. **Old match history stays available.**"
       },
       {
         "kind": "paragraph",
@@ -137,7 +137,7 @@
       },
       {
         "kind": "paragraph",
-        "text": "The ranked ladder ends **14 January 2027**. The exact closing time, season start and final standings/eligibility details will be announced in KOOK before the season begins."
+        "text": "The ranked ladder ends **14 January 2027**. The exact closing time and final standings/eligibility details will be announced in KOOK."
       },
       {
         "kind": "table",
@@ -173,7 +173,7 @@
     "summary": "Your ECL profile, ranked ladder, match scoreboards and saved League history in a Windows app. Find the tester installer in ECL HUB DESKTOP APP on KOOK; reporting activation will be announced separately.",
     "publishedAt": "2026-10-18",
     "dateLabel": "18 October 2026",
-    "status": "Upcoming release",
+    "status": "Ranked season live; Hub reporting pilot upcoming",
     "blocks": [
       {
         "kind": "paragraph",
@@ -219,7 +219,7 @@
       },
       {
         "kind": "paragraph",
-        "text": "Alongside Patch 2.2, the next ranked season will reset everyone to **800 LP**, with fresh records and streaks. Your old match history stays available, and normal LP scoring applies from game one without the three-game placement bonus."
+        "text": "The Patch 2.2 ranked season is now live, with everyone reset to **800 LP**, with fresh records and streaks. Your old match history stays available, and normal LP scoring applies from game one without the three-game placement bonus."
       },
       {
         "kind": "paragraph",
@@ -227,7 +227,7 @@
       },
       {
         "kind": "paragraph",
-        "text": "The start date, exact closing time and final season details will follow in KOOK. Get your ECL account verified and watch the app channel for the installer and pinned setup guide."
+        "text": "The season started **18 October 2026** (China time). The exact closing time and final season details will follow in KOOK. Get your ECL account verified and watch the app channel for the installer and pinned setup guide."
       }
     ]
   }

@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { STARTING_ELO, calculateLpChange } from "@/lib/elo";
+import { STARTING_ELO, calculateLpChange, chinaDayBounds } from "@/lib/elo";
+import { getRankedSeason, isRankedInhouse, currentRankedFilter, assertCurrentRankedWrite } from "@/lib/ranked-season";
+import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 
 export async function resetGameStats(matchId: string, gameNumber: number) {
   const match = await prisma.match.findUnique({
@@ -19,6 +21,8 @@ export async function resetGameStats(matchId: string, gameNumber: number) {
   if (!match) {
     throw new Error("Match not found.");
   }
+  const season = getRankedSeason();
+  assertCurrentRankedWrite(match.createdAt, match.roundLabel, season);
 
   const targetGame = match.games.find((game) => game.gameNumber === gameNumber);
 
@@ -64,10 +68,9 @@ export async function resetGameStats(matchId: string, gameNumber: number) {
       const remainingStats = await tx.matchGamePlayerStat.findMany({
         where: {
           playerId,
+          ...(season ? isRankedInhouse(match.roundLabel) ? currentRankedFilter(season) : { NOT: INHOUSE_MATCH_FILTER } : {}),
         },
-        orderBy: {
-          createdAt: "asc",
-        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       });
 
       let currentElo = STARTING_ELO;
@@ -87,6 +90,7 @@ export async function resetGameStats(matchId: string, gameNumber: number) {
           gamesPlayed,
           winStreak: currentWinStreak,
           lossStreak: currentLossStreak,
+          ...(season && isRankedInhouse(match.roundLabel) ? { playedAt: stat.createdAt, lastPlayedAt: remainingStats[gamesPlayed - 1]?.createdAt, doubleLpEligible: true, hasPlayedOnDoubleLpDay: !!remainingStats[gamesPlayed - 1] && remainingStats[gamesPlayed - 1].createdAt >= chinaDayBounds(stat.createdAt).start } : {}),
         });
 
         const eloBefore = currentElo;

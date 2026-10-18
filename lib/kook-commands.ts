@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { readFile } from "fs/promises";
 import path from "path";
 import { STARTING_ELO } from "@/lib/elo";
+import { getRankedSeason, rankedSeasonState } from "@/lib/ranked-season";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import { enqueueInhouseReportJob } from "@/lib/inhouse-report-jobs";
 import {
@@ -782,10 +783,12 @@ export async function formatMeMessage(kookUserId: string) {
   }
 
   const player = await findPlayerForProfile(profile);
-  const gamesPlayed = player?.gameStats.length ?? 0;
-  const wins = player?.gameStats.filter((stat) => stat.isWin).length ?? 0;
+  const season = getRankedSeason();
+  const state = season && player ? rankedSeasonState(player.gameStats, season) : null;
+  const gamesPlayed = state?.gamesPlayed ?? player?.gameStats.length ?? 0;
+  const wins = state?.wins ?? player?.gameStats.filter((stat) => stat.isWin).length ?? 0;
   const losses = gamesPlayed - wins;
-  const elo = player?.elo ?? STARTING_ELO;
+  const elo = state?.displayElo ?? player?.elo ?? STARTING_ELO;
 
   return [
     "You are verified.",

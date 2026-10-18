@@ -1,7 +1,6 @@
 import { getEloRuleConfig } from "@/lib/elo-rule-config";
 
 export const STARTING_ELO = 800;
-export const PLACEMENT_GAME_COUNT = 3;
 export const LP_SCALING_START = 1400;
 export const INACTIVITY_GRACE_DAYS = 7;
 export const INACTIVITY_LP_LOSS_PER_DAY = 10;
@@ -72,7 +71,6 @@ export function calculateLpChange({
   isMVP = false,
   isSVP = false,
   currentElo = STARTING_ELO,
-  gamesPlayed = PLACEMENT_GAME_COUNT,
   winStreak,
   lossStreak,
   lastPlayedAt,
@@ -104,22 +102,6 @@ export function calculateLpChange({
     Math.max(0, currentElo - INACTIVITY_LP_FLOOR),
   );
   const effectiveElo = Math.max(0, currentElo - inactivityLoss);
-
-  if (gamesPlayed < PLACEMENT_GAME_COUNT) {
-    const placementLp = win ? 60 + WIN_LP_BONUS : 0;
-    const doubledPlacementLp =
-      win && doubleLpEligible && isDoubleLpWinDay(playedAt) && !hasPlayedOnDoubleLpDay
-        ? placementLp * 2
-        : placementLp;
-
-    return {
-      lpChange: doubledPlacementLp - inactivityLoss,
-      kda: Number(kda.toFixed(2)),
-      isPlacement: true,
-      inactivityLoss,
-      doubleLpApplied: doubledPlacementLp !== placementLp,
-    };
-  }
 
   const ratingAboveScalingStart = Math.max(0, effectiveElo - LP_SCALING_START);
   const winScalingPenalty = Math.floor(ratingAboveScalingStart / 25);

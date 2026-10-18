@@ -1,25 +1,4 @@
-import { STARTING_ELO } from "@/lib/elo";
-import { prisma } from "@/lib/prisma";
-
-async function main() {
-  await prisma.matchGamePlayerStat.deleteMany({});
-
-  await prisma.player.updateMany({
-    data: {
-      elo: STARTING_ELO,
-      winStreak: 0,
-      lossStreak: 0,
-    },
-  });
-
-  console.log("Leaderboard reset complete.");
-}
-
-main()
-  .catch((err) => {
-    console.error("Reset failed:", err);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// Retired: the old script deleted every MatchGamePlayerStat, including other modes.
+// A fresh ranked season is a configured boundary; it must preserve old match history.
+console.error("The destructive leaderboard reset has been retired. Use scripts/preview-ranked-season.ts to review a history-preserving season boundary. No database changes were made.");
+process.exitCode = 1;
