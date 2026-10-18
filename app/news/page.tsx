@@ -1,12 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, CalendarDays, Megaphone, Newspaper, Sparkles } from "lucide-react";
+import { newsPosts } from "@/lib/news-posts";
 
-const featured = {
-  label: "Patch Notes",
-  date: "Sep 12, 2026",
-  title: "Patch 2.1: Pure KOOK reporting and ranked LP tuning",
-  text: "Patch 2.1 completes the ranked inhouse report loop through KOOK, moves Lzyumi lookups to the dedicated Ubuntu Report Engine server, tunes LP gains and decay, cleans up Split One archive data, and adds Arabia to the World Cup country list.",
-};
+const featured = newsPosts[0];
 
 const posts = [
   {
@@ -75,38 +71,38 @@ export default function NewsPage() {
             <div className="flex flex-wrap items-center gap-3 text-sm font-black uppercase tracking-[0.14em] text-[#9ca3af]">
               <span className="inline-flex items-center gap-2 text-[#b11226]">
                 <Sparkles size={17} />
-                {featured.label}
+                {featured.category}
               </span>
               <span className="inline-flex items-center gap-2">
                 <CalendarDays size={17} />
-                {featured.date}
+                <time dateTime={featured.publishedAt}>{featured.dateLabel}</time>
               </span>
             </div>
             <h2 className="mt-6 max-w-3xl text-5xl font-black uppercase leading-none text-white [font-family:Anton,Impact,Arial_Black,Arial,sans-serif]">
               {featured.title}
             </h2>
             <p className="mt-5 max-w-3xl text-base leading-7 text-[#9ca3af]">
-              {featured.text}
+              {featured.summary}
             </p>
             <div className="mt-6 grid gap-3 text-sm font-semibold leading-6 text-[#c9d4e7] md:grid-cols-2">
               <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
-                KOOK reporting now runs through the dedicated Ubuntu Report Engine server and returns a readable confirmation message.
+                ECL Hub brings profiles, match history, the ladder and local collection to Windows, in English and Chinese.
               </p>
               <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
-                Ranked LP gains now include a flat win bonus, streak bonuses, and Thursday/Friday first-win double LP.
+                The next ranked season starts at 800 LP with fresh records and no opening three-game placement bonus. Old history stays available.
               </p>
               <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
-                Inactivity decay starts after seven days and cannot decay a player below 600 LP.
+                The ladder ends 14 January 2027: merchandise for first, 300 RMB for second and 150 RMB for third.
               </p>
               <p className="border border-[#0755C9]/45 bg-[#061C4A]/55 p-4">
-                Split One archive pages were checked and scoped so ranked inhouse stats stay out of tournament history.
+                The upcoming KOOK-to-Hub pilot sends uploads for administrator review. Uploading or reviewing does not automatically award LP.
               </p>
             </div>
             <Link
-              href="/hub/dashboard"
+              href={`/news/${featured.slug}`}
               className="mt-8 inline-flex items-center gap-2 bg-[#b11226] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#d11a2a]"
             >
-              View Hub
+              Read Patch 2.2
               <ArrowRight size={17} />
             </Link>
           </div>
@@ -115,23 +111,33 @@ export default function NewsPage() {
         <aside className="border border-[#1f1f1f] bg-[#0d0d0d] p-7">
           <Megaphone className="text-[#b11226]" size={28} />
           <h2 className="mt-5 text-3xl font-black uppercase leading-none text-white">
-            What appears here?
+            Upcoming release
           </h2>
           <div className="mt-5 space-y-3 text-sm leading-6 text-[#9ca3af]">
-            <p>Patch 2.1 is focused on ranked inhouse quality of life.</p>
-            <p>Coach can now carry the report flow from !report to !yes through the dedicated Ubuntu Report Engine server.</p>
-            <p>LP rules, inactive players, tournament archives, and World Cup flags all received cleanup passes.</p>
+            <p>The season start and reporting activation will be announced in KOOK. This preview does not begin the new ladder.</p>
+            <p>The Windows installer will be pinned in ECL HUB DESKTOP APP on KOOK. The tester installer is version 1.0.1; Patch 2.2 is the community update.</p>
+            <Link href="/news/meet-ecl-hub" className="inline-flex items-center gap-2 font-bold text-white hover:text-blue-300">Meet the desktop app <ArrowRight size={17} /></Link>
           </div>
         </aside>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {newsPosts.slice(1).map((post) => (
+            <article key={post.slug} className="border border-[#0755C9]/60 bg-[#0d0d0d] p-6">
+              <Newspaper className="text-blue-400" size={24} />
+              <span className="mt-5 block text-xs font-black uppercase tracking-[0.18em] text-blue-400">{post.category}</span>
+              <h3 className="mt-3 text-2xl font-black uppercase leading-tight text-white"><Link href={`/news/${post.slug}`}>{post.title}</Link></h3>
+              <time dateTime={post.publishedAt} className="mt-2 block text-xs font-bold uppercase tracking-[0.12em] text-[#9ca3af]">{post.dateLabel}</time>
+              <p className="mt-4 text-sm leading-6 text-[#9ca3af]">{post.summary}</p>
+              <Link href={`/news/${post.slug}`} className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-blue-300">Read article <ArrowRight size={16} /></Link>
+            </article>
+          ))}
           {posts.map((post) => (
             <article key={post.title} className="border border-[#1f1f1f] bg-[#0d0d0d] p-6">
               <Newspaper className="text-[#b11226]" size={24} />
               <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-[#b11226]">
-                {post.type}
+                Archive / {post.type}
               </p>
               <h3 className="mt-3 text-2xl font-black uppercase leading-tight text-white">
                 {post.title}

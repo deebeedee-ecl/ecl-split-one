@@ -1,0 +1,35 @@
+> EDITOR: Preview announcement, safe before rollout. Do not add "live now" until deployment/reset/reporting activation and the pinned EXE are verified.
+
+# ECL PATCH 2.2 — NEW APP. FRESH LADDER.
+
+**ECL Hub is coming to your desktop — and everyone gets a fresh start.**
+
+The next ranked season will start at **800 LP** for everyone, with fresh
+records and streaks. Your old match history stays. The opening three-game
+placement bonus is removed: normal LP scoring applies from game one.
+
+**Ladder ends: 14 January 2027**
+
+🥇 **1st:** Signed Faker merchandise or other pro-player merchandise, subject
+to availability
+🥈 **2nd:** **300 RMB**
+🥉 **3rd:** **150 RMB**
+
+**Meet ECL Hub**
+Your ECL profile, ladder, match history and scoreboards in a Windows app, with
+English/Chinese support and local match collection. The installer and setup
+guide will be pinned in **ECL HUB DESKTOP APP** — channel **5590769063605712**.
+
+**The new reporting flow**
+**!inhouse → !ready → play → !report IH_NUMBER GAME_ID → Hub upload → admin review**
+
+⚠ At least one participant needs Hub installed and connected, with reporting
+enabled. **The person sending !report must be that Hub reporter.** All ten
+players need verified ECL profiles.
+
+Uploads require administrator review. **No automatic LP, and no !yes step.**
+The reporting pilot and fresh season are not active just because Hub is installed.
+
+We’ll post the season start, reporting activation, exact closing time and final
+season details before play begins. For now: get verified, watch the app channel
+and get ready to climb.

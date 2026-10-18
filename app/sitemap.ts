@@ -1,7 +1,20 @@
 import { MetadataRoute } from "next";
+import { newsPosts } from "@/lib/news-posts";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
+    {
+      url: "https://eclchina.lol/news",
+      lastModified: new Date(newsPosts[0].publishedAt),
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    ...newsPosts.map((post) => ({
+      url: `https://eclchina.lol/news/${post.slug}`,
+      lastModified: new Date(post.publishedAt),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
     {
       url: "https://eclchina.lol",
       lastModified: new Date(),

@@ -1,0 +1,22 @@
+> EDITOR: Short preview/pinned prize post. Year inferred as 2027; exact closing time and season start remain unconfirmed. Do not imply the reset is already live.
+
+# ECL RANKED LADDER — NEXT SEASON
+
+**Everyone starts at 800 LP.**
+Fresh wins/losses and streaks. Old match history retained.
+Normal scoring from game one — no three-game placement bonus.
+
+**Ladder ends: 14 January 2027**
+Exact closing time to be announced in KOOK (China time).
+
+🥇 **1st — Signed Faker merchandise or other pro-player merchandise**
+Subject to availability.
+
+🥈 **2nd — 300 RMB**
+
+🥉 **3rd — 150 RMB**
+
+**450 RMB in cash prizes, plus the first-place merchandise prize.**
+
+The season start and final eligibility/standings details will be announced
+before play begins. Watch KOOK for the official start notice.
