@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://eclchina.lol https://www.eclchina.lol; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>ECL Hub</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="privacy.css">
+  <link rel="stylesheet" href="workspace.css">
+  <link rel="stylesheet" href="desktop.css">
+</head>
+<body>
+  <header class="topbar"><div class="brand"><img src="logo.png" alt="ECL"><span>HUB</span></div><span id="mode" class="build">DESKTOP / LOCAL PROTOTYPE</span><div class="header-actions"><span id="connection" class="connection">Looking for League</span><button id="account-button" class="account-button"><i data-lucide="user-round"></i><span>Sign in</span></button><button id="hide" class="icon" title="Minimize to tray" aria-label="Minimize to tray"><i data-lucide="panel-bottom-close"></i></button></div></header>
+  <aside>
+    <div class="nav-heading">ECL CENTRAL</div>
+    <nav aria-label="Main navigation">
+      <button data-tab="dashboard"><i data-lucide="layout-dashboard"></i>Dashboard</button>
+      <button data-tab="profile"><i data-lucide="user-round"></i>Profile</button>
+      <button data-tab="history"><i data-lucide="history"></i>Inhouse History</button>
+      <button data-tab="league"><i data-lucide="swords"></i>League History</button>
+      <button data-tab="ladder"><i data-lucide="trophy"></i>Ranked Ladder</button>
+      <button data-tab="collector"><i data-lucide="download"></i>Collector <span id="saved-count" class="count">0</span></button>
+      <button data-tab="settings"><i data-lucide="settings-2"></i>Settings</button>
+      <button data-tab="info"><i data-lucide="info"></i>Info &amp; privacy</button>
+      <button id="browser-hub"><i data-lucide="globe"></i>Website<i class="nav-arrow" data-lucide="arrow-up-right"></i></button>
+    </nav>
+    <div class="sidebar-bottom"><div class="small-label">ECL ACCOUNT</div><div id="sidebar-account" class="local-label">Not signed in</div><button id="folder" class="subtle"><i data-lucide="folder-open"></i>Local match files</button><button id="quit" class="subtle"><i data-lucide="power"></i>Quit ECL Hub</button><div class="version-row"><span class="version" id="version"></span><button id="version-status" class="version-status" title="App updates" aria-label="App updates"><span class="dot"></span><span id="version-status-text">Not checked yet</span></button></div></div>
+  </aside>
+  <main>
+    <div id="workspace-demo" class="workspace-demo" hidden>SAMPLE WORKSPACE / Fictional players and statistics. No account sign-in, League connection or uploads.</div>
+    <div id="workspace-notice" class="workspace-notice" role="status" hidden></div>
+    <div id="update-banner" class="update-banner" role="status" hidden><i data-lucide="download"></i><span id="update-banner-text"></span><button id="update-banner-action" class="text-command"></button><button id="update-later" class="text-command" hidden>Later</button></div>
+    <section id="dashboard" class="view" hidden>
+      <div class="page-heading"><div><span class="eyebrow">EXPAT CHINA LEAGUE</span><h1>Dashboard</h1></div><button id="dashboard-refresh" class="secondary" title="Refresh dashboard" aria-label="Refresh dashboard"><i data-lucide="refresh-cw"></i>Refresh</button></div>
+      <div id="dashboard-content"></div>
+      <section class="fixtures-section"><div class="section-heading"><h2>Upcoming fixtures</h2><button data-link="events" class="text-command">Tournaments<i data-lucide="arrow-up-right"></i></button></div><div id="fixture-content"></div><p id="fixture-status" class="synced-at"></p></section>
+      <section class="news-section"><div class="section-heading"><h2>Around ECL</h2><button id="feed-refresh" class="icon" title="Refresh news" aria-label="Refresh news"><i data-lucide="refresh-cw"></i></button></div><div class="feed-toolbar"><div class="segments" role="group" aria-label="News category"><button data-feed="all" aria-pressed="true">All</button><button data-feed="news" aria-pressed="false">News</button><button data-feed="patch" aria-pressed="false">Patches</button><button data-feed="event" aria-pressed="false">Tournaments</button></div><button data-link="patches" class="text-command">League patch notes<i data-lucide="arrow-up-right"></i></button></div><div id="feed-content"></div><p id="feed-status" class="synced-at"></p></section>
+    </section>
+    <section id="profile" class="view" hidden>
+      <div class="page-heading"><div><span class="eyebrow">ECL ACCOUNT</span><h1>Player profile</h1></div><button class="secondary" data-account-refresh><i data-lucide="refresh-cw"></i>Refresh</button></div>
+      <div id="profile-content"></div>
+      <div id="profile-activity"></div>
+    </section>
+    <section id="history" class="view" hidden>
+      <div class="page-heading"><div><span class="eyebrow">YOUR ECL GAMES</span><h1>Inhouse History</h1></div><button class="secondary" data-account-refresh><i data-lucide="refresh-cw"></i>Refresh</button></div>
+      <div class="history-toolbar"><div class="segments" role="group" aria-label="Filter by result"><button data-result="all" aria-pressed="true">All</button><button data-result="wins" aria-pressed="false">Wins</button><button data-result="losses" aria-pressed="false">Losses</button></div><label class="history-search"><i data-lucide="search"></i><input id="history-search" type="search" placeholder="Champion or game" aria-label="Search ECL match history"></label></div>
+      <div id="history-content"></div>
+      <p class="synced-at">Recorded inhouse history / latest 100 games</p>
+      <div class="history-pagination"><span id="history-count"></span><div><button id="history-prev" class="icon" title="Previous page" aria-label="Previous page"><i data-lucide="chevron-left"></i></button><span id="history-page"></span><button id="history-next" class="icon" title="Next page" aria-label="Next page"><i data-lucide="chevron-right"></i></button></div></div>
+    </section>
+    <section id="league" class="view" hidden>
+      <div class="page-heading"><div><span class="eyebrow">YOUR LEAGUE GAMES</span><h1>League History</h1></div><button class="secondary" data-account-refresh><i data-lucide="refresh-cw"></i>Refresh</button></div>
+      <div class="source-strip"><span class="badge neutral">ECL snapshot</span><span id="league-updated">No saved snapshot</span><span id="league-refresh-status" role="status"></span></div>
+      <div class="history-toolbar"><div class="segments" role="group" aria-label="League queue"><button data-queue="all" aria-pressed="true">All queues</button><button data-queue="solo" aria-pressed="false">Solo / Duo</button><button data-queue="flex" aria-pressed="false">Flex</button></div><label class="history-search"><i data-lucide="search"></i><input id="league-search" type="search" placeholder="Search champion" aria-label="Search League history"></label></div>
+      <div id="league-content"></div>
+      <div class="history-pagination"><span id="league-count"></span><div><button id="league-prev" class="icon" title="Previous League page" aria-label="Previous League page"><i data-lucide="chevron-left"></i></button><span id="league-page"></span><button id="league-next" class="icon" title="Next League page" aria-label="Next League page"><i data-lucide="chevron-right"></i></button></div></div>
+    </section>
+    <section id="ladder" class="view" hidden>
+      <div class="page-heading"><div><span class="eyebrow">RANKED INHOUSE</span><h1>Ranked Ladder</h1></div><button id="ladder-refresh" class="secondary" title="Refresh standings" aria-label="Refresh standings"><i data-lucide="refresh-cw"></i>Refresh</button></div>
+      <div class="history-toolbar"><span id="ladder-source" class="small-label"></span><button data-link="ladder" class="text-command">Open full ladder<i data-lucide="arrow-up-right"></i></button><label class="history-search"><i data-lucide="search"></i><input id="ladder-search" type="search" placeholder="Search player" aria-label="Search player"></label></div>
+      <p id="ladder-context" class="ladder-context" role="status"></p><div id="ladder-content"></div><div class="history-pagination"><span id="ladder-count"></span><div><button id="ladder-prev" class="icon" title="Previous page" aria-label="Previous page"><i data-lucide="chevron-left"></i></button><span id="ladder-page"></span><button id="ladder-next" class="icon" title="Next page" aria-label="Next page"><i data-lucide="chevron-right"></i></button></div></div>
+    </section>
+    <section id="settings" class="view" hidden>
+      <div class="page-heading"><div><span class="eyebrow">ON THIS DEVICE</span><h1>Settings</h1></div><span class="badge neutral" id="settings-version">v0.7.1</span></div>
+      <div id="settings-account" class="setting-row"></div>
+      <section id="settings-player" hidden><div class="section-heading"><h2>Player information</h2><button id="edit-profile" class="secondary"><i data-lucide="external-link"></i>Edit on website</button></div><div id="settings-player-content"></div></section>
+      <div class="setting-row"><div><h2>Language</h2><p>English or Simplified Chinese.</p></div><select id="settings-language" aria-label="Language"><option value="en">English</option><option value="zh-CN">&#31616;&#20307;&#20013;&#25991;</option></select></div>
+      <div class="setting-row"><div><h2>Automatic match collection</h2><p>Check the latest five League games once a minute. Off by default. Queued requests may still finish when switched off.</p></div><label class="switch"><input id="settings-auto" type="checkbox" role="switch" aria-label="Automatic match collection"><span></span></label></div>
+      <div class="setting-row"><div><h2>Local match files</h2><p>Raw match records and the retry queue are saved on this PC. Connecting KOOK reporting separately allows assigned match uploads for review.</p></div><button id="settings-folder" class="secondary"><i data-lucide="folder-open"></i>Open folder</button></div>
+      <div class="setting-row"><div><h2>App updates</h2><p id="update-description"></p><small id="update-detail"></small><progress id="update-progress" max="100" hidden aria-label="Update download progress"></progress></div><div class="update-actions"><button id="check-updates" class="secondary"><i data-lucide="refresh-cw"></i>Check for updates</button><button id="download-update" class="primary" hidden><i data-lucide="download"></i>Download update</button><button id="install-update" class="primary" hidden><i data-lucide="rotate-cw"></i>Restart and update</button><button id="release-notes" class="text-command">Release notes</button></div></div>
+      <div class="setting-row"><div><h2>Privacy &amp; permissions</h2><p>No added analytics or tracking. ECL account information is read from the website; League credentials stay local.</p></div><button id="settings-privacy" class="secondary"><i data-lucide="shield-check"></i>View privacy</button></div>
+    </section>
+    <section id="collector" class="view" hidden>
+      <div id="demo-banner" class="demo-banner" hidden>DEMO MODE / Sample match and player names. No League connection or uploads.</div>
+      <div class="page-heading"><div><span class="eyebrow">LOCAL LEAGUE CLIENT</span><h1>Match collector</h1></div><button id="rescan" class="secondary"><i data-lucide="refresh-cw"></i>Reconnect</button></div>
+      <div class="league-profile"><div class="profile-icon"><i data-lucide="monitor"></i></div><div class="profile-copy"><h2 id="player">Waiting for League</h2><p id="player-meta">Open the client on this PC</p></div><span id="phase" class="badge">Offline</span></div>
+      <div id="status-message" class="status-message" role="status"></div>
+      <section class="reporting-section"><div><h2>KOOK reporting pilot</h2><p id="reporting-description" role="status"></p><p id="reporting-job" hidden></p><small>Assigned matches only. Ionia pilot. Administrator review before scoring.</small></div><div><button id="reporting-connect" class="secondary"><i data-lucide="log-in"></i>Connect reporting</button><button id="reporting-disconnect" class="secondary" hidden><i data-lucide="log-out"></i>Disconnect reporting</button></div></section>
+      <form id="collect-form" class="collection-tool"><label for="game-id">Game ID</label><div class="input-row"><input id="game-id" name="gameId" inputmode="numeric" autocomplete="off" placeholder="e.g. 11363615233" maxlength="20"><button id="collect-button" class="primary" type="submit"><i data-lucide="download"></i>Collect match</button></div><div class="auto-setting"><label><input id="auto" type="checkbox" role="switch">Collect recent games automatically</label><span>Local only</span></div></form>
+      <div id="notice" class="notice" role="alert" hidden></div>
+      <div class="matches-heading"><h2>Collected matches <span id="total">0</span></h2><button id="preview-match" class="secondary"><i data-lucide="list-checks"></i>Preview example match</button></div>
+      <div id="queue" class="queue" aria-live="polite"></div>
+      <div class="match-layout"><div id="match-list" class="match-list"></div><div id="match-detail" class="match-detail"><div class="empty"><i data-lucide="list-checks"></i><h3>No match selected</h3><p>Your saved scoreboard will appear here.</p></div></div></div>
+    </section>
+    <section id="info" class="view info-view" hidden>
+      <div class="page-heading"><div><span class="eyebrow">EXPAT CHINA LEAGUE</span><h1>About ECL Hub</h1></div><span id="info-version" class="badge"></span></div>
+      <div class="info-intro"><img src="logo.png" alt="Expat China League"><p>Your ECL profile, inhouse records and local League collector.</p></div>
+      <h2>On matchday</h2>
+      <ol class="steps"><li><strong>Connect your ECL account</strong><p>Use your existing ECL email and password. Remember me saves an encrypted session, never your password. Website links open your default browser.</p></li><li><strong>Open League</strong><p>Keep League and ECL Hub running on the same Windows PC. No WeGame cookie is needed.</p></li><li><strong>Collect your match</strong><p>Enter a Game ID or opt into automatic collection. The latest five games are checked once a minute, including non-ECL games. Failed requests are queued.</p></li><li><strong>Keep the result</strong><p>Saved local games are separate from official Inhouse History. The server must verify the complete roster and teams before any game counts.</p></li></ol>
+      <div class="info-section"><i data-lucide="construction"></i><div><h2>KOOK reporting pilot</h2><p>Requires server deployment and explicit session consent in Collector. Only assigned requests are uploaded for administrator review. League-account ownership is not independently proven; no automatic scoring is enabled.</p></div></div>
+      <section class="privacy" aria-labelledby="privacy-title">
+        <div class="privacy-heading"><i data-lucide="shield-check"></i><div><span class="eyebrow">PRIVACY</span><h2 id="privacy-title">Match data, not your personal life.</h2></div></div>
+        <p class="privacy-lead">No added analytics, advertising or activity tracking. Match uploads are off until you connect the reporting pilot and approve the session consent prompt.</p>
+        <dl class="privacy-details">
+          <div><dt>What it reads</dt><dd>Your signed-in ECL profile, own inhouse records and saved Lzyumi League snapshot, plus public news, events and standings. The local collector reads League connection details and requested matches, including player names, PUUIDs, champions and statistics.</dd></div>
+          <div><dt>What it does not access</dt><dd>Your keystrokes, personal messages, browser history, contacts, microphone, camera or unrelated personal files. It does not scan process memory, inject code or modify League files.</dd></div>
+          <div><dt>Where match data goes</dt><dd>Raw matches and the collection queue are saved on this PC. If you connect the reporting pilot, your League name, tag and PUUID are sent to https://eclchina.lol to bind the session. Requested match JSON, including all ten players' names, PUUIDs and statistics, is uploaded and stored there for administrator review. Other local matches and the sample preview are not uploaded. League may contact Tencent for history; website requests expose normal connection information such as your IP address.</dd></div>
+          <div><dt>Passwords and login</dt><dd>ECL credentials go only to the existing Supabase authentication service over HTTPS. Passwords are never saved. Remember me uses Windows-encrypted session storage; otherwise the session lasts until Quit. League tokens stay in main-process memory and are used only on 127.0.0.1. Browser login is separate.</dd></div>
+          <div><dt>Raw match retention</dt><dd>Local raw matches expire after 30 days and are removed when Hub runs. Server uploads have a 30-day retention policy; scheduled server cleanup must be enabled before the reporting pilot launches. Approved results and minimal duplicate-check identifiers are kept separately.</dd></div>
+          <div><dt>League profile refresh</dt><dd>When your saved snapshot is stale, Hub asks the ECL website to refresh available League ranks, champions and recent statistics through Lzyumi. Your ECL password and local League credentials are not sent to Lzyumi.</dd></div>
+          <div><dt>Your controls</dt><dd>Automatic collection and reporting are separate opt-ins. Disabling collection stops discovery, not already queued work. Disconnect reporting, sign out or Quit stops future uploads; already received server data is not retracted. Closing the window only hides to the tray. Delete local files with the app closed; ask ECL administrators about stored report review data.</dd></div>
+          <div><dt>A clear distinction</dt><dd>In-game names and player identifiers can identify people, so we do not claim that the app processes zero personal data. The live Hub still uses the account and profile information you provide, and normal website actions remain live. No new collector uploads will be enabled without a separate, clear explanation and consent step.</dd></div>
+        </dl>
+      </section>
+      <div class="info-actions"><button id="privacy-folder" class="secondary"><i data-lucide="folder-open"></i>Review local files</button><button id="hub-home" class="secondary"><i data-lucide="user-round"></i>My profile</button></div>
+    </section>
+  </main>
+  <dialog id="login-dialog" class="login-dialog" aria-labelledby="login-title"><form id="account-login-form"><div class="dialog-heading"><div><span class="eyebrow">WELCOME BACK</span><h2 id="login-title">Sign in to ECL Hub</h2></div><button type="button" id="close-login" class="icon" title="Close sign-in" aria-label="Close sign-in"><i data-lucide="x"></i></button></div><label for="account-email">Email</label><input id="account-email" type="email" autocomplete="username" maxlength="254" required><label for="account-password">Password</label><input id="account-password" type="password" autocomplete="current-password" maxlength="1024" required><label class="remember-option" for="remember-me"><input id="remember-me" type="checkbox" checked>Remember me on this PC</label><p id="login-error" role="alert" hidden></p><button type="submit" id="login-submit" class="primary"><i data-lucide="log-in"></i>Sign in</button><div class="login-footer"><span id="login-storage">Session protected on this PC</span><button type="button" id="forgot-password">Forgot password?</button></div></form></dialog>
+  <dialog id="release-dialog" class="login-dialog" aria-labelledby="release-title"><div class="dialog-heading"><div><span class="eyebrow">LOCAL TEST RELEASE</span><h2 id="release-title">ECL Hub</h2></div><button id="close-release" class="icon" title="Close release notes" aria-label="Close release notes"><i data-lucide="x"></i></button></div><ul class="release-list"><li>Team scoreboards with damage bars, role icons and recorded MVP/SVP awards.</li><li>Exact damage and gold replace rounded summary values. Missing vision stays unrecorded.</li><li>Full ladder and own match scoreboards use the new read-only website APIs.</li><li>Ladder champion picks use each player's saved ECL League snapshot, not inhouse games.</li><li>Verified updates replace the managed app installation while preserving account and match data.</li><li>Local saves, uploads and administrator review are separate states. No automatic scoring.</li></ul></dialog>
+  <dialog id="scoreboard-dialog" class="login-dialog scoreboard-dialog" aria-labelledby="scoreboard-title"><div class="dialog-heading"><div><span class="eyebrow">RECORDED ECL RESULT</span><h2 id="scoreboard-title">Match details</h2><p id="scoreboard-meta"></p></div><button id="close-scoreboard" class="icon" title="Close match details" aria-label="Close match details"><i data-lucide="x"></i></button></div><div id="scoreboard-content" role="status"></div></dialog>
+  <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+{
+  "name": "ecl-companion",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local-first ECL League match collector",
+  "author": "Expat China League",
+  "main": "src/main.cjs",
+  "scripts": {
+    "build": "node build.cjs",
+    "start": "npm run build && node launch.cjs",
+    "demo": "npm run build && node launch.cjs --demo",
+    "test": "node --test test/*.test.cjs",
+    "pack": "npm run build && electron-builder --win --dir",
+    "dist": "npm run build && node tools/verify-release-build.cjs && electron-builder --win nsis --publish never",
+    "dist:portable": "npm run build && electron-builder --win portable --config.directories.output=release-hub --publish never"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.101.0",
+    "cheerio": "1.2.0",
+    "electron-updater": "6.8.9",
+    "js-yaml": "5.5.0"
+  },
+  "devDependencies": {
+    "@floating-ui/dom": "1.8.0",
+    "@fontsource-variable/inter": "5.3.0",
+    "@radix-ui/colors": "3.0.0",
+    "chart.js": "4.5.1",
+    "dotenv": "16.6.1",
+    "electron": "44.9.0",
+    "electron-builder": "26.15.3",
+    "esbuild": "^0.25.0",
+    "i18next": "26.4.7",
+    "lucide": "^0.468.0",
+    "sharp": "0.35.5"
+  },
+  "build": {
+    "appId": "lol.eclchina.companion",
+    "productName": "ECL Hub",
+    "directories": {
+      "output": "release-updates"
+    },
+    "files": [
+      "src/main.cjs",
+      "src/preload.cjs",
+      "src/core.cjs",
+      "src/demo.cjs",
+      "src/account.cjs",
+      "src/vault.cjs",
+      "src/preferences.cjs",
+      "src/public.cjs",
+      "src/updates.cjs",
+      "src/release-signature.cjs",
+      "src/release-public-key.cjs",
+      "src/reporting.cjs",
+      "dist/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/ecl-hub.ico",
+      "signExecutable": false,
+      "signtoolOptions": { "publisherName": "ECL Hub release-key verification" },
+      "verifyUpdateCodeSignature": true
+    },
+    "nsis": {
+      "artifactName": "ECL-Hub-Setup-${version}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ECL Hub",
+      "installerIcon": "assets/ecl-hub.ico",
+      "uninstallerIcon": "assets/ecl-hub.ico",
+      "uninstallDisplayName": "ECL Hub ${version}",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "packElevateHelper": false
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://eclchina.lol/desktop-updates/windows/",
+        "useMultipleRangeRequest": false
+      }
+    ],
+    "portable": {
+      "artifactName": "ECL-Hub-${version}-windows.${ext}"
+    }
+  }
+}
