@@ -22,9 +22,11 @@ function trimKookMessage(content: string) {
 export async function sendKookChannelMessage({
   channelId,
   content,
+  signal,
 }: {
   channelId: string;
   content: string;
+  signal?: AbortSignal;
 }) {
   const token = kookBotToken();
   const targetId = channelId.trim();
@@ -35,6 +37,7 @@ export async function sendKookChannelMessage({
 
   const response = await fetch(`${KOOK_API_BASE_URL}/message/create`, {
     method: "POST",
+    signal,
     headers: {
       Authorization: `Bot ${token}`,
       "Content-Type": "application/json",

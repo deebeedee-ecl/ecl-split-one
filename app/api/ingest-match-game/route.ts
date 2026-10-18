@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { calculateLpChange } from "@/lib/elo";
+import { calculateLpChange, chinaDayBounds } from "@/lib/elo";
+import { getRankedSeason, isRankedInhouse, assertCurrentRankedWrite, loadRankedSeasonStates, ArchivedRankedMatchError } from "@/lib/ranked-season";
 
 type ParsedPlayer = {
   name?: string;
@@ -213,6 +214,9 @@ export async function POST(req: Request) {
       (p) => p.riotName && p.riotTag
     ) as RosterPlayer[];
 
+    const season = getRankedSeason();
+    const rankedMatch = isRankedInhouse(match.roundLabel);
+    assertCurrentRankedWrite(match.createdAt, match.roundLabel, season);
     const existingGame = await prisma.matchGame.findUnique({
       where: { matchId_gameNumber: { matchId, gameNumber } },
       select: { id: true, winnerTeamId: true },
@@ -410,8 +414,15 @@ export async function POST(req: Request) {
       let lpChange = 0;
       let eloBefore = player.elo;
       let eloAfter = player.elo;
+      let winStreakBefore = player.winStreak;
+      let lossStreakBefore = player.lossStreak;
 
       if (isNewStat) {
+        const state = season && rankedMatch
+          ? (await loadRankedSeasonStates([player.id], season)).get(player.id)! : null;
+        winStreakBefore = state?.winStreak ?? player.winStreak;
+        lossStreakBefore = state?.lossStreak ?? player.lossStreak;
+        const playedAt = new Date();
         const eloResult = calculateLpChange({
           win: isWin,
           kills: safeNumber(p.kills),
@@ -421,13 +432,15 @@ export async function POST(req: Request) {
           isSVP: Boolean(p.isSVP),
           gold: safeNumber(p.gold),
           damage: safeNumber(p.damage),
-          currentElo: player.elo,
-          gamesPlayed: player._count.gameStats,
-          winStreak: player.winStreak,
-          lossStreak: player.lossStreak,
+          currentElo: state?.elo ?? player.elo,
+          gamesPlayed: state?.gamesPlayed ?? player._count.gameStats,
+          winStreak: state?.winStreak ?? player.winStreak,
+          lossStreak: state?.lossStreak ?? player.lossStreak,
+          ...(state ? { playedAt, lastPlayedAt: state.lastPlayedAt, doubleLpEligible: true, hasPlayedOnDoubleLpDay: !!state.lastPlayedAt && state.lastPlayedAt >= chinaDayBounds(playedAt).start } : {}),
         });
         lpChange = eloResult.lpChange;
-        eloAfter = player.elo + lpChange;
+        eloBefore = state?.elo ?? player.elo;
+        eloAfter = eloBefore + lpChange;
       }
 
       const { riotName, riotTag } = normalizeRiotNameParts(rawName);
@@ -448,9 +461,6 @@ export async function POST(req: Request) {
           isWin,
           isMVP: Boolean(p.isMVP),
           isSVP: Boolean(p.isSVP),
-          lpChange,
-          eloBefore,
-          eloAfter,
         },
         create: {
           matchGameId: game.id,
@@ -477,8 +487,8 @@ export async function POST(req: Request) {
           where: { id: player.id },
           data: {
             elo: eloAfter,
-            winStreak: isWin ? player.winStreak + 1 : 0,
-            lossStreak: isWin ? 0 : player.lossStreak + 1,
+            winStreak: isWin ? winStreakBefore + 1 : 0,
+            lossStreak: isWin ? 0 : lossStreakBefore + 1,
           },
         });
       }
@@ -549,6 +559,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (err) {
+    if (err instanceof ArchivedRankedMatchError) return NextResponse.json({ error: err.message }, { status: 409 });
     console.error("INGEST ERROR:", err);
     return NextResponse.json(
       { error: "Failed to ingest match game" },

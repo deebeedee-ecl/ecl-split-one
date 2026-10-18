@@ -45,12 +45,6 @@ function getCurrentRankFromRawProfile(value: unknown) {
   return formatted.label === "Unranked" ? null : formatted.label;
 }
 
-function rejectedMessage(result: PromiseRejectedResult, label: string) {
-  const reason = result.reason;
-  const message = reason instanceof Error ? reason.message : String(reason || "Unknown error");
-  return `${label}: ${message}`;
-}
-
 function withRecoveredProfileData({
   rawProfile,
   recovered,
@@ -139,9 +133,7 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
       )
     : ({ status: "fulfilled" as const, value: null } as const);
 
-  const updateData: Prisma.AccountProfileUpdateInput = {
-    lzyumiLastLookupAt: new Date(),
-  };
+  const updateData: Prisma.AccountProfileUpdateInput = {};
   let storedRankRows = false;
 
   if (rawProfile.status === "fulfilled") {
@@ -175,23 +167,15 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
     updateData.lzyumiRecentStat = recentStat.value as Prisma.InputJsonValue;
   }
 
-  if (
-    rawProfile.status === "rejected" &&
-    rankedGames.status === "rejected" &&
-    recentStat.status === "rejected"
-  ) {
+  if (!storedRankRows && !updateData.lzyumiRankedGames && !updateData.lzyumiRecentStat) {
     return {
       ok: false,
       profileId: profile.id,
-      message: [
-        "Raw profile, ranked games, and recent stats failed.",
-        rejectedMessage(rawProfile, "profile"),
-        rejectedMessage(rankedGames, "ranked"),
-        rejectedMessage(recentStat, "recent"),
-      ].join(" "),
+      message: "No fresh profile statistics were returned. Saved statistics were retained.",
     };
   }
 
+  updateData.lzyumiLastLookupAt = new Date();
   await prisma.accountProfile.update({
     where: { id: profile.id },
     data: updateData,

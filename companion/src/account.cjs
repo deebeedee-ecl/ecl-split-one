@@ -10,6 +10,10 @@ function percentage(value) {
   const result = Number(source.replace(/%$/, ''));
   return Number.isFinite(result) && result >= 0 && result <= 100 ? result : null;
 }
+function rankedSeason(raw) {
+  if (!raw || typeof raw !== 'object' || !/^[a-z0-9][a-z0-9-]{0,79}$/.test(raw.id) || typeof raw.name !== 'string' || !raw.name.trim() || raw.name.length > 100 || typeof raw.startedAt !== 'string' || !Number.isFinite(Date.parse(raw.startedAt))) return null;
+  return { id: raw.id, name: raw.name.trim(), startedAt: new Date(raw.startedAt).toISOString() };
+}
 function profile(raw) {
   if (!raw || typeof raw !== 'object') return null;
   let avatar = '';
@@ -74,7 +78,7 @@ function history(raw = {}) {
     topChampions: (Array.isArray(s.topChampions) ? s.topChampions : []).filter(c => /^\d+$/.test(String(c.championId))).slice(0, 5).map(c => ({ championId: String(c.championId), games: number(c.games), wins: number(c.wins) })),
     roles: (Array.isArray(s.roleStats) ? s.roleStats : []).slice(0, 6).map(r => ({ role: text(r.role), games: number(r.games), winRate: number(r.winRate), pct: Math.max(0, Math.min(100, number(r.pct))) })),
   } : null;
-  return { games, summary };
+  return { games, summary, rankedSeason: raw.season?.summaryScope === 'season' ? rankedSeason(raw.season) : null };
 }
 function leaderboard(raw, limit = 10) {
   return (Array.isArray(raw) ? raw : []).filter(r => r && typeof r === 'object').slice(0, limit).map(r => ({
@@ -128,7 +132,7 @@ async function websiteRefresh(token, transport = fetch, signal) {
 class Account extends EventEmitter {
   constructor(config, vault, dependencies = {}) {
     super(); this.vault = vault; this.config = config; this.read = dependencies.read ?? websiteGet; this.refreshStats = dependencies.refreshStats ?? websiteRefresh; this.epoch = 0; this.refreshing = null; this.authBusy = false;
-    this.data = { configured: !!config.configured, authenticated: false, profile: null, games: [], leagueGames: [], summary: null, leaderboard: [], loading: false, error: '', historyError: '', ladderError: '', lastUpdated: null, leagueRefreshing: false, leagueRefreshError: '' };
+    this.data = { configured: !!config.configured, authenticated: false, profile: null, games: [], leagueGames: [], summary: null, rankedSeason: null, leaderboard: [], loading: false, error: '', historyError: '', ladderError: '', lastUpdated: null, leagueRefreshing: false, leagueRefreshError: '' };
     if (config.configured) {
       const create = dependencies.createClient ?? require('@supabase/supabase-js').createClient;
       const authOrigin = new URL(config.supabaseUrl).origin;
@@ -153,7 +157,7 @@ class Account extends EventEmitter {
     if (typeof remember !== 'boolean') throw new Error('Choose whether to remember this sign-in.');
     this.authBusy = true;
     try {
-    this.cancelLeagueRefresh(); this.epoch++; this.data = { ...this.data, profile: null, games: [], leagueGames: [], summary: null, authenticated: false, error: '', historyError: '', lastUpdated: null, loading: true }; this.changed();
+    this.cancelLeagueRefresh(); this.epoch++; this.data = { ...this.data, profile: null, games: [], leagueGames: [], summary: null, rankedSeason: null, authenticated: false, error: '', historyError: '', lastUpdated: null, loading: true }; this.changed();
     try {
       await this.vault.setRemember(remember, [SESSION_KEY, `${SESSION_KEY}-user`, `${SESSION_KEY}-code-verifier`]);
       const { error } = await this.client.auth.signInWithPassword({ email: email.trim(), password });
@@ -166,7 +170,7 @@ class Account extends EventEmitter {
     if (this.authBusy) throw new Error('A sign-in or sign-out is already running.');
     this.authBusy = true;
     try {
-    this.cancelLeagueRefresh(); this.epoch++; this.data = { ...this.data, authenticated: false, profile: null, games: [], leagueGames: [], summary: null, loading: false, error: '', historyError: '', lastUpdated: null }; this.changed();
+    this.cancelLeagueRefresh(); this.epoch++; this.data = { ...this.data, authenticated: false, profile: null, games: [], leagueGames: [], summary: null, rankedSeason: null, loading: false, error: '', historyError: '', lastUpdated: null }; this.changed();
     if (this.client) {
       this.client.auth.stopAutoRefresh();
       let revocationFailed = false;
@@ -203,11 +207,11 @@ class Account extends EventEmitter {
           else this.data.historyError = `Match history could not refresh${h.reason?.status ? ` (HTTP ${h.reason.status})` : ''}.`;
           if ((p.status === 'rejected' && p.reason?.status === 401) || (h.status === 'rejected' && h.reason?.status === 401)) {
             this.cancelLeagueRefresh();
-            Object.assign(this.data, { authenticated: false, profile: null, games: [], leagueGames: [], summary: null, error: 'Your ECL session has expired. Please sign in again.' });
+            Object.assign(this.data, { authenticated: false, profile: null, games: [], leagueGames: [], summary: null, rankedSeason: null, error: 'Your ECL session has expired. Please sign in again.' });
           }
           if (this.data.authenticated && p.status === 'fulfilled' && p.value.profile?.riotName && p.value.profile?.chinaServerId) void this.refreshLeague(session, epoch);
         }
-      } else if (apply()) Object.assign(this.data, { profile: null, games: [], leagueGames: [], summary: null });
+      } else if (apply()) Object.assign(this.data, { profile: null, games: [], leagueGames: [], summary: null, rankedSeason: null });
       const ladder = await ladderPromise;
       if (apply()) {
         if (ladder.rows) this.data.leaderboard = ladder.rows;
@@ -266,4 +270,4 @@ class Account extends EventEmitter {
     return payload;
   }
 }
-module.exports = { Account, profile, history, leagueHistory, leaderboard, scoreboard, websiteGet, websiteRefresh };
+module.exports = { Account, profile, history, leagueHistory, leaderboard, scoreboard, rankedSeason, websiteGet, websiteRefresh };

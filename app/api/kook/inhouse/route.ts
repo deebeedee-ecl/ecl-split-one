@@ -12,6 +12,7 @@ import {
   resolveInhousePlayers,
   type KookInhouseMember,
 } from "@/lib/kook-inhouse";
+import { HUB_REMINDER } from "@/lib/hub-bot-copy";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,6 @@ export async function POST(request: Request) {
     const action = parseAction(body);
     const channelId = clean(body.channelId);
     const members = getMembers(body);
-    const isAdmin = Boolean(body.isAdmin);
 
     if (channelId !== RANKED_INHOUSE_CHANNEL_ID) {
       return json(400, {
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
         reply:
           `${activeSession.gameLabel ?? "The current inhouse"} is already set.\n\n` +
           "Duplicate commands are ignored. Finish/report this game, or ask an admin to cancel the stuck session from the admin dashboard.\n\n" +
-          "After it is cleared, type !inhouse to start the next game.",
+          `Use !status to check this game.\n\n${HUB_REMINDER}`,
         session: activeSession,
         moveInstructions: [],
       });
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
         status: "WAITING",
         reply: `Ranked IH started. Waiting for ${10 - members.length} more player${
           10 - members.length === 1 ? "" : "s"
-        } in the channel. Current count: ${members.length}/10.`,
+        } in the channel. Current count: ${members.length}/10.\n\n${HUB_REMINDER}`,
         count: members.length,
         required: 10,
       });
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: false,
         status: "TOO_MANY_PLAYERS",
-        reply: `There are ${members.length} people in Ranked IH 1. Please get it to exactly 10, then type !ready.`,
+        reply: `There are ${members.length} people in Ranked IH 1. Please get it to exactly 10, then type !ready.\n\n${HUB_REMINDER}`,
         count: members.length,
         required: 10,
       });
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
     const players = await resolveInhousePlayers(members);
     const unverifiedPlayers = players.filter((player) => !player.verified);
 
-    if (unverifiedPlayers.length > 0 && !isAdmin) {
+    if (unverifiedPlayers.length > 0) {
       const siteUrl = getSiteUrl();
 
       return NextResponse.json({
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
           "\n\nStarting a ranked inhouse with unverified players can hurt other players' LP/ELO because the bot cannot safely read their real ECL rating, track their match history, or apply the result correctly." +
           "\n\nPlease ask them to register/login and verify their KOOK account here:" +
           `\n${siteUrl}/signup` +
-          "\n\nAfter they verify, run !inhouse again. If admins knowingly accept the risk, they can use !forceready.",
+          `\n\nAll ten players need verified Ionia Riot IDs. After verification, run !inhouse again.\n\n${HUB_REMINDER}`,
         players,
       });
     }
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
         reply:
           "Ranked IH 1 is full. Are these the 10 players?\n\n" +
           formatInhouseRoster(players) +
-          "\n\nIf yes, type !ready.",
+          `\n\nType !ready to balance teams.\n\n${HUB_REMINDER}`,
         players,
       });
     }
@@ -200,7 +200,7 @@ export async function POST(request: Request) {
         `**${session.gameLabel}** - teams are balanced!\n\n` +
         `Blue Side (${blueTeam.eloTotal} LP)\n${formatTeamList(blueTeam)}\n\n` +
         `Red Side (${redTeam.eloTotal} LP)\n${formatTeamList(redTeam)}\n\n` +
-        `Players are being moved to their voice channels. GL HF!`,
+        `Moving players to their voice channels.\nAfter the game, your Hub reporter should type !report ${session.gameLabel?.match(/\d+/)?.[0].replace(/^0+/, "") || session.id}.`,
       blueTeam,
       redTeam,
       session,

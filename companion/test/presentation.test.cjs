@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { position, rankLabel, serverLabel, updateLabel, reportStage } = require('../src/presentation.cjs');
-const { Account, scoreboard, leaderboard } = require('../src/account.cjs');
+const { Account, scoreboard, leaderboard, history } = require('../src/account.cjs');
 const { PublicData } = require('../src/public.cjs');
 
 test('rank/server display is localized without changing saved source data', () => {
@@ -37,6 +37,28 @@ test('full ladder is separate from the legacy top ten and limits champion metada
   assert.equal(state.ladder[0].topChampions.length, 1); assert.ok(!JSON.stringify(state).includes('discard'));
   data.read = async endpoint => endpoint === '/api/matches' ? '[]' : endpoint === '/api/hub/ladder' ? JSON.stringify({ scope: 'all-time', coverage: 'full', players: [] }) : '<main></main>';
   await data.refresh(); assert.deepEqual(data.snapshot().ladder, []); assert.equal(data.snapshot().ladderCoverage, 'full');
+});
+
+test('season ladder displays the 800 baseline and no win rate, preserving metadata while offline', async () => {
+  const season = { id: 'ranked-2026-10', name: 'October ranked', startedAt: '2026-10-18T12:00:00Z', secret: 'discard' };
+  const data = new PublicData(async endpoint => endpoint === '/api/hub/ladder' ? JSON.stringify({ scope: 'season', season, coverage: 'full', players: [{ rank: 1, name: 'Player', elo: 800, gamesPlayed: 0, winRate: '-' }] }) : endpoint === '/api/matches' ? '[]' : '<main></main>');
+  await data.refresh();
+  assert.equal(data.snapshot().ladderCoverage, 'full');
+  assert.equal(data.snapshot().ladder[0].elo, 800); assert.equal(data.snapshot().ladder[0].winRate, null);
+  assert.equal(data.snapshot().ladderSeason.name, season.name); assert.ok(!JSON.stringify(data.snapshot()).includes('discard'));
+  data.read = async () => { throw new Error('offline'); }; await data.refresh();
+  assert.equal(data.snapshot().ladderSeason.id, season.id); assert.equal(data.snapshot().ladder[0].games, 0);
+  data.read = async endpoint => endpoint === '/api/hub/ladder' ? JSON.stringify({ scope: 'all-time', coverage: 'full', players: [] }) : '<main></main>';
+  await data.refresh(); assert.equal(data.snapshot().ladderSeason, null);
+});
+
+test('season summary metadata is separate from unchanged old game history and clears on logout', async () => {
+  const result = history({ season: { id: 'ranked-2026-10', name: 'October ranked', startedAt: '2026-10-18T12:00:00Z', summaryScope: 'season' }, summary: { elo: 800, games: 0 }, games: [{ id: 'old-game', date: '2026-09-01T00:00:00Z', lpChange: 65, eloAfter: 1200 }] });
+  assert.equal(result.summary.elo, 800); assert.equal(result.games[0].lpChange, 65); assert.equal(result.games[0].eloAfter, 1200);
+  assert.equal(result.rankedSeason.id, 'ranked-2026-10');
+  assert.equal(history({}).rankedSeason, null);
+  const account = new Account({ configured: false }, {}); Object.assign(account.data, result);
+  await account.logout(); assert.equal(account.snapshot().rankedSeason, null); assert.deepEqual(account.snapshot().games, []);
 });
 test('scoreboards minimize fields, preserve missing stats and reject old server responses', () => {
   const data = scoreboard({ scoreboard: { id: 'own', label: 'IH #028', players: [{ name: 'Player', championId: '246', role: 'MID', isWin: true, damage: null, kills: 10, puuid: 'private-puuid', email: 'private-email' }] } }, 'own');

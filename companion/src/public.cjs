@@ -1,6 +1,6 @@
 const { EventEmitter } = require('node:events');
 const { load } = require('cheerio');
-const { leaderboard } = require('./account.cjs');
+const { leaderboard, rankedSeason } = require('./account.cjs');
 const SITE = 'https://eclchina.lol';
 const PAGES = new Set(['/news', '/tournaments', '/', '/hub/leaderboard', '/api/matches', '/api/hub/ladder']);
 const clean = (value, max = 240) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -48,7 +48,8 @@ function ladder(html) {
     const numeric = value => Number(String(value).replace(/[^\d.-]/g, ''));
     const record = /^(\d+)\s*-\s*(\d+)$/.exec(values[3]);
     if (!record || !/^ELO$/i.test(clean(table.find('th').eq(2).text()))) return null;
-    return { rank, name, elo: numeric(values[2]), wins: Number(record[1]), losses: Number(record[2]), games: Number(record[1]) + Number(record[2]), winRate: numeric(values[4]), streak: clean(values[5]), role: clean(values[6]), team: '' };
+    const winRate = /^\d+(?:\.\d+)?%$/.test(values[4]) ? numeric(values[4]) : null;
+    return { rank, name, elo: numeric(values[2]), wins: Number(record[1]), losses: Number(record[2]), games: Number(record[1]) + Number(record[2]), winRate, streak: clean(values[5]), role: clean(values[6]), team: '' };
   }).filter(row => row && Number.isFinite(row.rank) && row.rank > 0 && row.name && Number.isFinite(row.elo));
 }
 function fixtures(raw, now = Date.now()) {
@@ -79,12 +80,16 @@ class PublicData extends EventEmitter {
     const items = [...(n.status === 'fulfilled' ? news(n.value) : []), ...(e.status === 'fulfilled' ? events(e.value, h.status === 'fulfilled' ? h.value : '') : [])];
     if (items.length) this.data.items = items;
     this.data.error = n.status === 'rejected' || e.status === 'rejected' || h.status === 'rejected' || !items.length ? 'Some website updates are unavailable. Previously loaded posts may be shown.' : '';
-    let structured = null;
+    let structured = null, season = null;
     try {
-      if (full.status === 'fulfilled') { const raw = JSON.parse(full.value); if (raw.scope === 'all-time' && raw.coverage === 'full' && Array.isArray(raw.players) && raw.players.length <= 500) structured = leaderboard(raw.players, 500); }
+      if (full.status === 'fulfilled') {
+        const raw = JSON.parse(full.value);
+        season = raw.scope === 'season' ? rankedSeason(raw.season) : null;
+        if ((raw.scope === 'all-time' || raw.scope === 'season' && season) && raw.coverage === 'full' && Array.isArray(raw.players) && raw.players.length <= 500) structured = leaderboard(raw.players, 500);
+      }
     } catch { /* Older website deployments only provide the top-ten endpoint. */ }
     const rows = structured ?? (l.status === 'fulfilled' ? ladder(l.value) : []);
-    if (structured !== null || rows.length) { this.data.ladder = rows; this.data.ladderCoverage = structured !== null ? 'full' : 'website'; this.data.ladderUpdatedAt = Date.now(); }
+    if (structured !== null || rows.length) { this.data.ladder = rows; this.data.ladderSeason = structured !== null ? season : null; this.data.ladderCoverage = structured !== null ? 'full' : 'website'; this.data.ladderUpdatedAt = Date.now(); }
     this.data.ladderError = structured === null && !rows.length ? 'Full ladder unavailable. Published top ten may be shown instead.' : '';
     try {
       if (f.status === 'rejected') throw f.reason;

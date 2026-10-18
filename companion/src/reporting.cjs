@@ -69,6 +69,7 @@ class Reporting extends EventEmitter {
       if (!this.collector.db.matches.some(m => m.key === key)) return;
       const record = await this.collector.readMatch(key);
       if (!current()) return;
+      if (job.expiresAt <= Date.now()) { this.job = null; this.change({ status: 'retry', message: 'Match collected. Renewing the report assignment before upload.' }); return; }
       if (!record.validation?.candidate || record.sample) throw new Error('Only a complete real custom 5v5 can be submitted.');
       this.change({ status: 'uploading', message: 'Uploading the assigned match for administrator review.' });
       const result = await this.account.desktopRequest({ action: 'submit', jobId: job.id, lease: job.lease, raw: record.raw }, this.link.capability, this.controller.signal);

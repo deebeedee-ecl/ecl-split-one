@@ -3,6 +3,18 @@
 Last updated: October 18, 2026 (Asia/Shanghai).
 This is the current checkpoint. Older preparation sections in other documents describe earlier states.
 
+## Approved local KOOK command flow
+
+The owner approved the Hub reporting command responses/reminders and selected
+KOOK channel **ECL HUB DESKTOP APP** (`5590769063605712`) for the pinned EXE,
+replacing the proposed website download page. See
+`KOOK_HUB_COMMAND_FLOW_2026-10-18.md` for source scope, exact command behaviour,
+review lifecycle, test results and the verified 1.0.1 file to pin.
+Both the website source and sibling `../ECL-Bot/bot.js` are updated locally;
+neither has been deployed/restarted. App reports and review decisions award no
+automatic LP. The separately prepared ranked reset remains unactivated. No
+production database writes or schema changes have been performed.
+
 ## 1.0.1 Installer Permissions Follow-up
 
 The owner confirmed that running Hub as administrator fixed the League

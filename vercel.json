@@ -1,4 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build -- --webpack"
+  "buildCommand": "npm run build -- --webpack",
+  "crons": [{ "path": "/api/jobs/desktop-retention", "schedule": "0 3 * * *" }]
 }

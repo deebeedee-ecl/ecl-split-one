@@ -1,4 +1,8 @@
 export const zh = {
+  'Match collected. Renewing the report assignment before upload.': '\u6bd4\u8d5b\u5df2\u91c7\u96c6\u3002\u6b63\u5728\u66f4\u65b0\u4e0a\u4f20\u6388\u6743\u3002',
+  'Current season / full ladder': '\u672c\u8d5b\u5b63 / \u5b8c\u6574\u6392\u884c\u699c',
+  'CURRENT SEASON / LATEST 100': '\u672c\u8d5b\u5b63 / \u6700\u8fd1 100 \u573a',
+  'Everyone starts at 800 LP. Previous matches remain in history.': '\u6240\u6709\u73a9\u5bb6\u4ece 800 LP \u5f00\u59cb\u3002\u4ee5\u524d\u7684\u6bd4\u8d5b\u4fdd\u7559\u5728\u5386\u53f2\u8bb0\u5f55\u4e2d\u3002',
   'Team scoreboards with damage bars, role icons and recorded MVP/SVP awards.': '\u961f\u4f0d\u6218\u7ee9\u663e\u793a\u4f24\u5bb3\u6761\u3001\u4f4d\u7f6e\u56fe\u6807\u548c\u5df2\u8bb0\u5f55\u7684 MVP/SVP\u3002',
   'Exact damage and gold replace rounded summary values. Missing vision stays unrecorded.': '\u4f7f\u7528\u7cbe\u786e\u4f24\u5bb3\u548c\u91d1\u5e01\u6570\u636e\uff0c\u7f3a\u5931\u7684\u89c6\u91ce\u4e0d\u4f1a\u8865\u9020\u3002',
   'Verified updates replace the managed app installation while preserving account and match data.': '\u5df2\u9a8c\u8bc1\u66f4\u65b0\u4f1a\u66ff\u6362\u65e7\u5b89\u88c5\u6587\u4ef6\uff0c\u5e76\u4fdd\u7559\u8d26\u53f7\u548c\u6bd4\u8d5b\u6570\u636e\u3002',

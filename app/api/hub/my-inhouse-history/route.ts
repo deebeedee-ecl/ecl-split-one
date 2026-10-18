@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAccountFromRequest } from "@/lib/account-auth";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import { prisma } from "@/lib/prisma";
+import { getRankedSeason, rankedSeasonState } from "@/lib/ranked-season";
+import { getInhouseLeaderboardRows } from "@/lib/inhouse-leaderboard";
 import { inhouseRawPlayer, inhouseChampionId, normalizeInhouseRole, inhouseScoreboardMetrics } from "@/lib/inhouse-player-display";
 import {
   normalizeRiotPart,
@@ -100,6 +102,15 @@ export async function GET(request: NextRequest) {
     }) } }, { headers: { "Cache-Control": "private, no-store" } });
   }
 
+  const season = getRankedSeason();
+  // History stays at its existing latest-100 limit across seasons. Season totals
+  // use all current-season metadata; role/champion samples use the latest 100.
+  const seasonStats = season ? await prisma.matchGamePlayerStat.findMany({
+    where: { playerId: player.id, ...INHOUSE_MATCH_FILTER, createdAt: { gte: season.startedAt } },
+    select: { id: true, createdAt: true, isWin: true, lpChange: true, kills: true, deaths: true, assists: true, isMVP: true, isSVP: true },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  }) : null;
+  const seasonState = season && seasonStats ? rankedSeasonState(seasonStats, season) : null;
   const enriched = stats.map((stat) => {
     const raw = inhouseRawPlayer(stat.matchGame.ocrRawJson, stat.riotName ?? player.riotName, stat.riotTag ?? player.riotTag);
     return {
@@ -130,21 +141,23 @@ export async function GET(request: NextRequest) {
     championId,
   }));
 
-  const wins = stats.filter((stat) => stat.isWin).length;
-  const losses = stats.length - wins;
+  const summaryStats = seasonStats ?? stats;
+  const summaryEnriched = season ? enriched.filter(game => game.stat.createdAt >= season.startedAt) : enriched;
+  const wins = summaryStats.filter((stat) => stat.isWin).length;
+  const losses = summaryStats.length - wins;
   const roleStats = ROLES.map((role) => {
-    const roleGames = enriched.filter((game) => game.role === role);
+    const roleGames = summaryEnriched.filter((game) => game.role === role);
     const roleWins = roleGames.filter((game) => game.stat.isWin).length;
     return {
       role,
       games: roleGames.length,
-      pct: stats.length ? Math.round((roleGames.length / stats.length) * 100) : 0,
+      pct: summaryEnriched.length ? Math.round((roleGames.length / summaryEnriched.length) * 100) : 0,
       winRate: roleGames.length ? Math.round((roleWins / roleGames.length) * 100) : 0,
     };
   });
 
   const championCounts = new Map<string, { games: number; wins: number }>();
-  for (const game of enriched) {
+  for (const game of summaryEnriched) {
     if (!game.championId) continue;
     const current = championCounts.get(game.championId) ?? { games: 0, wins: 0 };
     current.games += 1;
@@ -156,7 +169,7 @@ export async function GET(request: NextRequest) {
     .sort((a, b) => b.games - a.games || b.wins - a.wins)
     .slice(0, 5);
 
-  const rankedPlayers = await prisma.player.findMany({
+  const rankedPlayers = season ? [] : await prisma.player.findMany({
     select: {
       id: true,
       name: true,
@@ -167,41 +180,45 @@ export async function GET(request: NextRequest) {
   const ladder = rankedPlayers
     .filter((entry) => entry.gameStats.length > 0)
     .sort((a, b) => b.elo - a.elo || b.gameStats.length - a.gameStats.length || a.name.localeCompare(b.name));
-  const rankIndex = ladder.findIndex((entry) => entry.id === player.id);
+  const seasonLadder = season ? await getInhouseLeaderboardRows(season) : null;
+  const rankIndex = seasonLadder ? seasonLadder.findIndex(entry => entry.playerId === player.id) : ladder.findIndex((entry) => entry.id === player.id);
 
-  const currentStreak = player.winStreak > 0 ? player.winStreak : player.lossStreak;
-  const streakLabel = player.winStreak > 0 ? `W${player.winStreak}` : player.lossStreak > 0 ? `L${player.lossStreak}` : "-";
-  const kdas = stats.map((stat) => (stat.kills + stat.assists) / Math.max(1, stat.deaths));
-  const scores = enriched.map((game) => game.score).filter((value) => value > 0);
+  const winStreak = seasonState?.winStreak ?? player.winStreak;
+  const lossStreak = seasonState?.lossStreak ?? player.lossStreak;
+  const currentStreak = winStreak > 0 ? winStreak : lossStreak;
+  const streakLabel = winStreak > 0 ? `W${winStreak}` : lossStreak > 0 ? `L${lossStreak}` : "-";
+  const kdas = summaryStats.map((stat) => (stat.kills + stat.assists) / Math.max(1, stat.deaths));
+  const scores = summaryEnriched.map((game) => game.score).filter((value) => value > 0);
   const scoreAverage = average(scores);
   const scoreVariance = average(scores.map((score) => (score - scoreAverage) ** 2));
-  const confidence = Math.min(1, stats.length / 5);
+  const confidence = Math.min(1, summaryStats.length / 5);
 
   return NextResponse.json({
     games,
+    season: season ? { id: season.id, name: season.name, startedAt: season.startedAt.toISOString(), historyScope: "all-time", summaryScope: "season" } : null,
     summary: {
-      elo: player.elo,
+      elo: seasonState?.displayElo ?? player.elo,
       rank: rankIndex >= 0 ? rankIndex + 1 : null,
-      games: stats.length,
+      games: summaryStats.length,
       wins,
       losses,
       averageKda: Number(average(kdas).toFixed(2)),
-      mvps: stats.filter((stat) => stat.isMVP).length,
-      svps: stats.filter((stat) => stat.isSVP).length,
+      mvps: summaryStats.filter((stat) => stat.isMVP).length,
+      svps: summaryStats.filter((stat) => stat.isSVP).length,
       currentStreak,
       streakLabel,
       roleStats,
       topChampions,
       performance: [
         { label: "Mechanics", value: clamp(average(kdas) * 18) },
-        { label: "Damage", value: clamp(average(enriched.map((game) => game.damage)) / 300) },
-        { label: "Teamplay", value: clamp(average(enriched.map((game) => game.participation))) },
-        { label: "Economy", value: clamp(average(enriched.map((game) => game.gold)) / 150) },
+        { label: "Damage", value: clamp(average(summaryEnriched.map((game) => game.damage)) / 300) },
+        { label: "Teamplay", value: clamp(average(summaryEnriched.map((game) => game.participation))) },
+        { label: "Economy", value: clamp(average(summaryEnriched.map((game) => game.gold)) / 150) },
         {
           label: "Consistency",
           value: clamp((100 - Math.sqrt(scoreVariance) * 15) * confidence),
         },
       ],
     },
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }

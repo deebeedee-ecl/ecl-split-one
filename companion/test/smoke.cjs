@@ -108,6 +108,27 @@ const { _electron } = require(process.env.ECL_PLAYWRIGHT_PATH || 'playwright');
     assert.equal(await page.locator('#ladder-content tbody tr').count(), 15);
     await page.locator('#ladder-next').click(); assert.equal(await page.locator('#ladder-content tbody tr').count(), 7);
     assert.match(await page.locator('#ladder-source').innerText(), /All-time.*full ladder/);
+    const oldAccount = (await page.evaluate(() => window.companion.state())).data.account;
+    const season = { id: 'ranked-2026-10', name: 'October ranked', startedAt: new Date(Date.now() + 60000).toISOString() };
+    await app.evaluate(({ BrowserWindow }, value) => BrowserWindow.getAllWindows()[0].webContents.send('public-state', {
+      items: [], fixtures: [], ladderCoverage: 'full', ladderUpdatedAt: Date.now(), ladderError: '', ladderSeason: value,
+      ladder: Array.from({ length: 33 }, (_, i) => ({ rank: i + 1, name: `Season player ${i + 1}`, elo: 800, games: 0, winRate: null })),
+    }), season);
+    await page.waitForFunction(() => document.getElementById('ladder-source').textContent === 'Current season / full ladder');
+    assert.match(await page.locator('#ladder-context').innerText(), /October ranked.*800 LP.*Previous matches/);
+    assert.equal(await page.locator('#ladder-content tbody tr').first().locator('td').nth(2).innerText(), '800');
+    assert.equal(await page.locator('#ladder-content tbody tr').first().locator('td').nth(3).innerText(), '0');
+    assert.equal(await page.locator('#ladder-content tbody tr').first().locator('td').nth(4).innerText(), '--');
+    await app.evaluate(({ BrowserWindow }, value) => BrowserWindow.getAllWindows()[0].webContents.send('account-state', value), {
+      ...oldAccount, rankedSeason: season, summary: { ...oldAccount.summary, elo: 800, games: 0, wins: 0, losses: 0, topChampions: [], roles: [] },
+    });
+    await page.locator('[data-tab="profile"]').click();
+    await page.waitForFunction(() => document.querySelector('#profile .metrics-strip dd')?.textContent === '800');
+    assert.match(await page.locator('#profile-content .source-strip').first().innerText(), /October ranked/);
+    assert.equal(await page.locator('#profile-activity .form-results span').count(), 0);
+    await page.locator('[data-tab="history"]').click(); await page.locator('#history-search').fill('');
+    assert.equal(await page.locator('#history-content tbody tr').count(), 10, 'Archived matches remain in all-time history.');
+    await app.evaluate(({ BrowserWindow }, value) => BrowserWindow.getAllWindows()[0].webContents.send('account-state', value), oldAccount);
     await app.evaluate(({ BrowserWindow }, value) => BrowserWindow.getAllWindows()[0].webContents.send('public-state', value), oldPublic);
     await page.locator('[data-tab="settings"]').click();
     await page.locator('#settings-auto').waitFor({ state: 'visible' });

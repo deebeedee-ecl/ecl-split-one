@@ -96,10 +96,7 @@ export async function enqueueDueLzyumiRefreshes(limit: number) {
     profiles.map((profile) =>
       prisma.lzyumiRefreshQueue.upsert({
         where: { profileId: profile.id },
-        update: {
-          status: "PENDING",
-          nextAttemptAt: new Date(),
-        },
+        update: {},
         create: {
           profileId: profile.id,
           status: "PENDING",
@@ -108,6 +105,11 @@ export async function enqueueDueLzyumiRefreshes(limit: number) {
       }),
     ),
   );
+
+  await prisma.lzyumiRefreshQueue.updateMany({
+    where: { profileId: { in: profiles.map(profile => profile.id) }, status: "SUCCEEDED", nextAttemptAt: { lte: new Date() } },
+    data: { status: "PENDING" },
+  });
 
   return profiles.length;
 }
@@ -179,13 +181,15 @@ export async function processLzyumiRefreshQueue(limit: number) {
   const results = [];
 
   for (const row of rows) {
-    await prisma.lzyumiRefreshQueue.update({
-      where: { id: row.id },
+    const lease = new Date();
+    const claim = await prisma.lzyumiRefreshQueue.updateMany({
+      where: { id: row.id, status: row.status, lastAttemptAt: row.lastAttemptAt, nextAttemptAt: { lte: lease } },
       data: {
         status: "PROCESSING",
-        lastAttemptAt: new Date(),
+        lastAttemptAt: lease,
       },
     });
+    if (!claim.count) continue;
 
     try {
       const result = await refreshAccountProfileStats(row.profile);
@@ -194,8 +198,8 @@ export async function processLzyumiRefreshQueue(limit: number) {
         throw new Error(result.message);
       }
 
-      await prisma.lzyumiRefreshQueue.update({
-        where: { id: row.id },
+      await prisma.lzyumiRefreshQueue.updateMany({
+        where: { id: row.id, status: "PROCESSING", lastAttemptAt: lease },
         data: {
           status: "SUCCEEDED",
           attemptCount: 0,
@@ -219,8 +223,8 @@ export async function processLzyumiRefreshQueue(limit: number) {
         attemptCount >= MAX_ATTEMPTS_BEFORE_NOTIFY &&
         !row.notifiedAt;
 
-      await prisma.lzyumiRefreshQueue.update({
-        where: { id: row.id },
+      await prisma.lzyumiRefreshQueue.updateMany({
+        where: { id: row.id, status: "PROCESSING", lastAttemptAt: lease },
         data: {
           status: "FAILED",
           attemptCount,

@@ -1,18 +1,14 @@
 import { NextResponse } from "next/server";
 import {
-  cancelActiveInhouseSession,
-  formatCancelReportMessage,
-  formatHelpMessage,
   formatLeaderboardMessage,
   formatMeMessage,
   formatRankMessage,
-  formatReportPreviewMessage,
-  formatStatusMessage,
   formatVerifyHelpMessage,
   formatWelcomeMessage,
-  submitPendingReportMessage,
 } from "@/lib/kook-commands";
 import type { KookInhouseMember } from "@/lib/kook-inhouse";
+import { hubReport, hubStatus, hubCancelRequest, hubCancelSession, type HubCommandReply } from "@/lib/kook-hub-commands";
+import { hubCommandHelp, hubSetupMessage, HUB_DOWNLOAD_URL, HUB_REMINDER } from "@/lib/hub-bot-copy";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +49,7 @@ function unauthorized(request: Request) {
 }
 
 function needsKookUser(command: string) {
-  return ["me", "rank", "report", "result", "yes", "confirm", "no"].includes(command);
+  return ["me", "rank", "status", "report", "result", "yes", "confirm", "no", "cancel"].includes(command);
 }
 
 export async function POST(request: Request) {
@@ -89,15 +85,22 @@ export async function POST(request: Request) {
   }
 
   let reply: string;
+  let status = "OK";
+  let reportRequest: HubCommandReply["request"];
+  const options = { userId: kookUserId, args, admin: body.isAdmin === true, channelId: clean(body.channelId) };
+  const applyReply = (response: HubCommandReply) => { status = response.status; reportRequest = response.request; return response.reply; };
 
   try {
     switch (command) {
       case "welcome":
-        reply = formatWelcomeMessage();
+        reply = `${formatWelcomeMessage()}\n\nGet ECL Hub: ${HUB_DOWNLOAD_URL}\nType !hub for connection instructions.`;
+        break;
+      case "hub":
+        reply = hubSetupMessage();
         break;
       case "help":
       case "commands":
-        reply = formatHelpMessage();
+        reply = hubCommandHelp();
         break;
       case "verify":
         reply = formatVerifyHelpMessage();
@@ -113,18 +116,20 @@ export async function POST(request: Request) {
         reply = await formatRankMessage(kookUserId);
         break;
       case "status":
-        reply = await formatStatusMessage(membersFromBody(body));
+        reply = applyReply(await hubStatus(options));
+        if (status === "NO_SESSION") reply += `\nVoice roster: ${membersFromBody(body).length}/10.\n\n${HUB_REMINDER}`;
         break;
       case "report":
       case "result":
-        reply = await formatReportPreviewMessage(kookUserId, args, clean(body.channelId));
+        reply = applyReply(await hubReport(options));
         break;
       case "yes":
       case "confirm":
-        reply = await submitPendingReportMessage(kookUserId, new URL(request.url).origin);
+        status = "APP_REVIEW_REQUIRED";
+        reply = "App reports do not use !yes. Use !report IH_NUMBER GAME_ID; Hub uploads the match for administrator review. No automatic LP.";
         break;
       case "no":
-        reply = await formatCancelReportMessage(kookUserId);
+        reply = applyReply(await hubCancelRequest(options));
         break;
       case "cancel":
         if (!body.isAdmin) {
@@ -137,13 +142,13 @@ export async function POST(request: Request) {
             { status: 403 },
           );
         }
-        reply = await cancelActiveInhouseSession();
+        reply = applyReply(await hubCancelSession(options));
         break;
       default:
         reply = [
           "Unknown command.",
           "",
-          formatHelpMessage(),
+          hubCommandHelp(),
         ].join("\n");
         break;
     }
@@ -162,8 +167,9 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    status: "OK",
+    status,
     command,
     reply,
+    ...(reportRequest ? { reportRequest } : {}),
   });
 }

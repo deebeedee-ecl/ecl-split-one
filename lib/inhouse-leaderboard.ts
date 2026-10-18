@@ -1,6 +1,7 @@
 import { STARTING_ELO, applyInactivityDecay } from "@/lib/elo";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import { prisma } from "@/lib/prisma";
+import { getRankedSeason, rankedSeasonState } from "@/lib/ranked-season";
 
 export type InhouseLeaderboardRow = {
   rank: number;
@@ -51,7 +52,7 @@ function formatKda(kills: number, deaths: number, assists: number) {
   return ((kills + assists) / Math.max(1, deaths)).toFixed(2);
 }
 
-export async function getInhouseLeaderboardRows() {
+export async function getInhouseLeaderboardRows(season = getRankedSeason()) {
   const players = await prisma.player.findMany({
     include: {
       team: {
@@ -68,18 +69,20 @@ export async function getInhouseLeaderboardRows() {
 
   return players
     .map((player) => {
-      const gamesPlayed = player.gameStats.length;
-      const wins = player.gameStats.filter((stat) => stat.isWin).length;
+      const state = season ? rankedSeasonState(player.gameStats, season) : null;
+      const stats = state?.stats ?? player.gameStats;
+      const gamesPlayed = stats.length;
+      const wins = stats.filter((stat) => stat.isWin).length;
       const losses = gamesPlayed - wins;
       const winRate = gamesPlayed === 0 ? "-" : `${Math.round((wins / gamesPlayed) * 100)}%`;
-      const latestStat = player.gameStats[0];
-      const storedElo = latestStat?.eloAfter ?? fallbackElo(player.gameStats);
+      const latestStat = stats[0];
+      const storedElo = state?.elo ?? latestStat?.eloAfter ?? fallbackElo(stats);
       const elo = applyInactivityDecay(storedElo, latestStat?.createdAt);
-      const streak = inhouseStreak(player.gameStats);
-      const totalKills = player.gameStats.reduce((sum, stat) => sum + stat.kills, 0);
-      const totalDeaths = player.gameStats.reduce((sum, stat) => sum + stat.deaths, 0);
-      const totalAssists = player.gameStats.reduce((sum, stat) => sum + stat.assists, 0);
-      const mvpCount = player.gameStats.filter((stat) => stat.isMVP).length;
+      const streak = inhouseStreak(stats);
+      const totalKills = stats.reduce((sum, stat) => sum + stat.kills, 0);
+      const totalDeaths = stats.reduce((sum, stat) => sum + stat.deaths, 0);
+      const totalAssists = stats.reduce((sum, stat) => sum + stat.assists, 0);
+      const mvpCount = stats.filter((stat) => stat.isMVP).length;
 
       return {
         rank: 0,
@@ -96,9 +99,10 @@ export async function getInhouseLeaderboardRows() {
         teamName: player.team?.name ?? null,
         kda: formatKda(totalKills, totalDeaths, totalAssists),
         mvpCount,
+        hasRankedHistory: player.gameStats.length > 0,
       };
     })
-    .filter((row) => row.gamesPlayed > 0)
+    .filter((row) => row.hasRankedHistory)
     .sort((a, b) => {
       if (b.elo !== a.elo) return b.elo - a.elo;
       if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;

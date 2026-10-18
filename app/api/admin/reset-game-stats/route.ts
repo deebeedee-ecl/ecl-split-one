@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { resetGameStats } from "@/lib/reset-game-stats";
+import { ArchivedRankedMatchError } from "@/lib/ranked-season";
 
 export async function POST(req: Request) {
   try {
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof ArchivedRankedMatchError) return NextResponse.json({ success: false, error: error.message }, { status: 409 });
     console.error("POST /api/admin/reset-game-stats error:", error);
 
     return NextResponse.json(

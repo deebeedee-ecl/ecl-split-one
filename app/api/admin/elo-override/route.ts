@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getRankedSeason } from "@/lib/ranked-season";
 
 type OverrideBody = {
   playerId?: string;
@@ -28,6 +29,9 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (getRankedSeason()) {
+      return NextResponse.json({ error: "Season LP is calculated from this season's match results. Correct the current-season match instead of overriding the legacy player cache." }, { status: 409 });
+    }
     const player = await prisma.player.update({
       where: { id: playerId },
       data: { elo: newElo },

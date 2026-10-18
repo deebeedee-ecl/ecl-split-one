@@ -2,6 +2,7 @@ import { STARTING_ELO } from "@/lib/elo";
 import { syncPlayerForProfile } from "@/lib/player-profile-sync";
 import { prisma } from "@/lib/prisma";
 import { formatRiotId, normalizeRiotTag } from "@/lib/riot-id";
+import { getRankedSeason, loadRankedSeasonStates } from "@/lib/ranked-season";
 
 export const RANKED_INHOUSE_CATEGORY_ID =
   process.env.KOOK_RANKED_INHOUSE_CATEGORY_ID || "8024346698320304";
@@ -91,6 +92,7 @@ export async function resolveInhousePlayers(
       riotName: true,
       riotTag: true,
       kookId: true,
+      chinaServerId: true,
     },
   });
 
@@ -108,6 +110,8 @@ export async function resolveInhousePlayers(
   for (const profile of profiles) {
     playersByProfileId.set(profile.id, await syncPlayerForProfile(profile));
   }
+  const season = getRankedSeason();
+  const seasonStates = season ? await loadRankedSeasonStates([...playersByProfileId.values()].filter(player => !!player).map(player => player!.id), season) : null;
 
   return normalizedMembers.map((member) => {
     const profile = profileByKookId.get(member.id);
@@ -137,11 +141,11 @@ export async function resolveInhousePlayers(
       riotName: profile.riotName,
       riotTag: normalizeRiotTag(profile.riotTag) || null,
       email: profile.email,
-      elo: player?.elo ?? STARTING_ELO,
+      elo: (player && seasonStates?.get(player.id)?.displayElo) ?? player?.elo ?? STARTING_ELO,
       profileId: profile.id,
       playerId: player?.id ?? null,
-      verified: true,
-      missingReason: player ? null : "No Player ELO record found; using starting ELO.",
+      verified: !!profile.riotName && !!normalizeRiotTag(profile.riotTag) && profile.chinaServerId === 1,
+      missingReason: profile.chinaServerId !== 1 ? "Ranked Hub reporting currently requires Ionia." : !profile.riotName || !normalizeRiotTag(profile.riotTag) ? "A complete verified Riot ID is required." : null,
     };
   });
 }
@@ -237,7 +241,8 @@ export async function createInhouseSession({
   // Assign a sequential human-readable label (IH #001, IH #002, …).
   const allPlayers = [...blueTeam.players, ...redTeam.players];
   const rosterKey = allPlayers.map((player) => player.kookUserId).sort().join("|");
-  const lockKey = `${sourceChannelId}:${rosterKey}`;
+  // One allocation lock keeps human-readable IH numbers unique across lobbies.
+  const lockKey = "ecl-inhouse-session-label";
 
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
@@ -286,6 +291,7 @@ export async function createInhouseSession({
         sourceChannelId,
         blueChannelId: BLUE_SIDE_CHANNEL_ID,
         redChannelId: RED_SIDE_CHANNEL_ID,
+        reportRawJson: { source: "desktop-session-v1" },
         players: {
           create: [
             ...blueTeam.players.map((player) => ({

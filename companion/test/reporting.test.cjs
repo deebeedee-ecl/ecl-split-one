@@ -25,6 +25,18 @@ test('only assigned match is uploaded and state never exposes authorization or r
   assert.ok(!JSON.stringify(reporter.snapshot()).includes('private-test')); assert.ok(!JSON.stringify(reporter.snapshot()).includes('fake-puuid'));
   reporter.disconnect(); await reporter.tick(); assert.equal(calls.length, 3);
 });
+
+test('a slow collection renews an expired lease before upload instead of disconnecting reporting', async t => {
+  const { reporter, collector, calls } = setup(t);
+  const original = collector.readMatch;
+  collector.readMatch = async key => { reporter.job.expiresAt = Date.now() - 1; return original(key); };
+  await reporter.connect(); await settled(reporter);
+  assert.equal(calls.some(call => call.action === 'submit'), false);
+  assert.equal(reporter.snapshot().enabled, true); assert.equal(reporter.job, null);
+  collector.readMatch = original;
+  await reporter.tick(); assert.equal(reporter.snapshot().status, 'review');
+  assert.equal(calls.filter(call => call.action === 'claim').length, 2);
+});
 test('logout or switching League account disconnects future uploads', async t => {
   const { reporter, account, collector, calls } = setup(t); await reporter.connect(); await settled(reporter);
   account.epoch++; await reporter.tick(); assert.equal(reporter.snapshot().enabled, false);
