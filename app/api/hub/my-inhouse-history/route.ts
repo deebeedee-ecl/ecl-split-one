@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAccountFromRequest } from "@/lib/account-auth";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import { prisma } from "@/lib/prisma";
-import { inhouseRawPlayer, inhouseChampionId, normalizeInhouseRole } from "@/lib/inhouse-player-display";
+import { inhouseRawPlayer, inhouseChampionId, normalizeInhouseRole, inhouseScoreboardMetrics } from "@/lib/inhouse-player-display";
 import {
   normalizeRiotPart,
   normalizeRiotTag,
@@ -92,11 +92,11 @@ export async function GET(request: NextRequest) {
     const players = await prisma.matchGamePlayerStat.findMany({
       where: { ...INHOUSE_MATCH_FILTER, matchGameId: own.matchGameId },
       take: 10,
-      select: { riotName: true, riotTag: true, kills: true, deaths: true, assists: true, damage: true, gold: true, visionScore: true, cs: true, isWin: true, player: { select: { name: true, riotName: true, riotTag: true } } },
+      select: { riotName: true, riotTag: true, kills: true, deaths: true, assists: true, damage: true, gold: true, visionScore: true, cs: true, isWin: true, isMVP: true, isSVP: true, player: { select: { name: true, riotName: true, riotTag: true } } },
     });
-    return NextResponse.json({ scoreboard: { id: own.id, label: own.matchGame.match.roundLabel ?? own.matchGame.match.matchLabel ?? "IH Game", date: own.createdAt.toISOString(), players: players.map(stat => {
+    return NextResponse.json({ scoreboard: { id: own.id, metricsVersion: 2, label: own.matchGame.match.roundLabel ?? own.matchGame.match.matchLabel ?? "IH Game", date: own.createdAt.toISOString(), players: players.map(stat => {
       const raw = inhouseRawPlayer(own.matchGame.ocrRawJson, stat.riotName ?? stat.player.riotName, stat.riotTag ?? stat.player.riotTag);
-      return { name: stat.player.name, championId: inhouseChampionId(raw), role: normalizeInhouseRole(raw?.position), isWin: stat.isWin, kills: stat.kills, deaths: stat.deaths, assists: stat.assists, damage: stat.damage, gold: stat.gold, vision: stat.visionScore, cs: stat.cs };
+      return { name: stat.player.name, championId: inhouseChampionId(raw), role: normalizeInhouseRole(raw?.position), isWin: stat.isWin, isMVP: stat.isMVP, isSVP: stat.isSVP, kills: stat.kills, deaths: stat.deaths, assists: stat.assists, cs: stat.cs, ...inhouseScoreboardMetrics(own.matchGame.ocrRawJson, raw, stat) };
     }) } }, { headers: { "Cache-Control": "private, no-store" } });
   }
 

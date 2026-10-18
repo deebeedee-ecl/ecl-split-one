@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
-import { inhouseChampionId, inhouseRawPlayer, normalizeInhouseRole } from "../lib/inhouse-player-display";
+import { inhouseChampionId, inhouseRawPlayer, normalizeInhouseRole, inhouseScoreboardMetrics } from "../lib/inhouse-player-display";
 import { leagueSnapshotChampions } from "../lib/league-snapshot-champions";
 
 test("historical champion picks join exact Riot identities and never infer missing positions", () => {
@@ -20,6 +20,18 @@ test("ladder champion picks use saved Lzyumi counts, sorted and deduplicated, ne
   assert.deepEqual(leagueSnapshotChampions({ data: { recentState: { common_use_champions: {} } } }), []);
 });
 
+test("scoreboard uses exact full-unit fields, flags rounded K fallback and never invents vision", () => {
+  const report = { detail: { data: { wgBattleDetailInfo: [] } } };
+  const stored = { damage: 5, gold: 4, visionScore: null };
+  const exact = inhouseScoreboardMetrics(report, { totalDamageDealt: 5, goldEarned: 4.3, echartsMap: { totalDamageDealt: 4904, goldEarned: 4237 } }, stored);
+  assert.deepEqual(exact, { damage: 4904, gold: 4237, damageApproximate: false, goldApproximate: false, vision: null });
+  const rounded = inhouseScoreboardMetrics(report, { totalDamageDealt: 9.3, goldEarned: 8.2 }, stored);
+  assert.equal(rounded.damage, 9300); assert.equal(rounded.gold, 8200); assert.equal(rounded.damageApproximate, true);
+  assert.equal(inhouseScoreboardMetrics(report, null, stored).damage, null);
+  assert.equal(inhouseScoreboardMetrics(null, null, { damage: 19000, gold: 12000, visionScore: 0 }).vision, 0);
+  assert.equal(inhouseScoreboardMetrics(report, { echartsMap: { totalDamageDealt: 0 } }, stored).damage, 0);
+});
+
 test("desktop read routes enforce own history and return minimized scoreboards and full ladder, with fake stores only", async () => {
   const env = { url: process.env.NEXT_PUBLIC_SUPABASE_URL, key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY };
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://desktop-test.supabase.co";
@@ -31,7 +43,7 @@ test("desktop read routes enforce own history and return minimized scoreboards a
   const saved = { profile: prisma.accountProfile.findFirst, profiles: prisma.accountProfile.findMany, player: prisma.player.findFirst, players: prisma.player.findMany, stats: prisma.matchGamePlayerStat.findMany };
   let scoreboardReads = 0;
   const now = new Date();
-  const raw = { detail: { data: { wgBattleDetailInfo: [{ nickNameStr: "Player#12345", detailChampionId: "246", position: "MID", puuid: "private-puuid" }] } } };
+  const raw = { detail: { data: { wgBattleDetailInfo: [{ nickNameStr: "Player#12345", detailChampionId: "246", position: "MID", echartsMap: { totalDamageDealt: 4904, goldEarned: 4237 }, puuid: "private-puuid" }] } } };
   const player = { id: "own-player", name: "Player", riotName: "Player", riotTag: "12345", email: "private-email", team: null, gameStats: [{ isWin: true, kills: 10, deaths: 3, assists: 4, lpChange: 20, eloAfter: 1020, createdAt: now }] };
   globalThis.fetch = async input => {
     assert.match(String(input), /^https:\/\/desktop-test\.supabase\.co\/auth\/v1\/user/);
@@ -44,7 +56,7 @@ test("desktop read routes enforce own history and return minimized scoreboards a
   Object.assign(prisma.matchGamePlayerStat, { findMany: async (args: { where: { playerId?: unknown; matchGameId?: string } }) => {
     if (args.where.matchGameId) {
       scoreboardReads++; assert.equal(args.where.matchGameId, "own-game");
-      return Array.from({ length: 10 }, (_, i) => ({ player: { name: `Player ${i}`, riotName: "Player", riotTag: "12345", email: "private-email" }, riotName: "Player", riotTag: "12345", isWin: i < 5, kills: 10, deaths: 3, assists: 4, damage: 10000, gold: 11000, visionScore: null, cs: 123 }));
+      return Array.from({ length: 10 }, (_, i) => ({ player: { name: `Player ${i}`, riotName: "Player", riotTag: "12345", email: "private-email" }, riotName: "Player", riotTag: "12345", isWin: i < 5, isMVP: i === 0, isSVP: i === 5, kills: 10, deaths: 3, assists: 4, damage: 5, gold: 4, visionScore: null, cs: 123 }));
     }
     if (typeof args.where.playerId === "string") return [{ id: "own-stat", matchGameId: "own-game", createdAt: now, matchGame: { ocrRawJson: raw, match: { roundLabel: "IH #028" } } }];
     return [{ playerId: "own-player", riotName: "Player", riotTag: "12345", isWin: true, matchGame: { ocrRawJson: raw } }];
@@ -60,6 +72,8 @@ test("desktop read routes enforce own history and return minimized scoreboards a
     const body = await detail.json();
     assert.equal(body.scoreboard.players.length, 10); assert.equal(body.scoreboard.players[0].championId, "246");
     assert.equal(body.scoreboard.players[0].vision, null); assert.ok(!JSON.stringify(body).includes("private-"));
+    assert.equal(body.scoreboard.metricsVersion, 2); assert.equal(body.scoreboard.players[0].damage, 4904); assert.equal(body.scoreboard.players[0].gold, 4237);
+    assert.equal(body.scoreboard.players[0].isMVP, true); assert.equal(body.scoreboard.players[5].isSVP, true);
     const standings = await ladder.GET(); const rows = await standings.json();
     assert.equal(rows.coverage, "full"); assert.equal(rows.scope, "all-time");
     assert.equal(rows.players[0].topChampions[0].championId, "7");
