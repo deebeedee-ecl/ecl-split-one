@@ -1,6 +1,6 @@
 {
   "name": "ecl-companion",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Local-first ECL League match collector",
   "author": "Expat China League",
@@ -78,6 +78,9 @@
       "installerIcon": "assets/ecl-hub.ico",
       "uninstallerIcon": "assets/ecl-hub.ico",
       "uninstallDisplayName": "ECL Hub ${version}",
+      "include": "installer/league-permissions.nsh",
+      "installerLanguages": ["en_US", "zh_CN"],
+      "displayLanguageSelector": true,
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
       "packElevateHelper": false

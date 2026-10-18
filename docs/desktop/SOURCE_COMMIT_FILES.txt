@@ -9,6 +9,7 @@ companion/assets/ecl-logo.png
 companion/build.cjs
 companion/config.cjs
 companion/icon.cjs
+companion/installer/league-permissions.nsh
 companion/launch.cjs
 companion/package-lock.json
 companion/package.json
@@ -41,6 +42,7 @@ companion/test/core.test.cjs
 companion/test/hub-smoke.cjs
 companion/test/icon.test.cjs
 companion/test/installer.test.cjs
+companion/test/installer-options-ui.ps1
 companion/test/presentation.test.cjs
 companion/test/release-signature.test.cjs
 companion/test/release-vault.test.cjs
@@ -51,10 +53,12 @@ companion/tools/release-key.cjs
 companion/tools/release-vault.cjs
 companion/tools/run-release-key.cjs
 companion/tools/sign-release.cjs
+companion/tools/test-installer-options.cjs
 companion/tools/verify-release-build.cjs
 docs/desktop/HUB_HANDOFF_2026-10-18.md
 docs/desktop/REPORTING_PILOT.md
 docs/desktop/SOURCE_COMMIT_FILES.txt
 docs/desktop/SOURCE_REVIEW_2026-10-18.md
 docs/desktop/TESTER_BUILD_1.0.0.md
+docs/desktop/TESTER_BUILD_1.0.1.md
 docs/desktop/UPDATE_AND_DATA_SETUP.md

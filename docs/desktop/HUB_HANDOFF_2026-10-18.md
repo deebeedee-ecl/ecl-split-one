@@ -3,6 +3,29 @@
 Last updated: October 18, 2026 (Asia/Shanghai).
 This is the current checkpoint. Older preparation sections in other documents describe earlier states.
 
+## 1.0.1 Installer Permissions Follow-up
+
+The owner confirmed that running Hub as administrator fixed the League
+connection: OS metadata showed elevated League processes and a non-elevated
+Hub. The owner selected patch version **1.0.1** and requested the choice inside
+the installer instead of the previously discussed in-app restart button.
+
+The signed local artifact is
+`companion/release-test-101/ECL-Hub-Setup-1.0.1.exe`. Its English/Chinese setup
+page offers **Run ECL Hub as administrator when it starts**, checked by default
+for fresh interactive installs. It saves the current user's app launch
+preference; Windows still asks for UAC approval on elevated launches. Silent
+updates retain the choice, and full uninstall removes only its administrator
+flag. No automatic UAC prompt or new in-app elevation flow was added.
+
+Desktop tests remain 80 passed, one optional skip; nine real NSIS fixture
+scenarios and the packaged 1.0.1 sample UI passed. Native English/Chinese page
+controls were checked; Chinese rendering was inspected. Signing/trust/hash and
+packaged source checks passed. The new installer has not replaced the owner's
+managed installation or been offered through the public feed. See
+`TESTER_BUILD_1.0.1.md` for the checksum, test limits and current instructions.
+Pending backend and unrelated work remains separate.
+
 ## Owner-Approved 1.0.0 Tester Build
 
 The owner subsequently approved committing the scoped native source/cleanup

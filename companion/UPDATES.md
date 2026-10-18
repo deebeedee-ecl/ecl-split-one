@@ -1,5 +1,15 @@
 # ECL Hub Update Delivery
 
+## 1.0.1 Installer Permissions Patch
+
+The owner selected 1.0.1 and requested an administrator-launch checkbox in the
+installer. The new English/Chinese setup page saves a per-user app launch
+preference while preserving normal UAC approval. Silent updates retain the
+choice; full uninstall removes its administrator flag without erasing other
+compatibility settings. See `../docs/desktop/TESTER_BUILD_1.0.1.md` for the
+signed local artifact, native installer tests and remaining real-install check.
+This installer has not been published to the update feed.
+
 ## Approved 1.0.0 Tester Build
 
 The owner selected version 1.0.0 and approved a scoped local native-source

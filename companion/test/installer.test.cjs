@@ -16,6 +16,8 @@ test('installer keeps the app identity and user data while adding Windows integr
   assert.equal(build.nsis.createDesktopShortcut, true);
   assert.equal(build.nsis.createStartMenuShortcut, true);
   assert.equal(build.nsis.deleteAppDataOnUninstall, false);
+  assert.equal(build.nsis.include, 'installer/league-permissions.nsh');
+  assert.deepEqual(build.nsis.installerLanguages, ['en_US', 'zh_CN']);
   assert.equal(build.nsis.shortcutName, 'ECL Hub');
   assert.equal(build.win.signExecutable, false);
   assert.equal(build.win.verifyUpdateCodeSignature, true);

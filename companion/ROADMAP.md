@@ -1,5 +1,9 @@
 # ECL Hub: Next Releases
 
+Latest patch: **1.0.1**, with the owner-requested installer option for matching
+League's administrator permissions. See `../docs/desktop/TESTER_BUILD_1.0.1.md`.
+Windows UAC consent is retained; no in-app restart helper was added.
+
 Current checkpoint: the owner approved the native source commit and selected
 **1.0.0** for a small tester installer. See
 `../docs/desktop/TESTER_BUILD_1.0.0.md` and

@@ -1,8 +1,9 @@
-# ECL Hub 1.0.0 Tester Installer
+# ECL Hub 1.0.1 Tester Installer
 
-The owner approved committing the native Hub source and building version 1.0.0
-for a small tester group. Tester instructions and the current verification
-checkpoint are in `../docs/desktop/TESTER_BUILD_1.0.0.md`. Historical release
+The owner approved committing the native Hub source and building tester
+installers. Version 1.0.1 adds an English/Chinese setup option to run Hub with
+administrator permissions when League requires them. Tester instructions and
+verification are in `../docs/desktop/TESTER_BUILD_1.0.1.md`. Historical release
 notes below describe earlier checkpoints; the installed 0.9.2 updater pilot
 remains complete. Pending reporting, profile-refresh protocol and retention
 backend changes are outside this source commit and installer build.
