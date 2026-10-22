@@ -73,7 +73,7 @@
 .eventDetails strong { color: #edf1fc; font-size: 17px; font-weight: 700; }
 .registrationLayout { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 45px; padding: 32px 24px 40px; align-items: start; }
 .rosterSection { min-width: 0; }
-.tabs { width: 100%; height: auto; display: flex; justify-content: flex-start; gap: 28px; padding: 0; border-radius: 0; border-bottom: 1px solid #ffffff1b; }
+.tabs { width: 100%; height: auto; display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 12px 22px; padding: 0; border-radius: 0; border-bottom: 1px solid #ffffff1b; }
 .tabs > button { display: flex; flex: none; align-items: center; gap: 8px; min-height: 45px; height: auto; padding: 0 0 14px; border-radius: 0; color: #9699a3; font-size: 12px; font-weight: 600; border: 0; border-bottom: 2px solid transparent; background: transparent; }
 .tabs > button::after { display: none; }
 .tabs > button[aria-selected="true"] { color: #fff; border-color: #3d60ff; }
@@ -96,6 +96,37 @@
 .floaterSection > button { margin-top: 20px; max-width: 320px; }
 .floaterConfirmed { display: flex; gap: 8px; align-items: start; margin-top: 18px; color: #65dba5; font-size: 12px; line-height: 1.8; }
 .floaterConfirmed svg { margin-top: 3px; flex-shrink: 0; }
+.formatPanel { padding-bottom: 4px; }
+.formatStats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid #30394a; border-top: 2px solid #0035f8; background: #141a26; }
+.formatStats > div { padding: 14px 12px; border-right: 1px solid #30394a; }
+.formatStats > div:last-child { border-right: 0; }
+.formatStats dt { color: #a4adbe; font-size: 9px; text-transform: uppercase; }
+.formatStats dd { color: #dfbd73; font-size: 22px; font-weight: 750; margin-top: 5px; }
+.formatTeams { display: flex; flex-wrap: wrap; gap: 12px 20px; list-style: none; padding: 0; margin: 22px 0; }
+.formatTeams li { display: flex; align-items: center; gap: 8px; }
+.formatTeams img { object-fit: contain; flex-shrink: 0; }
+.formatTeams strong, .formatTeams span { display: block; font-size: 10px; }
+.formatTeams span { color: #929fb5; font-size: 9px; margin-top: 3px; }
+.formatCard { border: 1px solid #30394a; background: #131823; padding: 20px; margin-top: 16px; }
+.formatCardTitle { display: flex; align-items: center; gap: 10px; }
+.formatCardTitle > span { color: #7c96ff; font-size: 11px; font-weight: 750; }
+.formatCardTitle h4 { font-size: 15px; font-weight: 700; }
+.formatCard > p { color: #b0bacc; font-size: 12px; line-height: 1.9; margin-top: 12px; }
+.formatQualification { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
+.formatQualification > span { background: #dfbd7317; border: 1px solid #dfbd7359; padding: 5px 9px; color: #dfbd73; font-size: 11px; font-weight: 700; }
+.formatQualification > strong { font-size: 10px; color: #dfbd73; font-weight: 600; margin-left: 3px; }
+.formatCard > .formatElimination { color: #dba0aa; font-size: 11px; }
+.formatBracket { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 24px; margin-top: 18px; }
+.formatSemifinals { display: grid; gap: 12px; }
+.formatMatch { position: relative; border: 1px solid #36425b; padding: 14px 12px; background: #0b101a; }
+.formatMatch > p { color: #96a9e8; font-size: 8px; font-weight: 750; margin-bottom: 10px; }
+.formatMatch > div { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 6px; }
+.formatMatch strong { font-size: 11px; overflow-wrap: anywhere; }
+.formatMatch strong:last-child { text-align: right; }
+.formatMatch > div > span { color: #7d889e; font-size: 9px; }
+.formatFinal { border-color: #dfbd7370; }
+.formatFinal::before { content: ""; position: absolute; width: 24px; height: 1px; background: #dfbd7370; left: -25px; top: 50%; }
+.formatChampion { display: block; color: #dfbd73; font-size: 8px; font-weight: 750; letter-spacing: .04em; text-align: center; margin-top: 16px; border-top: 1px solid #dfbd7333; padding-top: 12px; }
 .rosterFooter { display: flex; justify-content: space-between; gap: 10px; color: #8c909c; margin-top: 17px; font-size: 10px; }
 .rosterFooter > span { display: flex; align-items: center; gap: 7px; }
 .rosterFooter > span:first-child { color: #b6becd; }
@@ -176,6 +207,12 @@
   .stepsBand > div { gap: 11px; }
 }
 @media (max-width: 560px) {
+  .formatStats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .formatStats > div:nth-child(2) { border-right: 0; }
+  .formatStats > div:nth-child(-n+2) { border-bottom: 1px solid #30394a; }
+  .formatCard { padding: 16px; }
+  .formatBracket { grid-template-columns: 1fr; gap: 14px; }
+  .formatFinal::before { display: none; }
   .musicControls { gap: 9px; }
   .musicButton span { display: none; }
   .eventDetails { grid-template-columns: repeat(2, minmax(0, 1fr)); }
