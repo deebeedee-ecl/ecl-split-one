@@ -90,6 +90,12 @@
 .listRole { margin-left: auto; padding-left: 4px; color: #727b8e; font-size: 9px; }
 .playerList > li > svg { color: #6683ff; flex-shrink: 0; }
 .playerList > li[data-you="true"] .listName { color: #a6b8ff; }
+.floaterSection { margin-top: 32px; padding-top: 4px; border-top: 1px solid #30394a; }
+.floaterCount { color: #dfbd73; font-size: 18px; margin-left: 8px; }
+.floaterDescription { color: #a4adbe; font-size: 12px; line-height: 1.8; margin: 12px 0 18px; }
+.floaterSection > button { margin-top: 20px; max-width: 320px; }
+.floaterConfirmed { display: flex; gap: 8px; align-items: start; margin-top: 18px; color: #65dba5; font-size: 12px; line-height: 1.8; }
+.floaterConfirmed svg { margin-top: 3px; flex-shrink: 0; }
 .rosterFooter { display: flex; justify-content: space-between; gap: 10px; color: #8c909c; margin-top: 17px; font-size: 10px; }
 .rosterFooter > span { display: flex; align-items: center; gap: 7px; }
 .rosterFooter > span:first-child { color: #b6becd; }

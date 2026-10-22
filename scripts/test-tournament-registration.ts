@@ -10,7 +10,7 @@ import { pathToFileURL } from "node:url";
 import { PrismaClient, type Prisma, type AccountProfile } from "@prisma/client";
 import { createRegistrationHandlers } from "../lib/tournaments/registration-http";
 import { getRegistrationState, registerForSplitTwo, RegistrationError } from "../lib/tournaments/registration";
-import { SPLIT_II_OPENS_AT, SPLIT_II_RULES_VERSION, SPLIT_II_SLUG, SPLIT_II_TERMS_VERSION } from "../lib/tournaments/split-ii-config";
+import { SPLIT_II_FLOATER_RULES_VERSION, SPLIT_II_OPENS_AT, SPLIT_II_RULES_VERSION, SPLIT_II_SLUG, SPLIT_II_TERMS_VERSION } from "../lib/tournaments/split-ii-config";
 
 async function main() {
   const root = process.cwd();
@@ -74,6 +74,23 @@ async function main() {
       } });
       fixtures.push({ account: { id: user.id, email: user.email }, profile });
     }
+    await connection.query(await sql("schedule-split-ii.draft.sql"));
+    const historical = fixtures.slice(0, 25);
+    for (const fixture of historical) await connection.query(`INSERT INTO public.tournament_registrations
+      (id, tournament_id, profile_id, display_name_snapshot, primary_role_snapshot, riot_name_snapshot, riot_tag_snapshot, terms_version, rules_version, consented_at)
+      SELECT $1, id, $2, 'Historical player', 'MID', $3, '1234', terms_version, rules_version, now() FROM public.tournaments WHERE slug=$4`,
+      [randomBytes(16).toString("hex"), fixture.profile.id, fixture.profile.riotName, SPLIT_II_SLUG]);
+    const beforeUpgrade = (await connection.query("SELECT row_to_json(r) AS entry FROM public.tournament_registrations r ORDER BY id")).rows;
+    await connection.query(await sql("add-floater-pool.sql"));
+    await connection.query(await sql("activate-floater-pool.sql"));
+    const afterUpgrade = (await connection.query("SELECT to_jsonb(r) - 'pool' AS entry FROM public.tournament_registrations r ORDER BY id")).rows;
+    assert.deepEqual(afterUpgrade, beforeUpgrade);
+    assert.equal((await getRegistrationState(db, fixtures[0].account)).count, 25);
+    assert.equal((await getRegistrationState(db, fixtures[0].account)).capacity, 25);
+    assert.equal((await getRegistrationState(db, fixtures[0].account)).floaters.length, 0);
+    await db.tournamentRegistration.deleteMany();
+    await db.tournament.updateMany({ data: {status:"DRAFT"} });
+    console.log("PASS: upgrade preserves all 25 historical entries and their accepted consent exactly");
     const consent = { accepted: true as const, termsVersion: SPLIT_II_TERMS_VERSION, rulesVersion: SPLIT_II_RULES_VERSION };
     const handlers = createRegistrationHandlers(db, async request => {
       const token = request.headers.get("authorization")?.replace("Bearer fixture-", "");
@@ -83,7 +100,7 @@ async function main() {
       method: "POST", headers: { "Content-Type": "application/json", ...(index === null ? {} : { Authorization: `Bearer fixture-${index}` }) }, body: JSON.stringify(body),
     }));
     const errorCode = async (response: Response, status: number, code: string) => {
-      assert.equal(response.status, status);
+      assert.equal(response.status, status, `${code}: ${await response.clone().text()}`);
       assert.equal((await response.json()).code, code);
     };
     const event = await db.tournament.findUniqueOrThrow({ where: { slug: SPLIT_II_SLUG } });
@@ -96,7 +113,7 @@ async function main() {
     assert.equal((await handlers.POST(new Request("http://localhost/api", { method: "POST", headers: { Authorization: "Bearer fixture-0", "Content-Type": "application/json" }, body: "{" }))).status, 400);
     await errorCode(await post(0), 409, "CLOSED");
     assert.equal(await db.tournamentRegistration.count(), 0);
-    await connection.query(await sql("schedule-split-ii.draft.sql"));
+    await db.tournament.updateMany({ data: {status:"REGISTRATION_OPEN"} });
     assert.equal((await getRegistrationState(db, null, new Date(new Date(SPLIT_II_OPENS_AT).getTime() - 1))).window, "scheduled");
     assert.equal((await getRegistrationState(db, null, new Date(SPLIT_II_OPENS_AT))).window, "open");
     await updateEvent({ registrationOpensAt: new Date(Date.now() + 60_000) });
@@ -160,34 +177,68 @@ async function main() {
     console.log("PASS: RLS enabled and browser roles denied direct registration access");
 
     await db.tournamentRegistration.deleteMany();
-    for (let i = 30; i < 59; i++) assert.equal((await post(i)).status, 201);
-    assert.equal(await db.tournamentRegistration.count(), 29);
-    const contenders = await Promise.all([post(59), post(60)]);
+    for (let i = 30; i < 54; i++) assert.equal((await post(i)).status, 201);
+    assert.equal(await db.tournamentRegistration.count(), 24);
+    const contenders = await Promise.all([post(54), post(55)]);
     assert.deepEqual(contenders.map(response => response.status).sort(), [201, 409]);
-    const winner = contenders[0].status === 201 ? 59 : 60;
-    assert.equal(await db.tournamentRegistration.count(), 30);
+    const winner = contenders[0].status === 201 ? 54 : 55;
+    assert.equal(await db.tournamentRegistration.count(), 25);
     const retries = await Promise.all(Array.from({ length: 8 }, () => post(winner)));
     assert.ok(retries.every(response => response.status === 200));
-    await errorCode(await post(61), 409, "FULL");
-    assert.equal(await db.tournamentRegistration.count(), 30);
-    await assert.rejects(() => db.tournamentRegistration.create({ data: { ...saved, id: randomBytes(16).toString("hex"), profileId: fixtures[62].profile.id, gameIdentityKey: "direct-fixture" } }));
-    await assert.rejects(() => updateEvent({ capacity: 29 }));
+    await errorCode(await post(56), 409, "FULL");
+    assert.equal(await db.tournamentRegistration.count(), 25);
+    await assert.rejects(() => db.tournamentRegistration.create({ data: { ...saved, id: randomBytes(16).toString("hex"), profileId: fixtures[57].profile.id, gameIdentityKey: "direct-fixture" } }));
+    await assert.rejects(() => updateEvent({ capacity: 24 }));
     const lastEntry = await db.tournamentRegistration.findFirstOrThrow({ orderBy: [{ registeredAt: "desc" }, { id: "desc" }] });
     await db.tournamentRegistration.delete({ where: { id: lastEntry.id } });
-    const directRace = await Promise.allSettled([62, 63].map(index => db.tournamentRegistration.create({ data: {
+    const directRace = await Promise.allSettled([57, 58].map(index => db.tournamentRegistration.create({ data: {
       ...saved, id: randomBytes(16).toString("hex"), profileId: fixtures[index].profile.id, gameIdentityKey: `direct-${index}`,
     } })));
     assert.equal(directRace.filter(result => result.status === "fulfilled").length, 1);
-    assert.equal(await db.tournamentRegistration.count(), 30);
+    assert.equal(await db.tournamentRegistration.count(), 25);
     await assert.rejects(() => db.$transaction(async tx => {
-      await tx.tournamentRegistration.create({ data: { ...saved, id: randomBytes(16).toString("hex"), profileId: fixtures[63].profile.id, gameIdentityKey: "serializable-fixture" } });
+      await tx.tournamentRegistration.create({ data: { ...saved, id: randomBytes(16).toString("hex"), profileId: fixtures[58].profile.id, gameIdentityKey: "serializable-fixture" } });
     }, { isolationLevel: "Serializable" }));
-    console.log("PASS: slot 30 race, slot 31 rejection, simultaneous retries, direct-SQL capacity guard and isolation guard");
+    console.log("PASS: slot 25 race, slot 26 rejection, simultaneous retries, direct-SQL capacity guard and isolation guard");
+
+    const floaterConsent = {...consent, pool:"FLOATER" as const, rulesVersion:SPLIT_II_FLOATER_RULES_VERSION};
+    const mainSnapshot = await db.tournamentRegistration.findMany({where:{pool:"MAIN"},orderBy:{id:"asc"}});
+    const joinedFloater = await post(6, floaterConsent);
+    assert.equal(joinedFloater.status,201);
+    const floaterState = await joinedFloater.json();
+    assert.equal(floaterState.count,25);
+    assert.equal(floaterState.floaters.length,1);
+    assert.equal(floaterState.registration,null);
+    assert.equal(floaterState.floaterRegistration.role,"Middle");
+    assert.deepEqual(Object.keys(floaterState.floaters[0]).sort(),["id","name","role"]);
+    assert.equal((await post(6,floaterConsent)).status,200);
+    await errorCode(await post(6),409,"ALREADY_REGISTERED");
+    await errorCode(await post(30,floaterConsent),409,"ALREADY_REGISTERED");
+    await errorCode(await post(1,floaterConsent),403,"INELIGIBLE");
+    await errorCode(await post(7,{...floaterConsent,rulesVersion:consent.rulesVersion}),409,"RULES_CHANGED");
+    await errorCode(await post(7,{...floaterConsent,pool:"INVALID"}),400,"INVALID_POOL");
+    await db.accountProfile.update({where:{id:fixtures[7].profile.id},data:{openId:fixtures[6].profile.openId}});
+    await errorCode(await post(7,floaterConsent),409,"IDENTITY_REGISTERED");
+    await updateEvent({status:"REGISTRATION_CLOSED"});
+    assert.equal((await post(8,floaterConsent)).status,201);
+    await updateEvent({floatersOpen:false});
+    await errorCode(await post(9,floaterConsent),409,"CLOSED");
+    assert.equal((await post(8,floaterConsent)).status,200);
+    await updateEvent({floatersOpen:true,status:"REGISTRATION_OPEN"});
+    const concurrentPools=await Promise.all([post(10),post(10,floaterConsent)]);
+    assert.ok(concurrentPools.some(r=>r.status===201));
+    assert.equal(await db.tournamentRegistration.count({where:{profileId:fixtures[10].profile.id}}),1);
+    assert.deepEqual(await db.tournamentRegistration.findMany({where:{pool:"MAIN"},orderBy:{id:"asc"}}),mainSnapshot);
+    assert.equal((await getRegistrationState(db,null)).count,25);
+    await assert.rejects(()=>updateEvent({capacity:24}));
+    await updateEvent({capacity:25}); // Floaters do not consume main capacity.
+    await db.tournamentRegistration.deleteMany({where:{pool:"FLOATER"}});
+    console.log("PASS: separate floaters, consent, eligibility, full main pool, cross-pool uniqueness and independent close");
 
     const rollback = await sql("rollback-tournaments.draft.sql");
     await assert.rejects(() => connection!.query(rollback));
     await connection.query("ROLLBACK");
-    assert.equal(await db.tournamentRegistration.count(), 30);
+    assert.equal(await db.tournamentRegistration.count(), 25);
     await db.tournamentRegistration.deleteMany();
     await assert.rejects(() => db.$transaction(async tx => {
       await tx.tournamentRegistration.create({ data: { ...saved, id: randomBytes(16).toString("hex") } });

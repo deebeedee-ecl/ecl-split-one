@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { SPLIT_II_CAPACITY, type TournamentRegistrationState, type TournamentRosterEntry, type TournamentViewer } from "@/lib/tournaments/split-ii-config";
+import { SPLIT_II_CAPACITY, type TournamentPool, type TournamentRegistrationState, type TournamentRosterEntry, type TournamentViewer } from "@/lib/tournaments/split-ii-config";
 import { demoPlayer, mockPlayers } from "./mock-registrations";
 
 type RequestState = "idle" | "loading" | "error";
@@ -10,6 +10,7 @@ const endpoint = "/api/tournaments/split-ii/registration";
 
 export function useSplitTwoRegistration(preview: boolean) {
   const [previewPlayers, setPreviewPlayers] = useState<TournamentRosterEntry[]>(mockPlayers.slice(0, 18));
+  const [previewFloaters, setPreviewFloaters] = useState<TournamentRosterEntry[]>([]);
   const [previewAccount, setPreviewAccount] = useState<TournamentViewer["account"]>("eligible");
   const [previewRequest, setPreviewRequest] = useState<RequestState>("idle");
   const [data, setData] = useState<TournamentRegistrationState | null>(null);
@@ -70,6 +71,9 @@ export function useSplitTwoRegistration(preview: boolean) {
   const players = preview ? previewPlayers : data?.players ?? [];
   const ownEntry = preview ? players.find(entry => entry.id === demoPlayer.id) : data?.registration;
   const registration = ownEntry ? players.find(entry => entry.id === ownEntry.id) : undefined;
+  const floaters = preview ? previewFloaters : data?.floaters ?? [];
+  const floaterEntry = preview ? floaters.find(entry => entry.id === demoPlayer.id) : data?.floaterRegistration;
+  const floaterRegistration = floaterEntry ? floaters.find(entry => entry.id === floaterEntry.id) : undefined;
   const player = preview ? demoPlayer : {
     id: registration?.id ?? "current-player",
     name: data?.viewer.name ?? "Your ECL profile",
@@ -77,10 +81,12 @@ export function useSplitTwoRegistration(preview: boolean) {
     role: data?.viewer.role ?? "",
   };
 
-  async function confirm() {
+  async function confirm(pool: TournamentPool = "MAIN") {
     if (preview) {
       await new Promise(resolve => setTimeout(resolve, 350));
-      setPreviewPlayers(current => current.length < SPLIT_II_CAPACITY && !current.some(entry => entry.id === demoPlayer.id) ? [...current, demoPlayer] : current);
+      if (registration || floaterRegistration) return;
+      if (pool === "FLOATER") setPreviewFloaters(current => [...current, demoPlayer]);
+      else setPreviewPlayers(current => current.length < SPLIT_II_CAPACITY && !current.some(entry => entry.id === demoPlayer.id) ? [...current, demoPlayer] : current);
       return;
     }
     if (!token || !data) throw new Error("Please sign in again before registering.");
@@ -90,7 +96,10 @@ export function useSplitTwoRegistration(preview: boolean) {
     const response = await fetch(endpoint, {
       method: "POST", cache: "no-store",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ accepted: true, termsVersion: data.termsVersion, rulesVersion: data.rulesVersion }),
+      body: JSON.stringify({ accepted: true, termsVersion: data.termsVersion,
+        rulesVersion: pool === "FLOATER" ? data.floaterRulesVersion : data.rulesVersion,
+        ...(pool === "FLOATER" ? { pool } : {}),
+      }),
     });
     const payload = await response.json();
     if (!response.ok) {
@@ -104,7 +113,8 @@ export function useSplitTwoRegistration(preview: boolean) {
   }
 
   return {
-    players, player, registration,
+    players, player, registration, floaters, floaterRegistration,
+    floaterWindow: preview ? "open" as const : data?.floaterWindow ?? "closed" as const,
     slot: preview ? players.findIndex(entry => entry.id === demoPlayer.id) + 1 : data?.registration?.ticketNumber ?? 0,
     account: preview ? previewAccount : data?.viewer.account ?? "signed-out",
     capacity: data?.capacity ?? SPLIT_II_CAPACITY,
@@ -115,6 +125,6 @@ export function useSplitTwoRegistration(preview: boolean) {
     message, refresh, confirm,
     previewAccount: setPreviewAccount,
     previewRequest: setPreviewRequest,
-    previewCapacity: (value: number) => { setPreviewPlayers(mockPlayers.slice(0, value)); setPreviewRequest("idle"); },
+    previewCapacity: (value: number) => { setPreviewPlayers(mockPlayers.slice(0, value)); setPreviewFloaters([]); setPreviewRequest("idle"); },
   };
 }

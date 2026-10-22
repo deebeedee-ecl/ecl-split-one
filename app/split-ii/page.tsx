@@ -5,7 +5,7 @@ import BroadcastType from "./BroadcastType";
 
 export const metadata: Metadata = {
   title: "ECL SPLIT II | Expat China League",
-  description: "Log into the ECL Hub to sign up for Split II. 30 places, random team draw and a 3,000 RMB first prize.",
+  description: "Log into the ECL Hub to sign up for Split II. 25 main places + floaters, random team draw and a 3,000 RMB first prize.",
   robots: { index: false, follow: false },
 };
 
@@ -20,7 +20,7 @@ export default function SplitTwoPage() {
         </div>
       </section>
       <section className="mx-auto max-w-5xl px-6 py-12 sm:py-16" aria-labelledby="hub-signup-title">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#dfbd73]">30 players / Random team draw / 3,000 RMB first prize</p>
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#dfbd73]">25 main players / Random team draw / 3,000 RMB first prize</p>
         <h2 id="hub-signup-title" className="mt-5 max-w-2xl text-4xl uppercase leading-tight sm:text-5xl [font-family:Anton,Impact,sans-serif]">Log into the Hub to sign up.</h2>
         <p className="mt-5 max-w-2xl text-sm leading-7 text-[#adb7cb]">Use your ECL account to enter Split II from the Hub dashboard. Review and accept the tournament rules and Terms of Service to confirm your entry. Your role comes from your ECL profile.</p>
         <div className="mt-6 flex max-w-2xl items-start gap-3 text-sm leading-6 text-[#c5cede]"><ShieldCheck size={20} className="mt-0.5 shrink-0 text-[#dfbd73]" /><p>Your ECL profile must be active and verified through KOOK before you can register.</p></div>

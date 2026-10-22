@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ECL_TERMS_2026_10_16 } from "@/lib/tournaments/ecl-terms-2026-10-16";
-import { SPLIT_II_REGISTRATION_RULES, SPLIT_II_RULES_VERSION, SPLIT_II_TERMS_VERSION } from "@/lib/tournaments/split-ii-config";
+import { SPLIT_II_FLOATER_RULES, SPLIT_II_FLOATER_RULES_VERSION, SPLIT_II_ORIGINAL_REGISTRATION_RULES, SPLIT_II_ORIGINAL_RULES_VERSION, SPLIT_II_REGISTRATION_RULES, SPLIT_II_RULES_VERSION, SPLIT_II_TERMS_VERSION } from "@/lib/tournaments/split-ii-config";
 
 export const metadata = { title: "Split II registration rules & terms | ECL" };
 
@@ -19,6 +19,16 @@ export default function SplitTwoRulesPage() {
             {SPLIT_II_REGISTRATION_RULES.map(rule => <li key={rule}>{rule}</li>)}
           </ol>
         </section>
+        <section id="floaters" className="mt-9 scroll-mt-6 border border-[#30394a] bg-[#171c27] p-6 sm:p-8">
+          <h2 className="text-2xl font-bold">Subs / Floaters</h2>
+          <p className="mt-2 break-all text-xs text-[#adb7cb]">Version: {SPLIT_II_FLOATER_RULES_VERSION}</p>
+          <ol className="mt-5 list-decimal space-y-4 pl-5 text-sm leading-7 text-[#d0d7e5]">{SPLIT_II_FLOATER_RULES.map(rule => <li key={rule}>{rule}</li>)}</ol>
+        </section>
+        <details className="mt-9 border border-[#30394a] p-6 text-sm leading-7 text-[#adb7cb]">
+          <summary className="cursor-pointer text-[#eef1f8]">Original registration rules accepted before October 22</summary>
+          <p className="mt-3 break-all text-xs">Version: {SPLIT_II_ORIGINAL_RULES_VERSION}. Previously saved consent records remain unchanged.</p>
+          <ol className="mt-4 list-decimal space-y-3 pl-5">{SPLIT_II_ORIGINAL_REGISTRATION_RULES.map(rule => <li key={rule}>{rule}</li>)}</ol>
+        </details>
         <section id="ecl-terms" className="mt-10">
           <h2 className="text-2xl font-bold">ECL Terms &amp; Community Rules</h2>
           <p className="mt-2 break-all text-xs text-[#adb7cb]">Version: {SPLIT_II_TERMS_VERSION}</p>

@@ -55,9 +55,9 @@ const { createRoot } = require('react-dom/client');
 const { act } = React;
 const { Page, setSession } = require(outfile);
 const config = {
-  capacity: 30, count: 0, window: 'open', opensAt: '2026-10-17T04:00:00.000Z', closesAt: null,
-  termsVersion: 'ecl-terms-2026-10-16', rulesVersion: 'split-ii-registration-2026-10-16',
-  players: [], viewer: { account: 'signed-out', name: 'Your ECL profile', riotId: '', role: '' }, registration: null,
+  capacity: 25, count: 0, window: 'open', opensAt: '2026-10-17T04:00:00.000Z', closesAt: null,
+  termsVersion: 'ecl-terms-2026-10-16', rulesVersion: 'split-ii-registration-2026-10-22',
+  players: [], floaters: [], floaterWindow: 'open', floaterRulesVersion: 'split-ii-floaters-2026-10-22', floaterRegistration: null, viewer: { account: 'signed-out', name: 'Your ECL profile', riotId: '', role: '' }, registration: null,
 };
 let state = structuredClone(config);
 let unavailable = false;
@@ -68,10 +68,16 @@ globalThis.fetch = async (_url, options = {}) => {
   if (options.method === 'POST') {
     posts++;
     const body = JSON.parse(options.body);
-    assert.deepEqual(Object.keys(body).sort(), ['accepted', 'rulesVersion', 'termsVersion']);
+    assert.deepEqual(Object.keys(body).sort(), body.pool === 'FLOATER' ? ['accepted', 'pool', 'rulesVersion', 'termsVersion'] : ['accepted', 'rulesVersion', 'termsVersion']);
     assert.equal(body.accepted, true);
     assert.equal(body.termsVersion, config.termsVersion);
     if (rejectClaim) return Response.json({ message: 'The last place was claimed. Please refresh.' }, { status: 409 });
+    if (body.pool === 'FLOATER') {
+      assert.equal(body.rulesVersion,state.floaterRulesVersion);
+      state.floaters = [{id:'saved-floater',name:state.viewer.name,role:state.viewer.role}];
+      state.floaterRegistration = {id:'saved-floater',role:state.viewer.role,ticketNumber:1};
+      return Response.json(state,{status:201});
+    }
     state.players = [{ id: 'saved-entry', name: state.viewer.name, role: state.viewer.role }];
     state.count = 1;
     state.registration = { id: 'saved-entry', role: state.viewer.role, ticketNumber: 1 };
@@ -135,10 +141,25 @@ try {
   await mount();
   assert.ok(button('Opens 17 Oct, 12:00').disabled);
   state.window = 'open';
-  state.count = 30;
-  state.players = Array.from({ length: 30 }, (_, i) => ({ id: `entry-${i}`, name: `Player ${i}`, role: 'Mid' }));
+  state.count = 25;
+  state.players = Array.from({ length: 25 }, (_, i) => ({ id: `entry-${i}`, name: `Player ${i}`, role: 'Mid' }));
   await mount();
   assert.ok(button('Registration full').disabled);
+  assert.ok(!button('Join the floater list').disabled);
+  await click(button('Join the floater list'));
+  assert.ok(document.querySelector('[role="dialog"]').textContent.includes('scrims do not count'));
+  assert.ok(button('Accept & join floaters').disabled);
+  await click(document.querySelector('input[type="checkbox"]'));
+  await click(button('Accept & join floaters'));
+  await until(()=>container.textContent.includes('on the floater list'));
+  assert.equal(container.querySelector('.counter strong').textContent,'25');
+  assert.ok(button('Registered as floater').disabled);
+  assert.equal(state.players.length,25);
+  assert.equal(state.floaters.length,1);
+  await mount();
+  assert.ok(container.textContent.includes('on the floater list'));
+  assert.equal(container.querySelector('.counter strong').textContent,'25');
+  console.log('PASS: full 25-player roster still permits floater signup, explicit consent, separate counter and saved floater entry');
   state = { ...structuredClone(config), viewer: { account: 'eligible', name: 'Fixture Player', riotId: 'Fixture#1234', role: 'Middle' } };
   unavailable = true;
   await mount();

@@ -1,6 +1,6 @@
 import type { SignupProfilePayload } from "@/components/account/client-account";
 
-export const CAPACITY = 30;
+export { SPLIT_II_CAPACITY as CAPACITY } from "@/lib/tournaments/split-ii-config";
 
 // Uses the same field names as an existing ECL profile. No account API is called.
 export const demoProfile: Pick<SignupProfilePayload, "displayName" | "riotName" | "riotTag" | "primaryRole"> = {

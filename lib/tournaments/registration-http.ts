@@ -47,7 +47,8 @@ async function POST(request: Request) {
     if (body.accepted !== true || typeof body.termsVersion !== "string" || typeof body.rulesVersion !== "string") {
       return NextResponse.json({ code: "CONSENT_REQUIRED", message: "Please accept the terms and tournament rules before registering." }, { status: 400, headers });
     }
-    const result = await registerForSplitTwo(database, account, { accepted: true, termsVersion: body.termsVersion, rulesVersion: body.rulesVersion });
+    if (body.pool !== undefined && body.pool !== "MAIN" && body.pool !== "FLOATER") return NextResponse.json({ code: "INVALID_POOL", message: "Choose the main roster or floater list." }, { status: 400, headers });
+    const result = await registerForSplitTwo(database, account, { accepted: true, termsVersion: body.termsVersion, rulesVersion: body.rulesVersion, pool: body.pool as "MAIN" | "FLOATER" | undefined });
     return NextResponse.json(result.state, { status: result.created ? 201 : 200, headers });
   } catch (error) { return failure(error); }
 }
