@@ -17,7 +17,27 @@ after Season details. It uses the existing UI components and Hub colours.
 The owner explicitly confirmed Bo3 for both playoff stages, overriding the
 reference file's default Bo1 selectors. The six-team reference's fifteen-game
 count and two-team elimination were adapted to five teams. The display explains
-the format; it does not create results, assign seeds or publish match dates.
+the format; it does not create results or assign seeds.
+
+## Round-robin fixtures (October 23)
+
+The owner requested a Fixtures tab after Tournament format and confirmed two
+Bo1 matches per team in each of two weeks, with generated pairings. The ten
+pairings cover every opponent exactly once. Match dates and times are TBC.
+The fixtures are display content; no database records or results are created.
+
+| Week 1 | Week 2 |
+| --- | --- |
+| BallBreakers vs Phoenix | BallBreakers vs Zero |
+| Zero vs NextGen | Phoenix vs NextGen |
+| Exodus vs BallBreakers | Zero vs Exodus |
+| Phoenix vs Zero | NextGen vs BallBreakers |
+| NextGen vs Exodus | Exodus vs Phoenix |
+
+Team labels and fixture pairings are maintained in
+`lib/tournaments/split-ii-fixtures.ts`. DOM checks validate two appearances per
+team per week, four overall, ten unique pairings, and tab navigation alongside
+the existing registration, floater, audio and format flows.
 
 The five supplied team logo assets were extracted from the reference. Its HTML,
 global styles, simulator JavaScript and local result storage were not imported.

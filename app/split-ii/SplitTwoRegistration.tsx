@@ -6,7 +6,7 @@ import { useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import {
   ArrowDown, ArrowRight, Check, CheckCheck, ChevronRight, CircleAlert,
-  Clock3, FlaskConical, LoaderCircle, LockKeyhole, RotateCcw,
+  CalendarDays, Clock3, FlaskConical, LoaderCircle, LockKeyhole, RotateCcw,
   Settings2, ShieldCheck, Swords, Ticket, Trophy, UserRound, Users, X,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -16,6 +16,7 @@ import { useSplitTwoRegistration } from "./useSplitTwoRegistration";
 import BroadcastType from "./BroadcastType";
 import DashboardAudio from "./DashboardAudio";
 import TournamentFormat from "./TournamentFormat";
+import TournamentFixtures from "./TournamentFixtures";
 import styles from "./split-ii.module.css";
 
 export default function SplitTwoRegistration({ inDashboard = false, preview = false }: { inDashboard?: boolean; preview?: boolean }) {
@@ -28,7 +29,7 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
   const [submitting, setSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
   const [controlsOpen, setControlsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"roster" | "details" | "format">("roster");
+  const [activeTab, setActiveTab] = useState<"roster" | "details" | "format" | "fixtures">("roster");
   const [announcement, setAnnouncement] = useState("");
   const reducedMotion = useReducedMotion();
   const count = players.length;
@@ -107,11 +108,12 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
       </section>
       <div className={styles.registrationLayout}>
         <section className={styles.rosterSection} aria-label="Split II roster">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "roster" | "details" | "format")}>
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "roster" | "details" | "format" | "fixtures")}>
           <TabsList className={styles.tabs} variant="line" aria-label="Split II information">
             <TabsTrigger value="roster"><Users size={15} />Registered players <span>{loaded ? count : "--"}</span></TabsTrigger>
             <TabsTrigger value="details"><Trophy size={15} />Season details</TabsTrigger>
             <TabsTrigger value="format"><Swords size={15} />Tournament format</TabsTrigger>
+            <TabsTrigger value="fixtures"><CalendarDays size={15} />Fixtures</TabsTrigger>
           </TabsList>
           <TabsContent value="roster">
             <div className={styles.sectionHeading}><div><p>SPLIT II / PLAYER POOL</p><h3>Who&apos;s in.</h3></div><span><Clock3 size={13} /> Signup order</span></div>
@@ -134,6 +136,7 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
             <p>Entry is for existing, active and verified ECL players. Your role comes from your ECL profile. <Link href="/split-ii/rules">Read the registration rules and terms.</Link></p>
           </TabsContent>
           <TabsContent value="format"><TournamentFormat /></TabsContent>
+          <TabsContent value="fixtures"><TournamentFixtures /></TabsContent>
           </Tabs>
           <section className={styles.floaterSection} aria-labelledby="floaters-heading">
             <div className={styles.sectionHeading}><div><p>SUBSTITUTES / SEPARATE PLAYER POOL</p><h3 id="floaters-heading">Subs / Floaters <span className={styles.floaterCount}>{loaded ? floaters.length : "--"}</span></h3></div></div>

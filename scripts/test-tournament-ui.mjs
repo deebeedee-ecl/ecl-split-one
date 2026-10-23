@@ -105,7 +105,7 @@ try {
   assert.ok(!container.textContent.includes('Moonriver'));
   assert.ok(!button('Preview controls'));
   const tabs = [...document.querySelectorAll('[role="tablist"] [role="tab"]')];
-  assert.deepEqual(tabs.map(tab=>tab.textContent.replace(/\s+/g,' ').trim()),['Registered players 0','Season details','Tournament format']);
+  assert.deepEqual(tabs.map(tab=>tab.textContent.replace(/\s+/g,' ').trim()),['Registered players 0','Season details','Tournament format','Fixtures']);
   await act(async()=>button('Tournament format').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));
   await until(()=>document.getElementById('format-heading'));
   const format = document.querySelector('[aria-labelledby="format-heading"]');
@@ -115,8 +115,37 @@ try {
   assert.ok(format.textContent.includes('5th place is eliminated'));
   assert.ok(format.textContent.includes('Both semifinals and the final are best of three'));
   assert.ok(format.textContent.includes('slowest total win time is eliminated'));
+  await act(async()=>button('Fixtures').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));
+  await until(()=>document.getElementById('fixtures-heading'));
+  const fixtures = document.querySelector('[aria-labelledby="fixtures-heading"]');
+  assert.ok(fixtures.textContent.includes('Match dates and times TBC'));
+  const pairs = new Set();
+  const overallGames = new Map();
+  for (const week of [1,2]) {
+    const games = fixtures.querySelectorAll(`[aria-label="Week ${week} fixtures"] > li`);
+    assert.equal(games.length,5);
+    const appearances = new Map();
+    for (const game of games) {
+      const names = [...game.querySelectorAll('strong')].map(el=>el.textContent);
+      assert.equal(names.length,2);
+      assert.notEqual(names[0],names[1]);
+      const pair = [...names].sort().join('|');
+      assert.ok(!pairs.has(pair),'Each pairing must occur only once');
+      pairs.add(pair);
+      for (const name of names) {
+        appearances.set(name,(appearances.get(name)||0)+1);
+        overallGames.set(name,(overallGames.get(name)||0)+1);
+      }
+    }
+    assert.equal(appearances.size,5);
+    assert.ok([...appearances.values()].every(count=>count===2));
+  }
+  assert.equal(pairs.size,10);
+  assert.equal(overallGames.size,5);
+  assert.ok([...overallGames.values()].every(count=>count===4));
+  console.log('PASS: Fixtures tab, complete ten-game round robin, two games per team per week, no repeated opponents, times TBC');
   await act(async()=>button('Registered players').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));
-  await until(()=>!document.getElementById('format-heading'));
+  await until(()=>!document.getElementById('fixtures-heading'));
   console.log('PASS: format tab beside season details, five teams without R1, ten Bo1 games, top four and Bo3 playoffs');
   await click(button('Sign in to claim'));
   assert.equal(document.querySelector('[role="dialog"] a').getAttribute('href'), '/login');

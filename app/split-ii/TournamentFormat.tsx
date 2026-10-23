@@ -1,13 +1,8 @@
 import Image from "next/image";
+import { SPLIT_II_TEAMS } from "@/lib/tournaments/split-ii-fixtures";
 import styles from "./split-ii.module.css";
 
-const teams = [
-  { name: "BallBreakers", tag: "[BB]", logo: "ballbreakers" },
-  { name: "Phoenix", tag: "phx.", logo: "phoenix" },
-  { name: "Zero", tag: "zero |", logo: "zero" },
-  { name: "NextGen", tag: "nG -", logo: "nextgen" },
-  { name: "Exodus", tag: "<eXo>", logo: "exodus" },
-];
+const teams = Object.entries(SPLIT_II_TEAMS).map(([logo, team]) => ({ logo, ...team }));
 
 export default function TournamentFormat() {
   return (
