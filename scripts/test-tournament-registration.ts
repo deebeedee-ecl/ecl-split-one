@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { PrismaClient, type Prisma, type AccountProfile } from "@prisma/client";
+import { PrismaClient, Prisma, type AccountProfile } from "@prisma/client";
 import { createRegistrationHandlers } from "../lib/tournaments/registration-http";
 import { getRegistrationState, registerForSplitTwo, RegistrationError } from "../lib/tournaments/registration";
 import { SPLIT_II_FLOATER_RULES_VERSION, SPLIT_II_OPENS_AT, SPLIT_II_RULES_VERSION, SPLIT_II_SLUG, SPLIT_II_TERMS_VERSION } from "../lib/tournaments/split-ii-config";
@@ -149,6 +149,38 @@ async function main() {
     assert.equal(anonymous.viewer.account, "signed-out");
     assert.ok(!JSON.stringify(anonymous).includes("fixture-open"));
     assert.ok(!JSON.stringify(anonymous).includes("@test.invalid"));
+
+    for (const code of ["P1001", "P2024"]) {
+      let attempts = 0;
+      const transient = code === "P1001"
+        ? new Prisma.PrismaClientInitializationError("Test connection failure", Prisma.prismaVersion.client, code)
+        : new Prisma.PrismaClientKnownRequestError("Test pool timeout", { code, clientVersion: Prisma.prismaVersion.client });
+      const flaky = { tournament: { findUnique: async (args: Prisma.TournamentFindUniqueArgs) => {
+        if (++attempts === 1) throw transient;
+        return db.tournament.findUnique(args);
+      } } } as unknown as PrismaClient;
+      const readHandlers = createRegistrationHandlers(flaky, async () => null);
+      const recovered = await readHandlers.GET(new Request("http://localhost/api"));
+      assert.equal(recovered.status, 200);
+      assert.equal(attempts, 2);
+      assert.equal((await recovered.json()).players.length, anonymous.players.length);
+    }
+    let missingReads = 0;
+    const missing = { tournament: { findUnique: async () => { missingReads++; return null; } } } as unknown as PrismaClient;
+    const missingHandlers = createRegistrationHandlers(missing, async () => null);
+    assert.equal((await missingHandlers.GET(new Request("http://localhost/api"))).status, 503);
+    assert.equal(missingReads, 1, "Configuration failures must not be retried");
+    let writeAttempts = 0;
+    const failedWrites = { $transaction: async () => {
+      writeAttempts++;
+      throw new Prisma.PrismaClientInitializationError("Test connection failure", Prisma.prismaVersion.client, "P1001");
+    } } as unknown as PrismaClient;
+    const writeHandlers = createRegistrationHandlers(failedWrites, async () => fixtures[0].account);
+    console.warn = () => {};
+    assert.equal((await writeHandlers.POST(new Request("http://localhost/api", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(consent)}))).status, 503);
+    console.warn = originalWarn;
+    assert.equal(writeAttempts, 1, "Writes must not be automatically retried");
+    console.log("PASS: transient connection/pool read recovery, no retry for configuration failures or writes");
 
     await db.accountProfile.update({ where: { id: fixtures[4].profile.id }, data: { openId: fixtures[0].profile.openId } });
     await expectServiceError(4, "IDENTITY_REGISTERED");

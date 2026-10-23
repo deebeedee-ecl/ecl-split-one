@@ -8,6 +8,26 @@ import { demoPlayer, mockPlayers } from "./mock-registrations";
 type RequestState = "idle" | "loading" | "error";
 const endpoint = "/api/tournaments/split-ii/registration";
 
+async function fetchRegistrationState(token: string | null): Promise<TournamentRegistrationState> {
+  for (let attempt = 0; ; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    let retryable = true;
+    try {
+      const response = await fetch(endpoint, { cache: "no-store", headers: token ? { Authorization: `Bearer ${token}` } : {}, signal: controller.signal });
+      retryable = [502, 503, 504].includes(response.status);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "The roster could not load.");
+      return payload as TournamentRegistrationState;
+    } catch (error) {
+      if (!retryable || attempt >= 1) throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+}
+
 export function useSplitTwoRegistration(preview: boolean) {
   const [previewPlayers, setPreviewPlayers] = useState<TournamentRosterEntry[]>(mockPlayers.slice(0, 18));
   const [previewFloaters, setPreviewFloaters] = useState<TournamentRosterEntry[]>([]);
@@ -20,34 +40,37 @@ export function useSplitTwoRegistration(preview: boolean) {
   const [requestState, setRequestState] = useState<RequestState>("loading");
   const [message, setMessage] = useState("");
   const requestId = useRef(0);
+  const readingId = useRef<number | null>(null);
+  const sessionIdentity = useRef<string | null>(null);
   const registering = useRef(false);
   const invalidateRequests = useCallback(() => { requestId.current++; }, []);
 
   useEffect(() => {
     if (preview) return;
     let disposed = false;
-    const applySession = (accessToken: string | null) => {
+    const applySession = (accessToken: string | null, userId: string | null) => {
       if (disposed) return;
       requestId.current++;
-      setData(null);
+      const identity = userId ?? accessToken;
+      if (sessionIdentity.current !== identity) setData(null);
+      sessionIdentity.current = identity;
       setToken(accessToken);
       setSessionReady(true);
       setSessionRevision(value => value + 1);
     };
-    void supabase.auth.getSession().then(({ data: session }) => applySession(session.session?.access_token ?? null)).catch(() => applySession(null));
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => applySession(session?.access_token ?? null));
+    void supabase.auth.getSession().then(({ data: session }) => applySession(session.session?.access_token ?? null, session.session?.user?.id ?? null)).catch(() => applySession(null, null));
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => applySession(session?.access_token ?? null, session?.user?.id ?? null));
     return () => { disposed = true; invalidateRequests(); subscription.subscription.unsubscribe(); };
   }, [preview, invalidateRequests]);
 
   const refresh = useCallback(async (silent = false) => {
     if (preview) { setPreviewRequest("idle"); return; }
-    if (silent && registering.current) return;
+    if (silent && (registering.current || readingId.current !== null)) return;
     const id = ++requestId.current;
+    readingId.current = id;
     if (!silent) setRequestState("loading");
     try {
-      const response = await fetch(endpoint, { cache: "no-store", headers: token ? { Authorization: `Bearer ${token}` } : {} });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message ?? "The roster could not load.");
+      const payload = await fetchRegistrationState(token);
       if (id !== requestId.current) return;
       setData(payload as TournamentRegistrationState);
       setMessage("");
@@ -56,6 +79,8 @@ export function useSplitTwoRegistration(preview: boolean) {
       if (id !== requestId.current) return;
       setMessage(error instanceof Error ? error.message : "The roster could not load.");
       setRequestState("error");
+    } finally {
+      if (readingId.current === id) readingId.current = null;
     }
   }, [preview, token]);
 

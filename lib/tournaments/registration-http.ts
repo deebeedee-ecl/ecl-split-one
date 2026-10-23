@@ -8,13 +8,30 @@ import { getRegistrationState, registerForSplitTwo, RegistrationError } from "@/
 
 const headers = { "Cache-Control": "private, no-store" };
 
+function databaseErrorCode(error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) return error.code;
+  if (error instanceof Prisma.PrismaClientInitializationError) return error.errorCode;
+  return undefined;
+}
+
+async function readRegistrationState(database: PrismaClient, account: AuthenticatedAccount | null) {
+  try {
+    return await getRegistrationState(database, account);
+  } catch (error) {
+    // Retry reads only: a failed write may already have committed.
+    if (!["P1001", "P1002", "P1008", "P1017", "P2024"].includes(databaseErrorCode(error) ?? "")) throw error;
+    await new Promise(resolve => setTimeout(resolve, 150));
+    return getRegistrationState(database, account);
+  }
+}
+
 function failure(error: unknown) {
   if (error instanceof RegistrationError) return NextResponse.json({ code: error.code, message: error.message }, { status: error.status, headers });
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
     return NextResponse.json({ code: "DUPLICATE", message: "An entry already exists for this player. Refresh to view your registration." }, { status: 409, headers });
   }
   // Log only a classification, never tokens, query text, profile data or raw errors.
-  console.warn("Tournament registration unavailable", error instanceof Prisma.PrismaClientKnownRequestError ? error.code : "server-error");
+  console.warn("Tournament registration unavailable", databaseErrorCode(error) ?? "server-error");
   return NextResponse.json({ code: "UNAVAILABLE", message: "Registration is temporarily unavailable. Please try again shortly." }, { status: 503, headers });
 }
 
@@ -23,7 +40,7 @@ async function GET(request: Request) {
   try {
     const account = request.headers.has("authorization") ? await authenticate(request) : null;
     if (request.headers.has("authorization") && !account) return NextResponse.json({ code: "UNAUTHENTICATED", message: "Please sign in again." }, { status: 401, headers });
-    return NextResponse.json(await getRegistrationState(database, account), { headers });
+    return NextResponse.json(await readRegistrationState(database, account), { headers });
   } catch (error) { return failure(error); }
 }
 

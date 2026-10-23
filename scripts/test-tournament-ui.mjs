@@ -63,7 +63,15 @@ let state = structuredClone(config);
 let unavailable = false;
 let rejectClaim = false;
 let posts = 0;
+let reads = 0;
+let temporaryReadFailures = 0;
+let readStatus = 0;
 globalThis.fetch = async (_url, options = {}) => {
+  if (options.method !== 'POST') {
+    reads++;
+    if (temporaryReadFailures > 0) { temporaryReadFailures--; return Response.json({message:'Temporarily unavailable'},{status:503}); }
+    if (readStatus) return Response.json({message:'Please sign in again.'},{status:readStatus});
+  }
   if (unavailable) return Response.json({ message: 'Temporarily unavailable' }, { status: 503 });
   if (options.method === 'POST') {
     posts++;
@@ -153,7 +161,7 @@ try {
   await click(document.querySelector('[aria-label="Close dialog"]'));
 
   state.viewer = { account: 'eligible', name: 'Fixture Player', riotId: 'Fixture#1234', role: 'Middle' };
-  await act(async () => setSession({ access_token: 'fixture-token' }));
+  await act(async () => setSession({ access_token: 'fixture-token', user: {id:'fixture-user'} }));
   await until(() => button('Claim your place') && !button('Claim your place').disabled);
   await click(button('Claim your place'));
   assert.ok(document.querySelector('[role="dialog"]').textContent.includes('Fixture Player'));
@@ -203,6 +211,41 @@ try {
   assert.ok(container.textContent.includes('on the floater list'));
   assert.equal(container.querySelector('.counter strong').textContent,'25');
   console.log('PASS: full 25-player roster still permits floater signup, explicit consent, separate counter and saved floater entry');
+  const beforeRetry = reads;
+  temporaryReadFailures = 1;
+  await act(async()=>window.dispatchEvent(new Event('focus')));
+  await until(()=>reads >= beforeRetry + 2);
+  await flush();
+  assert.equal(container.querySelector('.counter strong').textContent,'25');
+  assert.equal(document.querySelectorAll('[aria-label="Registered floaters in signup order"] > li').length,1);
+  assert.ok(!container.querySelector('.rosterWarning'));
+  unavailable = true;
+  await act(async()=>window.dispatchEvent(new Event('focus')));
+  await until(()=>container.querySelector('.rosterWarning'));
+  assert.equal(document.querySelectorAll('[aria-label="Registered players in signup order"] > li').length,25);
+  assert.equal(document.querySelectorAll('[aria-label="Registered floaters in signup order"] > li').length,1);
+  assert.ok(container.textContent.includes('on the floater list'));
+  await act(async()=>setSession({access_token:'rotated-token',user:{id:'fixture-user'}}));
+  await until(()=>container.querySelector('.rosterWarning'));
+  assert.equal(container.querySelector('.counter strong').textContent,'25');
+  assert.ok(container.textContent.includes('on the floater list'));
+  unavailable = false;
+  await click(button('Try again'));
+  await until(()=>!container.querySelector('.rosterWarning'));
+  const beforeUnauthorized = reads;
+  readStatus = 401;
+  await act(async()=>window.dispatchEvent(new Event('focus')));
+  await until(()=>container.querySelector('.rosterWarning'));
+  assert.equal(reads,beforeUnauthorized+1,'Unauthorized requests must not be retried');
+  readStatus = 0;
+  unavailable = true;
+  await act(async()=>setSession({access_token:'different-user-token',user:{id:'different-user'}}));
+  await until(()=>container.textContent.includes('The roster couldn'));
+  assert.equal(container.querySelector('.counter strong').textContent,'--');
+  assert.equal(document.querySelector('[aria-label="Registered floaters in signup order"]'),null);
+  assert.ok(!container.textContent.includes('on the floater list'));
+  unavailable = false;
+  console.log('PASS: transient read retry, retained main/floater lists on refresh failure and token rotation, recovery, no 401 retry, account-switch privacy');
   state = { ...structuredClone(config), viewer: { account: 'eligible', name: 'Fixture Player', riotId: 'Fixture#1234', role: 'Middle' } };
   unavailable = true;
   await mount();
@@ -213,12 +256,14 @@ try {
   await click(button('Try again'));
   await until(() => button('Claim your place') && !button('Claim your place').disabled);
   rejectClaim = true;
+  const beforeRejectedPost = posts;
   await click(button('Claim your place'));
   await click(document.querySelector('input[type="checkbox"]'));
   await click(button('Accept & sign up'));
   await until(() => document.querySelector('[role="dialog"] [role="alert"]'));
   assert.ok(document.querySelector('[role="dialog"]').textContent.includes('The last place was claimed'));
   assert.ok(!container.textContent.includes('Place confirmed'));
+  assert.equal(posts,beforeRejectedPost+1,'Registration writes must not be automatically retried');
   console.log('PASS: scheduled opening, full capacity, unavailable roster, retry recovery and rejected signup has no false confirmation');
   console.log('All client interaction checks passed. Auth and HTTP were mocked; no live signup was sent.');
 } finally {
