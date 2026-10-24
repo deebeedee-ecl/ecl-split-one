@@ -43,6 +43,26 @@ The five supplied team logo assets were extracted from the reference. Its HTML,
 global styles, simulator JavaScript and local result storage were not imported.
 Registration, floater rules, saved consent and database records are unchanged.
 
+## Final team roster board (October 24)
+
+The owner supplied the final draft allocations in a roster-board screenshot.
+The first tab now says Team rosters and shows the five team cards, with the
+captain first and each pick's original pot number. The allocations are stored
+in `lib/tournaments/split-ii-rosters.ts`; Epifanio uses the registered spelling.
+Cards use the original logos at `/kook/split2/`. They adapt to the Hub's existing
+content column and stack on small screens. The separate subs/floater section
+and its live loading/signup behavior remain below the tabs.
+
+This is a display of the supplied draft results. It does not create teams or
+memberships in legacy tables, alter registrations, or mix tournament and
+inhouse statistics. The final cards remain visible during registration API
+failures, with a separate status/retry notice for registration and floater data.
+
+Verification checks five captains, 25 unique players, pot labels, logo paths,
+and existing fixtures, registration, floater, audio and error-recovery flows.
+A read-only comparison confirmed all 25 saved main-roster names appear exactly
+once in the final allocations, with no additional players or omissions.
+
 Verification: the existing DOM suite exercises the third tab, its five teams,
 ten-game count, qualification, tie-break wording and Bo3 playoffs, plus the
 existing signup/audio/floater flows. TypeScript, focused lint and the isolated

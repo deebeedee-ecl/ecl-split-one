@@ -3,20 +3,21 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
 import {
-  ArrowDown, ArrowRight, Check, CheckCheck, ChevronRight, CircleAlert,
-  CalendarDays, Clock3, FlaskConical, LoaderCircle, LockKeyhole, RotateCcw,
+  ArrowRight, Check, CheckCheck, ChevronRight,
+  CalendarDays, FlaskConical, LoaderCircle, LockKeyhole, RotateCcw,
   Settings2, ShieldCheck, Swords, Ticket, Trophy, UserRound, Users, X,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SPLIT_II_FLOATER_RULES, SPLIT_II_REGISTRATION_RULES, type TournamentPool } from "@/lib/tournaments/split-ii-config";
+import { SPLIT_II_ROSTERS } from "@/lib/tournaments/split-ii-rosters";
 import { useSplitTwoRegistration } from "./useSplitTwoRegistration";
 import BroadcastType from "./BroadcastType";
 import DashboardAudio from "./DashboardAudio";
 import TournamentFormat from "./TournamentFormat";
 import TournamentFixtures from "./TournamentFixtures";
+import TournamentRosters from "./TournamentRosters";
 import styles from "./split-ii.module.css";
 
 export default function SplitTwoRegistration({ inDashboard = false, preview = false }: { inDashboard?: boolean; preview?: boolean }) {
@@ -31,7 +32,6 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
   const [controlsOpen, setControlsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"roster" | "details" | "format" | "fixtures">("roster");
   const [announcement, setAnnouncement] = useState("");
-  const reducedMotion = useReducedMotion();
   const count = players.length;
   const remaining = capacity - count;
   const limited = count >= Math.ceil(capacity * 0.8);
@@ -110,25 +110,14 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
         <section className={styles.rosterSection} aria-label="Split II roster">
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "roster" | "details" | "format" | "fixtures")}>
           <TabsList className={styles.tabs} variant="line" aria-label="Split II information">
-            <TabsTrigger value="roster"><Users size={15} />Registered players <span>{loaded ? count : "--"}</span></TabsTrigger>
+            <TabsTrigger value="roster"><Users size={15} />Team rosters <span>{SPLIT_II_ROSTERS.length}</span></TabsTrigger>
             <TabsTrigger value="details"><Trophy size={15} />Season details</TabsTrigger>
             <TabsTrigger value="format"><Swords size={15} />Tournament format</TabsTrigger>
             <TabsTrigger value="fixtures"><CalendarDays size={15} />Fixtures</TabsTrigger>
           </TabsList>
-          {requestState === "error" && loaded && <div className={styles.rosterWarning} role="status"><p>Couldn&apos;t refresh registrations. Showing the last loaded roster and floaters.</p><button onClick={() => void state.refresh()}><RotateCcw size={13} />Try again</button></div>}
+          {requestState === "error" && <div className={styles.rosterWarning} role="status"><p>{loaded ? "Couldn't refresh registration status or floaters. Showing the last loaded data." : "Registration status and floaters couldn't load. Team rosters are still available."}</p><button onClick={() => void state.refresh()}><RotateCcw size={13} />Try again</button></div>}
           <TabsContent value="roster">
-            <div className={styles.sectionHeading}><div><p>SPLIT II / PLAYER POOL</p><h3>Who&apos;s in.</h3></div><span><Clock3 size={13} /> Signup order</span></div>
-            {requestState === "loading" && !loaded ? <div className={styles.rosterFeedback} role="status"><LoaderCircle className={styles.spinner} size={25} /><h4>Loading the roster</h4></div> : requestState === "error" && !loaded ? <div className={styles.rosterFeedback} role="alert"><CircleAlert size={25} /><h4>The roster couldn&apos;t load.</h4><p>{state.message}</p><button onClick={() => void state.refresh()}><RotateCcw size={15} />Try again</button></div> : players.length === 0 ? <div className={styles.rosterFeedback}><Users size={25} /><h4>The player pool starts here.</h4><p>Confirmed entries will appear in signup order.</p></div> : <ol className={styles.playerList} aria-label="Registered players in signup order">
-              {players.map((entry, i) => (
-                <motion.li key={entry.id} layout={reducedMotion ? false : "position"} transition={{ duration: reducedMotion ? 0 : 0.18 }} data-you={entry.id === registration?.id || undefined}>
-                  <span className={styles.listNumber}>{String(i + 1).padStart(2, "0")}</span>
-                  <span className={styles.listName}>{entry.name}{entry.id === registration?.id && <em>You</em>}</span>
-                  <span className={styles.listRole}>{entry.role}</span>
-                  <Check size={12} aria-label="Registered" />
-                </motion.li>
-              ))}
-            </ol>}
-            <div className={styles.rosterFooter}><span><i />{loaded ? `${count} confirmed` : "Checking roster"}</span><span>{loaded ? `${remaining} open places` : "Availability pending"} <ArrowDown size={12} /></span></div>
+            <TournamentRosters />
           </TabsContent>
           <TabsContent value="details" className={styles.seasonDetails}>
             <p>EXCLUSIVE TO THE ECL COMMUNITY</p><h3>The next chapter.</h3>

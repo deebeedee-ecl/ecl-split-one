@@ -73,6 +73,22 @@
 .eventDetails strong { color: #edf1fc; font-size: 17px; font-weight: 700; }
 .registrationLayout { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 45px; padding: 32px 24px 40px; align-items: start; }
 .rosterSection { min-width: 0; }
+.rosterBoardHeading { margin: 26px 0 24px; }
+.rosterBoardHeading > p { color: #dfbd73; font-size: 9px; font-weight: 750; letter-spacing: .1em; }
+.rosterBoardHeading h3 { font-family: Anton, Impact, sans-serif; font-size: 38px; font-weight: 400; line-height: 1.2; text-transform: uppercase; margin: 8px 0 12px; }
+.rosterBoardHeading > span { display: block; color: #a4adbe; font-size: 12px; line-height: 1.8; }
+.teamRosterGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.teamRosterCard { min-width: 0; padding: 20px 18px 6px; background: #111927; border: 1px solid #30394a; border-top: 3px solid var(--team-accent); }
+.teamRosterLogo { display: flex; align-items: center; justify-content: center; height: 84px; margin-bottom: 20px; }
+.teamRosterLogo img { object-fit: contain; }
+.teamRosterEyebrow { color: #929fb5; font-size: 8px; font-weight: 750; letter-spacing: .08em; }
+.teamRosterCard h4 { margin: 10px 0 14px; font-family: Anton, Impact, sans-serif; font-weight: 400; font-size: 26px; line-height: 1.2; text-transform: uppercase; overflow-wrap: anywhere; }
+.teamRosterList { list-style: none; padding: 0; margin: 0; }
+.teamRosterList > li { border-top: 1px solid #30394a; padding: 14px 0; }
+.teamRosterLabel { display: block; color: #929fb5; font-size: 8px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 6px; }
+.teamRosterList strong { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.teamRosterTag { color: #dfbd73; }
+.teamRosterList > li[data-captain="true"] .teamRosterName { color: #fa8b99; }
 .tabs { width: 100%; height: auto; display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 12px 22px; padding: 0; border-radius: 0; border-bottom: 1px solid #ffffff1b; }
 .tabs > button { display: flex; flex: none; align-items: center; gap: 8px; min-height: 45px; height: auto; padding: 0 0 14px; border-radius: 0; color: #9699a3; font-size: 12px; font-weight: 600; border: 0; border-bottom: 2px solid transparent; background: transparent; }
 .tabs > button::after { display: none; }
@@ -226,6 +242,7 @@
   .stepsBand > div { gap: 11px; }
 }
 @media (max-width: 560px) {
+  .teamRosterGrid { grid-template-columns: 1fr; }
   .fixtureList > li { grid-template-columns: 18px minmax(0, 1fr) 16px minmax(0, 1fr); gap: 6px; padding: 14px 10px; }
   .fixtureTeam { gap: 6px; }
   .fixtureTeam img { width: 23px; height: 23px; }

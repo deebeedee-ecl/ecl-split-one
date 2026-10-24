@@ -105,7 +105,7 @@ async function mount() {
   if (root) await act(async () => root.unmount());
   root = createRoot(container);
   await act(async () => root.render(React.createElement(Page, { inDashboard: true })));
-  await until(() => !container.textContent.includes('Loading the roster'));
+  await until(() => container.querySelector('.counter strong').textContent !== '--' || container.querySelector('.rosterWarning'));
 }
 async function click(element) { assert.ok(element); await act(async () => element.click()); await flush(); }
 try {
@@ -113,7 +113,27 @@ try {
   assert.ok(!container.textContent.includes('Moonriver'));
   assert.ok(!button('Preview controls'));
   const tabs = [...document.querySelectorAll('[role="tablist"] [role="tab"]')];
-  assert.deepEqual(tabs.map(tab=>tab.textContent.replace(/\s+/g,' ').trim()),['Registered players 0','Season details','Tournament format','Fixtures']);
+  assert.deepEqual(tabs.map(tab=>tab.textContent.replace(/\s+/g,' ').trim()),['Team rosters 5','Season details','Tournament format','Fixtures']);
+  const teamCards = [...document.querySelectorAll('[aria-label="Split II team rosters"] article')];
+  assert.equal(teamCards.length,5);
+  assert.deepEqual(teamCards.map(card=>[card.querySelector('h4').textContent,card.querySelector('[data-captain="true"] .teamRosterName').textContent]),[
+    ['BallBreakers','Jzck'],['Exodus','Soul'],['Zero','Exile'],['NextGen','Kasper'],['Phoenix','doolittlesy']
+  ]);
+  const rosterNames = [];
+  for (const card of teamCards) {
+    assert.equal(card.querySelectorAll('.teamRosterList > li').length,5);
+    assert.equal(card.querySelectorAll('[data-captain="true"]').length,1);
+    assert.equal(card.querySelectorAll('.teamRosterLabel').length,5);
+    assert.ok([...card.querySelectorAll('.teamRosterLabel')].slice(1).every(label=>/^Pot 0[1-5]$/.test(label.textContent)));
+    assert.match(card.querySelector('img').getAttribute('src'),/^\/kook\/split2\/.+\.png$/);
+    rosterNames.push(...[...card.querySelectorAll('.teamRosterName')].map(el=>el.textContent));
+  }
+  assert.equal(new Set(rosterNames).size,25);
+  assert.ok(rosterNames.includes('Epifanio'));
+  assert.ok(rosterNames.includes('Bernardt'));
+  assert.equal(document.querySelector('[aria-label="Registered players in signup order"]'),null);
+  assert.ok(document.getElementById('floaters-heading'));
+  console.log('PASS: five final team cards, correct captains, 25 unique players, original pot labels, hosted logos and separate subs section');
   await act(async()=>button('Tournament format').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));
   await until(()=>document.getElementById('format-heading'));
   const format = document.querySelector('[aria-labelledby="format-heading"]');
@@ -152,7 +172,7 @@ try {
   assert.equal(overallGames.size,5);
   assert.ok([...overallGames.values()].every(count=>count===4));
   console.log('PASS: Fixtures tab, complete ten-game round robin, two games per team per week, no repeated opponents, times TBC');
-  await act(async()=>button('Registered players').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));
+  await act(async()=>button('Team rosters').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));
   await until(()=>!document.getElementById('fixtures-heading'));
   console.log('PASS: format tab beside season details, five teams without R1, ten Bo1 games, top four and Bo3 playoffs');
   await click(button('Sign in to claim'));
@@ -222,7 +242,7 @@ try {
   unavailable = true;
   await act(async()=>window.dispatchEvent(new Event('focus')));
   await until(()=>container.querySelector('.rosterWarning'));
-  assert.equal(document.querySelectorAll('[aria-label="Registered players in signup order"] > li').length,25);
+  assert.equal(document.querySelectorAll('[aria-label="Split II team rosters"] .teamRosterList > li').length,25);
   assert.equal(document.querySelectorAll('[aria-label="Registered floaters in signup order"] > li').length,1);
   assert.ok(container.textContent.includes('on the floater list'));
   await act(async()=>setSession({access_token:'rotated-token',user:{id:'fixture-user'}}));
@@ -240,7 +260,7 @@ try {
   readStatus = 0;
   unavailable = true;
   await act(async()=>setSession({access_token:'different-user-token',user:{id:'different-user'}}));
-  await until(()=>container.textContent.includes('The roster couldn'));
+  await until(()=>container.textContent.includes("Registration status and floaters couldn't load"));
   assert.equal(container.querySelector('.counter strong').textContent,'--');
   assert.equal(document.querySelector('[aria-label="Registered floaters in signup order"]'),null);
   assert.ok(!container.textContent.includes('on the floater list'));
@@ -249,7 +269,8 @@ try {
   state = { ...structuredClone(config), viewer: { account: 'eligible', name: 'Fixture Player', riotId: 'Fixture#1234', role: 'Middle' } };
   unavailable = true;
   await mount();
-  assert.ok(container.textContent.includes('The roster couldn'));
+  assert.ok(container.textContent.includes("Registration status and floaters couldn't load"));
+  assert.equal(document.querySelectorAll('[aria-label="Split II team rosters"] article').length,5);
   assert.equal(container.querySelector('.counter strong').textContent, '--');
   assert.ok(button('Checking registration').disabled);
   unavailable = false;
