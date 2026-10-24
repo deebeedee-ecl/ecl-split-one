@@ -120,7 +120,7 @@ try {
   assert.equal(document.querySelector('[aria-label="Registration capacity"]'),null);
   assert.deepEqual([...document.querySelectorAll('[aria-label="Tournament dates and draft status"] strong')].map(el=>el.textContent),['23 October','24 October','20 November','Draft complete']);
   const tabs = [...document.querySelectorAll('[role="tablist"] [role="tab"]')];
-  assert.deepEqual(tabs.map(tab=>tab.textContent.replace(/\s+/g,' ').trim()),['Team rosters 5','Season details','Tournament format','Fixtures','Results','Player stats']);
+  assert.deepEqual(tabs.map(tab=>tab.textContent.replace(/\s+/g,' ').trim()),['Team rosters 5','Season details','Tournament format','Fixtures','Results','Player stats','Standings']);
   const teamCards = [...document.querySelectorAll('[aria-label="Split II team rosters"] article')];
   assert.equal(teamCards.length,5);
   assert.deepEqual(teamCards.map(card=>[card.querySelector('h4').textContent,card.querySelector('[data-captain="true"] .teamRosterName').textContent]),[
@@ -317,9 +317,30 @@ try {
   state=structuredClone(config);await mount();
   const activate=async label=>{await act(async()=>button(label).dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));await flush();};
   await activate('Fixtures');assert.ok(container.textContent.includes('26 Oct, 20:00 CST'));assert.ok(container.textContent.includes('Confirmed'));assert.ok(container.textContent.includes('1 : 0'));
+  assert.equal(container.querySelectorAll('.fixtureWeek').length,1);
+  assert.equal(container.querySelectorAll('.liveFixtureList > li').length,1);
+  assert.ok(container.querySelector('.fixtureTeam.fixtureWin').textContent.includes('BallBreakers'));
+  assert.ok(container.querySelector('.fixtureTeam.fixtureLoss').textContent.includes('Phoenix'));
+  assert.ok(container.querySelector('.fixtureTeam.fixtureWin').textContent.includes('Win'));
+  await activate('Standings');
+  const rows=[...container.querySelectorAll('.resultsTable tbody tr')];
+  assert.deepEqual(rows.map(row=>[...row.children].map(cell=>cell.textContent)),[['BallBreakers','1','1','0','1'],['Phoenix','1','0','1','0']]);
+  assert.ok(container.textContent.includes('Ties (*) remain provisional'));
+  assert.ok(!container.textContent.includes('MVP#1234'));
   await activate('Results');assert.ok(container.textContent.includes('BallBreakers win'));assert.ok(container.textContent.includes('MVP#1234'));assert.ok(container.textContent.includes('5 / 2 / 10'));
   await activate('Player stats');assert.ok(container.textContent.includes('7.50'));assert.ok(container.textContent.includes('Top 3 MVPs'));assert.ok(container.textContent.includes('Test MVP'));
   console.log('PASS: shared fixture data renders China time, approved results and match details, standings and Top 3 leaders');
+  const completed=structuredClone(matchState);
+  for(const [bestOf,homeScore,awayScore] of [[1,0,0],[3,1,0]]){
+    matchState={...completed,fixtures:[{...completed.fixtures[0],bestOf,homeScore,awayScore,schedule:null}]};
+    await mount();await activate('Fixtures');
+    assert.equal(container.querySelectorAll('.fixtureWin,.fixtureLoss').length,0,'Pending and incomplete series have no win/loss styling');
+    if(homeScore===0)assert.equal(container.querySelector('.fixtureVersus').textContent,'vs');
+  }
+  matchState={...completed,fixtures:[{...completed.fixtures[0],bestOf:3,homeScore:1,awayScore:2}]};
+  await mount();await activate('Fixtures');
+  assert.ok(container.querySelector('.fixtureTeam.fixtureWin').textContent.includes('Phoenix'));
+  matchState=completed;
   const members=Array.from({length:10},(_,i)=>({profileId:`p${i}`,name:`Player ${i}`,riotId:`Player${i}#1234`,pot:i%5||null,captain:i%5===0}));
   const adminData={...matchState,teams:[{...home,members:members.slice(0,5)},{...away,members:members.slice(5)}],floaters:[{profileId:'floater',name:'Substitute',role:'Support'}],notifications:[],reports:[{id:'pending',fixtureId:'f1',gameNumber:1,source:'HUB',status:'PENDING',payload:{...matchState.reports[0].payload,players:members.map((p,i)=>({...p,teamId:i<5?'home':'away',kills:5,deaths:2,assists:10,mvp:false}))}}]};
   let adminPost=null;

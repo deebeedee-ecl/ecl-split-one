@@ -19,7 +19,7 @@ import TournamentFormat from "./TournamentFormat";
 import TournamentFixtures from "./TournamentFixtures";
 import TournamentRosters from "./TournamentRosters";
 import { useTournamentMatches } from './useTournamentMatches';
-import { LiveFixtures,TournamentResults,TournamentLeaders } from './TournamentMatches';
+import { LiveFixtures,TournamentResults,TournamentLeaders,TournamentStandings } from './TournamentMatches';
 import styles from "./split-ii.module.css";
 
 export default function SplitTwoRegistration({ inDashboard = false, preview = false }: { inDashboard?: boolean; preview?: boolean }) {
@@ -105,6 +105,7 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
             <TabsTrigger value="fixtures"><CalendarDays size={15} />Fixtures</TabsTrigger>
             <TabsTrigger value="results"><Trophy size={15} />Results</TabsTrigger>
             <TabsTrigger value="stats"><Users size={15} />Player stats</TabsTrigger>
+            <TabsTrigger value="standings"><Trophy size={15} />Standings</TabsTrigger>
           </TabsList>
           {requestState === "error" && <div className={styles.rosterWarning} role="status"><p>{loaded ? "Couldn't refresh registration status or floaters. Showing the last loaded data." : "Registration status and floaters couldn't load. Team rosters are still available."}</p><button onClick={() => void state.refresh()}><RotateCcw size={13} />Try again</button></div>}
           <TabsContent value="roster">
@@ -117,10 +118,11 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
             <p>Entry is for existing, active and verified ECL players. Your role comes from your ECL profile. <Link href="/split-ii/rules">Read the registration rules and terms.</Link></p>
           </TabsContent>
           <TabsContent value="format"><TournamentFormat /></TabsContent>
-          {(activeTab==='fixtures'||activeTab==='results'||activeTab==='stats')&&<div className={styles.matchRefresh}><span>{matches.error || (matches.loading?'Refreshing tournament data…':'Updates every minute. China time (UTC+8).')}</span><button onClick={()=>void matches.refresh()} disabled={matches.loading}>Refresh</button></div>}
+          {(activeTab==='fixtures'||activeTab==='results'||activeTab==='stats'||activeTab==='standings')&&<div className={styles.matchRefresh}><span>{matches.error || (matches.loading?'Refreshing tournament data…':'Updates every minute. China time (UTC+8).')}</span><button onClick={()=>void matches.refresh()} disabled={matches.loading}>Refresh</button></div>}
           <TabsContent value="fixtures">{matches.data?<LiveFixtures data={matches.data}/>:<TournamentFixtures />}</TabsContent>
           <TabsContent value="results"><TournamentResults data={matches.data}/></TabsContent>
           <TabsContent value="stats"><TournamentLeaders data={matches.data}/></TabsContent>
+          <TabsContent value="standings"><TournamentStandings data={matches.data}/></TabsContent>
           </Tabs>
           <section className={styles.floaterSection} aria-labelledby="floaters-heading">
             <div className={styles.sectionHeading}><div><p>SUBSTITUTES / SEPARATE PLAYER POOL</p><h3 id="floaters-heading">Subs / Floaters <span className={styles.floaterCount}>{loaded ? floaters.length : "--"}</span></h3></div></div>
