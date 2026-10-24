@@ -10,6 +10,7 @@ const { PublicData, publicLink } = require('./public.cjs');
 const { Updates, trustedPolicy, restartBlocker } = require('./updates.cjs');
 const { EclReleaseVerifier } = require('./release-signature.cjs');
 const { Reporting } = require('./reporting.cjs');
+const { SplitTwo } = require('./split-two.cjs');
 const demo = process.argv.includes('--demo');
 const smoke = process.argv.includes('--smoke');
 // Keep the original profile directory and app ID when rebranding, preserving sessions and matches.
@@ -18,7 +19,7 @@ if (process.platform === 'win32') app.setAppUserModelId('lol.eclchina.companion'
 if (demo) app.setPath('userData', path.join(app.getPath('temp'), 'ecl-companion-demo'));
 if (smoke) app.setPath('userData', path.join(app.getPath('temp'), `ecl-companion-smoke-${process.pid}`));
 protocol.registerSchemesAsPrivileged([{ scheme: 'ecl', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
-let window, tray, collector, account, preferences, publicData, updates, reporting, quitting = false, tab = process.argv.includes('--preview-match') ? 'collector' : 'dashboard';
+let window, tray, collector, account, preferences, publicData, updates, reporting, splitTwo, quitting = false, tab = process.argv.includes('--preview-match') ? 'collector' : 'dashboard';
 const localOrigin = 'ecl://companion';
 const send = (channel, data) => { if (window && !window.isDestroyed()) window.webContents.send(channel, data); };
 const links = { home: 'https://eclchina.lol/hub/dashboard', news: 'https://eclchina.lol/news', events: 'https://eclchina.lol/tournaments', patches: 'https://www.leagueoflegends.com/en-us/news/tags/patch-notes/', ladder: 'https://eclchina.lol/hub/leaderboard' };
@@ -54,7 +55,7 @@ async function open() {
   window.show();
 }
 
-app.on('before-quit', () => { quitting = true; reporting?.dispose(); collector?.stop(); account?.dispose(); publicData?.dispose(); updates?.dispose(); });
+app.on('before-quit', () => { quitting = true; splitTwo?.dispose(); reporting?.dispose(); collector?.stop(); account?.dispose(); publicData?.dispose(); updates?.dispose(); });
 app.on('window-all-closed', () => { if (!tray) app.quit(); });
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
@@ -82,6 +83,9 @@ else {
     const vault = new SessionVault(path.join(app.getPath('userData'), 'account'), safeStorage);
     account = await new Account(demo ? { configured: false } : config, vault).init();
     reporting = new Reporting(account, collector);
+    splitTwo = new SplitTwo(account, collector);
+    splitTwo.on('change', state => send('split-two-state',state));
+    account.on('change',()=>{if(splitTwo.data.enabled&&splitTwo.epoch!==account.epoch)splitTwo.disconnect('ECL account changed. Reconnect tournament reporting.');});
     reporting.on('change', state => send('reporting-state', state));
     account.on('change', () => { if (reporting.data.enabled && account.epoch !== reporting.epoch) reporting.disconnect('ECL account changed. Reconnect reporting.'); });
     preferences = await new Preferences(app.getPath('userData')).init();
@@ -103,7 +107,14 @@ else {
     collector.on('change', state => send('collector-state', state));
     account.on('change', state => send('account-state', state));
     publicData.on('change', state => send('public-state', state)); updates.on('change', state => send('update-state', state));
-    handle('state', () => ({ collector: collector.snapshot(), reporting: reporting.snapshot(), preview: process.argv.includes('--preview-match'), account: account.snapshot(), public: publicData.snapshot(), updates: updates.snapshot(), language: preferences.language, demo, tab, version: app.getVersion() }));
+    handle('state', () => ({ collector: collector.snapshot(), reporting: reporting.snapshot(), splitTwo:splitTwo.snapshot(), preview: process.argv.includes('--preview-match'), account: account.snapshot(), public: publicData.snapshot(), updates: updates.snapshot(), language: preferences.language, demo, tab, version: app.getVersion() }));
+    handle('split-two-refresh',()=>demo||smoke?splitTwo.snapshot():splitTwo.refresh());
+    handle('split-two-disconnect',()=>splitTwo.disconnect());
+    handle('split-two-connect',async()=>{
+      if(demo||smoke)throw new Error('Tournament uploads are disabled in sample/test mode.');
+      const answer=await dialog.showMessageBox(window,{type:'question',title:'Split II tournament reporting',message:'Allow requested tournament match uploads for this app session?',detail:'Only games requested through your KOOK account with !split2 report are uploaded to https://eclchina.lol. This includes the ten players, League identifiers and match statistics. League credentials stay local. Every report needs administrator review before publication; no inhouse LP is awarded. Disconnect or quit stops future uploads, but cannot retract data already received.',buttons:['Cancel','Allow for this session'],defaultId:0,cancelId:0});
+      return answer.response===1?splitTwo.connect():splitTwo.snapshot();
+    });
     handle('reporting-disconnect', () => reporting.disconnect());
     handle('reporting-connect', async () => {
       if (demo || smoke) throw new Error('Reporting uploads are disabled in sample/test mode.');
@@ -118,7 +129,7 @@ else {
     handle('update-download', () => updates.download());
     handle('update-install', async () => {
       const assertIdle = () => {
-        const reason = restartBlocker({ ...collector.snapshot(), busy: collector.status.busy || collector.working }, { busy: reporting.busy || reporting.data.status === 'connecting' });
+        const reason = restartBlocker({ ...collector.snapshot(), busy: collector.status.busy || collector.working }, { busy: splitTwo.busy || reporting.busy || reporting.data.status === 'connecting' });
         if (reason) throw new Error(reason);
       };
       assertIdle();
@@ -132,7 +143,7 @@ else {
     handle('account-refresh', () => { if (demo) return; return account.refresh(); });
     handle('account-match', id => demo ? require('./demo.cjs').scoreboard(id, account.data.games) : account.matchDetail(id));
     handle('tab', value => {
-      if (!['dashboard', 'profile', 'history', 'league', 'ladder', 'settings', 'collector', 'info'].includes(value)) throw new Error('Unknown tab.');
+      if (!['dashboard', 'profile', 'history', 'league', 'ladder', 'split2', 'settings', 'collector', 'info'].includes(value)) throw new Error('Unknown tab.');
       tab = value; return tab;
     });
     handle('collect', async id => { const key = await collector.enqueue(id); void collector.tick(); return key; });
@@ -156,6 +167,7 @@ else {
     tray.on('double-click', () => window.show());
     if (!demo && !smoke) collector.start();
     if (!demo) publicData.start();
+    if (!demo && !smoke) splitTwo.start();
     updates.start();
     if (!demo) void account.refresh().catch(() => {});
   }).catch(error => { dialog.showErrorBox('ECL Hub could not start', safeError(error)); app.quit(); });

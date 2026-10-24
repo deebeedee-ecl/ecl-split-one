@@ -11,6 +11,7 @@ import { PrismaClient, Prisma, type AccountProfile } from "@prisma/client";
 import { createRegistrationHandlers } from "../lib/tournaments/registration-http";
 import { getRegistrationState, registerForSplitTwo, RegistrationError } from "../lib/tournaments/registration";
 import { SPLIT_II_FLOATER_RULES_VERSION, SPLIT_II_OPENS_AT, SPLIT_II_RULES_VERSION, SPLIT_II_SLUG, SPLIT_II_TERMS_VERSION } from "../lib/tournaments/split-ii-config";
+import { testMatchWorkflow } from './test-tournament-workflow';
 
 async function main() {
   const root = process.cwd();
@@ -41,9 +42,8 @@ async function main() {
 
     // Reproduce the existing account schema without the two proposed tournament tables.
     const schema = (await readFile(path.join(root, "prisma/schema.prisma"), "utf8"))
-      .replace(/^\s*tournamentRegistrations TournamentRegistration\[\]\s*$/m, "")
-      .replace(/^model Tournament \{[\s\S]*?^\}/m, "")
-      .replace(/^model TournamentRegistration \{[\s\S]*?^\}/m, "")
+      .replace(/^\s*tournament(?:Registrations|Captaincies|Memberships|FloaterAppearances)\s+.*$/gm, "")
+      .replace(/^model Tournament\w* \{[\s\S]*?^\}/gm, "")
       .replace(/^enum TournamentStatus \{[\s\S]*?^\}/m, "");
     assert.ok(!schema.includes("model Tournament "));
     const schemaPath = path.join(temporary, "tournament-test-baseline.prisma");
@@ -144,7 +144,13 @@ async function main() {
     await assert.rejects(() => db.tournamentRegistration.update({ where: { id: saved.id }, data: { primaryRoleSnapshot: "TOP" } }));
     await assert.rejects(() => db.accountProfile.delete({ where: { id: fixtures[0].profile.id } }));
     const anonymous = await (await handlers.GET(new Request("http://localhost/api"))).json();
-    assert.deepEqual(Object.keys(anonymous.players[0]).sort(), ["id", "name", "role"]);
+    assert.deepEqual(Object.keys(anonymous.players[0]).sort(), ["id", "name", "riotId", "role"]);
+    assert.equal(anonymous.players[0].riotId, `${fixtures[0].profile.riotName}#${fixtures[0].profile.riotTag}`);
+    await db.accountProfile.update({where:{id:fixtures[0].profile.id},data:{riotName:'RenamedPlayer',riotTag:'4567'}});
+    const renamed = await (await handlers.GET(new Request('http://localhost/api'))).json();
+    assert.equal(renamed.players[0].riotId,'RenamedPlayer#4567');
+    assert.equal((await db.tournamentRegistration.findUniqueOrThrow({where:{id:saved.id}})).riotNameSnapshot,saved.riotNameSnapshot);
+    await db.accountProfile.update({where:{id:fixtures[0].profile.id},data:{riotName:fixtures[0].profile.riotName,riotTag:fixtures[0].profile.riotTag}});
     assert.equal(anonymous.registration, null);
     assert.equal(anonymous.viewer.account, "signed-out");
     assert.ok(!JSON.stringify(anonymous).includes("fixture-open"));
@@ -280,6 +286,7 @@ async function main() {
     await connection.query(rollback);
     assert.equal((await connection.query("SELECT to_regclass('public.tournaments') AS table_name")).rows[0].table_name, null);
     console.log("PASS: failed transaction leaves no entry; rollback refuses saved registrations and removes only unused foundation");
+    await testMatchWorkflow(db,connection,fixtures.map(f=>f.profile));
     console.log("All isolated PostgreSQL registration checks passed. No live database was used.");
   } finally {
     console.warn = originalWarn;

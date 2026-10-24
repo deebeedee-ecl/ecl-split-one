@@ -63,6 +63,14 @@ and existing fixtures, registration, floater, audio and error-recovery flows.
 A read-only comparison confirmed all 25 saved main-roster names appear exactly
 once in the final allocations, with no additional players or omissions.
 
+At the owner's request, roster cards show each player's Riot ID after their
+name in smaller grey text. The registration read API selects only the current
+profile Riot name/tag for main-roster entries, so account corrections appear
+without changing immutable signup snapshots or hardcoding IDs into the cards.
+Floater response fields remain unchanged. Missing or ambiguous name matches
+show an unavailable label instead of guessing an identity. No contact details,
+account tokens or private game identifiers are published.
+
 Verification: the existing DOM suite exercises the third tab, its five teams,
 ten-game count, qualification, tie-break wording and Bo3 playoffs, plus the
 existing signup/audio/floater flows. TypeScript, focused lint and the isolated

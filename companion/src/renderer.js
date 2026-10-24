@@ -1,11 +1,13 @@
 import { createIcons, LayoutDashboard, ArrowUpRight, ArrowRight, Download, Info, PanelBottomClose, FolderOpen, Power, RefreshCw, HardDrive, ListChecks, ExternalLink, RotateCw, Construction, ShieldCheck, UserRound, LogOut, LogIn, Monitor, History, Settings2, Globe, X, Search, ChevronLeft, ChevronRight, NotebookText, Swords, Trophy, ArrowDownUp } from 'lucide';
 import { createWorkspace } from './central.js';
+import { createSplitTwo } from './split-two.js';
 import { t, setLanguage } from './i18n.js';
 import { installHints } from './hints.js';
 import { reportStage } from './presentation.cjs';
 const icons = { LayoutDashboard, ArrowUpRight, ArrowRight, Download, Info, PanelBottomClose, FolderOpen, Power, RefreshCw, HardDrive, ListChecks, ExternalLink, RotateCw, Construction, ShieldCheck, UserRound, LogOut, LogIn, Monitor, History, Settings2, Globe, X, Search, ChevronLeft, ChevronRight, NotebookText, Swords, Trophy, ArrowDownUp };
 const $ = id => document.getElementById(id);
 const api = window.companion;
+const splitTwo=createSplitTwo({api});
 let state, reporting, demo = false, activeTab, selected, record, selecting = 0;
 const champions = { 59: 'Jarvan IV', 246: 'Qiyana', 7: 'LeBlanc', 110: 'Varus', 412: 'Thresh', 31: "Cho'Gath", 107: 'Rengar', 103: 'Ahri', 222: 'Jinx', 89: 'Leona' };
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -106,7 +108,7 @@ async function init() {
   state = initial.collector; reporting = initial.reporting; demo = initial.demo;
   await setLanguage(initial.language);
   $('mode').textContent = t(demo ? 'SAMPLE DATA' : 'LOCAL PROTOTYPE'); $('demo-banner').hidden = !demo; $('version').textContent = `v${initial.version}`;
-  installHints(); render(); workspace.start(initial); await tab(initial.tab);
+  installHints(); render(); workspace.start(initial); splitTwo.start(initial); await tab(initial.tab);
   if (state.matches.length) await select(state.matches[0].key);
   if (initial.preview) $('preview-match').click();
 }

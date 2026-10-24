@@ -1,0 +1,21 @@
+const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const china=value=>new Date(value).toLocaleString('en-GB',{timeZone:'Asia/Shanghai',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' CST';
+export function createSplitTwo({api}){
+  const root=document.getElementById('split2-content');let state,selected='rosters',demo=false;
+  function render(){
+    if(!state)return;const d=state.tournament,name=id=>d?.teams.find(t=>t.id===id)?.name??id;
+    let content='';
+    if(!d)content='<p>Tournament data has not loaded. Refresh to try again.</p>';
+    else if(selected==='rosters')content=`<div class="split2-grid">${d.teams.map(t=>`<article><img src="https://eclchina.lol${escape(t.logo)}" alt=""><h3>${escape(t.name)}</h3>${t.members.map(p=>`<p><small>${p.captain?'CAPTAIN':`POT ${p.pot}`}</small><strong>${escape(p.name)}</strong><span>${escape(p.riotId)}</span></p>`).join('')}</article>`).join('')}</div>`;
+    else if(selected==='fixtures')content=d.fixtures.map(f=>`<article><small>${escape(f.code)} / WEEK ${f.week} / BO${f.bestOf}</small><h3>${escape(name(f.homeTeamId))} ${f.homeScore} : ${f.awayScore} ${escape(name(f.awayTeamId))}</h3><p>${f.schedule?`${escape(china(f.schedule.at))} / ${escape(f.schedule.state)}`:'Time to be confirmed'}</p></article>`).join('');
+    else if(selected==='results')content=`<table><thead><tr><th>Team</th><th>Played</th><th>W</th><th>L</th><th>Points</th></tr></thead><tbody>${d.standings.map(t=>`<tr><th>${escape(t.name)}${t.tied?' *':''}</th><td>${t.played}</td><td>${t.wins}</td><td>${t.losses}</td><td>${t.wins}</td></tr>`).join('')}</tbody></table><p>One point per win. Ties are provisional until resolved.</p>${d.reports.length?d.reports.map(r=>`<details><summary>${escape(d.fixtures.find(f=>f.id===r.fixtureId)?.code)} / Game ${r.gameNumber}: ${escape(name(r.payload.winnerTeamId))} win / ${r.payload.durationSeconds}s</summary><table><thead><tr><th>Player</th><th>Team</th><th>K / D / A</th><th>MVP</th></tr></thead><tbody>${r.payload.players.map(p=>`<tr><th>${escape(p.name)}<small>${escape(p.riotId)}</small></th><td>${escape(name(p.teamId))}</td><td>${p.kills===undefined?'Not reported':`${p.kills} / ${p.deaths} / ${p.assists}`}</td><td>${p.mvp?'MVP':''}</td></tr>`).join('')}</tbody></table></details>`).join(''):'<p>No approved results yet.</p>'}`;
+    else content=`<p>Approved tournament games only. Missing stats are excluded. KDA = (K + A) / max(1, D).</p><div class="split2-grid">${['kda','assists','mvps'].map(k=>`<article><h3>Top 3 ${k==='kda'?'KDA':k==='mvps'?'MVPs':'assists'}</h3>${d.leaders[k].length?d.leaders[k].map(p=>`<p><strong>${escape(p.name)}</strong><span>${p[k]} / ${k==='mvps'?p.games:p.statGames} games</span></p>`).join(''):'<p>No approved stats yet.</p>'}</article>`).join('')}</div>`;
+    root.innerHTML=`<div class="split2-toolbar">${['rosters','fixtures','results','stats'].map(k=>`<button data-split-tab="${k}" aria-pressed="${selected===k}">${k[0].toUpperCase()+k.slice(1)}</button>`).join('')}<button data-split-refresh>Refresh</button></div>${state.error?`<p role="alert">${escape(state.error)}</p>`:''}${content}<article><h3>Tournament reporting</h3><p>${escape(state.message)}</p><p>In KOOK: <code>!split2 report RR01 GAME_ID</code>. Only your requested games upload, with session consent and admin review. This does not award ranked inhouse points.</p><button data-split-connect ${demo?'disabled':''}>${state.enabled?'Disconnect tournament reporting':'Connect tournament reporting'}</button></article>`;
+  }
+  root.addEventListener('click',async event=>{
+    const tab=event.target.closest('[data-split-tab]');if(tab){selected=tab.dataset.splitTab;render();return;}
+    const refresh=event.target.closest('[data-split-refresh]'),connect=event.target.closest('[data-split-connect]');if(!refresh&&!connect)return;
+    try{const result=await(refresh?api.splitTwoRefresh():state.enabled?api.splitTwoDisconnect():api.splitTwoConnect());if(!result.ok)throw new Error(result.error);if(result.data)state=result.data;render();}catch(e){state={...state,error:e.message};render();}
+  });
+  return {start(initial){state=initial.splitTwo;demo=initial.demo;api.onSplitTwo(value=>{state=value;render();});render();}};
+}

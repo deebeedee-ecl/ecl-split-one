@@ -53,6 +53,9 @@ model AccountProfile {
   kookVerifications   KookVerification[]
   lzyumiRefreshQueue  LzyumiRefreshQueue?
   tournamentRegistrations TournamentRegistration[]
+  tournamentCaptaincies TournamentTeam[] @relation("TournamentCaptain")
+  tournamentMemberships TournamentMember[]
+  tournamentFloaterAppearances TournamentFloaterAppearance[]
 
   @@index([email])
   @@index([riotName, riotTag])
@@ -88,6 +91,9 @@ model Tournament {
   createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
   registrations         TournamentRegistration[]
+  teams                 TournamentTeam[]
+  notifications         TournamentNotification[]
+  collectionJobs        TournamentCollectionJob[]
 
   @@index([status])
   @@map("tournaments")
@@ -112,6 +118,7 @@ model TournamentRegistration {
   rulesVersion          String         @map("rules_version")
   consentedAt           DateTime       @map("consented_at") @db.Timestamptz(3)
   registeredAt          DateTime       @default(now()) @map("registered_at") @db.Timestamptz(3)
+  memberships           TournamentMember[]
 
   @@unique([tournamentId, profileId])
   @@unique([tournamentId, gameIdentityKey])
@@ -128,6 +135,132 @@ enum TournamentStatus {
   IN_PROGRESS
   COMPLETED
   ARCHIVED
+}
+
+// Split II operations never write legacy Team/Match/InhouseSession/LP tables.
+model TournamentTeam {
+  id String @id
+  tournamentId String @map("tournament_id")
+  key String
+  name String
+  tag String
+  logo String
+  accent String
+  captainProfileId String @map("captain_profile_id")
+  tournament Tournament @relation(fields:[tournamentId],references:[id],onDelete:Restrict)
+  captain AccountProfile @relation("TournamentCaptain",fields:[captainProfileId],references:[id],onDelete:Restrict)
+  members TournamentMember[]
+  homeFixtures TournamentFixture[] @relation("TournamentHome")
+  awayFixtures TournamentFixture[] @relation("TournamentAway")
+  floaterAppearances TournamentFloaterAppearance[]
+  @@unique([tournamentId,key])
+  @@unique([id,tournamentId])
+  @@map("tournament_teams")
+}
+
+model TournamentMember {
+  id String @id
+  tournamentId String @map("tournament_id")
+  teamId String @map("team_id")
+  profileId String @map("profile_id")
+  registrationId String @map("registration_id")
+  pot Int?
+  team TournamentTeam @relation(fields:[teamId,tournamentId],references:[id,tournamentId],onDelete:Restrict,onUpdate:NoAction)
+  profile AccountProfile @relation(fields:[profileId],references:[id],onDelete:Restrict)
+  registration TournamentRegistration @relation(fields:[registrationId],references:[id],onDelete:Restrict)
+  @@unique([tournamentId,profileId])
+  @@map("tournament_members")
+}
+
+model TournamentFixture {
+  id String @id
+  tournamentId String @map("tournament_id")
+  code String
+  stage String @default("ROUND_ROBIN")
+  week Int
+  bestOf Int @default(1) @map("best_of")
+  pairKey String @map("pair_key")
+  homeTeamId String @map("home_team_id")
+  awayTeamId String @map("away_team_id")
+  schedule Json?
+  revision Int @default(0)
+  homeTeam TournamentTeam @relation("TournamentHome",fields:[homeTeamId,tournamentId],references:[id,tournamentId],onDelete:Restrict,onUpdate:NoAction)
+  awayTeam TournamentTeam @relation("TournamentAway",fields:[awayTeamId,tournamentId],references:[id,tournamentId],onDelete:Restrict,onUpdate:NoAction)
+  reports TournamentReport[]
+  @@unique([tournamentId,code])
+  @@unique([tournamentId,stage,pairKey])
+  @@unique([id,tournamentId])
+  @@map("tournament_fixtures")
+}
+
+model TournamentReport {
+  id String @id @default(uuid())
+  tournamentId String @map("tournament_id")
+  fixtureId String @map("fixture_id")
+  gameNumber Int @map("game_number")
+  status String @default("PENDING")
+  source String
+  submittedBy String @map("submitted_by")
+  platform String
+  leagueGameId String? @map("league_game_id")
+  payload Json
+  raw Json?
+  evidence Json?
+  reviewNote String? @map("review_note")
+  replacesId String? @map("replaces_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  reviewedAt DateTime? @map("reviewed_at") @db.Timestamptz(3)
+  fixture TournamentFixture @relation(fields:[fixtureId,tournamentId],references:[id,tournamentId],onDelete:Restrict,onUpdate:NoAction)
+  floaterAppearances TournamentFloaterAppearance[]
+  @@unique([id,tournamentId])
+  @@index([tournamentId,status])
+  @@map("tournament_reports")
+}
+
+model TournamentFloaterAppearance {
+  id String @id @default(uuid())
+  tournamentId String @map("tournament_id")
+  teamId String @map("team_id")
+  profileId String @map("profile_id")
+  reportId String @map("report_id")
+  team TournamentTeam @relation(fields:[teamId,tournamentId],references:[id,tournamentId],onDelete:Restrict,onUpdate:NoAction)
+  profile AccountProfile @relation(fields:[profileId],references:[id],onDelete:Restrict)
+  report TournamentReport @relation(fields:[reportId,tournamentId],references:[id,tournamentId],onDelete:Restrict,onUpdate:NoAction)
+  @@unique([tournamentId,teamId,profileId])
+  @@map("tournament_floater_appearances")
+}
+
+model TournamentNotification {
+  id String @id @default(uuid())
+  tournamentId String @map("tournament_id")
+  dedupeKey String @unique @map("dedupe_key")
+  channelId String @map("channel_id")
+  content String
+  status String @default("PENDING")
+  attempts Int @default(0)
+  deliveryKey String? @map("delivery_key")
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  tournament Tournament @relation(fields:[tournamentId],references:[id],onDelete:Restrict)
+  @@index([status,nextAttemptAt])
+  @@map("tournament_notifications")
+}
+
+model TournamentCollectionJob {
+  id String @id @default(uuid())
+  tournamentId String @map("tournament_id")
+  fixtureId String @map("fixture_id")
+  profileId String @map("profile_id")
+  leagueGameId String @map("league_game_id")
+  gameNumber Int @default(1) @map("game_number")
+  status String @default("PENDING")
+  reportId String? @map("report_id")
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  expiresAt DateTime @db.Timestamptz(6) @map("expires_at")
+  tournament Tournament @relation(fields:[tournamentId],references:[id],onDelete:Restrict)
+  @@unique([fixtureId,profileId,leagueGameId,gameNumber])
+  @@index([profileId,status,expiresAt])
+  @@map("tournament_collection_jobs")
 }
 
 model LzyumiRefreshQueue {

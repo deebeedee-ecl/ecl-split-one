@@ -31,7 +31,7 @@ export const SPLIT_II_FLOATER_RULES = [
   "Players must follow the ECL Terms & Community Rules, including conduct, account identity and fair-play requirements.",
 ] as const;
 
-export type TournamentRosterEntry = { id: string; name: string; role: string };
+export type TournamentRosterEntry = { id: string; name: string; role: string; riotId?: string };
 export type TournamentViewer = {
   account: "signed-out" | "profile-required" | "unverified" | "suspended" | "eligible";
   name: string;

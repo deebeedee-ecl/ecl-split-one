@@ -88,6 +88,8 @@
 .teamRosterLabel { display: block; color: #929fb5; font-size: 8px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 6px; }
 .teamRosterList strong { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .teamRosterTag { color: #dfbd73; }
+.teamRosterIdentity { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 9px; }
+.teamRosterRiotId { color: #a4adbe; font-size: 11px; font-weight: 400; line-height: 1.6; overflow-wrap: anywhere; min-width: 0; }
 .teamRosterList > li[data-captain="true"] .teamRosterName { color: #fa8b99; }
 .tabs { width: 100%; height: auto; display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 12px 22px; padding: 0; border-radius: 0; border-bottom: 1px solid #ffffff1b; }
 .tabs > button { display: flex; flex: none; align-items: center; gap: 8px; min-height: 45px; height: auto; padding: 0 0 14px; border-radius: 0; color: #9699a3; font-size: 12px; font-weight: 600; border: 0; border-bottom: 2px solid transparent; background: transparent; }
@@ -315,3 +317,26 @@
 @media (prefers-reduced-motion: reduce) {
   .page *, .modal *, .page *::before, .page *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+.matchRefresh { display:flex; justify-content:space-between; align-items:center; gap:16px; color:#a4adbe; font-size:11px; padding:16px 0; }
+.matchRefresh button { padding:7px 12px; border:1px solid #35425a; border-radius:3px; color:#fff; background:#172135; cursor:pointer; }
+.matchCards { display:grid; gap:14px; margin-top:24px; }
+.matchCard { background:#111927; border:1px solid #30394a; border-top:2px solid #254dff; padding:20px; min-width:0; }
+.matchCard > p { font-size:11px; line-height:1.7; color:#a4adbe; margin:8px 0; }
+.matchCard h4 { display:flex; align-items:center; justify-content:center; gap:12px; font-size:14px; margin:15px 0; flex-wrap:wrap; }
+.matchCard h4 img { object-fit:contain; }
+.matchCard h4 span { color:#dfbd73; font-size:21px; padding:0 10px; }
+.matchCard summary { cursor:pointer; font-size:13px; line-height:1.8; }
+.matchCard summary span { display:block; color:#a4adbe; font-size:11px; }
+.tableScroll { overflow-x:auto; margin:24px 0; }
+.resultsTable { width:100%; border-collapse:collapse; text-align:left; font-size:12px; }
+.resultsTable caption { text-align:left; color:#a4adbe; font-size:11px; margin-bottom:14px; line-height:1.7; }
+.resultsTable th,.resultsTable td { border-bottom:1px solid #30394a; padding:13px 12px; white-space:nowrap; }
+.resultsTable thead { color:#dfbd73; background:#111927; }
+.resultsTable small { display:block; color:#a4adbe; font-weight:400; margin-top:4px; }
+.leaderGrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-top:24px; }
+.leaderGrid h4 { justify-content:flex-start; }
+.leaderGrid ol { padding-left:20px; color:#dfbd73; }
+.leaderGrid li { padding:12px 0; font-size:13px; border-bottom:1px solid #30394a; }
+.leaderGrid li strong { color:#fff; }
+.leaderGrid li span { display:block; color:#dfbd73; margin-top:5px; }
+.leaderGrid small { color:#a4adbe; }

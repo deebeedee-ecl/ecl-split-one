@@ -17,6 +17,7 @@ release-pilot-092/
 release-upload-092/
 release-test-100/
 release-test-101/
+release-test-102/
 .test-data/
 *.log
 *.pem

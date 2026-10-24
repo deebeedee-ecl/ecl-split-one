@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 const navLinks = [
+  { href: "/admin/split-ii", label: "Split II Tournament", icon: Swords },
   { href: "/admin", label: "Dashboard", icon: Activity },
   { href: "/admin/teams", label: "World Cup Teams", icon: ShieldPlus },
   { href: "/admin#users", label: "Users", icon: Users },

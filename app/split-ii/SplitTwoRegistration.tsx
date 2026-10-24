@@ -18,11 +18,14 @@ import DashboardAudio from "./DashboardAudio";
 import TournamentFormat from "./TournamentFormat";
 import TournamentFixtures from "./TournamentFixtures";
 import TournamentRosters from "./TournamentRosters";
+import { useTournamentMatches } from './useTournamentMatches';
+import { LiveFixtures,TournamentResults,TournamentLeaders } from './TournamentMatches';
 import styles from "./split-ii.module.css";
 
 export default function SplitTwoRegistration({ inDashboard = false, preview = false }: { inDashboard?: boolean; preview?: boolean }) {
   const isPreview = preview && process.env.NODE_ENV === "development";
   const state = useSplitTwoRegistration(isPreview);
+  const matches=useTournamentMatches(isPreview);
   const { players, player, registration, floaters, floaterRegistration, slot, account, capacity, loaded, requestState } = state;
   const [claimPool, setClaimPool] = useState<TournamentPool>("MAIN");
   const [dialog, setDialog] = useState<"claim" | "signin" | "verify" | null>(null);
@@ -30,7 +33,7 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
   const [submitting, setSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
   const [controlsOpen, setControlsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"roster" | "details" | "format" | "fixtures">("roster");
+  const [activeTab, setActiveTab] = useState('roster');
   const [announcement, setAnnouncement] = useState("");
   const count = players.length;
   const windowOpen = state.window === "open";
@@ -94,16 +97,18 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
       </section>
       <div className={styles.registrationLayout}>
         <section className={styles.rosterSection} aria-label="Split II roster">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "roster" | "details" | "format" | "fixtures")}>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className={styles.tabs} variant="line" aria-label="Split II information">
             <TabsTrigger value="roster"><Users size={15} />Team rosters <span>{SPLIT_II_ROSTERS.length}</span></TabsTrigger>
             <TabsTrigger value="details"><Trophy size={15} />Season details</TabsTrigger>
             <TabsTrigger value="format"><Swords size={15} />Tournament format</TabsTrigger>
             <TabsTrigger value="fixtures"><CalendarDays size={15} />Fixtures</TabsTrigger>
+            <TabsTrigger value="results"><Trophy size={15} />Results</TabsTrigger>
+            <TabsTrigger value="stats"><Users size={15} />Player stats</TabsTrigger>
           </TabsList>
           {requestState === "error" && <div className={styles.rosterWarning} role="status"><p>{loaded ? "Couldn't refresh registration status or floaters. Showing the last loaded data." : "Registration status and floaters couldn't load. Team rosters are still available."}</p><button onClick={() => void state.refresh()}><RotateCcw size={13} />Try again</button></div>}
           <TabsContent value="roster">
-            <TournamentRosters />
+            <TournamentRosters players={players} loading={!loaded && requestState === "loading"} teams={matches.data?.teams} />
           </TabsContent>
           <TabsContent value="details" className={styles.seasonDetails}>
             <p>EXCLUSIVE TO THE ECL COMMUNITY</p><h3>The next chapter.</h3>
@@ -112,7 +117,10 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
             <p>Entry is for existing, active and verified ECL players. Your role comes from your ECL profile. <Link href="/split-ii/rules">Read the registration rules and terms.</Link></p>
           </TabsContent>
           <TabsContent value="format"><TournamentFormat /></TabsContent>
-          <TabsContent value="fixtures"><TournamentFixtures /></TabsContent>
+          {(activeTab==='fixtures'||activeTab==='results'||activeTab==='stats')&&<div className={styles.matchRefresh}><span>{matches.error || (matches.loading?'Refreshing tournament data…':'Updates every minute. China time (UTC+8).')}</span><button onClick={()=>void matches.refresh()} disabled={matches.loading}>Refresh</button></div>}
+          <TabsContent value="fixtures">{matches.data?<LiveFixtures data={matches.data}/>:<TournamentFixtures />}</TabsContent>
+          <TabsContent value="results"><TournamentResults data={matches.data}/></TabsContent>
+          <TabsContent value="stats"><TournamentLeaders data={matches.data}/></TabsContent>
           </Tabs>
           <section className={styles.floaterSection} aria-labelledby="floaters-heading">
             <div className={styles.sectionHeading}><div><p>SUBSTITUTES / SEPARATE PLAYER POOL</p><h3 id="floaters-heading">Subs / Floaters <span className={styles.floaterCount}>{loaded ? floaters.length : "--"}</span></h3></div></div>

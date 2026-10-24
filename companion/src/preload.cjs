@@ -6,6 +6,7 @@ const subscribe = channel => listener => {
   return () => ipcRenderer.removeListener(channel, callback);
 };
 contextBridge.exposeInMainWorld('companion', {
+  splitTwoRefresh:invoke('split-two-refresh'),splitTwoConnect:invoke('split-two-connect'),splitTwoDisconnect:invoke('split-two-disconnect'),onSplitTwo:subscribe('split-two-state'),
   state: invoke('state'), tab: invoke('tab'), collect: invoke('collect'), rescan: invoke('rescan'), auto: invoke('auto'),
   accountLogin: invoke('account-login'), accountLogout: invoke('account-logout'), accountRefresh: invoke('account-refresh'),
   accountMatch: invoke('account-match'),

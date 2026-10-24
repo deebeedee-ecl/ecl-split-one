@@ -60,6 +60,7 @@ export async function getRegistrationState(database: Database, account: Authenti
     where: { slug: SPLIT_II_SLUG },
     include: { registrations: { orderBy: [{ registeredAt: "asc" }, { id: "asc" }], select: {
       id: true, profileId: true, pool: true, displayNameSnapshot: true, primaryRoleSnapshot: true,
+      profile: { select: { riotName: true, riotTag: true } },
     } } },
   });
   if (!event) throw new RegistrationError(503, "NOT_READY", "Registration is being prepared. Please check back shortly.");
@@ -81,7 +82,11 @@ export async function getRegistrationState(database: Database, account: Authenti
     closesAt: event.registrationClosesAt?.toISOString() ?? null,
     termsVersion: SPLIT_II_TERMS_VERSION,
     rulesVersion: SPLIT_II_RULES_VERSION,
-    players: main.map(entryFor),
+    players: main.map(entry => {
+      const name = entry.profile.riotName.trim();
+      const tag = entry.profile.riotTag.trim().replace(/^#+/, "");
+      return { ...entryFor(entry), riotId: name && tag ? `${name}#${tag}` : undefined };
+    }),
     floaters: floaters.map(entryFor),
     floaterWindow: floaterWindowFor(event) ? "open" : "closed",
     floaterRulesVersion: SPLIT_II_FLOATER_RULES_VERSION,

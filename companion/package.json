@@ -1,6 +1,6 @@
 {
   "name": "ecl-companion",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Local-first ECL League match collector",
   "author": "Expat China League",
@@ -52,6 +52,7 @@
       "src/release-signature.cjs",
       "src/release-public-key.cjs",
       "src/reporting.cjs",
+      "src/split-two.cjs",
       "dist/**/*",
       "assets/**/*",
       "package.json"
@@ -63,7 +64,9 @@
       ],
       "icon": "assets/ecl-hub.ico",
       "signExecutable": false,
-      "signtoolOptions": { "publisherName": "ECL Hub release-key verification" },
+      "signtoolOptions": {
+        "publisherName": "ECL Hub release-key verification"
+      },
       "verifyUpdateCodeSignature": true
     },
     "nsis": {
@@ -79,7 +82,10 @@
       "uninstallerIcon": "assets/ecl-hub.ico",
       "uninstallDisplayName": "ECL Hub ${version}",
       "include": "installer/league-permissions.nsh",
-      "installerLanguages": ["en_US", "zh_CN"],
+      "installerLanguages": [
+        "en_US",
+        "zh_CN"
+      ],
       "displayLanguageSelector": true,
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,

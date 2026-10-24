@@ -215,6 +215,7 @@ export default function AdminPage() {
               <Swords size={16} />
               Inhouse Reporter
             </Link>
+            <Link href="/admin/split-ii" className="flex min-h-11 w-full items-center gap-3 rounded-xl px-4 text-xs font-black uppercase tracking-[0.08em] text-[#8d8d8d] transition hover:bg-[#1a1a1a] hover:text-white"><Swords size={16} />Split II Tournament</Link>
           </nav>
 
           <div className="mt-auto pt-8">

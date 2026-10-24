@@ -25,7 +25,7 @@ dom.window.HTMLMediaElement.prototype.pause = function () {};
 
 await mkdir(temporary, { recursive: true });
 const entry = path.join(temporary, 'tournament-ui-entry.tsx');
-await writeFile(entry, 'export {default as Page} from "../app/split-ii/SplitTwoRegistration"; export {setSession} from "fixture-supabase";');
+await writeFile(entry, 'export {default as Page} from "../app/split-ii/SplitTwoRegistration"; export {default as Admin} from "../app/admin/split-ii/page"; export {createSplitTwo as DesktopSplitTwo} from "../companion/src/split-two"; export {setSession} from "fixture-supabase";');
 const outfile = path.join(temporary, 'tournament-ui-test.cjs');
 await build({
   entryPoints: [entry], outfile, bundle: true, platform: 'node', format: 'cjs', logLevel: 'silent',
@@ -33,9 +33,11 @@ await build({
   plugins: [{ name: 'ui-test-fixtures', setup(builder) {
     builder.onResolve({ filter: /^(fixture-supabase|@\/lib\/supabase)$/ }, () => ({ path: 'supabase', namespace: 'fixture' }));
     builder.onResolve({ filter: /^next\/(image|link)$/ }, args => ({ path: args.path, namespace: 'fixture' }));
+    builder.onResolve({ filter: /^next\/navigation$/ }, () => ({path:'navigation',namespace:'fixture'}));
     builder.onResolve({ filter: /\.module\.css$/ }, () => ({ path: 'styles', namespace: 'fixture' }));
     builder.onLoad({ filter: /.*/, namespace: 'fixture' }, args => {
       if (args.path === 'styles') return { contents: 'export default new Proxy({}, {get: (_, key) => String(key)});' };
+      if(args.path==='navigation')return {contents:'export const usePathname=()=>"/admin/split-ii";'};
       if (args.path === 'supabase') return { contents: `
         let session = null; const listeners = new Set();
         export function setSession(next) {session = next; for(const cb of listeners) cb('SIGNED_IN', session);}
@@ -53,7 +55,7 @@ const require = createRequire(import.meta.url);
 const React = require('react');
 const { createRoot } = require('react-dom/client');
 const { act } = React;
-const { Page, setSession } = require(outfile);
+const { Page, Admin, DesktopSplitTwo, setSession } = require(outfile);
 const config = {
   capacity: 25, count: 0, window: 'open', opensAt: '2026-10-17T04:00:00.000Z', closesAt: null,
   termsVersion: 'ecl-terms-2026-10-16', rulesVersion: 'split-ii-registration-2026-10-22',
@@ -66,7 +68,9 @@ let posts = 0;
 let reads = 0;
 let temporaryReadFailures = 0;
 let readStatus = 0;
+let matchState=null;
 globalThis.fetch = async (_url, options = {}) => {
+  if(String(_url).endsWith('/matches'))return matchState?Response.json(matchState):Response.json({message:'Tournament matches not configured in this registration fixture.'},{status:503});
   if (options.method !== 'POST') {
     reads++;
     if (temporaryReadFailures > 0) { temporaryReadFailures--; return Response.json({message:'Temporarily unavailable'},{status:503}); }
@@ -116,7 +120,7 @@ try {
   assert.equal(document.querySelector('[aria-label="Registration capacity"]'),null);
   assert.deepEqual([...document.querySelectorAll('[aria-label="Tournament dates and draft status"] strong')].map(el=>el.textContent),['23 October','24 October','20 November','Draft complete']);
   const tabs = [...document.querySelectorAll('[role="tablist"] [role="tab"]')];
-  assert.deepEqual(tabs.map(tab=>tab.textContent.replace(/\s+/g,' ').trim()),['Team rosters 5','Season details','Tournament format','Fixtures']);
+  assert.deepEqual(tabs.map(tab=>tab.textContent.replace(/\s+/g,' ').trim()),['Team rosters 5','Season details','Tournament format','Fixtures','Results','Player stats']);
   const teamCards = [...document.querySelectorAll('[aria-label="Split II team rosters"] article')];
   assert.equal(teamCards.length,5);
   assert.deepEqual(teamCards.map(card=>[card.querySelector('h4').textContent,card.querySelector('[data-captain="true"] .teamRosterName').textContent]),[
@@ -136,6 +140,25 @@ try {
   assert.ok(rosterNames.includes('Bernardt'));
   assert.equal(document.querySelector('[aria-label="Registered players in signup order"]'),null);
   assert.ok(document.getElementById('floaters-heading'));
+  const riotIdFor = name => [...document.querySelectorAll('.teamRosterName')].find(el=>el.textContent===name)?.closest('li').querySelector('.teamRosterRiotId')?.textContent;
+  state.players = [
+    {id:'test-yasser',name:'Yasser',role:'Support',riotId:'PlayerOne#1234'},
+    {id:'test-fayimo',name:'FAYIMO',role:'Mid',riotId:'PlayerTwo#5678'},
+    {id:'test-bernardt',name:'Bernardt',role:'Top',riotId:'ChangedName#9012'},
+  ];
+  state.count = state.players.length;
+  await act(async()=>window.dispatchEvent(new Event('focus')));
+  await until(()=>riotIdFor('Yasser')==='PlayerOne#1234');
+  assert.equal(riotIdFor('fayimo'),'PlayerTwo#5678');
+  assert.equal(riotIdFor('Bernardt'),'ChangedName#9012');
+  state.players.push({id:'duplicate-yasser',name:'yasser',role:'Support',riotId:'DifferentAccount#9999'});
+  await act(async()=>window.dispatchEvent(new Event('focus')));
+  await until(()=>riotIdFor('Yasser')==='Riot ID unavailable');
+  state.players = [];
+  state.count = 0;
+  await act(async()=>window.dispatchEvent(new Event('focus')));
+  await until(()=>riotIdFor('fayimo')==='Riot ID unavailable');
+  console.log('PASS: grey Riot ID labels use current API identities, case-normalized exact names, distinct players and safe ambiguity/missing-data handling');
   console.log('PASS: five final team cards, correct captains, 25 unique players, original pot labels, hosted logos and separate subs section');
   await act(async()=>button('Tournament format').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));
   await until(()=>document.getElementById('format-heading'));
@@ -289,6 +312,37 @@ try {
   assert.ok(!container.textContent.includes('Place confirmed'));
   assert.equal(posts,beforeRejectedPost+1,'Registration writes must not be automatically retried');
   console.log('PASS: scheduled opening, full capacity, unavailable roster, retry recovery and rejected signup has no false confirmation');
+  const home={id:'home',key:'ballbreakers',name:'BallBreakers',logo:'/kook/split2/ballbreakers.png',members:[]},away={id:'away',key:'phoenix',name:'Phoenix',logo:'/kook/split2/phoenix.png',members:[]};
+  matchState={teams:[home,away],fixtures:[{id:'f1',code:'RR01',week:1,bestOf:1,homeTeamId:'home',awayTeamId:'away',homeScore:1,awayScore:0,schedule:{at:'2026-10-26T12:00:00Z',state:'CONFIRMED'}}],standings:[{id:'home',name:'BallBreakers',played:1,wins:1,losses:0,tied:false},{id:'away',name:'Phoenix',played:1,wins:0,losses:1,tied:false}],reports:[{id:'r1',fixtureId:'f1',gameNumber:1,leagueGameId:'100001',payload:{winnerTeamId:'home',durationSeconds:1800,playedAt:'2026-10-24T12:00:00Z',note:'Approved fixture',players:[{profileId:'p1',name:'Test MVP',riotId:'MVP#1234',teamId:'home',kills:5,deaths:2,assists:10,mvp:true}]}}],leaders:{kda:[{profileId:'p1',name:'Test MVP',kda:7.5,statGames:1}],assists:[{profileId:'p1',name:'Test MVP',assists:10,statGames:1}],mvps:[{profileId:'p1',name:'Test MVP',mvps:1,games:1}]}};
+  state=structuredClone(config);await mount();
+  const activate=async label=>{await act(async()=>button(label).dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));await flush();};
+  await activate('Fixtures');assert.ok(container.textContent.includes('26 Oct, 20:00 CST'));assert.ok(container.textContent.includes('Confirmed'));assert.ok(container.textContent.includes('1 : 0'));
+  await activate('Results');assert.ok(container.textContent.includes('BallBreakers win'));assert.ok(container.textContent.includes('MVP#1234'));assert.ok(container.textContent.includes('5 / 2 / 10'));
+  await activate('Player stats');assert.ok(container.textContent.includes('7.50'));assert.ok(container.textContent.includes('Top 3 MVPs'));assert.ok(container.textContent.includes('Test MVP'));
+  console.log('PASS: shared fixture data renders China time, approved results and match details, standings and Top 3 leaders');
+  const members=Array.from({length:10},(_,i)=>({profileId:`p${i}`,name:`Player ${i}`,riotId:`Player${i}#1234`,pot:i%5||null,captain:i%5===0}));
+  const adminData={...matchState,teams:[{...home,members:members.slice(0,5)},{...away,members:members.slice(5)}],floaters:[{profileId:'floater',name:'Substitute',role:'Support'}],notifications:[],reports:[{id:'pending',fixtureId:'f1',gameNumber:1,source:'HUB',status:'PENDING',payload:{...matchState.reports[0].payload,players:members.map((p,i)=>({...p,teamId:i<5?'home':'away',kills:5,deaths:2,assists:10,mvp:false}))}}]};
+  let adminPost=null;
+  globalThis.fetch=async(url,options={})=>{
+    assert.ok(String(url).startsWith('/api/admin/tournaments/split-ii'));
+    if(options.method==='POST'){adminPost=JSON.parse(options.body);return Response.json({status:adminPost.action==='submit'?'PENDING':'APPROVED'});}
+    return Response.json(adminData);
+  };
+  await act(async()=>root.unmount());root=createRoot(container);await act(async()=>root.render(React.createElement(Admin)));await until(()=>container.textContent.includes('1. Choose a fixture'));
+  const fixtureSelect=[...container.querySelectorAll('select')][0];await act(async()=>{fixtureSelect.value='f1';fixtureSelect.dispatchEvent(new Event('change',{bubbles:true}));});await flush();
+  assert.equal(container.querySelectorAll('[aria-label^="Actual player"]').length,10);assert.ok(container.textContent.includes('Floater: Substitute'));
+  await click(button('Save report for review'));assert.equal(adminPost.action,'submit');assert.equal(adminPost.report.payload.players.length,10);assert.equal(adminPost.report.source,'MANUAL');assert.ok(!JSON.stringify(adminPost).includes('lpChange'));
+  const approve=button('Approve & publish');assert.ok(approve.disabled);
+  const textarea=[...container.querySelectorAll('textarea')].find(e=>e.placeholder.includes('Confirm winner'));
+  await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set.call(textarea,'Checked winner, actual lineup and screenshot');textarea.dispatchEvent(new Event('input',{bubbles:true}));});await flush();
+  assert.equal(button('Approve & publish').disabled,false);await click(button('Approve & publish'));assert.equal(adminPost.action,'review');assert.equal(adminPost.reportId,'pending');assert.equal(adminPost.decision,'approve');
+  console.log('PASS: admin actual-lineup form, floater options, pending-only save and required review note before publication');
+  const nativeRoot=document.createElement('div');nativeRoot.id='split2-content';document.body.append(nativeRoot);
+  const nativeData={...matchState,teams:adminData.teams};let nativeListener;
+  DesktopSplitTwo({api:{onSplitTwo:cb=>{nativeListener=cb;},splitTwoRefresh:async()=>({ok:true,data:{tournament:nativeData,enabled:false,message:'Uploads disconnected'}})}}).start({demo:false,splitTwo:{tournament:nativeData,enabled:false,message:'Uploads disconnected'}});
+  assert.ok(nativeRoot.textContent.includes('Player0#1234'));nativeRoot.querySelector('[data-split-tab="fixtures"]').click();assert.ok(nativeRoot.textContent.includes('26 Oct, 20:00 CST'));nativeRoot.querySelector('[data-split-tab="results"]').click();assert.ok(nativeRoot.textContent.includes('BallBreakers win'));nativeRoot.querySelector('[data-split-tab="stats"]').click();assert.ok(nativeRoot.textContent.includes('Top 3 KDA'));assert.ok(nativeRoot.textContent.includes('7.5'));
+  nativeListener({tournament:nativeData,enabled:false,message:'Uploads disconnected',error:'Temporarily unavailable'});assert.ok(nativeRoot.textContent.includes('Temporarily unavailable'));assert.ok(nativeRoot.textContent.includes('Test MVP'));nativeRoot.remove();
+  console.log('PASS: native Split II tab renders shared rosters, fixtures, approved results and leaders, preserving saved data on refresh failure');
   console.log('All client interaction checks passed. Auth and HTTP were mocked; no live signup was sent.');
 } finally {
   if (root) await act(async () => root.unmount());
