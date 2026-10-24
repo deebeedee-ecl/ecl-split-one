@@ -33,17 +33,11 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
   const [activeTab, setActiveTab] = useState<"roster" | "details" | "format" | "fixtures">("roster");
   const [announcement, setAnnouncement] = useState("");
   const count = players.length;
-  const remaining = capacity - count;
-  const limited = count >= Math.ceil(capacity * 0.8);
-  const capacityState = count >= capacity ? "full" : limited ? "limited" : "open";
   const windowOpen = state.window === "open";
   const floaterOpen = state.floaterWindow === "open";
   const isFloaterClaim = claimPool === "FLOATER";
   const claimAvailable = isFloaterClaim ? floaterOpen : windowOpen && count < capacity;
   const hasEntry = Boolean(registration || floaterRegistration);
-  const capacityLabel = !loaded ? requestState === "loading" ? "Loading registration" : "Registration unavailable"
-    : state.window === "scheduled" ? "Opens 17 Oct, 12:00" : !windowOpen ? "Registration closed"
-    : count >= capacity ? "Roster full" : limited ? "Final places" : "Registration open";
 
   function openClaim(pool: TournamentPool = "MAIN") {
     setAccepted(false);
@@ -72,7 +66,7 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
   }
 
   return (
-    <main className={styles.page} data-capacity={capacityState}>
+    <main className={styles.page}>
       {!inDashboard && <div className={styles.previewNotice}>
         <span>{isPreview ? <><FlaskConical size={13} />Design preview / Mock registrations</> : <>Registration opens 17 October, 12:00 noon China time</>}</span>
         <Link href="/hub" prefetch={false}>Back to the Hub <ArrowRight size={13} /></Link>
@@ -90,21 +84,13 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
       </div>
       <section className={styles.signupBand} aria-labelledby="signup-title">
         <h2 id="signup-title"><BroadcastType text="SPLIT II" className={styles.signupType} /></h2>
-        <div className={styles.signupFooter}><span>{capacity} PLAYERS / ONE ROSTER</span><span className={styles.catchphrase}>AGAINST ALL ODDS</span></div>
+        <div className={styles.signupFooter}><span>{capacity} PLAYERS / {SPLIT_II_ROSTERS.length} TEAMS</span><span className={styles.catchphrase}>AGAINST ALL ODDS</span></div>
       </section>
-      <section className={styles.draftBand} aria-label="Split II registration capacity">
-        <div className={styles.capacityBlock}>
-          <div className={styles.counter} aria-live="polite"><strong>{loaded ? String(count).padStart(2, "0") : "--"}</strong><span>/ {capacity}</span></div>
-          <div className={styles.capacityStatus}><i />{capacityLabel}</div>
-          <p>{!loaded ? "Checking availability" : remaining === 0 ? "All places have been claimed" : `${remaining} ${remaining === 1 ? "place" : "places"} still available`}</p>
-        </div>
-        <div className={styles.capacityTrack} style={{ gridTemplateColumns: `repeat(${capacity}, minmax(0, 1fr))` }} role="progressbar" aria-label="Registration capacity" aria-busy={!loaded} aria-valuenow={loaded ? count : undefined} aria-valuemin={0} aria-valuemax={capacity}>{Array.from({ length: capacity }, (_, i) => <span key={i} data-filled={loaded && i < count} />)}</div>
-      </section>
-      <section className={styles.eventDetails} aria-label="Tournament dates and team draw">
+      <section className={styles.eventDetails} aria-label="Tournament dates and draft status">
         <div><span>Draft day</span><strong>23 October</strong></div>
         <div><span>Tournament begins</span><strong>24 October</strong></div>
         <div><span>Finals</span><strong>20 November</strong></div>
-        <div><span>Team selection</span><strong>Random draw</strong></div>
+        <div><span>Team selection</span><strong>Draft complete</strong></div>
       </section>
       <div className={styles.registrationLayout}>
         <section className={styles.rosterSection} aria-label="Split II roster">
@@ -122,7 +108,7 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
           <TabsContent value="details" className={styles.seasonDetails}>
             <p>EXCLUSIVE TO THE ECL COMMUNITY</p><h3>The next chapter.</h3>
             <p>Split II brings the ECL community together for a fresh competitive season. Claim a place in the player pool before the draft.</p>
-            <dl><div><dt>Main player pool</dt><dd>{capacity} places</dd></div><div><dt>1st prize</dt><dd className={styles.prize}>3000 RMB</dd></div><div><dt>Season</dt><dd>Split II / 2026</dd></div><div><dt>Draft date</dt><dd>23 October</dd></div><div><dt>Tournament begins</dt><dd>24 October</dd></div><div><dt>Finals</dt><dd>20 November</dd></div><div><dt>Team selection</dt><dd>Teams drawn at random</dd></div><div><dt>Match format</dt><dd>Bo1 league / Bo3 playoffs</dd></div></dl>
+            <dl><div><dt>Main player pool</dt><dd>{capacity} places</dd></div><div><dt>1st prize</dt><dd className={styles.prize}>3000 RMB</dd></div><div><dt>Season</dt><dd>Split II / 2026</dd></div><div><dt>Draft date</dt><dd>23 October</dd></div><div><dt>Tournament begins</dt><dd>24 October</dd></div><div><dt>Finals</dt><dd>20 November</dd></div><div><dt>Team selection</dt><dd>Draft complete</dd></div><div><dt>Match format</dt><dd>Bo1 league / Bo3 playoffs</dd></div></dl>
             <p>Entry is for existing, active and verified ECL players. Your role comes from your ECL profile. <Link href="/split-ii/rules">Read the registration rules and terms.</Link></p>
           </TabsContent>
           <TabsContent value="format"><TournamentFormat /></TabsContent>

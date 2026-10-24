@@ -105,13 +105,16 @@ async function mount() {
   if (root) await act(async () => root.unmount());
   root = createRoot(container);
   await act(async () => root.render(React.createElement(Page, { inDashboard: true })));
-  await until(() => container.querySelector('.counter strong').textContent !== '--' || container.querySelector('.rosterWarning'));
+  await until(() => !button('Checking registration') || container.querySelector('.rosterWarning'));
 }
 async function click(element) { assert.ok(element); await act(async () => element.click()); await flush(); }
 try {
   await mount();
   assert.ok(!container.textContent.includes('Moonriver'));
   assert.ok(!button('Preview controls'));
+  assert.equal(document.querySelector('[aria-label="Split II registration capacity"]'),null);
+  assert.equal(document.querySelector('[aria-label="Registration capacity"]'),null);
+  assert.deepEqual([...document.querySelectorAll('[aria-label="Tournament dates and draft status"] strong')].map(el=>el.textContent),['23 October','24 October','20 November','Draft complete']);
   const tabs = [...document.querySelectorAll('[role="tablist"] [role="tab"]')];
   assert.deepEqual(tabs.map(tab=>tab.textContent.replace(/\s+/g,' ').trim()),['Team rosters 5','Season details','Tournament format','Fixtures']);
   const teamCards = [...document.querySelectorAll('[aria-label="Split II team rosters"] article')];
@@ -223,20 +226,20 @@ try {
   await click(document.querySelector('input[type="checkbox"]'));
   await click(button('Accept & join floaters'));
   await until(()=>container.textContent.includes('on the floater list'));
-  assert.equal(container.querySelector('.counter strong').textContent,'25');
+  assert.equal(document.querySelector('.counter'),null);
   assert.ok(button('Registered as floater').disabled);
   assert.equal(state.players.length,25);
   assert.equal(state.floaters.length,1);
   await mount();
   assert.ok(container.textContent.includes('on the floater list'));
-  assert.equal(container.querySelector('.counter strong').textContent,'25');
-  console.log('PASS: full 25-player roster still permits floater signup, explicit consent, separate counter and saved floater entry');
+  assert.equal(container.querySelector('.floaterCount').textContent,'1');
+  console.log('PASS: full 25-player roster still permits floater signup, explicit consent, separate floater count and saved floater entry');
   const beforeRetry = reads;
   temporaryReadFailures = 1;
   await act(async()=>window.dispatchEvent(new Event('focus')));
   await until(()=>reads >= beforeRetry + 2);
   await flush();
-  assert.equal(container.querySelector('.counter strong').textContent,'25');
+  assert.ok(button('Registered as floater').disabled);
   assert.equal(document.querySelectorAll('[aria-label="Registered floaters in signup order"] > li').length,1);
   assert.ok(!container.querySelector('.rosterWarning'));
   unavailable = true;
@@ -247,7 +250,7 @@ try {
   assert.ok(container.textContent.includes('on the floater list'));
   await act(async()=>setSession({access_token:'rotated-token',user:{id:'fixture-user'}}));
   await until(()=>container.querySelector('.rosterWarning'));
-  assert.equal(container.querySelector('.counter strong').textContent,'25');
+  assert.ok(button('Registered as floater').disabled);
   assert.ok(container.textContent.includes('on the floater list'));
   unavailable = false;
   await click(button('Try again'));
@@ -261,7 +264,7 @@ try {
   unavailable = true;
   await act(async()=>setSession({access_token:'different-user-token',user:{id:'different-user'}}));
   await until(()=>container.textContent.includes("Registration status and floaters couldn't load"));
-  assert.equal(container.querySelector('.counter strong').textContent,'--');
+  assert.ok(button('Checking registration').disabled);
   assert.equal(document.querySelector('[aria-label="Registered floaters in signup order"]'),null);
   assert.ok(!container.textContent.includes('on the floater list'));
   unavailable = false;
@@ -271,7 +274,7 @@ try {
   await mount();
   assert.ok(container.textContent.includes("Registration status and floaters couldn't load"));
   assert.equal(document.querySelectorAll('[aria-label="Split II team rosters"] article').length,5);
-  assert.equal(container.querySelector('.counter strong').textContent, '--');
+  assert.equal(container.querySelector('.counter'),null);
   assert.ok(button('Checking registration').disabled);
   unavailable = false;
   await click(button('Try again'));
