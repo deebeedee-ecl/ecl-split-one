@@ -72,9 +72,10 @@ main roster and writes hashes/counts of existing tables to a private audit under
 Required production settings: existing `ECL_KOOK_BOT_SECRET` and explicitly
 configured `ADMIN_SESSION_SECRET` or `ADMIN_PASSWORD`. New tournament admin
 endpoints refuse a hardcoded default. Vercel CLI authentication was restored by
-the owner. Production has no explicit admin credentials; the prepared encrypted
-credential configuration is awaiting the owner's exact approval after automatic
-approval review rejected changing that access boundary without confirmation.
+the owner. After explicit owner approval, encrypted production admin password
+and session-secret variables were configured. The login is saved privately in
+`.tmp/ECL-admin-login.txt`; no password or bot token is included in source control.
+Existing admin sessions must sign in again after the new deployment takes effect.
 
 Desktop delivery is a local 1.0.2 installer. It preserves the app ID/data directory
 and existing public release pin. No installed app or public update feed is changed
@@ -88,3 +89,8 @@ Installer: `companion/release-test-102/ECL-Hub-Setup-1.0.2.exe` (119,274,135 byt
 It was verified from `.tmp/split-ii-workflow-release/companion` so line endings
 match the exact packaged source, with the existing public ECL verification pin.
 Public update-feed publication and installed-upgrade testing are separate.
+
+Website feature commit: `a675c5c`. Bot adapter commit: `050ea4a` in
+`deebeedee-ecl/ecl-kook-bot`. Production verification is performed after the
+credential-configured deployment; no live test results or KOOK messages are
+created during smoke checks.
