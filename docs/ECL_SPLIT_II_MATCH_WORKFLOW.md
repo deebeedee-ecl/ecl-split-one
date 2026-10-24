@@ -22,8 +22,8 @@ are displayed; no ownership correction is inferred from nicknames.
 - [x] Tournament operations verified not to change inhouse scores or records.
 - [x] Admin/public UI interaction tests and desktop unit/build checks pass; no fabricated live statistics.
 - [x] Additive production migration applied; every existing table fingerprint matched.
-- [ ] Scoped website deployment verified.
-- [ ] KOOK adapter integrated/tested; live process activation verified separately.
+- [x] Scoped website deployment verified, including public data, client bundles, authorization and admin login.
+- [x] KOOK adapter integrated/tested; production deployment reports success and authenticated outbox polling was observed.
 - [x] Desktop 1.0.2 installer built, signed with the existing ECL key and verified against isolated source. Installed app unchanged.
 
 Working tree already contains unrelated desktop/bot changes. Keep scope explicit
@@ -94,3 +94,23 @@ Website feature commit: `a675c5c`. Bot adapter commit: `050ea4a` in
 `deebeedee-ecl/ecl-kook-bot`. Production verification is performed after the
 credential-configured deployment; no live test results or KOOK messages are
 created during smoke checks.
+
+## Production connection correction
+
+Live verification exposed `EMAXCONNSESSION`: the production database URL used
+Supavisor session mode (5432), whose pool was limited to 15 clients. This could
+intermittently fail both tournament reads and existing registrations. Production
+was changed to the same database/host/credentials through transaction mode
+(6543), with `pgbouncer=true` and `connection_limit=1`. A read-only transaction
+verified the five teams, 25 main players, five floaters and ten fixtures first.
+Only the production environment override changed; preview/development retain
+their existing settings. No database rows or schema changed for this correction.
+See [Supabase's Prisma connection guidance](https://supabase.com/docs/guides/database/prisma/prisma-troubleshooting).
+
+Private release evidence: `.tmp/split-ii-live-smoke.json`,
+`.tmp/split-ii-match-migration-audit.json`, `.tmp/split-ii-bot-deployment.json`
+and the local signed desktop release. Pool settings take effect in the deployment
+following this note; repeat the public/admin smoke checks against that deployment.
+The first real match remains the end-to-end collection/review pilot. Playoff
+fixtures can be added once qualification/seeding is decided; the seeded fixture
+set is the ten round-robin games, and no automatic tie resolution is implied.
