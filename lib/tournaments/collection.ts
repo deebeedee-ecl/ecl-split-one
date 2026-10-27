@@ -1,3 +1,4 @@
+import { tournamentIdentity } from './identity';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { eventLock, normalizedReport, submitTournamentReport, type TournamentActor } from './matches';
 import { integer, object, parseReport, text, TournamentError } from './match-policy';
@@ -71,9 +72,9 @@ export async function importTournamentLcu(db:PrismaClient,actor:TournamentActor,
   const raw=object(value),identities=raw.participantIdentities;
   if(!Array.isArray(identities)||!identities.length)throw new TournamentError('Import a complete LCU match JSON, or use the manual form.');
   const first=object(object(identities[0]).player),identity={puuid:text(first.puuid,150),name:text(first.gameName,100),tag:text(first.tagLine,30)};
-  const reporter=regs.find(r=>riotKey(r.profile.riotName,r.profile.riotTag)===riotKey(identity.name,identity.tag));
+  const reporter=regs.find(r=>riotKey(tournamentIdentity(r).name,tournamentIdentity(r).tag)===riotKey(identity.name,identity.tag));
   if(!reporter)throw new TournamentError('The JSON lineup does not match this tournament fixture.');
-  const payload=interpretTournamentMatch(raw,{gameId:String(raw.gameId),identity,reporterProfileId:reporter.profileId,homeTeamId:fixture.homeTeamId,awayTeamId:fixture.awayTeamId,players:regs.filter(r=>r.profile.chinaServerId===1).map(r=>({profileId:r.profileId,name:r.profile.riotName,tag:r.profile.riotTag,teamId:r.memberships[0]?.teamId??null}))});
+  const payload=interpretTournamentMatch(raw,{gameId:String(raw.gameId),identity,reporterProfileId:reporter.profileId,homeTeamId:fixture.homeTeamId,awayTeamId:fixture.awayTeamId,players:regs.filter(r=>r.profile.chinaServerId===1).map(r=>({profileId:r.profileId,...tournamentIdentity(r),teamId:r.memberships[0]?.teamId??null}))});
   return submitTournamentReport(db,actor,{fixtureId,gameNumber,platform:'HN1',leagueGameId:String(raw.gameId),source:'JSON',payload,raw,...(replacesId?{replacesId}:{})});
 }
 export async function uploadTournamentCollection(db:PrismaClient,actor:TournamentActor,value:unknown){
@@ -89,8 +90,8 @@ export async function uploadTournamentCollection(db:PrismaClient,actor:Tournamen
     const fixture=await tx.tournamentFixture.findUniqueOrThrow({where:{id:job.fixtureId}});
     const regs=await tx.tournamentRegistration.findMany({where:{tournamentId,OR:[{pool:'FLOATER'},{memberships:{some:{teamId:{in:[fixture.homeTeamId,fixture.awayTeamId]}}}}]},include:{profile:true,memberships:{where:{tournamentId}}}});
     const reporter=regs.find(r=>r.profileId===actor.profileId);
-    if(!reporter||reporter.profile.chinaServerId!==1||riotKey(reporter.profile.riotName,reporter.profile.riotTag)!==riotKey(identity.name,identity.tag))throw new TournamentError('Your local League account must match your verified Ionia profile.',403);
-    const players=regs.filter(r=>r.profile.chinaServerId===1).map(r=>({profileId:r.profileId,name:r.profile.riotName,tag:r.profile.riotTag,teamId:r.memberships[0]?.teamId??null}));
+    if(!reporter||reporter.profile.chinaServerId!==1||riotKey(tournamentIdentity(reporter).name,tournamentIdentity(reporter).tag)!==riotKey(identity.name,identity.tag))throw new TournamentError('Your local League account must match your registered tournament Ionia account.',403);
+    const players=regs.filter(r=>r.profile.chinaServerId===1).map(r=>({profileId:r.profileId,...tournamentIdentity(r),teamId:r.memberships[0]?.teamId??null}));
     const payload=interpretTournamentMatch(body.raw,{gameId:job.leagueGameId,identity,reporterProfileId:actor.profileId!,homeTeamId:fixture.homeTeamId,awayTeamId:fixture.awayTeamId,players});
     const input=parseReport({fixtureId:fixture.id,gameNumber:job.gameNumber,platform:'HN1',leagueGameId:job.leagueGameId,source:'HUB',payload});
     await normalizedReport(tx,tournamentId,input);

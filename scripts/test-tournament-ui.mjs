@@ -313,7 +313,7 @@ try {
   assert.equal(posts,beforeRejectedPost+1,'Registration writes must not be automatically retried');
   console.log('PASS: scheduled opening, full capacity, unavailable roster, retry recovery and rejected signup has no false confirmation');
   const home={id:'home',key:'ballbreakers',name:'BallBreakers',logo:'/kook/split2/ballbreakers.png',members:[]},away={id:'away',key:'phoenix',name:'Phoenix',logo:'/kook/split2/phoenix.png',members:[]};
-  matchState={teams:[home,away],fixtures:[{id:'f1',code:'RR01',week:1,bestOf:1,homeTeamId:'home',awayTeamId:'away',homeScore:1,awayScore:0,schedule:{at:'2026-10-26T12:00:00Z',state:'CONFIRMED'}}],standings:[{id:'home',name:'BallBreakers',played:1,wins:1,losses:0,tied:false},{id:'away',name:'Phoenix',played:1,wins:0,losses:1,tied:false}],reports:[{id:'r1',fixtureId:'f1',gameNumber:1,leagueGameId:'100001',payload:{winnerTeamId:'home',durationSeconds:1800,playedAt:'2026-10-24T12:00:00Z',note:'Approved fixture',players:[{profileId:'p1',name:'Test MVP',riotId:'MVP#1234',teamId:'home',kills:5,deaths:2,assists:10,mvp:true}]}}],leaders:{kda:[{profileId:'p1',name:'Test MVP',kda:7.5,statGames:1}],assists:[{profileId:'p1',name:'Test MVP',assists:10,statGames:1}],mvps:[{profileId:'p1',name:'Test MVP',mvps:1,games:1}]}};
+  matchState={teams:[home,away],fixtures:[{id:'f1',code:'RR01',week:1,bestOf:1,homeTeamId:'home',awayTeamId:'away',homeScore:1,awayScore:0,schedule:{at:'2026-10-26T12:00:00Z',state:'CONFIRMED'}}],standings:[{id:'home',name:'BallBreakers',played:1,wins:1,losses:0,tied:false},{id:'away',name:'Phoenix',played:1,wins:0,losses:1,tied:false}],reports:[{id:'r1',fixtureId:'f1',gameNumber:1,leagueGameId:'100001',payload:{winnerTeamId:'home',durationSeconds:1800,playedAt:'2026-10-24T12:00:00Z',note:'Approved fixture',players:[{profileId:'p1',name:'Test MVP',riotId:'MVP#1234',teamId:'home',kills:5,deaths:2,assists:10,mvp:true,champion:'51',items:[3031,3006,0],damage:60158,gold:20732,position:'BOTTOM'}]}}],leaders:{kda:[{profileId:'p1',name:'Test MVP',kda:7.5,statGames:1}],assists:[{profileId:'p1',name:'Test MVP',assists:10,statGames:1}],mvps:[{profileId:'p1',name:'Test MVP',mvps:1,games:1}]}};
   state=structuredClone(config);await mount();
   const activate=async label=>{await act(async()=>button(label).dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));await flush();};
   await activate('Fixtures');assert.ok(container.textContent.includes('26 Oct, 20:00 CST'));assert.ok(container.textContent.includes('Confirmed'));assert.ok(container.textContent.includes('1 : 0'));
@@ -327,7 +327,13 @@ try {
   assert.deepEqual(rows.map(row=>[...row.children].map(cell=>cell.textContent)),[['BallBreakers','1','1','0','1'],['Phoenix','1','0','1','0']]);
   assert.ok(container.textContent.includes('Ties (*) remain provisional'));
   assert.ok(!container.textContent.includes('MVP#1234'));
-  await activate('Results');assert.ok(container.textContent.includes('BallBreakers win'));assert.ok(container.textContent.includes('MVP#1234'));assert.ok(container.textContent.includes('5 / 2 / 10'));
+  await activate('Results');
+  const resultButton=document.querySelector('[aria-label="View RR01 game 1 match details"]');assert.ok(resultButton);
+  await click(resultButton);
+  const scoreboard=document.querySelector('[role="dialog"]');assert.ok(scoreboard.textContent.includes('MVP#1234'));assert.ok(scoreboard.textContent.includes('5 / 2 / 10'));assert.ok(scoreboard.textContent.includes('60,158'));assert.ok(scoreboard.textContent.includes('20,732'));assert.ok(scoreboard.querySelector('img[src="/lol/champions/51.png"]'));assert.ok(scoreboard.querySelector('img[src="/lol/items/3031.png"]'));
+  await click(scoreboard.querySelector('button'));await until(()=>!document.querySelector('[role="dialog"]'));assert.equal(document.activeElement,resultButton);
+  await click(resultButton);await act(async()=>document.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));await until(()=>!document.querySelector('[role="dialog"]'));
+  console.log('PASS: result popup shows champion, items, KDA, damage, gold and MVP; X/Escape close it and restore focus');
   await activate('Player stats');assert.ok(container.textContent.includes('7.50'));assert.ok(container.textContent.includes('Top 3 MVPs'));assert.ok(container.textContent.includes('Test MVP'));
   console.log('PASS: shared fixture data renders China time, approved results and match details, standings and Top 3 leaders');
   const completed=structuredClone(matchState);

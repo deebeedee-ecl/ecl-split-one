@@ -22,7 +22,7 @@ export const SPLIT_II_ROSTERS: readonly TeamRoster[] = [
     { name: "jipssi", pot: 3 }, { name: "LazyT3ry", pot: 5 },
   ] },
   { team: "nextgen", accent: "#f2b622", captain: "Kasper", picks: [
-    { name: "beef", pot: 1 }, { name: "Bernardt", pot: 4 },
+    { name: "Zeu5", pot: 1 }, { name: "Bernardt", pot: 4 },
     { name: "toggaf", pot: 3 }, { name: "Shenric", pot: 5 },
   ] },
   { team: "phoenix", accent: "#ef6c15", captain: "doolittlesy", picks: [

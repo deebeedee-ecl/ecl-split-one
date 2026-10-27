@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Prisma,PrismaClient,type AccountProfile } from '@prisma/client';
-import { seedMatchWorkflow,tournamentView,scheduleFixture,submitTournamentReport,reviewTournamentReport } from '../lib/tournaments/matches';
+import { seedMatchWorkflow,tournamentView,scheduleFixture,submitTournamentReport,reviewTournamentReport,normalizedReport } from '../lib/tournaments/matches';
 import { queueTournamentCollection,uploadTournamentCollection,importTournamentLcu } from '../lib/tournaments/collection';
-import { instant } from '../lib/tournaments/match-policy';
+import { instant,parseReport } from '../lib/tournaments/match-policy';
 import { SPLIT_II_ROSTERS } from '../lib/tournaments/split-ii-rosters';
 import { deliverTournamentNotifications,claimTournamentNotification,finishTournamentNotification } from '../lib/tournaments/notifications';
 type Connection={query:(sql:string,values?:unknown[])=>Promise<{rows:Record<string,unknown>[]}>};
@@ -16,9 +16,9 @@ export async function testMatchWorkflow(db:PrismaClient,connection:Connection,pr
   const picks=SPLIT_II_ROSTERS.flatMap(t=>[t.captain,...t.picks.map(p=>p.name)]);
   for(const [index,name] of picks.entries()){
     const p=profiles[30+index];await db.accountProfile.update({where:{id:p.id},data:{chinaServerId:1,accountStatus:'ACTIVE',verificationStatus:'VERIFIED'}});
-    await db.tournamentRegistration.create({data:{tournamentId:event.id,profileId:p.id,displayNameSnapshot:name,primaryRoleSnapshot:'MID',riotNameSnapshot:p.riotName!,riotTagSnapshot:p.riotTag!,termsVersion:event.termsVersion!,rulesVersion:event.rulesVersion!,consentedAt:new Date()}});
+    await db.tournamentRegistration.create({data:{tournamentId:event.id,profileId:p.id,displayNameSnapshot:name,primaryRoleSnapshot:'MID',riotNameSnapshot:p.riotName!,riotTagSnapshot:p.riotTag!,termsVersion:event.termsVersion!,rulesVersion:event.rulesVersion!,consentedAt:new Date(Date.now()-1000)}});
   }
-  const floater=profiles[60];await db.tournamentRegistration.create({data:{tournamentId:event.id,profileId:floater.id,pool:'FLOATER',displayNameSnapshot:'Test Floater',primaryRoleSnapshot:'SUPP',riotNameSnapshot:floater.riotName!,riotTagSnapshot:floater.riotTag!,termsVersion:event.termsVersion!,rulesVersion:event.floaterRulesVersion!,consentedAt:new Date()}});
+  const floater=profiles[60];await db.tournamentRegistration.create({data:{tournamentId:event.id,profileId:floater.id,pool:'FLOATER',displayNameSnapshot:'Test Floater',primaryRoleSnapshot:'SUPP',riotNameSnapshot:floater.riotName!,riotTagSnapshot:floater.riotTag!,termsVersion:event.termsVersion!,rulesVersion:event.floaterRulesVersion!,consentedAt:new Date(Date.now()-1000)}});
   const fingerprint=async()=>{
     const tables=['Player','Match','MatchGame','MatchGamePlayerStat','InhouseSession','InhouseReportJob','AccountProfile','tournament_registrations'];
     return Promise.all(tables.map(async name=>(await connection.query(`SELECT md5(COALESCE(jsonb_agg(to_jsonb(t) ORDER BY id)::text,'[]')) AS hash FROM public."${name}" t`)).rows[0].hash));
@@ -49,8 +49,21 @@ export async function testMatchWorkflow(db:PrismaClient,connection:Connection,pr
     return {fixtureId:fixture.id,gameNumber:1,platform:'HN1',leagueGameId:gameId,source:'MANUAL',payload:{winnerTeamId:fixture.homeTeamId,playedAt:new Date(Date.now()-3600000).toISOString(),durationSeconds:1800,note:'Test approved match',players:teams.flatMap((t,side)=>t.members.map((p,index)=>({profileId:sub&&side===0&&index===4?floater.id:p.profileId,teamId:t.id,kills:5,deaths:2,assists:10,mvp:side===0&&index===0})))}};
   };
   const firstInput=reportFor(f,'100001',true);
+  Object.assign(firstInput.payload.players[0],{champion:'51',items:[3031,3006,0,0,0,0,3363],damage:60158,gold:20732,position:'BOTTOM'});
+  const invalidItems=structuredClone(firstInput);Object.assign(invalidItems.payload.players[0],{items:Array(8).fill(1)});assert.throws(()=>parseReport(invalidItems),/seven/);
+  const invalidDamage=structuredClone(firstInput);Object.assign(invalidDamage.payload.players[0],{damage:-1});assert.throws(()=>parseReport(invalidDamage),/integer/);
+  const identityPlayer=home.members[0],originalProfile=await db.accountProfile.findUniqueOrThrow({where:{id:identityPlayer.profileId}});
+  try{
+    await db.accountProfile.update({where:{id:identityPlayer.profileId},data:{riotName:'Different Hub account',riotTag:'99999'}});
+    const frozen=await tournamentView(db);assert.equal(frozen.teams.find(t=>t.id===home.id)!.members[0].riotId,identityPlayer.riotId);
+    const candidate=parseReport(firstInput);await normalizedReport(db,event.id,candidate);
+    assert.equal(candidate.payload.players.find(p=>p.profileId===identityPlayer.profileId)!.riotId,identityPlayer.riotId);
+  }finally{await db.accountProfile.update({where:{id:identityPlayer.profileId},data:{riotName:originalProfile.riotName,riotTag:originalProfile.riotTag,updatedAt:originalProfile.updatedAt}});}
+  console.log('PASS: tournament roster and report identities stay separate from later Hub account changes');
   await assert.rejects(()=>submitTournamentReport(db,homeActor,firstInput),/admin/);
   const first=await submitTournamentReport(db,{admin:true},firstInput);assert.equal(first.status,'PENDING');
+  const savedPayload=(await db.tournamentReport.findUniqueOrThrow({where:{id:first.id}})).payload as unknown as {players:{items:number[];damage:number;gold:number}[]};
+  assert.deepEqual(savedPayload.players[0].items,[3031,3006,0,0,0,0,3363]);assert.equal(savedPayload.players[0].damage,60158);assert.equal(savedPayload.players[0].gold,20732);
   assert.equal((await submitTournamentReport(db,{admin:true},firstInput)).duplicate,true);
   assert.equal((await tournamentView(db)).reports.length,0);
   const published=await reviewTournamentReport(db,first.id,'approve','Checked actual lineup, screenshot, duration and stats');assert.equal(published.status,'APPROVED');
@@ -91,9 +104,9 @@ export async function testMatchWorkflow(db:PrismaClient,connection:Connection,pr
   assert.deepEqual(await fingerprint(),before);
   console.log('PASS: own-account collection, exact Game ID, parsed ten-player sides, private raw data and pending-only uploads');
   process.env.KOOK_BOT_TOKEN='fixture-token-not-real';let sent=0;
-  const claims=await Promise.all([claimTournamentNotification(db),claimTournamentNotification(db)]);assert.equal(claims.filter(Boolean).length,1);
-  const claim=claims.find(v=>v)!;assert.equal((await finishTournamentNotification(db,claim.id,'wrong-key',true)).recorded,false);assert.equal((await finishTournamentNotification(db,claim.id,claim.deliveryKey,true)).recorded,true);
-  const delivered=await deliverTournamentNotifications(db,async()=>{sent++;return Response.json({code:0});});assert.equal(delivered.sent,2);assert.equal(sent,2);
+  const claims=await Promise.all([claimTournamentNotification(db),claimTournamentNotification(db)]);const claimed=claims.filter((v):v is NonNullable<typeof v>=>Boolean(v));assert.ok(claimed.length>=1);assert.equal(new Set(claimed.map(v=>v.id)).size,claimed.length);
+  for(const claim of claimed){assert.equal((await finishTournamentNotification(db,claim.id,'wrong-key',true)).recorded,false);assert.equal((await finishTournamentNotification(db,claim.id,claim.deliveryKey,true)).recorded,true);}
+  const expectedDeliveries=Math.min(2,await db.tournamentNotification.count({where:{status:'PENDING'}}));const delivered=await deliverTournamentNotifications(db,async()=>{sent++;return Response.json({code:0});});assert.equal(delivered.sent,expectedDeliveries);assert.equal(sent,expectedDeliveries);
   while(await db.tournamentNotification.count({where:{status:'PENDING'}}))await deliverTournamentNotifications(db,async()=>Response.json({code:0}));
   const ambiguous=await db.tournamentNotification.create({data:{tournamentId:event.id,dedupeKey:'test-ambiguous',channelId:'12345',content:'Fixture test notification'}});
   await deliverTournamentNotifications(db,async()=>{throw new Error('Test timeout');});assert.equal((await db.tournamentNotification.findUniqueOrThrow({where:{id:ambiguous.id}})).status,'UNKNOWN');

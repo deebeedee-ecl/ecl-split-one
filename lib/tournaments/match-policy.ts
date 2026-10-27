@@ -2,7 +2,7 @@ export class TournamentError extends Error {
   constructor(message: string, public status = 400) { super(message); }
 }
 export type Schedule = { state: "PROPOSED" | "CONFIRMED"; at: string; byTeam: string; revision: number; channelId?: string; actor: string };
-export type MatchPlayer = { profileId: string; teamId: string; name: string; riotId: string; champion?: string; kills?: number; deaths?: number; assists?: number; mvp: boolean };
+export type MatchPlayer = { profileId: string; teamId: string; name: string; riotId: string; champion?: string; items?: number[]; damage?: number; gold?: number; position?: string; kills?: number; deaths?: number; assists?: number; mvp: boolean };
 export type MatchPayload = { winnerTeamId: string; durationSeconds: number; playedAt: string; players: MatchPlayer[]; note: string; statsComplete: boolean };
 export type ReportInput = { fixtureId: string; gameNumber: number; platform: string; leagueGameId: string | null; source: "MANUAL" | "JSON" | "HUB"; payload: MatchPayload; raw?: unknown; evidence?: { name: string; dataUrl: string }; replacesId?: string };
 export function object(value: unknown): Record<string, unknown> {
@@ -30,10 +30,15 @@ export function parseReport(value: unknown): ReportInput {
   const players = p.players.map(v => {
     const row = object(v);
     const stats = [row.kills, row.deaths, row.assists];
+    if(row.items!==undefined&&(!Array.isArray(row.items)||row.items.length>7))throw new TournamentError('Items must contain at most seven item IDs.');
     if (stats.some(v => v !== undefined && v !== null) && !stats.every(v => typeof v === "number")) throw new TournamentError("Enter all three K/D/A values for a player, or leave all three blank.");
     return { profileId: text(row.profileId, 100), teamId: text(row.teamId, 150), name: "", riotId: "", mvp: row.mvp === true,
       ...(stats.every(v => typeof v === "number") ? { kills: integer(row.kills, 0, 200), deaths: integer(row.deaths, 0, 200), assists: integer(row.assists, 0, 300) } : {}),
-      ...(row.champion ? { champion: text(row.champion, 80) } : {}) };
+      ...(row.champion ? { champion: text(row.champion, 80) } : {}),
+      ...(Array.isArray(row.items)?{items:row.items.map(id=>integer(id,0,100000))}:{}),
+      ...(row.damage!==undefined?{damage:integer(row.damage,0,10000000)}:{}),
+      ...(row.gold!==undefined?{gold:integer(row.gold,0,10000000)}:{}),
+      ...(row.position?{position:text(row.position,30)}:{}) };
   });
   if (new Set(players.map(p => p.profileId)).size !== 10) throw new TournamentError("A player cannot appear twice in one game.");
   if (players.filter(p => p.mvp).length > 1) throw new TournamentError("Choose at most one MVP.");

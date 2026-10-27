@@ -1,9 +1,8 @@
 import Image from 'next/image';
 import type { TournamentData } from '@/lib/tournaments/match-types';
-import type { MatchPayload } from '@/lib/tournaments/match-policy';
+import TournamentResultList from './TournamentResultList';
 import styles from './split-ii.module.css';
 export const chinaTime=(value:string)=>new Date(value).toLocaleString('en-GB',{timeZone:'Asia/Shanghai',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:false})+' CST';
-const clock=(seconds:number)=>`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
 export function LiveFixtures({data}:{data:TournamentData}){
   const team=(id:string)=>data.teams.find(t=>t.id===id)!;
   const weeks=[...new Set(data.fixtures.map(f=>f.week))].sort((a,b)=>a-b);
@@ -44,8 +43,7 @@ export function TournamentStandings({data}:{data:TournamentData|null}){
 }
 export function TournamentResults({data}:{data:TournamentData|null}){
   if(!data)return <p className={styles.fixturesIntro}>Load tournament data to view approved results.</p>;
-  const team=(id:string)=>data.teams.find(t=>t.id===id)?.name??id;
-  return <section aria-labelledby="results-heading"><div className={styles.sectionHeading}><div><p>ECL SPLIT II / APPROVED RESULTS</p><h3 id="results-heading">Every game counts.</h3></div></div>{!data.reports.length?<p className={styles.fixturesIntro}>No approved results yet. Games appear here after administrator review.</p>:<div className={styles.matchCards}>{data.reports.map(report=>{const p=report.payload as unknown as MatchPayload,f=data.fixtures.find(f=>f.id===report.fixtureId)!;return <details key={report.id} className={styles.matchCard}><summary><strong>{f.code} / Game {report.gameNumber}: {team(p.winnerTeamId)} win</strong><span>{clock(p.durationSeconds)} / {chinaTime(p.playedAt)}</span></summary><p>{team(f.homeTeamId)} vs {team(f.awayTeamId)}{report.leagueGameId?` / League #${report.leagueGameId}`:''}</p><div className={styles.tableScroll}><table className={styles.resultsTable}><thead><tr><th>Player</th><th>Team</th><th>K / D / A</th><th>MVP</th></tr></thead><tbody>{p.players.map(player=><tr key={player.profileId}><th>{player.name}<small>{player.riotId}</small></th><td>{team(player.teamId)}</td><td>{player.kills===undefined?'Not reported':`${player.kills} / ${player.deaths} / ${player.assists}`}</td><td>{player.mvp?'MVP':''}</td></tr>)}</tbody></table></div>{p.note&&<p>{p.note}</p>}</details>;})}</div>}</section>;
+  return <section aria-labelledby="results-heading"><div className={styles.sectionHeading}><div><p>ECL SPLIT II / APPROVED RESULTS</p><h3 id="results-heading">Every game counts.</h3></div></div><TournamentResultList data={data}/></section>;
 }
 export function TournamentLeaders({data}:{data:TournamentData|null}){
   return <section aria-labelledby="leaders-heading"><div className={styles.sectionHeading}><div><p>ECL SPLIT II / PLAYER STATS</p><h3 id="leaders-heading">Setting the pace.</h3></div></div><p className={styles.fixturesIntro}>Approved tournament games only. KDA = (kills + assists) / max(1, deaths). Unreported stats are excluded; MVPs are selected during review.</p><div className={styles.leaderGrid}>{(['kda','assists','mvps'] as const).map(key=><article key={key} className={styles.matchCard}><h4>Top 3 {key==='kda'?'KDA':key==='mvps'?'MVPs':'assists'}</h4>{!data?.leaders[key].length?<p>No approved stats yet.</p>:<ol>{data.leaders[key].map(p=><li key={p.profileId}><strong>{p.name}</strong><span>{key==='kda'?p.kda?.toFixed(2):p[key]} <small>/ {key==='mvps'?p.games:p.statGames} games</small></span></li>)}</ol>}</article>)}</div></section>;

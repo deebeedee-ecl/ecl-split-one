@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { tournamentIdentity } from './identity';
 import { SPLIT_II_SLUG } from "./split-ii-config";
 import { SPLIT_II_TEAMS, SPLIT_II_FIXTURE_WEEKS } from "./split-ii-fixtures";
 import { SPLIT_II_ROSTERS } from "./split-ii-rosters";
@@ -56,7 +57,7 @@ async function loadTournamentView(db:PrismaClient,actor:TournamentActor){
   const event = await db.tournament.findUnique({where:{slug:SPLIT_II_SLUG},select:{id:true,name:true,startsOn:true,endsOn:true}});
   if (!event) throw new TournamentError("Tournament is not configured.",503);
   const [teams,fixtures,reports,floaters] = await Promise.all([
-    db.tournamentTeam.findMany({where:{tournamentId:event.id},include:{members:{orderBy:{id:'asc'},include:{profile:{select:{riotName:true,riotTag:true}},registration:{select:{displayNameSnapshot:true,primaryRoleSnapshot:true}}}}},orderBy:{key:'asc'}}),
+    db.tournamentTeam.findMany({where:{tournamentId:event.id},include:{members:{orderBy:{id:'asc'},include:{profile:{select:{riotName:true,riotTag:true}},registration:{select:{displayNameSnapshot:true,primaryRoleSnapshot:true,riotNameSnapshot:true,riotTagSnapshot:true}}}}},orderBy:{key:'asc'}}),
     db.tournamentFixture.findMany({where:{tournamentId:event.id},orderBy:[{week:'asc'},{code:'asc'}]}),
     db.tournamentReport.findMany({where:{tournamentId:event.id,...(!actor.admin?{status:'APPROVED'}:{})},select:{id:true,fixtureId:true,gameNumber:true,status:true,source:true,platform:true,leagueGameId:true,payload:true,createdAt:true,reviewedAt:true,reviewNote:true,replacesId:true},orderBy:{createdAt:'desc'}}),
     db.tournamentRegistration.findMany({where:{tournamentId:event.id,pool:'FLOATER'},select:{profileId:true,displayNameSnapshot:true,primaryRoleSnapshot:true}}),
@@ -65,7 +66,7 @@ async function loadTournamentView(db:PrismaClient,actor:TournamentActor){
   const approved = reports.filter(r=>r.status==='APPROVED');
   const tables = calculateTables(teams,fixtures,approved);
   return {event:{id:event.id,name:event.name,timezone:'Asia/Shanghai'},
-    teams:teams.map(t=>({id:t.id,key:t.key,name:t.name,tag:t.tag,logo:t.logo,accent:t.accent,captainProfileId:t.captainProfileId,members:t.members.map(m=>({profileId:m.profileId,name:m.registration.displayNameSnapshot,role:m.registration.primaryRoleSnapshot,riotId:`${m.profile.riotName}#${m.profile.riotTag.replace(/^#+/,'')}`,pot:m.pot,captain:m.profileId===t.captainProfileId}))})),
+    teams:teams.map(t=>({id:t.id,key:t.key,name:t.name,tag:t.tag,logo:t.logo,accent:t.accent,captainProfileId:t.captainProfileId,members:t.members.map(m=>({profileId:m.profileId,name:m.registration.displayNameSnapshot,role:m.registration.primaryRoleSnapshot,riotId:`${tournamentIdentity(m.registration).name}#${tournamentIdentity(m.registration).tag}`,pot:m.pot,captain:m.profileId===t.captainProfileId}))})),
     fixtures:fixtures.map(f=>{const s=f.schedule as unknown as Schedule|null;return {id:f.id,code:f.code,stage:f.stage,week:f.week,bestOf:f.bestOf,homeTeamId:f.homeTeamId,awayTeamId:f.awayTeamId,revision:f.revision,schedule:s?{state:s.state,at:s.at,byTeam:s.byTeam,revision:s.revision}:null,
       homeScore:approved.filter(r=>r.fixtureId===f.id&&(r.payload as unknown as MatchPayload).winnerTeamId===f.homeTeamId).length,
       awayScore:approved.filter(r=>r.fixtureId===f.id&&(r.payload as unknown as MatchPayload).winnerTeamId===f.awayTeamId).length};}),
@@ -126,7 +127,7 @@ export async function normalizedReport(tx:Tx,eventId:string,input:ReturnType<typ
     const r=registrations.find(r=>r.profileId===player.profileId);
     if(!r||(r.pool!=='FLOATER'&&!r.memberships.some(m=>m.teamId===player.teamId)))throw new TournamentError("A lineup contains an unregistered player or a player from another team.");
     if(r.profile.chinaServerId!==1||input.platform!=='HN1')throw new TournamentError("Split II reporting currently requires the registered Ionia accounts.");
-    player.name=r.displayNameSnapshot;player.riotId=`${r.profile.riotName}#${r.profile.riotTag.replace(/^#+/,'')}`;
+    const identity=tournamentIdentity(r);player.name=r.displayNameSnapshot;player.riotId=`${identity.name}#${identity.tag}`;
   }
   return fixture;
 }
@@ -147,7 +148,7 @@ export async function submitTournamentReport(db:PrismaClient,actor:TournamentAct
   },{maxWait:10000,timeout:20000});
 }
 
-export async function reviewTournamentReport(db:PrismaClient,reportId:string,decision:'approve'|'reject',reason:string,mvpProfileId?:string) {
+export async function reviewTournamentReport(db:PrismaClient,reportId:string,decision:'approve'|'reject',reason:string,mvpProfileId?:string,delivery:{notify:boolean}={notify:true}) {
   const note=text(reason,2000);
   if(!note)throw new TournamentError("Record a review note before approving or rejecting.");
   return db.$transaction(async tx=>{
@@ -202,7 +203,7 @@ export async function reviewTournamentReport(db:PrismaClient,reportId:string,dec
     for(const p of input.payload.players.filter(p=>floaterIds.has(p.profileId)))await tx.tournamentFloaterAppearance.create({data:{tournamentId:eventId,teamId:p.teamId,profileId:p.profileId,reportId:report.id}});
     const home=wins(report.fixture.homeTeamId),away=wins(report.fixture.awayTeamId);
     const schedule=report.fixture.schedule as unknown as Schedule|null;
-    const notified=await notify(tx,eventId,`result:${report.id}`,schedule?.channelId,`ECL Split II / ${report.fixture.code}${report.replacesId?' / CORRECTED RESULT':''}\n${report.fixture.homeTeam.name} ${home}–${away} ${report.fixture.awayTeam.name}\nGame ${report.gameNumber}: ${input.payload.durationSeconds}s\nhttps://eclchina.lol/hub/split-ii`);
+    const notified=delivery.notify&&await notify(tx,eventId,`result:${report.id}`,schedule?.channelId,`ECL Split II / ${report.fixture.code}${report.replacesId?' / CORRECTED RESULT':''}\n${report.fixture.homeTeam.name} ${home}–${away} ${report.fixture.awayTeam.name}\nGame ${report.gameNumber}: ${input.payload.durationSeconds}s\nhttps://eclchina.lol/hub/split-ii`);
     return {id:report.id,status:'APPROVED',notificationQueued:notified,lpApplied:false};
   },{maxWait:10000,timeout:30000});
 }
