@@ -59,3 +59,18 @@ them when League/collection/reporting are idle. New tournament results then
 refresh from the shared API every minute without another installer release.
 The richer match dialog is a website feature; desktop 1.0.2 retains its native
 results/standings and expandable player details.
+
+Live verification completed October 27: RR05 is NextGen 0–1 Exodus; standings
+award Exodus one point. The public report contains all ten players and item,
+damage and gold details; fayimo displays Hrnn, Zeu5 is in NextGen and beef is
+among the five floaters. The popup code is served by the production deployment.
+LCU ingestion also preserves available items/damage/gold for future games;
+missing fields remain absent.
+
+The fixed public update feed now advertises 1.0.2. All 119,274,135 installer bytes
+were downloaded in validated ranges and their SHA-512 matched the signed release
+metadata before activation. The active public envelope verifies against the
+existing pinned ECL key. Installer range access was verified after propagation.
+No installed app was executed or restarted by these release checks. Private
+evidence: `.tmp/hub-102-publication.json`, `.tmp/hub-102-live-verification.json`
+and `.tmp/first-result-live-verification.json`.

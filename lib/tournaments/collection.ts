@@ -43,7 +43,11 @@ export function interpretTournamentMatch(rawValue:unknown,context:{gameId:string
     if(player.profileId===context.reporterProfileId&&(puuid!==context.identity.puuid||riotKey(name,tag)!==riotKey(context.identity.name,context.identity.tag)))throw new TournamentError('The local League identity does not match the reporting player.',403);
     const side=integer(p.teamId,100,200);if(![100,200].includes(side))throw new TournamentError('Invalid League side.');
     const stats=object(p.stats);
-    return {profileId:player.profileId,permanentTeam:player.teamId,side,champion:String(integer(p.championId,1,10000)),kills:integer(stats.kills,0,200),deaths:integer(stats.deaths,0,200),assists:integer(stats.assists,0,300),mvp:false};
+    const itemIds=Array.from({length:7},(_,i)=>stats[`item${i}`]);
+    return {profileId:player.profileId,permanentTeam:player.teamId,side,champion:String(integer(p.championId,1,10000)),kills:integer(stats.kills,0,200),deaths:integer(stats.deaths,0,200),assists:integer(stats.assists,0,300),mvp:false,
+      ...(itemIds.every(id=>typeof id==='number')?{items:itemIds.map(id=>integer(id,0,100000))}:{}),
+      ...(stats.totalDamageDealtToChampions!==undefined?{damage:integer(stats.totalDamageDealtToChampions,0,10000000)}:{}),
+      ...(stats.goldEarned!==undefined?{gold:integer(stats.goldEarned,0,10000000)}:{})};
   });
   if(!profiles.has(context.reporterProfileId))throw new TournamentError('The reporting player must have played this game.',403);
   const sideTeams=new Map<number,string>();
@@ -57,7 +61,7 @@ export function interpretTournamentMatch(rawValue:unknown,context:{gameId:string
   if(new Set(outcomes.map(o=>o.side)).size!==2||outcomes.filter(o=>o.win).length!==1)throw new TournamentError('Match must have exactly one winner.');
   const durationSeconds=integer(raw.gameDuration,60,14400),creation=integer(raw.gameCreation,1,Date.now());
   const playedAt=new Date(creation+durationSeconds*1000).toISOString();
-  return {winnerTeamId:sideTeams.get(outcomes.find(t=>t.win)!.side)!,durationSeconds,playedAt,note:'Collected from the local League client.',players:rows.map(p=>({profileId:p.profileId,champion:p.champion,kills:p.kills,deaths:p.deaths,assists:p.assists,mvp:p.mvp,teamId:sideTeams.get(p.side)!}))};
+  return {winnerTeamId:sideTeams.get(outcomes.find(t=>t.win)!.side)!,durationSeconds,playedAt,note:'Collected from the local League client.',players:rows.map(p=>({profileId:p.profileId,champion:p.champion,kills:p.kills,deaths:p.deaths,assists:p.assists,mvp:p.mvp,teamId:sideTeams.get(p.side)!,...(p.items?{items:p.items}:{}),...(p.damage!==undefined?{damage:p.damage}:{}),...(p.gold!==undefined?{gold:p.gold}:{})}))};
 }
 
 export async function tournamentCollectionJobs(db:PrismaClient,actor:TournamentActor){

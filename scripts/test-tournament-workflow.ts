@@ -93,10 +93,13 @@ export async function testMatchWorkflow(db:PrismaClient,connection:Connection,pr
   const roster=[...queueHome.members,...queueAway.members].map(m=>({member:m,profile:actualProfiles.find(p=>p.id===m.profileId)!}));
   const raw={gameId:100088,platformId:'HN1',gameType:'CUSTOM_GAME',gameMode:'CLASSIC',mapId:11,endOfGameResult:'GameComplete',gameCreation:Date.now()-7200000,gameDuration:1800,teams:[{teamId:100,win:'Win'},{teamId:200,win:'Fail'}],participants:roster.map(({member},i)=>({participantId:i+1,teamId:member.profileId===queueHome.members.find(m=>m.profileId===member.profileId)?.profileId?100:200,championId:1,stats:{kills:5,deaths:2,assists:10}})),participantIdentities:roster.map(({profile},i)=>({participantId:i+1,player:{puuid:`puuid-${i}`,gameName:profile.riotName,tagLine:profile.riotTag}}))};
   const identity={puuid:'puuid-0',name:roster[0].profile.riotName,tag:roster[0].profile.riotTag};
+  Object.assign(raw.participants[0].stats,{item0:3031,item1:3006,item2:0,item3:0,item4:0,item5:0,item6:3363,totalDamageDealtToChampions:32111,goldEarned:16424});
   await assert.rejects(()=>uploadTournamentCollection(db,{admin:false,profileId:floater.id},{jobId:job2.id,identity,raw}),/not found/);
   await assert.rejects(()=>uploadTournamentCollection(db,owner,{jobId:job2.id,identity,raw:{...raw,gameId:100089}}),/requested/);
   const collected=await uploadTournamentCollection(db,owner,{jobId:job2.id,identity,raw});assert.equal(collected.status,'PENDING');assert.equal((await uploadTournamentCollection(db,owner,{jobId:job2.id,identity,raw})).duplicate,true);
   assert.equal((await db.tournamentReport.findUniqueOrThrow({where:{id:collected.id!}})).source,'HUB');
+  const collectedPlayers=((await db.tournamentReport.findUniqueOrThrow({where:{id:collected.id!}})).payload as unknown as {players:{items?:number[];damage?:number;gold?:number}[]}).players;
+  assert.deepEqual(collectedPlayers[0].items,[3031,3006,0,0,0,0,3363]);assert.equal(collectedPlayers[0].damage,32111);assert.equal(collectedPlayers[0].gold,16424);assert.equal(collectedPlayers[1].items,undefined);
   await assert.rejects(()=>importTournamentLcu(db,owner,queueFixture.id,1,raw),/Admin/);
   const imported=await importTournamentLcu(db,{admin:true},queueFixture.id,1,{...raw,gameId:100087});assert.equal(imported.status,'PENDING');
   assert.equal((await db.tournamentReport.findUniqueOrThrow({where:{id:imported.id}})).source,'JSON');
