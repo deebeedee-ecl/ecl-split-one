@@ -25,7 +25,7 @@ dom.window.HTMLMediaElement.prototype.pause = function () {};
 
 await mkdir(temporary, { recursive: true });
 const entry = path.join(temporary, 'tournament-ui-entry.tsx');
-await writeFile(entry, 'export {default as Page} from "../app/split-ii/SplitTwoRegistration"; export {default as Admin} from "../app/admin/split-ii/page"; export {createSplitTwo as DesktopSplitTwo} from "../companion/src/split-two"; export {default as FixturePlan} from "../app/split-ii/TournamentFixtures"; export {default as Carousel} from "../app/split-ii/MatchupCarousel"; export {setSession} from "fixture-supabase";');
+await writeFile(entry, 'export {default as Page} from "../app/split-ii/SplitTwoRegistration"; export {default as Admin} from "../app/admin/split-ii/page"; export {createSplitTwo as DesktopSplitTwo} from "../companion/src/split-two"; export {default as FixturePlan} from "../app/split-ii/TournamentFixtures"; export {setSession} from "fixture-supabase";');
 const outfile = path.join(temporary, 'tournament-ui-test.cjs');
 await build({
   entryPoints: [entry], outfile, bundle: true, platform: 'node', format: 'cjs', logLevel: 'silent',
@@ -55,7 +55,7 @@ const require = createRequire(import.meta.url);
 const React = require('react');
 const { createRoot } = require('react-dom/client');
 const { act } = React;
-const { Page, Admin, DesktopSplitTwo, FixturePlan, Carousel, setSession } = require(outfile);
+const { Page, Admin, DesktopSplitTwo, FixturePlan, setSession } = require(outfile);
 const config = {
   capacity: 25, count: 0, window: 'open', opensAt: '2026-10-17T04:00:00.000Z', closesAt: null,
   termsVersion: 'ecl-terms-2026-10-16', rulesVersion: 'split-ii-registration-2026-10-22',

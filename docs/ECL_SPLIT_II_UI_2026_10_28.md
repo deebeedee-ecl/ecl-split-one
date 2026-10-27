@@ -2,7 +2,7 @@
 
 Completed fixtures show winners in green and losers in red. Results use a winner-first 1–0 score and **View match stats**, without internal RR fixture tags. The website match dialog sits above the fixed Hub shell; its X and Escape controls close it and return focus to the result.
 
-The website dashboard now rotates logo-versus-logo round-robin matchups. The dedicated Split II sidebar entry retains rosters, floaters, fixtures, results, standings and tournament player stats. Public tournament reads refresh automatically every minute and on return to the page. A failed refresh retains the last valid snapshot and retries; unavailable live data never becomes a fabricated unplayed fixture list.
+The website dashboard retains the full tournament layout: rosters, floaters, fixtures, results, standings and tournament player stats. The logo-versus-logo carousel belongs only on the desktop Hub app dashboard. Public tournament reads refresh automatically every minute and on return to the page. A failed refresh retains the last valid snapshot and retries; unavailable live data never becomes a fabricated unplayed fixture list.
 
 Hub **1.0.3** redesigns the Split II section with Overview, Teams, Fixtures, Results, Standings and Player stats tabs. Its match dialog includes all ten players, champions, items, KDA, damage, gold and MVP. Team and item assets are packaged locally and allowed through narrowly scoped desktop protocol paths. The dashboard rotates team logos. Tournament reporting remains disconnected by default, requested-game-only, and subject to administrator review.
 
