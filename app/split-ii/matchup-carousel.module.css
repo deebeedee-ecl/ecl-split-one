@@ -1,0 +1,18 @@
+.carousel { padding:clamp(22px,5vw,64px); min-height:480px; color:#f1f3f7; background:radial-gradient(ellipse at 50% 65%,#14316c44,transparent 65%),#0d1119; border:1px solid #293246; border-radius:12px; }
+.heading { display:flex; align-items:center; justify-content:space-between; gap:20px; }
+.heading p { color:#8798b8; font-size:10px; font-weight:700; letter-spacing:.16em; }
+.heading h1 { margin:10px 0 0; font-size:clamp(28px,4vw,44px); font-weight:750; letter-spacing:-.04em; }
+.heading a { display:flex; align-items:center; gap:7px; color:#b7c8f7; font-size:12px; }
+.stage { display:grid; grid-template-columns:36px minmax(0,1fr) 36px; align-items:center; gap:12px; min-height:300px; }
+.match { display:flex; align-items:center; justify-content:center; gap:clamp(24px,6vw,80px); padding:32px 0; animation:enter .45s ease-out; }
+.match img { width:clamp(70px,14vw,160px); height:clamp(70px,14vw,160px); object-fit:contain; filter:drop-shadow(0 16px 24px #0006); }
+.match > span { color:#7082a5; font-weight:650; font-size:14px; letter-spacing:.16em; }
+.arrow { display:grid; place-items:center; width:36px; height:36px; border:1px solid #30394b; color:#9eacc6; border-radius:50%; background:#161d2b; cursor:pointer; }
+.arrow:hover { color:#fff; border-color:#5f7cd5; }
+.dots { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; }
+.dots button { width:6px; height:6px; border:0; border-radius:50%; background:#35415a; cursor:pointer; padding:0; }
+.dots button[aria-pressed=true] { background:#7091ff; box-shadow:0 0 12px #3866ff88; }
+.carousel a:focus-visible,.carousel button:focus-visible { outline:2px solid #90abff; outline-offset:6px; }
+@keyframes enter { from {opacity:0;transform:translateY(8px);} to {opacity:1;transform:translateY(0);} }
+@media(prefers-reduced-motion:reduce) { .match { animation:none; } }
+@media(max-width:560px) { .carousel { min-height:360px; padding:20px 12px; } .stage { grid-template-columns:28px minmax(0,1fr) 28px; min-height:230px; gap:3px; } .arrow { width:28px; height:28px; } .heading { align-items:start; } .heading a { font-size:10px; } .match { gap:18px; } }

@@ -66,6 +66,7 @@ else {
       ['/privacy.css', path.join(__dirname, '../dist/privacy.css')],
       ['/workspace.css', path.join(__dirname, '../dist/workspace.css')],
       ['/desktop.css', path.join(__dirname, '../dist/desktop.css')],
+      ['/split-two.css', path.join(__dirname, '../dist/split-two.css')],
       ['/theme.css', path.join(__dirname, '../dist/theme.css')],
       ['/inter-latin.woff2', path.join(__dirname, '../dist/inter-latin.woff2')],
       ['/renderer.js', path.join(__dirname, '../dist/renderer.js')], ['/logo.png', path.join(__dirname, '../assets/ecl-hub.png')],
@@ -74,7 +75,9 @@ else {
       const url = new URL(request.url);
       const champion = /^\/champions\/(\d+)\.png$/.exec(url.pathname);
       const role = /^\/roles\/(top|jungle|mid|bot|support|fill)\.png$/.exec(url.pathname);
-      const file = url.host === 'companion' && (paths.get(url.pathname) || (champion && path.join(__dirname, '../dist/champions', `${champion[1]}.png`)) || (role && path.join(__dirname, '../dist/roles', `${role[1]}.png`)));
+      const item = /^\/items\/(\d{1,6})\.png$/.exec(url.pathname);
+      const team = /^\/teams\/(ballbreakers|exodus|zero|nextgen|phoenix)\.png$/.exec(url.pathname);
+      const file = url.host === 'companion' && (paths.get(url.pathname) || (champion && path.join(__dirname, '../dist/champions', `${champion[1]}.png`)) || (role && path.join(__dirname, '../dist/roles', `${role[1]}.png`)) || (item && path.join(__dirname, '../dist/items', `${item[1]}.png`)) || (team && path.join(__dirname, '../dist/teams', `${team[1]}.png`)));
       if (file && !fs.existsSync(file)) return new Response('Not found', { status: 404 });
       return file ? net.fetch(pathToFileURL(file).toString()) : new Response('Not found', { status: 404 });
     });

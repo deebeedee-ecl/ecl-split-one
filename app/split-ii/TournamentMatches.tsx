@@ -19,11 +19,11 @@ export function LiveFixtures({data}:{data:TournamentData}){
           const complete=homeWon||awayWon;
           const outcome=(won:boolean)=>complete?(won?styles.fixtureWin:styles.fixtureLoss):'';
           return <li key={f.id}>
-            <span className={styles.fixtureNumber}>{f.code}</span>
+            <span className={styles.fixtureNumber}>{f.code.replace(/^RR/,'')}</span>
             <div className={`${styles.fixtureTeam} ${outcome(homeWon)}`}><Image src={team(f.homeTeamId).logo} alt="" width={28} height={28}/><strong>{team(f.homeTeamId).name}{complete&&<span className={styles.srOnly}>{homeWon?' — Win':' — Loss'}</span>}</strong></div>
             <span className={styles.fixtureVersus}>{f.homeScore||f.awayScore?<><span className={outcome(homeWon)}>{f.homeScore}</span> : <span className={outcome(awayWon)}>{f.awayScore}</span></>:'vs'}</span>
             <div className={`${styles.fixtureTeam} ${styles.fixtureOpponent} ${outcome(awayWon)}`}><strong>{team(f.awayTeamId).name}{complete&&<span className={styles.srOnly}>{awayWon?' — Win':' — Loss'}</span>}</strong><Image src={team(f.awayTeamId).logo} alt="" width={28} height={28}/></div>
-            {f.schedule&&<p className={styles.fixtureSchedule}>{chinaTime(f.schedule.at)} / {f.schedule.state==='CONFIRMED'?'Confirmed':'Awaiting opposing captain'}</p>}
+            {!complete&&f.schedule&&<p className={styles.fixtureSchedule}>{chinaTime(f.schedule.at)} / {f.schedule.state==='CONFIRMED'?'Confirmed':'Awaiting opposing captain'}</p>}
           </li>;
         })}</ol>
       </section>;

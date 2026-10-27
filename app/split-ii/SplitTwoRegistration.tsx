@@ -118,8 +118,8 @@ export default function SplitTwoRegistration({ inDashboard = false, preview = fa
             <p>Entry is for existing, active and verified ECL players. Your role comes from your ECL profile. <Link href="/split-ii/rules">Read the registration rules and terms.</Link></p>
           </TabsContent>
           <TabsContent value="format"><TournamentFormat /></TabsContent>
-          {(activeTab==='fixtures'||activeTab==='results'||activeTab==='stats'||activeTab==='standings')&&<div className={styles.matchRefresh}><span>{matches.error || (matches.loading?'Refreshing tournament data…':'Updates every minute. China time (UTC+8).')}</span><button onClick={()=>void matches.refresh()} disabled={matches.loading}>Refresh</button></div>}
-          <TabsContent value="fixtures">{matches.data?<LiveFixtures data={matches.data}/>:<TournamentFixtures />}</TabsContent>
+          {['fixtures','results','stats','standings'].includes(activeTab)&&matches.error&&<p className={styles.matchRefresh} role="status">{matches.data?'Showing saved tournament data. Reconnecting automatically.':'Connecting to tournament data…'}</p>}
+          <TabsContent value="fixtures">{matches.data?<LiveFixtures data={matches.data}/>:isPreview?<TournamentFixtures />:<p className={styles.fixturesIntro} role="status">{matches.error?'Fixtures are reconnecting automatically.':'Loading the latest fixtures…'}</p>}</TabsContent>
           <TabsContent value="results"><TournamentResults data={matches.data}/></TabsContent>
           <TabsContent value="stats"><TournamentLeaders data={matches.data}/></TabsContent>
           <TabsContent value="standings"><TournamentStandings data={matches.data}/></TabsContent>

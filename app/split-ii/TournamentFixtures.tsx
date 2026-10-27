@@ -9,7 +9,6 @@ export default function TournamentFixtures() {
         <div><p>ECL SPLIT II / FIXTURES</p><h3 id="fixtures-heading">Round robin fixtures.</h3></div>
       </div>
       <p className={styles.fixturesIntro}>Two Bo1 matches per team each week. Every team plays every other team once.</p>
-      <p className={styles.fixturesTiming}>Match dates and times TBC.</p>
       <div className={styles.fixtureWeeks}>
         {SPLIT_II_FIXTURE_WEEKS.map(({ week, matches }) => (
           <section key={week} className={styles.fixtureWeek} aria-labelledby={`fixtures-week-${week}`}>

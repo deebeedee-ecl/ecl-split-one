@@ -1,5 +1,70 @@
 [
   {
+    "slug": "split-ii-round-robin-underway",
+    "title": "Split II: the round robin is underway",
+    "category": "Tournament",
+    "summary": "Five teams. Ten Bo1 matches. Four playoff places. Split II is underway—follow the fixtures, results and standings in the ECL Hub.",
+    "publishedAt": "2026-10-28",
+    "dateLabel": "28 October 2026",
+    "status": "Round robin underway",
+    "blocks": [
+      {
+        "kind": "paragraph",
+        "text": "**Against all odds.** ECL Split II is underway. Twenty-five players have been drawn into five teams, and the round robin will decide who reaches the playoffs."
+      },
+      {
+        "kind": "heading",
+        "text": "The final five"
+      },
+      {
+        "kind": "list",
+        "ordered": false,
+        "items": [
+          "BallBreakers",
+          "Exodus",
+          "Zero",
+          "NextGen",
+          "Phoenix"
+        ]
+      },
+      {
+        "kind": "heading",
+        "text": "The road to the title"
+      },
+      {
+        "kind": "list",
+        "ordered": false,
+        "items": [
+          "Every team plays every other team once: four Bo1 matches per team, ten league matches in total.",
+          "Each team has two round-robin matches in Week 1 and two in Week 2.",
+          "A win earns one point. The top four teams advance; fifth place is eliminated.",
+          "Both semifinals and the final are best of three.",
+          "Finals: 20 November 2026. First prize: 3,000 RMB."
+        ]
+      },
+      {
+        "kind": "heading",
+        "text": "First published result: Exodus take the win"
+      },
+      {
+        "kind": "paragraph",
+        "text": "Exodus defeated NextGen **1–0** on 27 October in a **41:15** game. Joe was the match MVP. The result, player statistics and updated standings are available in Split II."
+      },
+      {
+        "kind": "heading",
+        "text": "Follow Split II in the Hub"
+      },
+      {
+        "kind": "paragraph",
+        "text": "Open Split II for team rosters, round-robin fixtures, results, standings and player stats. Select **View match stats** on a result to see the scoreboard, champions, items and MVP. Match data updates automatically."
+      },
+      {
+        "kind": "paragraph",
+        "text": "The dashboard cycles through the round-robin matchups with the five team logos. Existing desktop users receive new Hub releases through the built-in updater; restart when prompted to apply a verified update."
+      }
+    ]
+  },
+  {
     "slug": "patch-2-2",
     "title": "Patch 2.2: ECL Hub and a fresh ranked season",
     "category": "Patch Notes",

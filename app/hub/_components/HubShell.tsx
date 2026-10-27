@@ -17,6 +17,7 @@ import { HubAccessGate } from "./HubAccessGate";
 
 type HubSection =
   | "dashboard"
+  | "split-ii"
   | "profile"
   | "ladder"
   | "players"
@@ -35,6 +36,7 @@ type HubMenuItem = {
 
 const primaryItems: HubMenuItem[] = [
   { id: "dashboard", label: "Dashboard", description: "Split II: Draft and player registration.", href: "/hub/dashboard", icon: Gauge },
+  { id: "split-ii", label: "Split II", description: "Team rosters, fixtures, results and standings.", href: "/hub/split-ii", icon: Swords },
   { id: "profile", label: "My Profile", description: "Your ELO, identity, champions, and awards.", href: "/hub/me", icon: UserCircle },
   { id: "ladder", label: "Ranked Ladder", description: "Top players, form trends, and live ladder events.", href: "/hub/leaderboard", icon: Trophy },
   { id: "players", label: "Players", description: "Browse every registered ECL player profile.", href: "/hub/players", icon: Users },

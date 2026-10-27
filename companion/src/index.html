@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="privacy.css">
   <link rel="stylesheet" href="workspace.css">
   <link rel="stylesheet" href="desktop.css">
+  <link rel="stylesheet" href="split-two.css">
 </head>
 <body>
   <header class="topbar"><div class="brand"><img src="logo.png" alt="ECL"><span>HUB</span></div><span id="mode" class="build">DESKTOP / LOCAL PROTOTYPE</span><div class="header-actions"><span id="connection" class="connection">Looking for League</span><button id="account-button" class="account-button"><i data-lucide="user-round"></i><span>Sign in</span></button><button id="hide" class="icon" title="Minimize to tray" aria-label="Minimize to tray"><i data-lucide="panel-bottom-close"></i></button></div></header>
@@ -36,7 +37,7 @@
     <section id="dashboard" class="view" hidden>
       <div class="page-heading"><div><span class="eyebrow">EXPAT CHINA LEAGUE</span><h1>Dashboard</h1></div><button id="dashboard-refresh" class="secondary" title="Refresh dashboard" aria-label="Refresh dashboard"><i data-lucide="refresh-cw"></i>Refresh</button></div>
       <div id="dashboard-content"></div>
-      <section class="fixtures-section"><div class="section-heading"><h2>Upcoming fixtures</h2><button data-link="events" class="text-command">Tournaments<i data-lucide="arrow-up-right"></i></button></div><div id="fixture-content"></div><p id="fixture-status" class="synced-at"></p></section>
+      <section class="s2-dashboard-section"><div class="section-heading"><h2>Split II / Round robin</h2></div><div id="split2-dashboard-carousel" class="s2-dashboard-carousel"></div></section><section class="fixtures-section" hidden aria-hidden="true"><div class="section-heading"><h2>Upcoming fixtures</h2><button data-link="events" class="text-command">Tournaments<i data-lucide="arrow-up-right"></i></button></div><div id="fixture-content"></div><p id="fixture-status" class="synced-at"></p></section>
       <section class="news-section"><div class="section-heading"><h2>Around ECL</h2><button id="feed-refresh" class="icon" title="Refresh news" aria-label="Refresh news"><i data-lucide="refresh-cw"></i></button></div><div class="feed-toolbar"><div class="segments" role="group" aria-label="News category"><button data-feed="all" aria-pressed="true">All</button><button data-feed="news" aria-pressed="false">News</button><button data-feed="patch" aria-pressed="false">Patches</button><button data-feed="event" aria-pressed="false">Tournaments</button></div><button data-link="patches" class="text-command">League patch notes<i data-lucide="arrow-up-right"></i></button></div><div id="feed-content"></div><p id="feed-status" class="synced-at"></p></section>
     </section>
     <section id="profile" class="view" hidden>
@@ -63,7 +64,7 @@
       <div class="history-toolbar"><span id="ladder-source" class="small-label"></span><button data-link="ladder" class="text-command">Open full ladder<i data-lucide="arrow-up-right"></i></button><label class="history-search"><i data-lucide="search"></i><input id="ladder-search" type="search" placeholder="Search player" aria-label="Search player"></label></div>
       <p id="ladder-context" class="ladder-context" role="status"></p><div id="ladder-content"></div><div class="history-pagination"><span id="ladder-count"></span><div><button id="ladder-prev" class="icon" title="Previous page" aria-label="Previous page"><i data-lucide="chevron-left"></i></button><span id="ladder-page"></span><button id="ladder-next" class="icon" title="Next page" aria-label="Next page"><i data-lucide="chevron-right"></i></button></div></div>
     </section>
-    <section id="split2" class="view split2-view" hidden><header><p>ECL SPLIT II / 2026</p><h1>Against all odds.</h1><p>Team rosters, confirmed fixtures, approved results and player stats.</p></header><div id="split2-content"></div></section>
+    <section id="split2" class="view split2-view" hidden><div id="split2-content"></div></section>
     <section id="settings" class="view" hidden>
       <div class="page-heading"><div><span class="eyebrow">ON THIS DEVICE</span><h1>Settings</h1></div><span class="badge neutral" id="settings-version">v0.7.1</span></div>
       <div id="settings-account" class="setting-row"></div>

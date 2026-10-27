@@ -10,7 +10,7 @@ import { pathToFileURL } from 'node:url';
 const temporary = path.resolve('.tmp');
 const { JSDOM } = await import(pathToFileURL(path.join(temporary, 'tournament-test-tools/node_modules/jsdom/lib/api.js')).href);
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost:3002/split-ii', pretendToBeVisual: true });
-for (const name of ['window', 'document', 'navigator', 'Node', 'NodeFilter', 'Element', 'HTMLElement', 'HTMLInputElement', 'HTMLButtonElement', 'SVGElement', 'Event', 'CustomEvent', 'MouseEvent', 'FocusEvent', 'MutationObserver', 'getComputedStyle']) {
+for (const name of ['window', 'document', 'navigator', 'Node', 'NodeFilter', 'Element', 'HTMLElement', 'HTMLInputElement', 'HTMLButtonElement', 'SVGElement', 'Event', 'CustomEvent', 'MouseEvent', 'sessionStorage', 'FocusEvent', 'MutationObserver', 'getComputedStyle']) {
   Object.defineProperty(globalThis, name, { value: typeof dom.window[name] === 'function' && name === 'getComputedStyle' ? dom.window[name].bind(dom.window) : dom.window[name], configurable: true, writable: true });
 }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -25,7 +25,7 @@ dom.window.HTMLMediaElement.prototype.pause = function () {};
 
 await mkdir(temporary, { recursive: true });
 const entry = path.join(temporary, 'tournament-ui-entry.tsx');
-await writeFile(entry, 'export {default as Page} from "../app/split-ii/SplitTwoRegistration"; export {default as Admin} from "../app/admin/split-ii/page"; export {createSplitTwo as DesktopSplitTwo} from "../companion/src/split-two"; export {setSession} from "fixture-supabase";');
+await writeFile(entry, 'export {default as Page} from "../app/split-ii/SplitTwoRegistration"; export {default as Admin} from "../app/admin/split-ii/page"; export {createSplitTwo as DesktopSplitTwo} from "../companion/src/split-two"; export {default as FixturePlan} from "../app/split-ii/TournamentFixtures"; export {default as Carousel} from "../app/split-ii/MatchupCarousel"; export {setSession} from "fixture-supabase";');
 const outfile = path.join(temporary, 'tournament-ui-test.cjs');
 await build({
   entryPoints: [entry], outfile, bundle: true, platform: 'node', format: 'cjs', logLevel: 'silent',
@@ -55,7 +55,7 @@ const require = createRequire(import.meta.url);
 const React = require('react');
 const { createRoot } = require('react-dom/client');
 const { act } = React;
-const { Page, Admin, DesktopSplitTwo, setSession } = require(outfile);
+const { Page, Admin, DesktopSplitTwo, FixturePlan, Carousel, setSession } = require(outfile);
 const config = {
   capacity: 25, count: 0, window: 'open', opensAt: '2026-10-17T04:00:00.000Z', closesAt: null,
   termsVersion: 'ecl-terms-2026-10-16', rulesVersion: 'split-ii-registration-2026-10-22',
@@ -105,7 +105,8 @@ async function until(predicate) {
   for (let attempt = 0; attempt < 100; attempt++) { if (predicate()) return; await flush(); }
   throw new Error('UI state did not settle');
 }
-async function mount() {
+async function mount({preserveCache=false}={}) {
+  if(!preserveCache)window.sessionStorage.clear();
   if (root) await act(async () => root.unmount());
   root = createRoot(container);
   await act(async () => root.render(React.createElement(Page, { inDashboard: true })));
@@ -170,9 +171,11 @@ try {
   assert.ok(format.textContent.includes('Both semifinals and the final are best of three'));
   assert.ok(format.textContent.includes('slowest total win time is eliminated'));
   await act(async()=>button('Fixtures').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));
-  await until(()=>document.getElementById('fixtures-heading'));
+  await until(()=>container.textContent.includes('Fixtures are reconnecting automatically.')||container.textContent.includes('Loading the latest fixtures'));
+  assert.equal(container.querySelectorAll('.fixtureList > li').length,0,'No fictional unplayed scores while live data is unavailable');
+  await act(async()=>root.render(React.createElement(FixturePlan)));await flush();
   const fixtures = document.querySelector('[aria-labelledby="fixtures-heading"]');
-  assert.ok(fixtures.textContent.includes('Match dates and times TBC'));
+  assert.ok(!fixtures.textContent.includes('TBC'));
   const pairs = new Set();
   const overallGames = new Map();
   for (const week of [1,2]) {
@@ -197,7 +200,8 @@ try {
   assert.equal(pairs.size,10);
   assert.equal(overallGames.size,5);
   assert.ok([...overallGames.values()].every(count=>count===4));
-  console.log('PASS: Fixtures tab, complete ten-game round robin, two games per team per week, no repeated opponents, times TBC');
+  console.log('PASS: unavailable live fixtures do not invent results; the planned round robin still has ten unique pairs and two matches per team per week');
+  await mount();
   await act(async()=>button('Team rosters').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));
   await until(()=>!document.getElementById('fixtures-heading'));
   console.log('PASS: format tab beside season details, five teams without R1, ten Bo1 games, top four and Bo3 playoffs');
@@ -316,7 +320,7 @@ try {
   matchState={teams:[home,away],fixtures:[{id:'f1',code:'RR01',week:1,bestOf:1,homeTeamId:'home',awayTeamId:'away',homeScore:1,awayScore:0,schedule:{at:'2026-10-26T12:00:00Z',state:'CONFIRMED'}}],standings:[{id:'home',name:'BallBreakers',played:1,wins:1,losses:0,tied:false},{id:'away',name:'Phoenix',played:1,wins:0,losses:1,tied:false}],reports:[{id:'r1',fixtureId:'f1',gameNumber:1,leagueGameId:'100001',payload:{winnerTeamId:'home',durationSeconds:1800,playedAt:'2026-10-24T12:00:00Z',note:'Approved fixture',players:[{profileId:'p1',name:'Test MVP',riotId:'MVP#1234',teamId:'home',kills:5,deaths:2,assists:10,mvp:true,champion:'51',items:[3031,3006,0],damage:60158,gold:20732,position:'BOTTOM'}]}}],leaders:{kda:[{profileId:'p1',name:'Test MVP',kda:7.5,statGames:1}],assists:[{profileId:'p1',name:'Test MVP',assists:10,statGames:1}],mvps:[{profileId:'p1',name:'Test MVP',mvps:1,games:1}]}};
   state=structuredClone(config);await mount();
   const activate=async label=>{await act(async()=>button(label).dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));await flush();};
-  await activate('Fixtures');assert.ok(container.textContent.includes('26 Oct, 20:00 CST'));assert.ok(container.textContent.includes('Confirmed'));assert.ok(container.textContent.includes('1 : 0'));
+  await activate('Fixtures');assert.ok(!container.textContent.includes('26 Oct, 20:00 CST'));assert.ok(!container.textContent.includes('Confirmed'));assert.ok(container.textContent.includes('1 : 0'));
   assert.equal(container.querySelectorAll('.fixtureWeek').length,1);
   assert.equal(container.querySelectorAll('.liveFixtureList > li').length,1);
   assert.ok(container.querySelector('.fixtureTeam.fixtureWin').textContent.includes('BallBreakers'));
@@ -328,7 +332,7 @@ try {
   assert.ok(container.textContent.includes('Ties (*) remain provisional'));
   assert.ok(!container.textContent.includes('MVP#1234'));
   await activate('Results');
-  const resultButton=document.querySelector('[aria-label="View RR01 game 1 match details"]');assert.ok(resultButton);
+  const resultButton=document.querySelector('[aria-label="View BallBreakers vs Phoenix match stats"]');assert.ok(resultButton);
   await click(resultButton);
   const scoreboard=document.querySelector('[role="dialog"]');assert.ok(scoreboard.textContent.includes('MVP#1234'));assert.ok(scoreboard.textContent.includes('5 / 2 / 10'));assert.ok(scoreboard.textContent.includes('60,158'));assert.ok(scoreboard.textContent.includes('20,732'));assert.ok(scoreboard.querySelector('img[src="/lol/champions/51.png"]'));assert.ok(scoreboard.querySelector('img[src="/lol/items/3031.png"]'));
   await click(scoreboard.querySelector('button'));await until(()=>!document.querySelector('[role="dialog"]'));assert.equal(document.activeElement,resultButton);
@@ -337,6 +341,11 @@ try {
   await activate('Player stats');assert.ok(container.textContent.includes('7.50'));assert.ok(container.textContent.includes('Top 3 MVPs'));assert.ok(container.textContent.includes('Test MVP'));
   console.log('PASS: shared fixture data renders China time, approved results and match details, standings and Top 3 leaders');
   const completed=structuredClone(matchState);
+  matchState=null;await act(async()=>window.dispatchEvent(new Event('focus')));await until(()=>container.textContent.includes('Reconnecting automatically'));
+  await mount({preserveCache:true});await activate('Fixtures');assert.ok(container.querySelector('.fixtureTeam.fixtureWin').textContent.includes('BallBreakers'));
+  assert.equal(container.querySelector('.matchRefresh button'),null);
+  matchState=completed;await act(async()=>window.dispatchEvent(new Event('focus')));await until(()=>!container.textContent.includes('Reconnecting automatically'));
+  console.log('PASS: completed fixture colors survive failed automatic refreshes and remounts through the public session cache');
   for(const [bestOf,homeScore,awayScore] of [[1,0,0],[3,1,0]]){
     matchState={...completed,fixtures:[{...completed.fixtures[0],bestOf,homeScore,awayScore,schedule:null}]};
     await mount();await activate('Fixtures');
@@ -365,11 +374,18 @@ try {
   assert.equal(button('Approve & publish').disabled,false);await click(button('Approve & publish'));assert.equal(adminPost.action,'review');assert.equal(adminPost.reportId,'pending');assert.equal(adminPost.decision,'approve');
   console.log('PASS: admin actual-lineup form, floater options, pending-only save and required review note before publication');
   const nativeRoot=document.createElement('div');nativeRoot.id='split2-content';document.body.append(nativeRoot);
+  const carouselRoot=document.createElement('div');carouselRoot.id='split2-dashboard-carousel';document.body.append(carouselRoot);
+  window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};window.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');this.dispatchEvent(new Event('close'));};
   const nativeData={...matchState,teams:adminData.teams};let nativeListener;
-  DesktopSplitTwo({api:{onSplitTwo:cb=>{nativeListener=cb;},splitTwoRefresh:async()=>({ok:true,data:{tournament:nativeData,enabled:false,message:'Uploads disconnected'}})}}).start({demo:false,splitTwo:{tournament:nativeData,enabled:false,message:'Uploads disconnected'}});
-  assert.ok(nativeRoot.textContent.includes('Player0#1234'));nativeRoot.querySelector('[data-split-tab="fixtures"]').click();assert.ok(nativeRoot.textContent.includes('26 Oct, 20:00 CST'));nativeRoot.querySelector('[data-split-tab="results"]').click();assert.ok(nativeRoot.textContent.includes('BallBreakers win'));nativeRoot.querySelector('[data-split-tab="stats"]').click();assert.ok(nativeRoot.textContent.includes('Top 3 KDA'));assert.ok(nativeRoot.textContent.includes('7.5'));
-  nativeListener({tournament:nativeData,enabled:false,message:'Uploads disconnected',error:'Temporarily unavailable'});assert.ok(nativeRoot.textContent.includes('Temporarily unavailable'));assert.ok(nativeRoot.textContent.includes('Test MVP'));nativeRoot.remove();
-  console.log('PASS: native Split II tab renders shared rosters, fixtures, approved results and leaders, preserving saved data on refresh failure');
+  const native=DesktopSplitTwo({api:{onSplitTwo:cb=>{nativeListener=cb;}}});native.start({demo:false,splitTwo:{tournament:nativeData,enabled:false,message:'Uploads disconnected'}});
+  assert.equal(nativeRoot.querySelector('[data-split-refresh]'),null);
+  nativeRoot.querySelector('[data-split-tab="rosters"]').click();assert.ok(nativeRoot.textContent.includes('Player0#1234'));
+  nativeRoot.querySelector('[data-split-tab="fixtures"]').click();assert.ok(!nativeRoot.textContent.includes('Time to be confirmed'));assert.ok(nativeRoot.querySelector('.s2-fixture .s2-win').textContent.includes('BallBreakers'));
+  nativeRoot.querySelector('[data-split-tab="results"]').click();assert.ok(!nativeRoot.textContent.includes('RR01'));nativeRoot.querySelector('[data-s2-result]').click();assert.ok(document.querySelector('.s2-dialog[open]'));assert.ok(document.querySelector('.s2-dialog').textContent.includes('60,158'));assert.ok(document.querySelector('.s2-dialog img[src="items/3031.png"]'));document.querySelector('[data-s2-close]').click();assert.ok(!document.querySelector('.s2-dialog[open]'));
+  nativeRoot.querySelector('[data-split-tab="standings"]').click();assert.ok(nativeRoot.textContent.includes('PTS'));
+  nativeRoot.querySelector('[data-split-tab="stats"]').click();assert.ok(nativeRoot.textContent.includes('Top 3 KDA'));assert.ok(nativeRoot.textContent.includes('7.50'));
+  nativeListener({tournament:nativeData,enabled:false,message:'Uploads disconnected',error:'Temporarily unavailable'});assert.ok(nativeRoot.textContent.includes('Reconnecting automatically'));assert.ok(nativeRoot.textContent.includes('Test MVP'));assert.equal(carouselRoot.querySelectorAll('.s2-carousel-match img').length,2);assert.equal(carouselRoot.querySelector('.s2-carousel-match').textContent,'VS');native.dispose();nativeRoot.remove();carouselRoot.remove();
+  console.log('PASS: redesigned native Split II tabs, red/green fixtures, score result, item/stat dialog with close control, separate standings, logo carousel and automatic refresh recovery');
   console.log('All client interaction checks passed. Auth and HTTP were mocked; no live signup was sent.');
 } finally {
   if (root) await act(async () => root.unmount());
