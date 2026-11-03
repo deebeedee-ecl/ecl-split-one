@@ -25,7 +25,7 @@ dom.window.HTMLMediaElement.prototype.pause = function () {};
 
 await mkdir(temporary, { recursive: true });
 const entry = path.join(temporary, 'tournament-ui-entry.tsx');
-await writeFile(entry, 'export {default as Page} from "../app/split-ii/SplitTwoRegistration"; export {default as Admin} from "../app/admin/split-ii/page"; export {createSplitTwo as DesktopSplitTwo} from "../companion/src/split-two"; export {default as FixturePlan} from "../app/split-ii/TournamentFixtures"; export {setSession} from "fixture-supabase";');
+await writeFile(entry, 'export {default as Page} from "../app/split-ii/SplitTwoRegistration"; export {default as Admin} from "../app/admin/split-ii/page"; export {createSplitTwo as DesktopSplitTwo} from "../companion/src/split-two"; export {default as FixturePlan} from "../app/split-ii/TournamentFixtures"; export {default as RosterBoard} from "../app/split-ii/TournamentRosters"; export {setSession} from "fixture-supabase";');
 const outfile = path.join(temporary, 'tournament-ui-test.cjs');
 await build({
   entryPoints: [entry], outfile, bundle: true, platform: 'node', format: 'cjs', logLevel: 'silent',
@@ -55,7 +55,7 @@ const require = createRequire(import.meta.url);
 const React = require('react');
 const { createRoot } = require('react-dom/client');
 const { act } = React;
-const { Page, Admin, DesktopSplitTwo, FixturePlan, setSession } = require(outfile);
+const { Page, Admin, DesktopSplitTwo, FixturePlan, RosterBoard, setSession } = require(outfile);
 const config = {
   capacity: 25, count: 0, window: 'open', opensAt: '2026-10-17T04:00:00.000Z', closesAt: null,
   termsVersion: 'ecl-terms-2026-10-16', rulesVersion: 'split-ii-registration-2026-10-22',
@@ -388,6 +388,9 @@ try {
   const awayWin={...nativeData,fixtures:nativeData.fixtures.map(f=>({...f,homeScore:0,awayScore:1}))};nativeListener({tournament:awayWin,enabled:false,message:'Uploads disconnected'});assert.equal(carouselRoot.querySelector('.s2-carousel-match img').alt,'Phoenix');assert.equal(carouselRoot.querySelector('.s2-carousel-match').textContent,'1–0');
   const unplayed={...nativeData,fixtures:nativeData.fixtures.map(f=>({...f,homeScore:0,awayScore:0}))};nativeListener({tournament:unplayed,enabled:false,message:'Uploads disconnected'});assert.equal(carouselRoot.querySelector('.s2-carousel-match').textContent,'VS');assert.equal(carouselRoot.querySelector('.s2-carousel-score'),null);native.dispose();nativeRoot.remove();carouselRoot.remove();
   console.log('PASS: redesigned native Split II tabs, red/green fixtures, score result, item/stat dialog with close control, separate standings, logo carousel and automatic refresh recovery');
+  await act(async()=>root.render(React.createElement(RosterBoard,{players:[],loading:false,teams:[{key:'phoenix',name:'Phoenix',tag:'phx.',members:[{name:'biaomei',pot:null,captain:false,riotId:'Player#1234'},{name:'shidian',pot:2,captain:true,riotId:'Captain#1234'}]}]})));
+  const phoenix=container.querySelector('[aria-label="Phoenix players"]');assert.ok(phoenix.firstElementChild.textContent.includes('shidian'));assert.ok(phoenix.firstElementChild.textContent.includes('Team captain · Pot 02'));assert.equal(phoenix.firstElementChild.dataset.captain,'true');assert.ok(phoenix.lastElementChild.textContent.includes('Replacement'));assert.equal(phoenix.lastElementChild.getAttribute('data-captain'),null);
+  console.log('PASS: captain changes use the stored captain flag, retain original pot numbers and do not label replacements as captain');
   console.log('All client interaction checks passed. Auth and HTTP were mocked; no live signup was sent.');
 } finally {
   if (root) await act(async () => root.unmount());
