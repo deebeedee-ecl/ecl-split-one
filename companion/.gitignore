@@ -19,6 +19,7 @@ release-test-100/
 release-test-101/
 release-test-102/
 release-split-103/
+release-admin-104/
 .test-data/
 *.log
 *.pem

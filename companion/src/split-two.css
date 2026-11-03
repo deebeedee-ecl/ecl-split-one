@@ -1,4 +1,20 @@
 /* Split II follows the native Hub's neutral panels and typography. */
+.s2-admin { border:1px solid #303747; border-radius:8px; margin-bottom:26px; background:#141820; }
+.s2-admin > summary { padding:14px 18px; cursor:pointer; font-size:12px; font-weight:600; }
+.s2-admin > summary span { float:right; color:#7988a2; font-size:10px; font-weight:400; }
+#tournament-admin-content { padding:0 18px 18px; }
+.s2-admin-intro { font-size:11px; line-height:1.8; max-width:700px; margin-bottom:18px; }
+.s2-admin-form,.s2-admin-toolbar { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+.s2-admin-form label { display:grid; gap:6px; font-size:10px; color:#9ba9c0; }
+.s2-admin-form input,.s2-admin-form select { color:#edf1f8; background:#0d1119; border:1px solid #36435c; border-radius:5px; padding:9px 11px; font:inherit; font-size:12px; min-height:37px; }
+.s2-admin-form input[name=gameNumber] { width:85px; }
+.s2-admin-toolbar { justify-content:space-between; }
+.s2-admin-error,.s2-admin-message { margin-top:14px; font-size:11px; line-height:1.8; overflow-wrap:anywhere; }
+.s2-admin-error { color:#ff929c; }.s2-admin-message { color:#a7c6fa; }
+.s2-admin-preview { margin-top:24px; }.s2-admin-preview h4 { font-size:12px; margin:20px 0 8px; }
+.s2-admin-preview .s2-admin-form { margin-top:20px; }
+.split2-view .s2-admin { background:#141820; border:1px solid #303747; padding:0; margin-bottom:26px; }
+.s2-admin-preview .s2-score-player,.s2-admin-preview .s2-items { display:flex; }
 .split2-view { max-width:1440px; }
 #split2-content { padding:0; }
 .s2-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:0 0 24px; }
@@ -120,6 +136,8 @@
 .s2-carousel-match { display:flex; justify-content:center; align-items:center; gap:62px; width:100%; min-height:145px; border:0; padding:12px; background:transparent; cursor:pointer; animation:s2-match-enter .4s ease-out; }
 .s2-carousel-match .s2-team-logo { width:80px; height:80px; filter:drop-shadow(0 8px 15px #0006); }
 .s2-carousel-match > span { font-size:12px; color:#667a9c; letter-spacing:.14em; font-weight:600; }
+.s2-carousel-match .s2-carousel-score { display:flex; align-items:center; gap:13px; font-size:26px; font-variant-numeric:tabular-nums; letter-spacing:0; }
+.s2-carousel-score > span { font-size:17px; color:#667a9c; }
 .s2-carousel-dots { display:flex; justify-content:center; gap:7px; margin-top:10px; }
 .s2-carousel-dots button { width:5px; height:5px; min-height:0; border:0; border-radius:50%; padding:0; background:#35415a; cursor:pointer; }
 .s2-carousel-dots button[aria-pressed=true] { background:#7f9cff; }

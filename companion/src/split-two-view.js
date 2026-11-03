@@ -53,8 +53,12 @@ export function createSplitTwo({api}){
   function renderCarousel(){
     if(!carousel)return;const d=tournament(),rows=d?.fixtures.filter(f=>f.stage==='ROUND_ROBIN'||!f.stage)||[];
     if(!rows.length){carousel.innerHTML='<p class="s2-sync">Round robin matchups are connecting…</p>';return;}
-    const f=rows[carouselIndex%rows.length];
-    carousel.innerHTML=`<button class="s2-carousel-match" data-s2-open aria-label="${esc(team(f.homeTeamId).name)} versus ${esc(team(f.awayTeamId).name)}. Open Split II fixtures.">${logo(team(f.homeTeamId))}<span>VS</span>${logo(team(f.awayTeamId))}</button><div class="s2-carousel-dots">${rows.map((v,i)=>`<button data-s2-slide="${i}" aria-label="Show matchup ${i+1}" aria-pressed="${carouselIndex%rows.length===i}"></button>`).join('')}</div>`;
+    const f=rows[carouselIndex%rows.length],done=complete(f),awayWon=done&&f.awayScore>f.homeScore;
+    const left=team(awayWon?f.awayTeamId:f.homeTeamId),right=team(awayWon?f.homeTeamId:f.awayTeamId);
+    const leftScore=awayWon?f.awayScore:f.homeScore,rightScore=awayWon?f.homeScore:f.awayScore,hasScore=leftScore>0||rightScore>0;
+    const score=hasScore?`<span class="s2-carousel-score"><b class="${done?'s2-win':''}">${leftScore}</b><span>–</span><b class="${done?'s2-loss':''}">${rightScore}</b></span>`:'<span>VS</span>';
+    const label=hasScore?`${left.name} ${leftScore} to ${rightScore} ${right.name}`:`${left.name} versus ${right.name}`;
+    carousel.innerHTML=`<button class="s2-carousel-match" data-s2-open aria-label="${esc(label)}. Open Split II fixtures.">${logo(left)}${score}${logo(right)}</button><div class="s2-carousel-dots">${rows.map((v,i)=>`<button data-s2-slide="${i}" aria-label="Show matchup ${i+1}" aria-pressed="${carouselIndex%rows.length===i}"></button>`).join('')}</div>`;
   }
   root.addEventListener('click',async event=>{
     const tab=event.target.closest('[data-split-tab]');if(tab){selected=tab.dataset.splitTab;render();return;}

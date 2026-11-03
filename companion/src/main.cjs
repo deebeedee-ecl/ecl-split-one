@@ -11,6 +11,7 @@ const { Updates, trustedPolicy, restartBlocker } = require('./updates.cjs');
 const { EclReleaseVerifier } = require('./release-signature.cjs');
 const { Reporting } = require('./reporting.cjs');
 const { SplitTwo } = require('./split-two.cjs');
+const { TournamentAdmin } = require('./tournament-admin.cjs');
 const demo = process.argv.includes('--demo');
 const smoke = process.argv.includes('--smoke');
 // Keep the original profile directory and app ID when rebranding, preserving sessions and matches.
@@ -19,10 +20,10 @@ if (process.platform === 'win32') app.setAppUserModelId('lol.eclchina.companion'
 if (demo) app.setPath('userData', path.join(app.getPath('temp'), 'ecl-companion-demo'));
 if (smoke) app.setPath('userData', path.join(app.getPath('temp'), `ecl-companion-smoke-${process.pid}`));
 protocol.registerSchemesAsPrivileged([{ scheme: 'ecl', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
-let window, tray, collector, account, preferences, publicData, updates, reporting, splitTwo, quitting = false, tab = process.argv.includes('--preview-match') ? 'collector' : 'dashboard';
+let window, tray, collector, account, preferences, publicData, updates, reporting, splitTwo, tournamentAdmin, quitting = false, tab = process.argv.includes('--preview-match') ? 'collector' : 'dashboard';
 const localOrigin = 'ecl://companion';
 const send = (channel, data) => { if (window && !window.isDestroyed()) window.webContents.send(channel, data); };
-const links = { home: 'https://eclchina.lol/hub/dashboard', news: 'https://eclchina.lol/news', events: 'https://eclchina.lol/tournaments', patches: 'https://www.leagueoflegends.com/en-us/news/tags/patch-notes/', ladder: 'https://eclchina.lol/hub/leaderboard' };
+const links = { home: 'https://eclchina.lol/hub/dashboard', news: 'https://eclchina.lol/news', events: 'https://eclchina.lol/tournaments', patches: 'https://www.leagueoflegends.com/en-us/news/tags/patch-notes/', ladder: 'https://eclchina.lol/hub/leaderboard', splitAdmin: 'https://eclchina.lol/admin/split-ii' };
 function external(url) { if (demo || smoke) return { opened: false, url }; return shell.openExternal(url); }
 function trayMenu() {
   const zh = preferences.language === 'zh-CN';
@@ -55,7 +56,7 @@ async function open() {
   window.show();
 }
 
-app.on('before-quit', () => { quitting = true; splitTwo?.dispose(); reporting?.dispose(); collector?.stop(); account?.dispose(); publicData?.dispose(); updates?.dispose(); });
+app.on('before-quit', () => { quitting = true; tournamentAdmin?.dispose(); splitTwo?.dispose(); reporting?.dispose(); collector?.stop(); account?.dispose(); publicData?.dispose(); updates?.dispose(); });
 app.on('window-all-closed', () => { if (!tray) app.quit(); });
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
@@ -87,6 +88,10 @@ else {
     account = await new Account(demo ? { configured: false } : config, vault).init();
     reporting = new Reporting(account, collector);
     splitTwo = new SplitTwo(account, collector);
+    tournamentAdmin = new TournamentAdmin(collector);
+    tournamentAdmin.on('change', state => send('tournament-admin-state',state));
+    let adminAccountEpoch=account.epoch;
+    account.on('change',()=>{if(adminAccountEpoch!==account.epoch){adminAccountEpoch=account.epoch;tournamentAdmin.logout();}});
     splitTwo.on('change', state => send('split-two-state',state));
     account.on('change',()=>{if(splitTwo.data.enabled&&splitTwo.epoch!==account.epoch)splitTwo.disconnect('ECL account changed. Reconnect tournament reporting.');});
     reporting.on('change', state => send('reporting-state', state));
@@ -110,7 +115,16 @@ else {
     collector.on('change', state => send('collector-state', state));
     account.on('change', state => send('account-state', state));
     publicData.on('change', state => send('public-state', state)); updates.on('change', state => send('update-state', state));
-    handle('state', () => ({ collector: collector.snapshot(), reporting: reporting.snapshot(), splitTwo:splitTwo.snapshot(), preview: process.argv.includes('--preview-match'), account: account.snapshot(), public: publicData.snapshot(), updates: updates.snapshot(), language: preferences.language, demo, tab, version: app.getVersion() }));
+    handle('state', () => ({ collector: collector.snapshot(), reporting: reporting.snapshot(), splitTwo:splitTwo.snapshot(), tournamentAdmin:tournamentAdmin.snapshot(), preview: process.argv.includes('--preview-match'), account: account.snapshot(), public: publicData.snapshot(), updates: updates.snapshot(), language: preferences.language, demo, tab, version: app.getVersion() }));
+    const adminLive=()=>{if(demo||smoke)throw new Error('Live admin operations are disabled in sample/test mode.');};
+    handle('tournament-admin-login',(username,password)=>{adminLive();return tournamentAdmin.login(username,password);});
+    handle('tournament-admin-logout',()=>tournamentAdmin.logout());
+    handle('tournament-admin-lookup',id=>{adminLive();return tournamentAdmin.lookup(id);});
+    handle('tournament-admin-submit',async(fixtureId,gameNumber,lookupKey)=>{
+      adminLive();
+      const answer=await dialog.showMessageBox(window,{type:'question',title:'Split II admin report',message:'Upload this match for tournament review?',detail:'The complete match JSON includes the ten players, League identifiers and statistics. It goes only to the Split II admin review system. This does not publish a result or award ranked inhouse points.',buttons:['Cancel','Save for review'],defaultId:0,cancelId:0});
+      return answer.response===1?tournamentAdmin.submit(fixtureId,gameNumber,lookupKey):tournamentAdmin.snapshot();
+    });
     handle('split-two-refresh',()=>demo||smoke?splitTwo.snapshot():splitTwo.refresh());
     handle('split-two-disconnect',()=>splitTwo.disconnect());
     handle('split-two-connect',async()=>{

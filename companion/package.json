@@ -1,6 +1,6 @@
 {
   "name": "ecl-companion",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "Local-first ECL League match collector",
   "author": "Expat China League",
@@ -53,6 +53,7 @@
       "src/release-public-key.cjs",
       "src/reporting.cjs",
       "src/split-two.cjs",
+      "src/tournament-admin.cjs",
       "dist/**/*",
       "assets/**/*",
       "package.json"
