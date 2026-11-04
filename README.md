@@ -155,6 +155,20 @@ The worker reads `report-engine/.env` and the root `.env`; it does not read the 
 
 `KOOK_BOT_TOKEN` is optional and is used only when the worker must send KOOK messages.
 
+For the Lzyumi source, set `REPORT_ENGINE_LZYUMI_TOKENSTR`. The default API root and
+referer target the current VIP site; override `REPORT_ENGINE_LZYUMI_BASE` or
+`REPORT_ENGINE_LZYUMI_REFERER` only when the provider moves them. Before starting the
+polling loop, verify one known player with the read-only probe:
+
+```bash
+cd report-engine
+npm test
+node worker.js --check-player "PlayerName#Tag" --area-id 1 --limit 1
+```
+
+The probe fetches recent history and match details but does not claim a report job or
+write to the ECL database.
+
 To build the worker container from the repository root:
 
 ```bash
