@@ -5,7 +5,8 @@
   "description": "Always-on ECL inhouse report worker for KOOK-triggered match lookup.",
   "main": "worker.js",
   "scripts": {
-    "start": "node worker.js"
+    "start": "node worker.js",
+    "test": "node --test test/*.test.cjs"
   },
   "dependencies": {
     "axios": "^1.14.0",
