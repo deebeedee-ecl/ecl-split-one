@@ -157,6 +157,12 @@ node worker.js --check-player "PlayerName#Tag" --area-id 1 --limit 1
 The probe fetches recent history and match details but does not claim a report job or
 write to the ECL database.
 
+Full-roster lookups intentionally limit concurrent Lzyumi history and detail requests.
+Provider application code `7` is retried twice with a short increasing delay. The
+defaults can be tuned with the `REPORT_ENGINE_LZYUMI_*_CONCURRENCY`,
+`REPORT_ENGINE_LZYUMI_CODE_7_RETRIES`, and `REPORT_ENGINE_LZYUMI_CODE_7_BACKOFF_MS`
+variables, but higher concurrency can trigger provider-side throttling.
+
 To build the worker container from the repository root:
 
 ```bash

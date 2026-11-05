@@ -11,6 +11,10 @@ const {
   lzyumiDetailUrl: buildLzyumiDetailUrl,
   lzyumiInfoUrl: buildLzyumiInfoUrl,
 } = require("./lzyumi-client.cjs");
+const {
+  mapWithConcurrency,
+  retryProviderCode,
+} = require("./async-utils.cjs");
 
 const SITE_URL = process.env.ECL_SITE_URL || "https://eclchina.lol";
 const REPORT_ENGINE_SECRET = process.env.ECL_REPORT_ENGINE_SECRET || process.env.ECL_JOB_SECRET || process.env.ECL_KOOK_BOT_SECRET;
@@ -57,6 +61,11 @@ const DEBUG_WEGAME = ["1", "true", "yes", "on"].includes(
 const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
 const LZYUMI_ALL_COUNT = Number(process.env.REPORT_ENGINE_LZYUMI_ALL_COUNT || 10);
+const LZYUMI_HISTORY_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_HISTORY_CONCURRENCY || 2);
+const LZYUMI_PLAYER_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_PLAYER_CONCURRENCY || 1);
+const LZYUMI_DETAIL_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_DETAIL_CONCURRENCY || 2);
+const LZYUMI_CODE_7_RETRIES = Number(process.env.REPORT_ENGINE_LZYUMI_CODE_7_RETRIES || 2);
+const LZYUMI_CODE_7_BACKOFF_MS = Number(process.env.REPORT_ENGINE_LZYUMI_CODE_7_BACKOFF_MS || 1000);
 const REPORT_CANDIDATE_LIMIT = Number(process.env.REPORT_ENGINE_CANDIDATE_LIMIT || 24);
 const REQUIRED_MATCHES = Number(process.env.REPORT_ENGINE_REQUIRED_MATCHES || 8);
 const REPORT_GAME_EARLY_GRACE_MS = Number(process.env.REPORT_ENGINE_EARLY_GRACE_MINUTES || 10) * 60 * 1000;
@@ -477,13 +486,13 @@ async function lzyumiLogin() {
       'input[type="submit"]',
       'input[type="button"]',
       '[role="button"]',
-      'a:has-text("登录")',
-      'button:has-text("登录")',
-      'div:has-text("登录")',
+      'a:has-text("??")',
+      'button:has-text("??")',
+      'div:has-text("??")',
       `div:text-is("${LZYUMI_LOGIN_TARGET}")`,
       `span:text-is("${LZYUMI_LOGIN_TARGET}")`,
       `a:text-is("${LZYUMI_LOGIN_TARGET}")`,
-      'input[value*="登录"]',
+      'input[value*="??"]',
       'button',
     ].join(", "),
   );
@@ -994,8 +1003,10 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
     if (seenAttempts.has(attemptKey)) continue;
     seenAttempts.add(attemptKey);
 
-    const runAttempt = () => Promise.all(
-      LZYUMI_FILTERS.map((filter) => {
+    const runAttempt = () => mapWithConcurrency(
+      LZYUMI_FILTERS,
+      LZYUMI_HISTORY_CONCURRENCY,
+      (filter) => retryProviderCode(() => {
         const url = lzyumiInfoUrl({ ...attempt, areaId, filter });
         return lzyumiFetch(url)
           .then((response) => {
@@ -1026,6 +1037,18 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
             });
             return null;
           });
+      }, {
+        code: "7",
+        retries: LZYUMI_CODE_7_RETRIES,
+        baseDelayMs: LZYUMI_CODE_7_BACKOFF_MS,
+        isMatch: (error) => error instanceof LzyumiResponseError && error.code === "7",
+        onRetry: ({ attempt: retryAttempt, delayMs }) => debugLzyumi("provider-busy-retry", {
+          player: riotId(player) || clean(player.displayName),
+          areaId,
+          filter,
+          retryAttempt,
+          delayMs,
+        }),
       }),
     );
 
@@ -1446,7 +1469,9 @@ async function findMatchingGame(job) {
     ...players.filter((player) => player.kookUserId === job.requestedByKookId),
     ...players.filter((player) => player.kookUserId !== job.requestedByKookId),
   ];
-  const sources = (await Promise.all(searchPlayers.map(fetchRecentGamesForPlayer))).filter(Boolean);
+  const sources = (
+    await mapWithConcurrency(searchPlayers, LZYUMI_PLAYER_CONCURRENCY, fetchRecentGamesForPlayer)
+  ).filter(Boolean);
   const gamesById = new Map();
 
   if (sources.length === 0) {
@@ -1495,10 +1520,25 @@ async function findMatchingGame(job) {
   }
 
   const checked = (
-    await Promise.all(
-      candidates.map(async ({ source, game }) => {
+    await mapWithConcurrency(
+      candidates,
+      LZYUMI_DETAIL_CONCURRENCY,
+      async ({ source, game }) => {
         try {
-          const detail = await fetchDetailForSource(source, game);
+          const detail = await retryProviderCode(
+            () => fetchDetailForSource(source, game),
+            {
+              code: "7",
+              retries: LZYUMI_CODE_7_RETRIES,
+              baseDelayMs: LZYUMI_CODE_7_BACKOFF_MS,
+              isMatch: (error) => error instanceof LzyumiResponseError && error.code === "7",
+              onRetry: ({ attempt: retryAttempt, delayMs }) => debugLzyumi("provider-busy-detail-retry", {
+                gameId: game.gameId,
+                retryAttempt,
+                delayMs,
+              }),
+            },
+          );
 
           return {
             source,
@@ -1510,7 +1550,7 @@ async function findMatchingGame(job) {
           console.error("Detail lookup failed", game.gameId, error.message);
           return null;
         }
-      }),
+      },
     )
   ).filter(Boolean);
 
