@@ -1,6 +1,7 @@
 import { riotIdKey, splitRiotId } from "@/lib/riot-id";
 
 export const LZYUMI_SNAPSHOT_VERSION = 2;
+export const LZYUMI_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 12;
 
 type SnapshotIdentityInput = {
   rawProfile: unknown;
@@ -115,6 +116,26 @@ export function markValidatedLzyumiSnapshot(value: unknown, fetchedAt = new Date
 export function isValidatedLzyumiSnapshot(value: unknown) {
   const root = asRecord(value);
   return root?._eclSnapshotVersion === LZYUMI_SNAPSHOT_VERSION;
+}
+
+export function shouldRefreshLzyumiSnapshots(
+  rawProfile: unknown,
+  rankedGames: unknown,
+  lastLookupAt: Date | string | null | undefined,
+  now = Date.now(),
+) {
+  if (
+    !isValidatedLzyumiSnapshot(rawProfile) ||
+    !isValidatedLzyumiSnapshot(rankedGames)
+  ) return true;
+  if (!lastLookupAt) return true;
+
+  const timestamp = lastLookupAt instanceof Date
+    ? lastLookupAt.getTime()
+    : new Date(lastLookupAt).getTime();
+  if (!Number.isFinite(timestamp)) return true;
+
+  return now - timestamp >= LZYUMI_REFRESH_INTERVAL_MS;
 }
 
 export function normalizeLzyumiRankedGames(soloGames: unknown, flexGames: unknown) {

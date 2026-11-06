@@ -19,7 +19,11 @@ import {
   isSafeProfileImageUrl,
   lzyumiTierColor as getSharedLzyumiTierColor,
 } from "@/lib/hub-profile";
-import { isValidatedLzyumiSnapshot } from "@/lib/lzyumi-snapshot";
+import {
+  isValidatedLzyumiSnapshot,
+  LZYUMI_SNAPSHOT_VERSION,
+  shouldRefreshLzyumiSnapshots,
+} from "@/lib/lzyumi-snapshot";
 import { getChinaServerDisplayName, getCountryOption } from "./account-options";
 import {
   flushPendingProfile,
@@ -327,7 +331,6 @@ function formatRank(row: LzyumiRankRow | null) {
   return { label: translateTier(row.tier), lp: row.winPoint ?? 0 };
 }
 
-const STATS_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 12;
 function formatLastUpdated(profile: AccountProfile, now: number): string {
   if (!profile.lzyumiLastLookupAt) return "Never";
   const lastLookupAt = new Date(profile.lzyumiLastLookupAt).getTime();
@@ -342,16 +345,11 @@ function formatLastUpdated(profile: AccountProfile, now: number): string {
 }
 
 function shouldRefreshStats(profile: AccountProfile) {
-  if (
-    !isValidatedLzyumiSnapshot(profile.lzyumiRawProfile) ||
-    !isValidatedLzyumiSnapshot(profile.lzyumiRankedGames)
-  ) return true;
-  if (!profile.lzyumiLastLookupAt) return true;
-
-  const lastLookupAt = new Date(profile.lzyumiLastLookupAt).getTime();
-  if (Number.isNaN(lastLookupAt)) return true;
-
-  return Date.now() - lastLookupAt > STATS_REFRESH_INTERVAL_MS;
+  return shouldRefreshLzyumiSnapshots(
+    profile.lzyumiRawProfile,
+    profile.lzyumiRankedGames,
+    profile.lzyumiLastLookupAt,
+  );
 }
 
 async function fetchJsonWithTimeout(url: string, timeoutMs = 15000) {
@@ -360,7 +358,35 @@ async function fetchJsonWithTimeout(url: string, timeoutMs = 15000) {
   return response.json();
 }
 
-async function refreshLzyumiProfile(profile: AccountProfile) {
+type RefreshProfileOptions = {
+  targetProfileId?: string;
+  reloadAccountProfile?: boolean;
+};
+
+const activeProfileRefreshes = new Map<string, Promise<AccountProfile | null>>();
+
+async function refreshLzyumiProfile(
+  profile: AccountProfile,
+  options: RefreshProfileOptions = {},
+) {
+  const existing = activeProfileRefreshes.get(profile.id);
+  if (existing) return existing;
+
+  const request = performLzyumiProfileRefresh(profile, options);
+  activeProfileRefreshes.set(profile.id, request);
+  try {
+    return await request;
+  } finally {
+    if (activeProfileRefreshes.get(profile.id) === request) {
+      activeProfileRefreshes.delete(profile.id);
+    }
+  }
+}
+
+async function performLzyumiProfileRefresh(
+  profile: AccountProfile,
+  options: RefreshProfileOptions,
+) {
   const token = await getAccessToken();
   if (!token) throw new Error("Your session expired. Please log in again.");
 
@@ -393,6 +419,8 @@ async function refreshLzyumiProfile(profile: AccountProfile) {
     );
   }
 
+  const soloGames = Array.isArray(rawSolo?.data) ? rawSolo.data : [];
+  const flexGames = Array.isArray(rawFlex?.data) ? rawFlex.data : [];
   const saveResponse = await fetch("/api/hub/refresh-my-profile", {
     method: "POST",
     headers: {
@@ -402,16 +430,41 @@ async function refreshLzyumiProfile(profile: AccountProfile) {
     body: JSON.stringify({
       rawProfile,
       recentStat: null,
-      soloGames: Array.isArray(rawSolo?.data) ? rawSolo.data : [],
-      flexGames: Array.isArray(rawFlex?.data) ? rawFlex.data : [],
+      soloGames,
+      flexGames,
+      targetProfileId: options.targetProfileId,
     }),
   });
+  const saveResult = await saveResponse.json().catch(() => ({}));
   if (!saveResponse.ok) {
-    const { message } = await saveResponse.json().catch(() => ({}));
-    throw new Error(message ?? `Save failed (${saveResponse.status})`);
+    throw new Error(saveResult.message ?? `Save failed (${saveResponse.status})`);
   }
 
-  return loadProfile();
+  if (options.reloadAccountProfile) return loadProfile();
+
+  const fetchedAt = typeof saveResult.fetchedAt === "string"
+    ? saveResult.fetchedAt
+    : new Date().toISOString();
+  const freshRanks = getSharedLzyumiRankRows(rawProfile, null);
+  const primaryRank = freshRanks.solo ?? freshRanks.flex;
+  const formattedRank = formatSharedLzyumiRank(primaryRank);
+
+  return {
+    ...profile,
+    currentRank: formattedRank.label,
+    lzyumiLastLookupAt: fetchedAt,
+    lzyumiRawProfile: {
+      ...rawProfile,
+      _eclSnapshotVersion: LZYUMI_SNAPSHOT_VERSION,
+      _eclFetchedAt: fetchedAt,
+    },
+    lzyumiRecentStat: null,
+    lzyumiRankedGames: {
+      _eclSnapshotVersion: LZYUMI_SNAPSHOT_VERSION,
+      soloGames,
+      flexGames,
+    },
+  } satisfies AccountProfile;
 }
 
 export default function PlayerProfileView({
@@ -456,19 +509,27 @@ export default function PlayerProfileView({
         const isPublicOwner = Boolean(initialProfile && loaded?.id === initialProfile.id);
         if (!cancelled && (isOwnProfilePage || isPublicOwner)) setLoadedProfile(loaded);
 
-        // Auto-refresh when stats are missing or the cached snapshot is stale.
+        const refreshCandidate = isOwnProfilePage || isPublicOwner
+          ? loaded
+          : initialProfile;
+
+        // Refresh the viewed profile when stats are missing or stale. A signed-in
+        // scout supplies the residential browser IP; the server still validates
+        // the target Riot identity before accepting the snapshot.
         // Uses browser-based lzyumi fetch (user's residential IP, bypasses cloud IP block).
         if (
-          (isOwnProfilePage || isPublicOwner) &&
-          loaded &&
-          shouldRefreshStats(loaded) &&
-          loaded.riotName &&
-          loaded.chinaServerId
+          refreshCandidate &&
+          shouldRefreshStats(refreshCandidate) &&
+          refreshCandidate.riotName &&
+          refreshCandidate.chinaServerId
         ) {
           setRefreshingStats(true);
           setStatRefreshError("");
           try {
-            const refreshed = await refreshLzyumiProfile(loaded);
+            const refreshed = await refreshLzyumiProfile(refreshCandidate, {
+              targetProfileId: initialProfile?.id,
+              reloadAccountProfile: isOwnProfilePage || isPublicOwner,
+            });
 
             if (refreshed) {
               if (!cancelled) setLoadedProfile(refreshed);
