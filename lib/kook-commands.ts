@@ -11,6 +11,7 @@ import {
 } from "@/lib/inhouse-leaderboard";
 import { reportedLzyumiGameIds } from "@/lib/lzyumi-report-dedupe";
 import { translateLzyumiTier } from "@/lib/hub-profile";
+import { isValidatedLzyumiSnapshot } from "@/lib/lzyumi-snapshot";
 import {
   fetchLzyumiMatchDetail,
   fetchLzyumiRecentGames,
@@ -702,6 +703,7 @@ async function findVerifiedProfile(kookUserId: string) {
       chinaServerId: true,
       openId: true,
       currentRank: true,
+      lzyumiRawProfile: true,
       lzyumiVerifiedAt: true,
     },
   });
@@ -797,7 +799,7 @@ export async function formatMeMessage(kookUserId: string) {
     `Riot ID: ${formatRiotId(profile.riotName, profile.riotTag) ?? "-"}`,
     `ECL LP: ${elo}`,
     `Record: ${wins}W/${losses}L`,
-    `China rank: ${translateLzyumiTier(profile.currentRank || undefined)}`,
+    `China rank: ${isValidatedLzyumiSnapshot(profile.lzyumiRawProfile) ? translateLzyumiTier(profile.currentRank || undefined) : "Refreshing"}`,
   ].join("\n");
 }
 

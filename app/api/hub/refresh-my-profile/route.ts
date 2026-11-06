@@ -1,7 +1,15 @@
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAccountFromRequest } from "@/lib/account-auth";
 import { getLzyumiRankRows, formatLzyumiRank } from "@/lib/hub-profile";
+import {
+  hasLzyumiRecentStatData,
+  LzyumiSnapshotValidationError,
+  markValidatedLzyumiSnapshot,
+  normalizeLzyumiRankedGames,
+  validateLzyumiSnapshotIdentity,
+} from "@/lib/lzyumi-snapshot";
 
 export const dynamic = "force-dynamic";
 
@@ -37,47 +45,69 @@ export async function POST(request: Request) {
 
   const profile = await prisma.accountProfile.findUnique({
     where: { userId: account.id },
-    select: { id: true },
+    select: {
+      id: true,
+      riotName: true,
+      riotTag: true,
+      chinaServerId: true,
+      openId: true,
+    },
   });
 
   if (!profile) {
     return NextResponse.json({ message: "Profile not found" }, { status: 404 });
   }
 
-  const openId =
-    (rawProfile as { battleInfo?: { openId?: string } })?.battleInfo?.openId ?? null;
-  const ranks = getLzyumiRankRows(rawProfile);
-  const hasRanks = Boolean(ranks.solo || ranks.flex);
-
-  const updateData: Record<string, unknown> = {
-    lzyumiLastLookupAt: new Date(),
-  };
-
-  if (openId) updateData.openId = openId;
-
-  if (hasRanks) {
-    updateData.lzyumiRawProfile = rawProfile;
-    updateData.currentRank = getCurrentRank(rawProfile);
+  if (!profile.chinaServerId) {
+    return NextResponse.json({ message: "Profile is missing a China server." }, { status: 409 });
   }
 
-  const rankedSolo = Array.isArray(soloGames) ? soloGames : [];
-  const rankedFlex = Array.isArray(flexGames) ? flexGames : [];
-  if (rankedSolo.length > 0 || rankedFlex.length > 0) {
-    updateData.lzyumiRankedGames = { soloGames: rankedSolo, flexGames: rankedFlex };
+  try {
+    const identity = validateLzyumiSnapshotIdentity({
+      rawProfile,
+      riotName: profile.riotName,
+      riotTag: profile.riotTag,
+      areaId: profile.chinaServerId,
+      existingOpenId: profile.openId,
+    });
+    const rankedGames = normalizeLzyumiRankedGames(soloGames, flexGames);
+
+    const ranks = getLzyumiRankRows(rawProfile);
+    const hasRanks = Boolean(ranks.solo || ranks.flex);
+    const validatedRawProfile = markValidatedLzyumiSnapshot(rawProfile);
+    const validatedRecentStat = hasLzyumiRecentStatData(recentStat)
+      ? markValidatedLzyumiSnapshot(recentStat)
+      : null;
+
+    // Save one coherent snapshot. A failed source leaves the previous snapshot
+    // and timestamp untouched instead of mixing fresh and stale sections.
+    await prisma.accountProfile.update({
+      where: { id: profile.id },
+      data: {
+        openId: identity.openId,
+        lzyumiVerifiedAt: new Date(),
+        lzyumiLastLookupAt: new Date(),
+        lzyumiRawProfile: validatedRawProfile as Prisma.InputJsonValue,
+        lzyumiRecentStat: validatedRecentStat
+          ? (validatedRecentStat as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
+        lzyumiRankedGames: rankedGames as Prisma.InputJsonValue,
+        currentRank: hasRanks ? getCurrentRank(rawProfile) : null,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      hasRanks,
+      hasRecentStat: Boolean(validatedRecentStat),
+      openId: identity.openId,
+    });
+  } catch (error) {
+    if (error instanceof LzyumiSnapshotValidationError) {
+      const status = error.code === "INVALID_SNAPSHOT" ? 422 : 409;
+      return NextResponse.json({ message: error.message, code: error.code }, { status });
+    }
+
+    throw error;
   }
-
-  if (
-    recentStat &&
-    typeof recentStat === "object" &&
-    (recentStat as { data?: unknown }).data
-  ) {
-    updateData.lzyumiRecentStat = recentStat;
-  }
-
-  await prisma.accountProfile.update({
-    where: { id: profile.id },
-    data: updateData,
-  });
-
-  return NextResponse.json({ ok: true, hasRanks, openId: openId ?? null });
 }

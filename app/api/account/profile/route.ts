@@ -6,8 +6,13 @@ import { refreshAccountProfileStats } from "@/lib/account-stats-refresh";
 import { createUniqueKookVerification, getKookVerificationExpiresAt } from "@/lib/kook-verification";
 import { formatLzyumiRank, getLzyumiRankRows } from "@/lib/hub-profile";
 import { getChinaServer, fetchLzyumiRecentStat, fetchLzyumiRankedGames, lookupLzyumiIdentity } from "@/lib/lzyumi";
+import {
+  hasLzyumiRecentStatData,
+  markValidatedLzyumiSnapshot,
+  normalizeLzyumiRankedGames,
+} from "@/lib/lzyumi-snapshot";
 import { syncPlayerForProfile } from "@/lib/player-profile-sync";
-import { normalizeRiotPart, normalizeRiotTag } from "@/lib/riot-id";
+import { normalizeRiotPart, normalizeRiotTag, riotIdKey } from "@/lib/riot-id";
 
 type ProfilePayload = {
   displayName?: string;
@@ -74,30 +79,6 @@ function jsonField(value: unknown) {
   return value === null ? Prisma.JsonNull : value;
 }
 
-function hasRankedGames(value: unknown) {
-  if (!value || typeof value !== "object") return false;
-
-  const rankedGames = value as { soloGames?: unknown; flexGames?: unknown };
-
-  return (
-    (Array.isArray(rankedGames.soloGames) && rankedGames.soloGames.length > 0) ||
-    (Array.isArray(rankedGames.flexGames) && rankedGames.flexGames.length > 0)
-  );
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
-
-function hasLzyumiRankRows(value: unknown) {
-  const root = asRecord(value);
-  const data = asRecord(root?.data);
-  const battleInfo = asRecord(root?.battleInfo) ?? asRecord(data?.battleInfo);
-  const rows = battleInfo?.mapOneInfoList ?? data?.mapOneInfoList;
-
-  return Array.isArray(rows) && rows.length > 0;
-}
-
 function getCurrentRankFromRawProfile(value: unknown) {
   const ranks = getLzyumiRankRows(value);
   const rank = ranks.solo ?? ranks.flex;
@@ -106,12 +87,16 @@ function getCurrentRankFromRawProfile(value: unknown) {
   return formatted.label === "Unranked" ? null : formatted.label;
 }
 
+function profileForClient<T>(profile: T): T {
+  return profile;
+}
+
 function needsInitialLzyumiRefresh(profile: {
   lzyumiRawProfile?: unknown;
   lzyumiRecentStat?: unknown;
   lzyumiRankedGames?: unknown;
 }) {
-  return !profile.lzyumiRawProfile || !profile.lzyumiRecentStat || !profile.lzyumiRankedGames;
+  return !profile.lzyumiRawProfile || !profile.lzyumiRankedGames;
 }
 
 async function runInitialLzyumiRefresh(profile: {
@@ -159,7 +144,10 @@ async function resolveLzyumiIdentity(body: ProfilePayload) {
       }
     }
     try {
-      rankedGames = await fetchLzyumiRankedGames({ riotName, areaId: server.id });
+      rankedGames = await fetchLzyumiRankedGames({
+        riotName: `${riotName}#${riotTag}`,
+        areaId: server.id,
+      });
     } catch (err) {
       console.warn("Lzyumi ranked games fetch failed:", err);
     }
@@ -186,27 +174,49 @@ function lzyumiData(body: ProfilePayload, result: Awaited<ReturnType<typeof reso
     );
   }
 
+  let normalizedRankedGames: ReturnType<typeof normalizeLzyumiRankedGames> | null = null;
+  try {
+    normalizedRankedGames = normalizeLzyumiRankedGames(
+      rankedGames?.soloGames,
+      rankedGames?.flexGames,
+    );
+  } catch {
+    normalizedRankedGames = null;
+  }
+  const snapshotComplete = identity?.status === "matched" && normalizedRankedGames !== null;
+  const validatedRawProfile =
+    snapshotComplete && identity.rawProfile
+      ? markValidatedLzyumiSnapshot(identity.rawProfile, now)
+      : null;
+  const validatedRecentStat =
+    snapshotComplete && hasLzyumiRecentStatData(recentStat)
+      ? markValidatedLzyumiSnapshot(recentStat, now)
+      : null;
+
   return {
     chinaServerId: identity?.areaId ?? server.id,
     chinaServerName: identity?.areaName ?? server.name,
     openId:
       identity?.status === "matched"
         ? identity.openId
-        : clean(body.openId) || undefined,
+        : undefined,
     lzyumiVerifiedAt: identity?.status === "matched" ? now : undefined,
-    lzyumiLastLookupAt: identity?.status === "matched" ? now : undefined,
+    lzyumiLastLookupAt: snapshotComplete ? now : undefined,
     lzyumiRawProfile:
-      identity?.status === "matched" && identity.rawProfile
-        ? (identity.rawProfile as Prisma.InputJsonValue)
+      validatedRawProfile
+        ? (validatedRawProfile as Prisma.InputJsonValue)
         : undefined,
     lzyumiRecentStat:
-      recentStat && recentStat.data ? (recentStat as Prisma.InputJsonValue) : undefined,
-    lzyumiRankedGames:
-      hasRankedGames(rankedGames) ? (rankedGames as Prisma.InputJsonValue) : undefined,
-    currentRank:
-      identity?.status === "matched"
-        ? getCurrentRankFromRawProfile(identity.rawProfile)
+      snapshotComplete
+        ? validatedRecentStat
+          ? (validatedRecentStat as Prisma.InputJsonValue)
+          : Prisma.JsonNull
         : undefined,
+    lzyumiRankedGames:
+      snapshotComplete ? (normalizedRankedGames as Prisma.InputJsonValue) : undefined,
+    currentRank:
+      snapshotComplete ? getCurrentRankFromRawProfile(identity.rawProfile) : undefined,
+    snapshotComplete,
   };
 }
 
@@ -231,7 +241,7 @@ export async function GET(request: Request) {
     },
   });
 
-  return NextResponse.json({ profile });
+  return NextResponse.json({ profile: profileForClient(profile) });
 }
 
 export async function POST(request: Request) {
@@ -310,7 +320,7 @@ export async function POST(request: Request) {
         riotTag: clean(normalizedBody.riotTag),
         chinaServerId: lzyumi.chinaServerId,
         chinaServerName: lzyumi.chinaServerName,
-        openId: lzyumi.openId ?? null,
+        openId: lzyumi.openId,
         lzyumiVerifiedAt: lzyumi.lzyumiVerifiedAt,
         lzyumiLastLookupAt: lzyumi.lzyumiLastLookupAt,
         lzyumiRawProfile: lzyumi.lzyumiRawProfile,
@@ -320,7 +330,7 @@ export async function POST(request: Request) {
         wechatId: clean(body.wechatId) || null,
         primaryRole: clean(body.primaryRole),
         secondaryRole: clean(body.secondaryRole) || null,
-        currentRank: lzyumi.currentRank ?? (clean(body.currentRank) || null),
+        currentRank: lzyumi.snapshotComplete ? lzyumi.currentRank : undefined,
         nationality: clean(body.nationality) || null,
         timezone: clean(body.timezone) || null,
         bio: clean(body.bio) || null,
@@ -350,7 +360,7 @@ export async function POST(request: Request) {
         wechatId: clean(body.wechatId) || null,
         primaryRole: clean(body.primaryRole),
         secondaryRole: clean(body.secondaryRole) || null,
-        currentRank: lzyumi.currentRank ?? (clean(body.currentRank) || null),
+        currentRank: lzyumi.snapshotComplete ? lzyumi.currentRank : null,
         nationality: clean(body.nationality) || null,
         timezone: clean(body.timezone) || null,
         bio: clean(body.bio) || null,
@@ -412,7 +422,7 @@ export async function POST(request: Request) {
     });
   }
 
-  return NextResponse.json({ profile });
+  return NextResponse.json({ profile: profileForClient(profile) });
 }
 
 export async function PATCH(request: Request) {
@@ -452,6 +462,17 @@ export async function PATCH(request: Request) {
     );
   }
 
+  const targetServer = getChinaServer(
+    cleanNumber(mergedForLookup.chinaServerId),
+    clean(mergedForLookup.chinaServerName),
+  );
+  const identityChanged = Boolean(
+    existing &&
+      (riotIdKey(existing.riotName, existing.riotTag) !==
+        riotIdKey(mergedForLookup.riotName, mergedForLookup.riotTag) ||
+        existing.chinaServerId !== targetServer.id),
+  );
+
   const profile = await prisma.accountProfile.update({
     where: {
       userId: account.id,
@@ -463,25 +484,22 @@ export async function PATCH(request: Request) {
       chinaServerId: lzyumi ? lzyumi.chinaServerId : undefined,
       chinaServerName: lzyumi ? lzyumi.chinaServerName : undefined,
       openId:
-        lzyumi?.openId ??
-        (body.openId === undefined ? undefined : clean(body.openId) || null),
+        lzyumi?.openId ?? (identityChanged ? null : undefined),
       lzyumiVerifiedAt: lzyumi?.lzyumiVerifiedAt,
-      lzyumiLastLookupAt: lzyumi?.lzyumiLastLookupAt,
+      lzyumiLastLookupAt:
+        lzyumi?.lzyumiLastLookupAt ?? (identityChanged ? null : undefined),
       lzyumiRawProfile:
-        lzyumi?.lzyumiRawProfile === undefined
-          ? undefined
-          : hasLzyumiRankRows(lzyumi.lzyumiRawProfile) || !hasLzyumiRankRows(existing?.lzyumiRawProfile)
-            ? lzyumi.lzyumiRawProfile
-            : undefined,
-      lzyumiRecentStat: lzyumi?.lzyumiRecentStat,
-      lzyumiRankedGames: lzyumi?.lzyumiRankedGames,
+        lzyumi?.lzyumiRawProfile ?? (identityChanged ? Prisma.JsonNull : undefined),
+      lzyumiRecentStat:
+        lzyumi?.lzyumiRecentStat ?? (identityChanged ? Prisma.JsonNull : undefined),
+      lzyumiRankedGames:
+        lzyumi?.lzyumiRankedGames ?? (identityChanged ? Prisma.JsonNull : undefined),
       kookUsername: body.kookUsername === undefined ? undefined : clean(body.kookUsername),
       wechatId: body.wechatId === undefined ? undefined : clean(body.wechatId) || null,
       primaryRole: body.primaryRole === undefined ? undefined : clean(body.primaryRole),
       secondaryRole: body.secondaryRole === undefined ? undefined : clean(body.secondaryRole) || null,
       currentRank:
-        lzyumi?.currentRank ??
-        (body.currentRank === undefined ? undefined : clean(body.currentRank) || null),
+        lzyumi?.currentRank ?? (identityChanged ? null : undefined),
       nationality: body.nationality === undefined ? undefined : clean(body.nationality) || null,
       timezone: body.timezone === undefined ? undefined : clean(body.timezone) || null,
       bio: body.bio === undefined ? undefined : clean(body.bio) || null,
@@ -506,5 +524,5 @@ export async function PATCH(request: Request) {
     await syncPlayerForProfile(profile);
   }
 
-  return NextResponse.json({ profile });
+  return NextResponse.json({ profile: profileForClient(profile) });
 }

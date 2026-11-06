@@ -19,6 +19,7 @@ import {
   isSafeProfileImageUrl,
   lzyumiTierColor as getSharedLzyumiTierColor,
 } from "@/lib/hub-profile";
+import { isValidatedLzyumiSnapshot } from "@/lib/lzyumi-snapshot";
 import { getChinaServerDisplayName, getCountryOption } from "./account-options";
 import {
   flushPendingProfile,
@@ -306,7 +307,6 @@ function formatRank(row: LzyumiRankRow | null) {
 }
 
 const STATS_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 12;
-
 function formatLastUpdated(profile: AccountProfile, now: number): string {
   if (!profile.lzyumiLastLookupAt) return "Never";
   const lastLookupAt = new Date(profile.lzyumiLastLookupAt).getTime();
@@ -321,7 +321,10 @@ function formatLastUpdated(profile: AccountProfile, now: number): string {
 }
 
 function shouldRefreshStats(profile: AccountProfile) {
-  if (!profile.lzyumiRankedGames || !profile.lzyumiRecentStat) return true;
+  if (
+    !isValidatedLzyumiSnapshot(profile.lzyumiRawProfile) ||
+    !isValidatedLzyumiSnapshot(profile.lzyumiRankedGames)
+  ) return true;
   if (!profile.lzyumiLastLookupAt) return true;
 
   const lastLookupAt = new Date(profile.lzyumiLastLookupAt).getTime();
@@ -370,7 +373,12 @@ export default function PlayerProfileView({
 
         // Auto-refresh when stats are missing or the cached snapshot is stale.
         // Uses browser-based lzyumi fetch (user's residential IP, bypasses cloud IP block).
-        if (loaded && shouldRefreshStats(loaded) && loaded.riotName && loaded.chinaServerId) {
+        if (
+          loaded &&
+          shouldRefreshStats(loaded) &&
+          loaded.riotName &&
+          loaded.chinaServerId
+        ) {
           setRefreshingStats(true);
           setStatRefreshError("");
           try {
@@ -411,7 +419,9 @@ export default function PlayerProfileView({
                   `/api/lzyumi-sign?type=recent&openId=${encodeURIComponent(openId)}&areaId=${areaId}`,
                 );
                 const { url: recentUrl } = await recentSignRes.json();
-                recentStat = await fetch(recentUrl).then((r) => r.json());
+                recentStat = await fetch(recentUrl)
+                  .then((r) => (r.ok ? r.json() : null))
+                  .catch(() => null);
               }
 
               const saveRes = await fetch("/api/hub/refresh-my-profile", {
@@ -528,10 +538,22 @@ export default function PlayerProfileView({
     .slice(0, 2)
     .toUpperCase();
   const showRiotId = profile.privacySettings?.showRiotId ?? true;
-  const ranks = getSharedLzyumiRankRows(profile.lzyumiRawProfile, profile.currentRank);
-  const recentGames = getCombinedRankedGames(profile.lzyumiRankedGames);
-  const seasonChamps = getSeasonChampStats(profile.lzyumiRecentStat);
-  const seasonStats = getSeasonStats(profile.lzyumiRawProfile, profile.lzyumiRecentStat);
+  const hasValidatedProfileSnapshot = isValidatedLzyumiSnapshot(profile.lzyumiRawProfile);
+  const hasValidatedRankedSnapshot = isValidatedLzyumiSnapshot(profile.lzyumiRankedGames);
+  const hasValidatedRecentStat = isValidatedLzyumiSnapshot(profile.lzyumiRecentStat);
+  const ranks = hasValidatedProfileSnapshot
+    ? getSharedLzyumiRankRows(profile.lzyumiRawProfile, profile.currentRank)
+    : { solo: null, flex: null };
+  const recentGames = hasValidatedRankedSnapshot
+    ? getCombinedRankedGames(profile.lzyumiRankedGames)
+    : [];
+  const seasonChamps = hasValidatedRecentStat
+    ? getSeasonChampStats(profile.lzyumiRecentStat)
+    : [];
+  const seasonStats = getSeasonStats(
+    hasValidatedProfileSnapshot ? profile.lzyumiRawProfile : null,
+    hasValidatedRecentStat ? profile.lzyumiRecentStat : null,
+  );
   const nationality = getCountryOption(profile.nationality);
   const chinaServerName = getChinaServerDisplayName(
     profile.chinaServerId,
@@ -695,7 +717,7 @@ export default function PlayerProfileView({
           </div>
           <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#aeb5da]">
-              Last updated
+              League snapshot
             </p>
             {refreshingStats ? (
               <p className="mt-1 text-sm font-black text-[#ffd84d] animate-pulse">Fetching stats…</p>
@@ -705,7 +727,11 @@ export default function PlayerProfileView({
               <p className="mt-1 text-lg font-black text-[#48f0df]">{lastUpdatedLabel}</p>
             )}
             <p className="mt-1 text-[11px] font-semibold text-[#6b7280]">
-              {statRefreshError ? statRefreshError : "Updates on visit."}
+              {statRefreshError
+                ? statRefreshError
+                : hasValidatedProfileSnapshot
+                  ? `Identity-checked snapshot fetched ${lastUpdatedLabel}.`
+                  : "Waiting for a fresh identity-checked ECL.GG snapshot."}
             </p>
           </div>
 
@@ -876,9 +902,9 @@ function ChampionsPanel({
             <Sparkles className="text-[#ff1728]" size={20} />
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6b7280]">
-                Solo Q / Flex · Season Stats
+                ECL.GG snapshot · Reported stats
               </p>
-              <h2 className="text-lg font-black text-white">Most Played Champions</h2>
+              <h2 className="text-lg font-black text-white">Reported Champions</h2>
             </div>
           </div>
 
@@ -940,9 +966,9 @@ function ChampionsPanel({
             <BarChart3 className="text-[#ff1728]" size={20} />
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6b7280]">
-                Solo Q / Flex · Ranked Only
+                ECL.GG snapshot · Ranked queues
               </p>
-              <h2 className="text-lg font-black text-white">Recent Games</h2>
+              <h2 className="text-lg font-black text-white">Reported Games</h2>
             </div>
           </div>
 
