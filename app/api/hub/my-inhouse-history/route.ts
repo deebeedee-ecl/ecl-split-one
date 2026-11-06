@@ -14,6 +14,15 @@ export const dynamic = "force-dynamic";
 
 const ROLES = ["TOP", "JGL", "MID", "ADC", "SUP"] as const;
 
+function responseCacheHeaders(isPublicProfile: boolean): Record<string, string> {
+  return isPublicProfile
+    ? {
+        "Cache-Control": "public, max-age=0, must-revalidate",
+        "CDN-Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      }
+    : { "Cache-Control": "private, no-store" };
+}
+
 function clamp(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
@@ -264,5 +273,5 @@ export async function GET(request: NextRequest) {
         },
       ],
     },
-  }, { headers: { "Cache-Control": "private, no-store" } });
+  }, { headers: responseCacheHeaders(Boolean(requestedProfileId)) });
 }
