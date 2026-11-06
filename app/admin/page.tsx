@@ -452,35 +452,65 @@ function LzyumiRefreshPanel() {
         setMessage(`Refreshing ${i + 1}/${profiles.length}: ${p.displayName}...`);
 
         try {
-          // Step 2: get a signed lzyumi URL from the server
+          // Step 2: get signed URLs for one coherent profile snapshot.
           const tag = (p.riotTag ?? "").replace(/^#+/, "");
           const nickname = tag ? `${p.riotName}#${tag}` : p.riotName;
-          const signRes = await fetch(
-            `/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${p.chinaServerId}`,
-            { credentials: "include" }
+          const signed = await Promise.all([1, 2, 3].map(async (filter) => {
+            const signRes = await fetch(
+              `/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${p.chinaServerId}&filter=${filter}&allCount=${filter === 1 ? 10 : 20}`,
+              { credentials: "include" },
+            );
+            if (!signRes.ok) throw new Error(`Sign failed for filter ${filter}`);
+            return (await signRes.json()) as { url: string };
+          }));
+
+          // Step 3: call ECL.GG from the browser (uses the admin's residential IP).
+          const [rawProfile, soloResponse, flexResponse] = await Promise.all(
+            signed.map(async ({ url }) => {
+              const response = await fetch(url, { headers: { Accept: "application/json" } });
+              if (!response.ok) throw new Error("ECL.GG fetch failed");
+              return response.json();
+            }),
           );
-          if (!signRes.ok) throw new Error("Sign failed");
-          const { url } = (await signRes.json()) as { url: string };
+          const openId = rawProfile?.battleInfo?.openId;
+          if (!openId) throw new Error("ECL.GG identity response is incomplete");
 
-          // Step 3: call lzyumi from the browser (uses our residential IP, not blocked)
-          const lzyumiRes = await fetch(url, {
-            headers: {
-              Accept: "application/json",
-              Referer: "https://a.2025lol.top/",
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            },
-          });
-          if (!lzyumiRes.ok) throw new Error("ECL.GG fetch failed");
-          const rawProfile = await lzyumiRes.json();
+          // This provider endpoint is currently unreliable. Rank and ranked
+          // history remain a valid coherent snapshot even when it is down.
+          const recentStat = await (async () => {
+            try {
+              const recentSignRes = await fetch(
+                `/api/lzyumi-sign?type=recent&openId=${encodeURIComponent(openId)}&areaId=${p.chinaServerId}`,
+                { credentials: "include" },
+              );
+              if (!recentSignRes.ok) return null;
+              const { url: recentUrl } = (await recentSignRes.json()) as { url: string };
+              const recentResponse = await fetch(recentUrl, {
+                headers: { Accept: "application/json" },
+              });
+              return recentResponse.ok ? recentResponse.json() : null;
+            } catch {
+              return null;
+            }
+          })();
 
-          // Step 4: save to DB via the server
+          // Step 4: validate and atomically save every displayed source.
           const saveRes = await fetch("/api/admin/save-lzyumi", {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ profileId: p.id, rawProfile }),
+            body: JSON.stringify({
+              profileId: p.id,
+              rawProfile,
+              recentStat,
+              soloGames: Array.isArray(soloResponse?.data) ? soloResponse.data : [],
+              flexGames: Array.isArray(flexResponse?.data) ? flexResponse.data : [],
+            }),
           });
-          if (!saveRes.ok) throw new Error("Save failed");
+          if (!saveRes.ok) {
+            const failure = await saveRes.json().catch(() => ({}));
+            throw new Error(failure.error ?? "Save failed");
+          }
 
           refreshed++;
         } catch (error) {

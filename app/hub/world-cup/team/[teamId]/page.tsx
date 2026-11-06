@@ -6,6 +6,7 @@ import { ArrowLeft, ShieldCheck, Swords, Trophy, Users } from "lucide-react";
 import { HubShell } from "../../../_components/HubShell";
 import { prisma } from "@/lib/prisma";
 import { formatLzyumiRank, getLzyumiRankRows } from "@/lib/hub-profile";
+import { isValidatedLzyumiSnapshot } from "@/lib/lzyumi-snapshot";
 import { riotIdKey } from "@/lib/riot-id";
 import { countryNameLabel } from "@/lib/world-cup-countries";
 import { parseWorldCupApplication } from "@/lib/world-cup-applications";
@@ -109,7 +110,7 @@ function topChampions(profile: { lzyumiRecentStat?: unknown; championPool?: unkn
   const recentState = asRecord(data?.recentState);
   const common = recentState?.common_use_champions;
 
-  if (Array.isArray(common)) {
+  if (isValidatedLzyumiSnapshot(profile.lzyumiRecentStat) && Array.isArray(common)) {
     return common
       .map((entry) => {
         const item = asRecord(entry);
@@ -140,6 +141,7 @@ function topChampions(profile: { lzyumiRecentStat?: unknown; championPool?: unkn
 
 function profileRank(profile?: { currentRank?: string | null; lzyumiRawProfile?: unknown } | null) {
   if (!profile) return "Hub pending";
+  if (!isValidatedLzyumiSnapshot(profile.lzyumiRawProfile)) return "Refreshing";
   const solo = getLzyumiRankRows(profile.lzyumiRawProfile, profile.currentRank).solo;
   return formatLzyumiRank(solo).label;
 }

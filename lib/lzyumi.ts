@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { riotIdKey, splitRiotId } from "@/lib/riot-id";
 
 export type ChinaServer = {
   id: number;
@@ -195,7 +196,8 @@ export function isResolvedRiotIdMatch(
   riotTag: string,
 ) {
   if (!resolvedName) return false;
-  return resolvedName.trim().toLowerCase() === normalizeRiotId(riotName, riotTag);
+  const resolved = splitRiotId(resolvedName);
+  return riotIdKey(resolved.riotName, resolved.riotTag) === riotIdKey(riotName, riotTag);
 }
 
 function signedLookupUrl({
@@ -454,7 +456,14 @@ export async function fetchLzyumiRecentStat({
   baseUrl?: string;
 }): Promise<LzyumiRecentStatResponse> {
   const { lzyumiSign, signStr } = createLzyumiSignature();
-  const url = new URL(`${baseUrl}/getPlayerRecentStat`);
+  const url = new URL(baseUrl);
+  const configuredPath = url.pathname.replace(/\/+$/, "");
+  const apiPath = configuredPath.endsWith("/info")
+    ? configuredPath.slice(0, -"/info".length)
+    : configuredPath;
+  url.pathname = `${apiPath}/getPlayerRecentStat`.replace(/\/{2,}/g, "/");
+  url.search = "";
+  url.hash = "";
   url.searchParams.set("openId", openId);
   url.searchParams.set("areaId", String(areaId));
   url.searchParams.set("lzyumiSign", lzyumiSign);

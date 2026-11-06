@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getInhouseLeaderboardRows } from "@/lib/inhouse-leaderboard";
 import { leagueSnapshotChampions } from "@/lib/league-snapshot-champions";
+import { isValidatedLzyumiSnapshot } from "@/lib/lzyumi-snapshot";
 import { riotIdKey } from "@/lib/riot-id";
 import { prisma } from "@/lib/prisma";
 import { getRankedSeason } from "@/lib/ranked-season";
@@ -24,10 +25,16 @@ export async function GET() {
       const matches = identities.get(riotIdKey(row.riotName, row.riotTag) ?? "") ?? [];
       // Ambiguous profile matches must not attach another account's snapshot.
       const profile = matches.length === 1 ? matches[0] : null;
+      const hasChampionSnapshot = isValidatedLzyumiSnapshot(profile?.lzyumiRecentStat);
       return { rank: row.rank, name: row.name, elo: row.elo, gamesPlayed: row.gamesPlayed,
-        winRate: row.winRate, teamTag: row.teamName ?? "", championSource: "ecl-snapshot",
-        championsUpdatedAt: profile?.lzyumiLastLookupAt?.toISOString() ?? null,
-        topChampions: leagueSnapshotChampions(profile?.lzyumiRecentStat),
+        winRate: row.winRate, teamTag: row.teamName ?? "",
+        championSource: hasChampionSnapshot ? "ecl-snapshot" : "",
+        championsUpdatedAt: hasChampionSnapshot
+          ? profile?.lzyumiLastLookupAt?.toISOString() ?? null
+          : null,
+        topChampions: hasChampionSnapshot
+          ? leagueSnapshotChampions(profile?.lzyumiRecentStat)
+          : [],
       };
     }) }, { headers: { "Cache-Control": "no-store" } });
   } catch {

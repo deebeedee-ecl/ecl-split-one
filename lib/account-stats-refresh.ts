@@ -9,6 +9,12 @@ import {
   type LzyumiRecoveredPlayer,
 } from "@/lib/lzyumi";
 import { formatLzyumiRank, getLzyumiRankRows } from "@/lib/hub-profile";
+import {
+  hasLzyumiRecentStatData,
+  markValidatedLzyumiSnapshot,
+  normalizeLzyumiRankedGames,
+  validateLzyumiSnapshotIdentity,
+} from "@/lib/lzyumi-snapshot";
 import { prisma } from "@/lib/prisma";
 
 export const LZYUMI_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 12;
@@ -20,17 +26,6 @@ type RefreshableProfile = {
   riotName: string;
   riotTag?: string | null;
 };
-
-function hasRankedGames(value: unknown) {
-  if (!value || typeof value !== "object") return false;
-
-  const rankedGames = value as { soloGames?: unknown; flexGames?: unknown };
-
-  return (
-    (Array.isArray(rankedGames.soloGames) && rankedGames.soloGames.length > 0) ||
-    (Array.isArray(rankedGames.flexGames) && rankedGames.flexGames.length > 0)
-  );
-}
 
 function hasRankRows(value: unknown) {
   const ranks = getLzyumiRankRows(value);
@@ -103,11 +98,11 @@ async function lookupProfileForRefresh(profile: RefreshableProfile) {
 }
 
 export async function refreshAccountProfileStats(profile: RefreshableProfile) {
-  if (!profile.chinaServerId || !profile.riotName) {
+  if (!profile.chinaServerId || !profile.riotName || !profile.riotTag) {
     return {
       ok: false,
       profileId: profile.id,
-      message: "Profile is missing Riot name or China server.",
+      message: "Profile is missing a complete Riot ID or China server.",
     };
   }
 
@@ -119,10 +114,21 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
     fetchLzyumiRankedGames({ riotName: lookupName, areaId: profile.chinaServerId }),
   ]);
 
-  const freshOpenId =
-    rawProfile.status === "fulfilled" ? rawProfile.value.battleInfo?.openId ?? null : null;
+  if (rawProfile.status === "rejected" || rankedGames.status === "rejected") {
+    return {
+      ok: false,
+      profileId: profile.id,
+      message: [
+        "The complete ECL.GG snapshot could not be refreshed.",
+        ...(rawProfile.status === "rejected" ? [rejectedMessage(rawProfile, "profile")] : []),
+        ...(rankedGames.status === "rejected" ? [rejectedMessage(rankedGames, "ranked")] : []),
+      ].join(" "),
+    };
+  }
+
+  const freshOpenId = rawProfile.value.battleInfo?.openId ?? null;
   const recoveredPlayers =
-    !freshOpenId && profile.riotTag && rankedGames.status === "fulfilled"
+    !freshOpenId
       ? await recoverLzyumiPlayersFromRankedGames({
           riotName: profile.riotName,
           riotTag: profile.riotTag,
@@ -131,66 +137,64 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
         }).catch(() => [])
       : [];
   const recoveredOpenId = recoveredPlayers[0]?.openId ?? null;
-  const openId = freshOpenId ?? recoveredOpenId ?? profile.openId;
-  const recentStat = openId
-    ? await fetchLzyumiRecentStat({ openId, areaId: profile.chinaServerId }).then(
-        (value) => ({ status: "fulfilled" as const, value }),
-        (reason) => ({ status: "rejected" as const, reason }),
-      )
-    : ({ status: "fulfilled" as const, value: null } as const);
+  const profileForStorage =
+    !hasRankRows(rawProfile.value) && recoveredOpenId
+      ? withRecoveredProfileData({
+          rawProfile: rawProfile.value,
+          recovered: recoveredPlayers,
+          riotName: profile.riotName,
+          riotTag: profile.riotTag,
+          areaId: profile.chinaServerId,
+        })
+      : rawProfile.value;
 
-  const updateData: Prisma.AccountProfileUpdateInput = {
-    lzyumiLastLookupAt: new Date(),
-  };
-  let storedRankRows = false;
-
-  if (rawProfile.status === "fulfilled") {
-    const profileForStorage =
-      !hasRankRows(rawProfile.value) && profile.riotTag
-        ? withRecoveredProfileData({
-            rawProfile: rawProfile.value,
-            recovered: recoveredPlayers,
-            riotName: profile.riotName,
-            riotTag: profile.riotTag,
-            areaId: profile.chinaServerId,
-          })
-        : rawProfile.value;
-
-    if (hasRankRows(profileForStorage)) {
-      storedRankRows = true;
-      updateData.lzyumiRawProfile = profileForStorage as Prisma.InputJsonValue;
-      updateData.currentRank = getCurrentRankFromRawProfile(profileForStorage);
-    }
-
-    if (freshOpenId || recoveredOpenId) {
-      updateData.openId = freshOpenId ?? recoveredOpenId;
-    }
-  }
-
-  if (rankedGames.status === "fulfilled" && hasRankedGames(rankedGames.value)) {
-    updateData.lzyumiRankedGames = rankedGames.value as Prisma.InputJsonValue;
-  }
-
-  if (recentStat.status === "fulfilled" && recentStat.value?.data) {
-    updateData.lzyumiRecentStat = recentStat.value as Prisma.InputJsonValue;
-  }
-
-  if (
-    rawProfile.status === "rejected" &&
-    rankedGames.status === "rejected" &&
-    recentStat.status === "rejected"
-  ) {
+  let identity;
+  let normalizedRankedGames;
+  try {
+    identity = validateLzyumiSnapshotIdentity({
+      rawProfile: profileForStorage,
+      riotName: profile.riotName,
+      riotTag: profile.riotTag,
+      areaId: profile.chinaServerId,
+      existingOpenId: profile.openId,
+    });
+    normalizedRankedGames = normalizeLzyumiRankedGames(
+      rankedGames.value.soloGames,
+      rankedGames.value.flexGames,
+    );
+  } catch (error) {
     return {
       ok: false,
       profileId: profile.id,
-      message: [
-        "Raw profile, ranked games, and recent stats failed.",
-        rejectedMessage(rawProfile, "profile"),
-        rejectedMessage(rankedGames, "ranked"),
-        rejectedMessage(recentStat, "recent"),
-      ].join(" "),
+      message: error instanceof Error ? error.message : "The ECL.GG snapshot failed validation.",
     };
   }
+
+  const recentStat = await fetchLzyumiRecentStat({
+    openId: identity.openId,
+    areaId: profile.chinaServerId,
+  }).then(
+    (value) => ({ status: "fulfilled" as const, value }),
+    (reason) => ({ status: "rejected" as const, reason }),
+  );
+
+  const storedRankRows = hasRankRows(profileForStorage);
+  const validatedRawProfile = markValidatedLzyumiSnapshot(profileForStorage);
+  const validatedRecentStat =
+    recentStat.status === "fulfilled" && hasLzyumiRecentStatData(recentStat.value)
+      ? markValidatedLzyumiSnapshot(recentStat.value)
+      : null;
+  const updateData: Prisma.AccountProfileUpdateInput = {
+    openId: identity.openId,
+    lzyumiVerifiedAt: new Date(),
+    lzyumiLastLookupAt: new Date(),
+    lzyumiRawProfile: validatedRawProfile as Prisma.InputJsonValue,
+    lzyumiRankedGames: normalizedRankedGames as Prisma.InputJsonValue,
+    lzyumiRecentStat: validatedRecentStat
+      ? (validatedRecentStat as Prisma.InputJsonValue)
+      : Prisma.JsonNull,
+    currentRank: storedRankRows ? getCurrentRankFromRawProfile(profileForStorage) : null,
+  };
 
   await prisma.accountProfile.update({
     where: { id: profile.id },
@@ -200,9 +204,10 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
   return {
     ok: true,
     profileId: profile.id,
-    rawProfile: rawProfile.status,
-    rankedGames: rankedGames.status,
-    recentStat: recentStat.status,
+    rawProfile: "fulfilled" as const,
+    rankedGames: "fulfilled" as const,
+    recentStat:
+      validatedRecentStat ? "fulfilled" as const : "unavailable" as const,
     rankRows: storedRankRows,
   };
 }
