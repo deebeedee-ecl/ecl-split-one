@@ -14,6 +14,8 @@ import {
 import { syncPlayerForProfile } from "@/lib/player-profile-sync";
 import { normalizeRiotPart, normalizeRiotTag, riotIdKey } from "@/lib/riot-id";
 
+export const preferredRegion = "icn1";
+
 type ProfilePayload = {
   displayName?: string;
   riotName?: string;

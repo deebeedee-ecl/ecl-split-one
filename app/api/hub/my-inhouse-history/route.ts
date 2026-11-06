@@ -11,6 +11,7 @@ import {
 } from "@/lib/riot-id";
 
 export const dynamic = "force-dynamic";
+export const preferredRegion = "icn1";
 
 const ROLES = ["TOP", "JGL", "MID", "ADC", "SUP"] as const;
 

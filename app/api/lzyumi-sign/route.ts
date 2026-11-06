@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createLzyumiSignature, getChinaServer } from "@/lib/lzyumi";
 
 export const dynamic = "force-dynamic";
+export const preferredRegion = "icn1";
 
 const LZYUMI_BASE = "https://a.2025lol.top/lzyumi/lol";
 

@@ -12,6 +12,7 @@ import {
 } from "@/lib/lzyumi-snapshot";
 
 export const dynamic = "force-dynamic";
+export const preferredRegion = "icn1";
 
 function getCurrentRank(raw: unknown): string | null {
   const ranks = getLzyumiRankRows(raw);

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { HubShell } from "../../_components/HubShell";
 
 export const revalidate = 60;
+export const preferredRegion = "icn1";
 
 type PlayerProfilePageProps = {
   params: Promise<{ slug: string }>;
