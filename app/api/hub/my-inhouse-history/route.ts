@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccountFromRequest } from "@/lib/account-auth";
+import { STARTING_ELO, applyInactivityDecay } from "@/lib/elo";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
 import { prisma } from "@/lib/prisma";
-import { getRankedSeason, rankedSeasonState } from "@/lib/ranked-season";
-import { getInhouseLeaderboardRows } from "@/lib/inhouse-leaderboard";
+import { getRankedSeason, rankedSeasonState, type RankedSeason } from "@/lib/ranked-season";
 import { inhouseRawPlayer, inhouseChampionId, normalizeInhouseRole, inhouseScoreboardMetrics } from "@/lib/inhouse-player-display";
 import {
   normalizeRiotPart,
@@ -20,6 +20,52 @@ function clamp(value: number) {
 
 function average(values: number[]) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+async function getLightweightRank(playerId: string, season: RankedSeason | null) {
+  const stats = await prisma.matchGamePlayerStat.findMany({
+    where: {
+      ...INHOUSE_MATCH_FILTER,
+      ...(season ? { createdAt: { gte: season.startedAt } } : {}),
+    },
+    select: {
+      id: true,
+      playerId: true,
+      createdAt: true,
+      isWin: true,
+      lpChange: true,
+      eloAfter: true,
+      player: { select: { name: true } },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  });
+
+  const grouped = new Map<string, typeof stats>();
+  for (const stat of stats) {
+    const playerStats = grouped.get(stat.playerId) ?? [];
+    playerStats.push(stat);
+    grouped.set(stat.playerId, playerStats);
+  }
+
+  const ladder = [...grouped.entries()]
+    .map(([id, playerStats]) => {
+      const state = season ? rankedSeasonState(playerStats, season) : null;
+      const latest = playerStats[0];
+      const storedElo = latest?.eloAfter ?? playerStats
+        .slice()
+        .reverse()
+        .reduce((elo, stat) => elo + stat.lpChange, STARTING_ELO);
+      return {
+        playerId: id,
+        name: latest?.player.name ?? "",
+        games: state?.gamesPlayed ?? playerStats.length,
+        elo: state?.displayElo ?? applyInactivityDecay(storedElo, latest?.createdAt),
+      };
+    })
+    .sort((a, b) => b.elo - a.elo || b.games - a.games || a.name.localeCompare(b.name));
+
+  const index = ladder.findIndex((entry) => entry.playerId === playerId);
+  return index >= 0 ? index + 1 : null;
 }
 
 export async function GET(request: NextRequest) {
@@ -169,19 +215,7 @@ export async function GET(request: NextRequest) {
     .sort((a, b) => b.games - a.games || b.wins - a.wins)
     .slice(0, 5);
 
-  const rankedPlayers = season ? [] : await prisma.player.findMany({
-    select: {
-      id: true,
-      name: true,
-      elo: true,
-      gameStats: { where: INHOUSE_MATCH_FILTER, select: { id: true } },
-    },
-  });
-  const ladder = rankedPlayers
-    .filter((entry) => entry.gameStats.length > 0)
-    .sort((a, b) => b.elo - a.elo || b.gameStats.length - a.gameStats.length || a.name.localeCompare(b.name));
-  const seasonLadder = season ? await getInhouseLeaderboardRows(season) : null;
-  const rankIndex = seasonLadder ? seasonLadder.findIndex(entry => entry.playerId === player.id) : ladder.findIndex((entry) => entry.id === player.id);
+  const rank = await getLightweightRank(player.id, season);
 
   const winStreak = seasonState?.winStreak ?? player.winStreak;
   const lossStreak = seasonState?.lossStreak ?? player.lossStreak;
@@ -198,7 +232,7 @@ export async function GET(request: NextRequest) {
     season: season ? { id: season.id, name: season.name, startedAt: season.startedAt.toISOString(), historyScope: "all-time", summaryScope: "season" } : null,
     summary: {
       elo: seasonState?.displayElo ?? player.elo,
-      rank: rankIndex >= 0 ? rankIndex + 1 : null,
+      rank,
       games: summaryStats.length,
       wins,
       losses,
