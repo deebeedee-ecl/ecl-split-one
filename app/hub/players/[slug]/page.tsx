@@ -68,9 +68,29 @@ function publicLzyumiProfile(value: unknown) {
         })
         .filter((row): row is NonNullable<typeof row> => Boolean(row))
     : [];
+  const games = Array.isArray(root.data)
+    ? root.data
+        .map((entry) => {
+          const game = asRecord(entry);
+          if (!game) return null;
+          return {
+            championId:
+              typeof game.championId === "string" || typeof game.championId === "number"
+                ? game.championId
+                : undefined,
+            isWin: typeof game.isWin === "number" ? game.isWin : undefined,
+            wasMvp: typeof game.wasMvp === "string" ? game.wasMvp : undefined,
+            wasSvp: typeof game.wasSvp === "string" ? game.wasSvp : undefined,
+            title: typeof game.title === "string" ? game.title : undefined,
+            titleTime: typeof game.titleTime === "string" ? game.titleTime : undefined,
+          };
+        })
+        .filter((game): game is NonNullable<typeof game> => Boolean(game))
+    : [];
 
   return {
     ...publicSnapshotMetadata(root),
+    data: games,
     battleInfo: { mapOneInfoList: rows },
   };
 }

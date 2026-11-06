@@ -194,6 +194,27 @@ function getSeasonChampStats(recentStatRaw: unknown): SeasonChampStat[] {
     .sort((a, b) => b.plays - a.plays);
 }
 
+/** Count champions from the fresh filter=1 match list when recent-stat is unavailable. */
+function getRecentChampionStats(rawProfile: unknown): SeasonChampStat[] {
+  if (!rawProfile || typeof rawProfile !== "object") return [];
+  const games = (rawProfile as { data?: unknown }).data;
+  if (!Array.isArray(games)) return [];
+
+  const counts = new Map<string, number>();
+  for (const game of games) {
+    if (!game || typeof game !== "object") continue;
+    const championId = (game as { championId?: unknown }).championId;
+    if (typeof championId !== "string" && typeof championId !== "number") continue;
+    const id = String(championId).trim();
+    if (!id) continue;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .map(([id, plays]) => ({ id, plays }))
+    .sort((a, b) => b.plays - a.plays || a.id.localeCompare(b.id));
+}
+
 /** Get KDA + per-queue win rates from lzyumiRawProfile + lzyumiRecentStat */
 function getSeasonStats(rawProfile: unknown, recentStatRaw: unknown): SeasonStats {
   // KDA from recentStat
@@ -333,6 +354,66 @@ function shouldRefreshStats(profile: AccountProfile) {
   return Date.now() - lastLookupAt > STATS_REFRESH_INTERVAL_MS;
 }
 
+async function fetchJsonWithTimeout(url: string, timeoutMs = 15000) {
+  const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+  if (!response.ok) throw new Error(`ECL.GG request failed (${response.status})`);
+  return response.json();
+}
+
+async function refreshLzyumiProfile(profile: AccountProfile) {
+  const token = await getAccessToken();
+  if (!token) throw new Error("Your session expired. Please log in again.");
+
+  const nickname = profile.riotTag
+    ? `${profile.riotName}#${profile.riotTag}`
+    : profile.riotName;
+  const areaId = profile.chinaServerId;
+  const signResponses = await Promise.all([
+    fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=1&allCount=10`),
+    fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=2&allCount=20`),
+    fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=3&allCount=20`),
+  ]);
+  if (signResponses.some((response) => !response.ok)) {
+    throw new Error("Could not prepare the ECL.GG lookup.");
+  }
+
+  const signed = await Promise.all(signResponses.map((response) => response.json()));
+  const urls = signed.map((entry) =>
+    entry && typeof entry.url === "string" ? entry.url : null,
+  );
+  if (urls.some((url) => !url)) throw new Error("ECL.GG returned an invalid lookup URL.");
+
+  const [rawProfile, rawSolo, rawFlex] = await Promise.all(
+    urls.map((url) => fetchJsonWithTimeout(url!)),
+  );
+  if (!rawProfile?.battleInfo) {
+    const message = typeof rawProfile?.message === "string" ? rawProfile.message : null;
+    throw new Error(
+      message ?? "Account not found on ECL.GG. Check your Riot name and server in profile settings.",
+    );
+  }
+
+  const saveResponse = await fetch("/api/hub/refresh-my-profile", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      rawProfile,
+      recentStat: null,
+      soloGames: Array.isArray(rawSolo?.data) ? rawSolo.data : [],
+      flexGames: Array.isArray(rawFlex?.data) ? rawFlex.data : [],
+    }),
+  });
+  if (!saveResponse.ok) {
+    const { message } = await saveResponse.json().catch(() => ({}));
+    throw new Error(message ?? `Save failed (${saveResponse.status})`);
+  }
+
+  return loadProfile();
+}
+
 export default function PlayerProfileView({
   initialProfile,
   showPersonalMatchPreview = true,
@@ -357,23 +438,28 @@ export default function PlayerProfileView({
   const router = useRouter();
 
   useEffect(() => {
-    if (initialProfile) return;
+    let cancelled = false;
 
     async function boot() {
-      setLoading(true);
-      setLoadedProfile(null);
+      if (!initialProfile) {
+        setLoading(true);
+        setLoadedProfile(null);
+      }
 
       const { data } = await supabase.auth.getSession();
-      setHasSession(Boolean(data.session));
+      if (!initialProfile) setHasSession(Boolean(data.session));
 
       if (data.session) {
         await flushPendingProfile().catch(() => null);
         const loaded = await loadProfile();
-        setLoadedProfile(loaded);
+        const isOwnProfilePage = !initialProfile;
+        const isPublicOwner = Boolean(initialProfile && loaded?.id === initialProfile.id);
+        if (!cancelled && (isOwnProfilePage || isPublicOwner)) setLoadedProfile(loaded);
 
         // Auto-refresh when stats are missing or the cached snapshot is stale.
         // Uses browser-based lzyumi fetch (user's residential IP, bypasses cloud IP block).
         if (
+          (isOwnProfilePage || isPublicOwner) &&
           loaded &&
           shouldRefreshStats(loaded) &&
           loaded.riotName &&
@@ -382,81 +468,29 @@ export default function PlayerProfileView({
           setRefreshingStats(true);
           setStatRefreshError("");
           try {
-            const token = await getAccessToken();
-            if (!token) throw new Error("no token");
+            const refreshed = await refreshLzyumiProfile(loaded);
 
-            const nickname = loaded.riotTag
-              ? `${loaded.riotName}#${loaded.riotTag}`
-              : loaded.riotName;
-            const areaId = loaded.chinaServerId;
-
-            // Get signed URLs for all three filters in parallel
-            const [signRes1, signRes2, signRes3] = await Promise.all([
-              fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=1&allCount=10`),
-              fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=2&allCount=20`),
-              fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=3&allCount=20`),
-            ]);
-
-            const [{ url: url1 }, { url: url2 }, { url: url3 }] = await Promise.all([
-              signRes1.json(), signRes2.json(), signRes3.json(),
-            ]);
-
-            // Fetch directly from lzyumi using browser IP
-            const [raw1, raw2, raw3] = await Promise.all([
-              fetch(url1).then((r) => r.json()),
-              fetch(url2).then((r) => r.json()),
-              fetch(url3).then((r) => r.json()),
-            ]);
-
-            const soloGames = Array.isArray(raw2?.data) ? raw2.data : [];
-            const flexGames = Array.isArray(raw3?.data) ? raw3.data : [];
-
-            if (raw1?.battleInfo) {
-              const openId = typeof raw1.battleInfo.openId === "string" ? raw1.battleInfo.openId : "";
-              let recentStat = null;
-              if (openId) {
-                const recentSignRes = await fetch(
-                  `/api/lzyumi-sign?type=recent&openId=${encodeURIComponent(openId)}&areaId=${areaId}`,
-                );
-                const { url: recentUrl } = await recentSignRes.json();
-                recentStat = await fetch(recentUrl)
-                  .then((r) => (r.ok ? r.json() : null))
-                  .catch(() => null);
-              }
-
-              const saveRes = await fetch("/api/hub/refresh-my-profile", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ rawProfile: raw1, recentStat, soloGames, flexGames }),
-              });
-              if (!saveRes.ok) {
-                const { message } = await saveRes.json().catch(() => ({}));
-                throw new Error(message ?? `Save failed (${saveRes.status})`);
-              }
-              setLoadedProfile(await loadProfile());
+            if (refreshed) {
+              if (!cancelled) setLoadedProfile(refreshed);
             } else {
-              // lzyumi returned no profile — wrong server, unrecognised account, etc.
-              const lzyumiMsg = typeof raw1?.message === "string" ? raw1.message : null;
-              throw new Error(
-                lzyumiMsg ?? "Account not found on ECL.GG. Check your Riot name and server in your profile settings."
-              );
+              throw new Error("The refreshed profile could not be loaded.");
             }
           } catch (err) {
             const msg = err instanceof Error ? err.message : "Stats refresh failed";
-            setStatRefreshError(msg);
+            if (!cancelled) setStatRefreshError(msg);
           } finally {
-            setRefreshingStats(false);
+            if (!cancelled) setRefreshingStats(false);
           }
         }
       }
 
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     }
 
     boot();
+    return () => {
+      cancelled = true;
+    };
   }, [initialProfile]);
 
   useEffect(() => {
@@ -494,7 +528,7 @@ export default function PlayerProfileView({
     return () => window.clearInterval(interval);
   }, []);
 
-  const profile = initialProfile ?? loadedProfile;
+  const profile = loadedProfile ?? initialProfile;
 
   // Auto-report when opened via bot link (?autoreport=1) — redirect to confirm page
   useEffect(() => {
@@ -549,7 +583,9 @@ export default function PlayerProfileView({
     : [];
   const seasonChamps = hasValidatedRecentStat
     ? getSeasonChampStats(profile.lzyumiRecentStat)
-    : [];
+    : hasValidatedProfileSnapshot
+      ? getRecentChampionStats(profile.lzyumiRawProfile)
+      : [];
   const seasonStats = getSeasonStats(
     hasValidatedProfileSnapshot ? profile.lzyumiRawProfile : null,
     hasValidatedRecentStat ? profile.lzyumiRecentStat : null,
@@ -902,9 +938,9 @@ function ChampionsPanel({
             <Sparkles className="text-[#ff1728]" size={20} />
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6b7280]">
-                ECL.GG snapshot · Reported stats
+                ECL.GG snapshot · Recent games
               </p>
-              <h2 className="text-lg font-black text-white">Reported Champions</h2>
+              <h2 className="text-lg font-black text-white">Recent Champions</h2>
             </div>
           </div>
 
