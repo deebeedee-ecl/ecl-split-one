@@ -104,6 +104,21 @@ export async function GET(request: NextRequest) {
 
   if (!player) return NextResponse.json({ games: [], summary: null });
 
+  const season = getRankedSeason();
+  // Start independent reads together. The history query contains OCR payloads,
+  // so waiting for season totals and ladder rank afterwards added several DB
+  // round trips to every profile visit.
+  const rankPromise = statId
+    ? Promise.resolve<number | null>(null)
+    : getLightweightRank(player.id, season);
+  const seasonStatsPromise = !statId && season
+    ? prisma.matchGamePlayerStat.findMany({
+        where: { playerId: player.id, ...INHOUSE_MATCH_FILTER, createdAt: { gte: season.startedAt } },
+        select: { id: true, createdAt: true, isWin: true, lpChange: true, kills: true, deaths: true, assists: true, isMVP: true, isSVP: true },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      })
+    : Promise.resolve(null);
+
   const stats = await prisma.matchGamePlayerStat.findMany({
     where: { playerId: player.id, ...INHOUSE_MATCH_FILTER },
     select: {
@@ -148,14 +163,9 @@ export async function GET(request: NextRequest) {
     }) } }, { headers: { "Cache-Control": "private, no-store" } });
   }
 
-  const season = getRankedSeason();
   // History stays at its existing latest-100 limit across seasons. Season totals
   // use all current-season metadata; role/champion samples use the latest 100.
-  const seasonStats = season ? await prisma.matchGamePlayerStat.findMany({
-    where: { playerId: player.id, ...INHOUSE_MATCH_FILTER, createdAt: { gte: season.startedAt } },
-    select: { id: true, createdAt: true, isWin: true, lpChange: true, kills: true, deaths: true, assists: true, isMVP: true, isSVP: true },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-  }) : null;
+  const seasonStats = await seasonStatsPromise;
   const seasonState = season && seasonStats ? rankedSeasonState(seasonStats, season) : null;
   const enriched = stats.map((stat) => {
     const raw = inhouseRawPlayer(stat.matchGame.ocrRawJson, stat.riotName ?? player.riotName, stat.riotTag ?? player.riotTag);
@@ -215,7 +225,7 @@ export async function GET(request: NextRequest) {
     .sort((a, b) => b.games - a.games || b.wins - a.wins)
     .slice(0, 5);
 
-  const rank = await getLightweightRank(player.id, season);
+  const rank = await rankPromise;
 
   const winStreak = seasonState?.winStreak ?? player.winStreak;
   const lossStreak = seasonState?.lossStreak ?? player.lossStreak;
