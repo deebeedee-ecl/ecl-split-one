@@ -6,6 +6,7 @@ import {
   LzyumiSnapshotValidationError,
   markValidatedLzyumiSnapshot,
   normalizeLzyumiRankedGames,
+  shouldRefreshLzyumiSnapshots,
   validateLzyumiSnapshotIdentity,
 } from "../lib/lzyumi-snapshot";
 
@@ -91,4 +92,21 @@ test("marks only newly validated snapshots as displayable", () => {
   const marked = markValidatedLzyumiSnapshot(validProfile, new Date("2026-11-06T14:00:00.000Z"));
   assert.equal(isValidatedLzyumiSnapshot(marked), true);
   assert.equal(marked._eclFetchedAt, "2026-11-06T14:00:00.000Z");
+});
+
+test("refreshes missing, legacy, and stale snapshots but keeps a fresh pair", () => {
+  const now = new Date("2026-11-07T12:00:00.000Z").getTime();
+  const raw = markValidatedLzyumiSnapshot(validProfile);
+  const ranked = normalizeLzyumiRankedGames([], []);
+
+  assert.equal(shouldRefreshLzyumiSnapshots(null, ranked, new Date(now), now), true);
+  assert.equal(shouldRefreshLzyumiSnapshots(validProfile, ranked, new Date(now), now), true);
+  assert.equal(
+    shouldRefreshLzyumiSnapshots(raw, ranked, "2026-11-07T01:00:01.000Z", now),
+    false,
+  );
+  assert.equal(
+    shouldRefreshLzyumiSnapshots(raw, ranked, "2026-11-07T00:00:00.000Z", now),
+    true,
+  );
 });
