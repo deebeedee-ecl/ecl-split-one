@@ -15,6 +15,7 @@ const {
   mapWithConcurrency,
   retryProviderCode,
 } = require("./async-utils.cjs");
+const { collectLzyumiHistoryResponses } = require("./lzyumi-history.cjs");
 
 const SITE_URL = process.env.ECL_SITE_URL || "https://eclchina.lol";
 const REPORT_ENGINE_SECRET = process.env.ECL_REPORT_ENGINE_SECRET || process.env.ECL_JOB_SECRET || process.env.ECL_KOOK_BOT_SECRET;
@@ -66,6 +67,7 @@ const LZYUMI_PLAYER_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_PLAYER
 const LZYUMI_DETAIL_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_DETAIL_CONCURRENCY || 2);
 const LZYUMI_CODE_7_RETRIES = Number(process.env.REPORT_ENGINE_LZYUMI_CODE_7_RETRIES || 2);
 const LZYUMI_CODE_7_BACKOFF_MS = Number(process.env.REPORT_ENGINE_LZYUMI_CODE_7_BACKOFF_MS || 1000);
+const LZYUMI_MALFORMED_RETRIES = Number(process.env.REPORT_ENGINE_LZYUMI_MALFORMED_RETRIES || 1);
 const REPORT_CANDIDATE_LIMIT = Number(process.env.REPORT_ENGINE_CANDIDATE_LIMIT || 24);
 const REQUIRED_MATCHES = Number(process.env.REPORT_ENGINE_REQUIRED_MATCHES || 8);
 const REPORT_GAME_EARLY_GRACE_MS = Number(process.env.REPORT_ENGINE_EARLY_GRACE_MINUTES || 10) * 60 * 1000;
@@ -1003,10 +1005,19 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
     if (seenAttempts.has(attemptKey)) continue;
     seenAttempts.add(attemptKey);
 
-    const runAttempt = () => mapWithConcurrency(
-      LZYUMI_FILTERS,
-      LZYUMI_HISTORY_CONCURRENCY,
-      (filter) => retryProviderCode(() => {
+    const runAttempt = () => collectLzyumiHistoryResponses({
+      filters: LZYUMI_FILTERS,
+      concurrency: LZYUMI_HISTORY_CONCURRENCY,
+      malformedRetries: LZYUMI_MALFORMED_RETRIES,
+      resetBrowserSession,
+      onMalformed: ({ attempt: retryAttempt, willRetry, responses: malformedResponses }) => {
+        console.warn(`[lzyumi-history] incomplete response ${JSON.stringify({
+          retryAttempt,
+          willRetry,
+          responses: malformedResponses,
+        })}`);
+      },
+      fetchHistory: (filter) => retryProviderCode(() => {
         const url = lzyumiInfoUrl({ ...attempt, areaId, filter });
         return lzyumiFetch(url)
           .then((response) => {
@@ -1050,7 +1061,7 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
           delayMs,
         }),
       }),
-    );
+    });
 
     let responses = await runAttempt();
     const hasData = responses.some(

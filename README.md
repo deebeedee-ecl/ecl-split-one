@@ -162,6 +162,10 @@ Provider application code `7` is retried twice with a short increasing delay. Th
 defaults can be tuned with the `REPORT_ENGINE_LZYUMI_*_CONCURRENCY`,
 `REPORT_ENGINE_LZYUMI_CODE_7_RETRIES`, and `REPORT_ENGINE_LZYUMI_CODE_7_BACKOFF_MS`
 variables, but higher concurrency can trigger provider-side throttling.
+Malformed history responses refresh the browser session and retry once by default.
+The retry count can be tuned with `REPORT_ENGINE_LZYUMI_MALFORMED_RETRIES`.
+Diagnostics record only response shape metadata (application code, top-level keys,
+and data type), never raw provider payloads, tokens, cookies, or player identifiers.
 
 To build the worker container from the repository root:
 
