@@ -16,6 +16,7 @@ const {
   retryProviderCode,
 } = require("./async-utils.cjs");
 const { collectLzyumiHistoryResponses } = require("./lzyumi-history.cjs");
+const { findFirstRecentGameSource } = require("./report-sources.cjs");
 
 const SITE_URL = process.env.ECL_SITE_URL || "https://eclchina.lol";
 const REPORT_ENGINE_SECRET = process.env.ECL_REPORT_ENGINE_SECRET || process.env.ECL_JOB_SECRET || process.env.ECL_KOOK_BOT_SECRET;
@@ -63,7 +64,6 @@ const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
 const LZYUMI_ALL_COUNT = Number(process.env.REPORT_ENGINE_LZYUMI_ALL_COUNT || 10);
 const LZYUMI_HISTORY_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_HISTORY_CONCURRENCY || 2);
-const LZYUMI_PLAYER_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_PLAYER_CONCURRENCY || 1);
 const LZYUMI_DETAIL_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_DETAIL_CONCURRENCY || 2);
 const LZYUMI_CODE_7_RETRIES = Number(process.env.REPORT_ENGINE_LZYUMI_CODE_7_RETRIES || 2);
 const LZYUMI_CODE_7_BACKOFF_MS = Number(process.env.REPORT_ENGINE_LZYUMI_CODE_7_BACKOFF_MS || 1000);
@@ -1360,7 +1360,8 @@ function findDetailPlayerForSource(source, detail) {
 }
 
 async function debugCheckPlayer() {
-  const riot = cliValue("--check-player") || cliValue("--wegame-check-player");
+  const reporterFirstProbe = process.argv.includes("--check-reporter-first");
+  const riot = cliValue("--check-reporter-first") || cliValue("--check-player") || cliValue("--wegame-check-player");
   const areaId = Number(cliValue("--area-id", "1")) || 1;
   const limit = Number(cliValue("--limit", "8")) || 8;
   const openId = cliValue("--open-id");
@@ -1377,7 +1378,24 @@ async function debugCheckPlayer() {
     chinaServerId: areaId,
     openId: openId || null,
   };
-  const source = await fetchRecentGamesForPlayer(player);
+  let source;
+  if (reporterFirstProbe) {
+    const fallbackPlayer = {
+      displayName: "ECL Diagnostic Fallback",
+      riotName: "ECLDiagnosticNoSuchPlayer",
+      riotTag: "00000",
+      chinaServerId: areaId,
+      openId: null,
+    };
+    const lookup = await findFirstRecentGameSource({
+      players: [player, fallbackPlayer],
+      fetchSource: fetchRecentGamesForPlayer,
+    });
+    source = lookup.source;
+    console.log(`Reporter-first probe checked ${lookup.checked} player(s) before selecting a source.`);
+  } else {
+    source = await fetchRecentGamesForPlayer(player);
+  }
 
   if (!source) {
     console.log(`No recent ECL.GG games found for ${riot || name} on area ${areaId}.`);
@@ -1480,14 +1498,24 @@ async function findMatchingGame(job) {
     ...players.filter((player) => player.kookUserId === job.requestedByKookId),
     ...players.filter((player) => player.kookUserId !== job.requestedByKookId),
   ];
-  const sources = (
-    await mapWithConcurrency(searchPlayers, LZYUMI_PLAYER_CONCURRENCY, fetchRecentGamesForPlayer)
-  ).filter(Boolean);
+  const sourceLookup = await findFirstRecentGameSource({
+    players: searchPlayers,
+    fetchSource: fetchRecentGamesForPlayer,
+    onLookupError: ({ error, playerIndex, reporter }) => {
+      console.warn(`[lzyumi-player] source lookup failed ${JSON.stringify({
+        playerIndex,
+        reporter,
+        code: error instanceof LzyumiResponseError ? error.code : null,
+        reason: error instanceof LzyumiResponseError ? error.reason : null,
+      })}`);
+    },
+  });
+  const sources = sourceLookup.source ? [sourceLookup.source] : [];
   const gamesById = new Map();
 
   if (sources.length === 0) {
     throw new Error(
-      `No recent ECL.GG games were found for this inhouse roster. Checked ${searchPlayers.length} players, but the configured match source returned no recent game lists.`,
+      `No recent ECL.GG games were found for this inhouse roster. Checked ${sourceLookup.checked} prioritized players (${sourceLookup.failures} lookup failures), but the configured match source returned no recent game lists.`,
     );
   }
 
@@ -1502,7 +1530,7 @@ async function findMatchingGame(job) {
 
   if (gamesById.size === 0) {
     throw new Error(
-      `No unreported ECL.GG games were found for this inhouse roster. The configured match source returned games for ${sources.length}/${searchPlayers.length} players, but they were already reported or missing game IDs.`,
+      `No unreported ECL.GG games were found from the prioritized reporter/fallback history after checking ${sourceLookup.checked} player(s); the games were already reported or missing game IDs.`,
     );
   }
 
@@ -1697,7 +1725,11 @@ if (process.argv.includes("--probe-network")) {
     console.error(error.message || error);
     process.exitCode = 1;
   });
-} else if (process.argv.includes("--check-player") || process.argv.includes("--wegame-check-player")) {
+} else if (
+  process.argv.includes("--check-reporter-first") ||
+  process.argv.includes("--check-player") ||
+  process.argv.includes("--wegame-check-player")
+) {
   debugCheckPlayer().catch((error) => {
     console.error(error.message || error);
     process.exitCode = 1;
