@@ -31,6 +31,8 @@ npm run perf:hub -- `
 
 The default route set is Dashboard, My Profile, Account Settings, Players, Ranked Ladder, Champions, and Inhouses. Use `--routes dashboard,players` to run a subset. Output belongs in `.tmp/`, which is ignored by Git.
 
+Every HTTP and browser sample sends a newly generated `X-ECL-Performance-Request-ID`. The sanitized artifact stores that random ID so an operator can correlate one sample with the matching structured server log without using an account ID, URL query, cookie, or provider identifier.
+
 For an authenticated browser pass, create a short-lived local Playwright storage-state file under `.tmp/`; never commit, paste, or attach it:
 
 ```powershell
@@ -106,10 +108,46 @@ These are reviewable starting guardrails based on the 2026-11-07 spot evidence, 
 
 The script reports budget failures but exits successfully. Issue #5 can turn stable, reviewed budgets into a CI artifact or blocking regression check later.
 
+## Named server and database timing
+
+The expensive server-rendered read paths for Players, Ranked Ladder, Champions, and Inhouses emit one structured `ecl.performance` server-log record per render. The authenticated profile bootstrap (`GET /api/account/profile`) and inhouse-history read (`GET /api/hub/my-inhouse-history`) emit the same record. Their private/uncached responses also return sanitized `Server-Timing` plus `X-ECL-Performance-Request-ID` headers; per-request headers are intentionally omitted from publicly cacheable responses so a CDN cannot replay a stale correlation ID.
+
+Each record contains only:
+
+- the allowlisted route name and random request correlation ID;
+- success/error outcome, HTTP status when available, named phase durations, and total duration;
+- Prisma model plus operation name, query count, combined query time, and queries at or above the 250 ms slow-query threshold.
+
+The instrumentation never records SQL text, query arguments, response bodies, raw errors, cookies, tokens, account/profile/player IDs, Riot IDs, KOOK IDs, URL queries, or provider payloads. A failed operation records only `outcome: "error"` and timing metadata.
+
+The page render log is authoritative for database/post-routing phases because a Server Component cannot append a response header after Next.js has serialized the page. For instrumented API reads, the benchmark/browser can also inspect the `Server-Timing` response header. Use the request ID to join the client sample and server log; do not add identity fields to make correlation easier.
+
+Example shape with synthetic durations:
+
+```json
+{
+  "schemaVersion": 1,
+  "event": "ecl.performance",
+  "requestId": "perf-00000000-0000-4000-8000-000000000000",
+  "route": "hub.players.page",
+  "outcome": "ok",
+  "status": null,
+  "totalDurationMs": 125.4,
+  "phases": [{ "name": "database.profiles", "durationMs": 118.2 }],
+  "database": {
+    "queryCount": 1,
+    "totalDurationMs": 117.8,
+    "slowQueryThresholdMs": 250,
+    "slowQueryCount": 0,
+    "slowQueries": []
+  }
+}
+```
+
 ## Limitations and next evidence
 
 - This committed result is signed out. It measures route responses and the public/access-gate browser path, not authenticated Profile or Settings readiness.
 - It is one measurement series from one network/client. Compare medians across repeated preview and production runs before attributing small changes to code.
 - Network-idle is a practical readiness proxy, not a React hydration marker.
-- Query count, Prisma timing, authentication timing, provider timing, serialization, and request correlation are intentionally deferred to #28 PR 2.
+- Provider refresh timing is not added to the write/provider paths in this read-only instrumentation slice; no provider payload is observed or logged.
 - No application code, database state, provider state, KOOK state, or user data was changed by this baseline.

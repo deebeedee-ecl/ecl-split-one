@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "test": "tsx --test test/lzyumi-snapshot.test.ts",
+    "test": "tsx --test test/*.test.ts",
     "test:perf": "node --test test/hub-route-baseline.test.mjs",
     "perf:hub": "node scripts/performance/hub-route-baseline.mjs",
     "lint": "eslint",

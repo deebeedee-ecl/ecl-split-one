@@ -51,7 +51,9 @@ test("summarizes successful samples without letting errors skew percentiles", ()
 });
 
 test("follows only same-origin redirects and stores no query string", async () => {
+  let correlationId = "";
   const server = http.createServer((request, response) => {
+    correlationId = String(request.headers["x-ecl-performance-request-id"] ?? "");
     if (request.url === "/start") {
       response.writeHead(302, { Location: "/final?private=value" });
       response.end();
@@ -73,6 +75,8 @@ test("follows only same-origin redirects and stores no query string", async () =
     assert.equal(sample.status, 200);
     assert.equal(sample.finalPath, "/final");
     assert.equal(sample.redirectCount, 1);
+    assert.match(sample.requestId, /^perf-[a-f0-9-]{36}$/);
+    assert.equal(correlationId, sample.requestId);
     assert.equal(JSON.stringify(sample).includes("private=value"), false);
   } finally {
     await close(server);

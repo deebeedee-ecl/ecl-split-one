@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { Minus } from "lucide-react";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -16,6 +17,10 @@ import { HubShell } from "../_components/HubShell";
 import { riotIdKey } from "@/lib/riot-id";
 import LadderUnavailable from "./LadderUnavailable";
 import { getRankedSeason } from "@/lib/ranked-season";
+import {
+  PERFORMANCE_REQUEST_HEADER,
+  withPerformanceTrace,
+} from "@/lib/performance-timing";
 
 export const dynamic = "force-dynamic";
 
@@ -54,53 +59,59 @@ async function loadLadderData() {
 }
 
 export default async function RankedLadderPage() {
-  let data: Awaited<ReturnType<typeof loadLadderData>>;
-  try {
-    data = await loadLadderData();
-  } catch (error) {
-    const unavailable = error instanceof Prisma.PrismaClientInitializationError
-      || (error instanceof Prisma.PrismaClientKnownRequestError
-        && ["P1001", "P1002", "P1008", "P1017", "P2024"].includes(error.code));
-    if (!unavailable) throw error;
+  const requestHeaders = await headers();
+  return withPerformanceTrace({
+    route: "hub.leaderboard.page",
+    requestId: requestHeaders.get(PERFORMANCE_REQUEST_HEADER),
+  }, async (trace) => {
+    let data: Awaited<ReturnType<typeof loadLadderData>>;
+    try {
+      data = await trace.phase("server.read-model", loadLadderData);
+    } catch (error) {
+      const unavailable = error instanceof Prisma.PrismaClientInitializationError
+        || (error instanceof Prisma.PrismaClientKnownRequestError
+          && ["P1001", "P1002", "P1008", "P1017", "P2024"].includes(error.code));
+      if (!unavailable) throw error;
 
-    // Keep infrastructure details in server logs; do not substitute mock/empty standings.
-    console.warn("Ranked ladder database unavailable", error instanceof Prisma.PrismaClientInitializationError ? error.errorCode : error.code);
-    return (
-      <HubShell active="ladder" eyebrow="Ranked Inhouse" title="Ranked Ladder" description="ECL ranked inhouse standings.">
-        <LadderUnavailable />
-      </HubShell>
-    );
-  }
-  const { profiles, standings, season } = data;
-
-  // Build ladder rows from every reported ranked inhouse.
-  const ladderRows: LadderRow[] = standings
-    .map((p, index) => {
-      const playerRiotKey = riotIdKey(p.riotName, p.riotTag);
-      const profile = profiles.find(
-        (pr) => riotIdKey(pr.riotName, pr.riotTag) === playerRiotKey,
+      // Keep infrastructure details in server logs; do not substitute mock/empty standings.
+      console.warn("Ranked ladder database unavailable", error instanceof Prisma.PrismaClientInitializationError ? error.errorCode : error.code);
+      return (
+        <HubShell active="ladder" eyebrow="Ranked Inhouse" title="Ranked Ladder" description="ECL ranked inhouse standings.">
+          <LadderUnavailable />
+        </HubShell>
       );
-      const gamesPlayed = p.wins + p.losses;
-      return {
-        profileId: profile?.id ?? null,
-        rank: index + 1,
-        displayName: profile?.displayName ?? p.name,
-        riotId: p.riotName
-          ? p.riotTag
-            ? `${p.riotName}#${cleanTag(p.riotTag)}`
-            : p.riotName
-          : null,
-        elo: p.elo,
-        wins: p.wins,
-        losses: p.losses,
-        winRate: gamesPlayed === 0 ? "-" : `${Math.round((p.wins / gamesPlayed) * 100)}%`,
-        streak: p.streak,
-        primaryRole: normalizeHubRole(profile?.primaryRole),
-      };
-    });
+    }
+    const { profiles, standings, season } = data;
 
-  return (
-    <HubShell
+    // Build ladder rows from every reported ranked inhouse.
+    const ladderRows = trace.phaseSync("transform.rows", (): LadderRow[] =>
+      standings.map((p, index) => {
+        const playerRiotKey = riotIdKey(p.riotName, p.riotTag);
+        const profile = profiles.find(
+          (pr) => riotIdKey(pr.riotName, pr.riotTag) === playerRiotKey,
+        );
+        const gamesPlayed = p.wins + p.losses;
+        return {
+          profileId: profile?.id ?? null,
+          rank: index + 1,
+          displayName: profile?.displayName ?? p.name,
+          riotId: p.riotName
+            ? p.riotTag
+              ? `${p.riotName}#${cleanTag(p.riotTag)}`
+              : p.riotName
+            : null,
+          elo: p.elo,
+          wins: p.wins,
+          losses: p.losses,
+          winRate: gamesPlayed === 0 ? "-" : `${Math.round((p.wins / gamesPlayed) * 100)}%`,
+          streak: p.streak,
+          primaryRole: normalizeHubRole(profile?.primaryRole),
+        };
+      }),
+    );
+
+    return (
+      <HubShell
       active="ladder"
       eyebrow="Ranked Inhouse"
       title="Ranked Ladder"
@@ -215,8 +226,9 @@ export default async function RankedLadderPage() {
           </div>
         )}
       </section>
-    </HubShell>
-  );
+      </HubShell>
+    );
+  });
 }
 
 function TableHead({

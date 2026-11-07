@@ -9,6 +9,10 @@ import {
   normalizeRiotPart,
   normalizeRiotTag,
 } from "@/lib/riot-id";
+import {
+  PERFORMANCE_REQUEST_HEADER,
+  withPerformanceTrace,
+} from "@/lib/performance-timing";
 
 export const dynamic = "force-dynamic";
 export const preferredRegion = "icn1";
@@ -79,13 +83,19 @@ async function getLightweightRank(playerId: string, season: RankedSeason | null)
 }
 
 export async function GET(request: NextRequest) {
-  const requestedProfileId = request.nextUrl.searchParams.get("profileId")?.trim();
-  const statId = request.nextUrl.searchParams.get("statId");
-  if (statId && (requestedProfileId || !/^[a-zA-Z0-9_-]{1,128}$/.test(statId))) return NextResponse.json({ message: "Invalid match request" }, { status: 400 });
-  const account = requestedProfileId ? null : await getAccountFromRequest(request);
-  if (!requestedProfileId && !account) {
-    return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
-  }
+  return withPerformanceTrace({
+    route: "api.hub.my-inhouse-history.get",
+    requestId: request.headers.get(PERFORMANCE_REQUEST_HEADER),
+  }, async (trace) => {
+    const requestedProfileId = request.nextUrl.searchParams.get("profileId")?.trim();
+    const statId = request.nextUrl.searchParams.get("statId");
+    if (statId && (requestedProfileId || !/^[a-zA-Z0-9_-]{1,128}$/.test(statId))) return NextResponse.json({ message: "Invalid match request" }, { status: 400 });
+    const account = requestedProfileId
+      ? null
+      : await trace.phase("api.authentication", () => getAccountFromRequest(request));
+    if (!requestedProfileId && !account) {
+      return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
+    }
 
   const profile = await prisma.accountProfile.findFirst({
     where: requestedProfileId
@@ -247,32 +257,33 @@ export async function GET(request: NextRequest) {
   const scoreVariance = average(scores.map((score) => (score - scoreAverage) ** 2));
   const confidence = Math.min(1, summaryStats.length / 5);
 
-  return NextResponse.json({
-    games,
-    season: season ? { id: season.id, name: season.name, startedAt: season.startedAt.toISOString(), historyScope: "all-time", summaryScope: "season" } : null,
-    summary: {
-      elo: seasonState?.displayElo ?? player.elo,
-      rank,
-      games: summaryStats.length,
-      wins,
-      losses,
-      averageKda: Number(average(kdas).toFixed(2)),
-      mvps: summaryStats.filter((stat) => stat.isMVP).length,
-      svps: summaryStats.filter((stat) => stat.isSVP).length,
-      currentStreak,
-      streakLabel,
-      roleStats,
-      topChampions,
-      performance: [
-        { label: "Mechanics", value: clamp(average(kdas) * 18) },
-        { label: "Damage", value: clamp(average(summaryEnriched.map((game) => game.damage)) / 300) },
-        { label: "Teamplay", value: clamp(average(summaryEnriched.map((game) => game.participation))) },
-        { label: "Economy", value: clamp(average(summaryEnriched.map((game) => game.gold)) / 150) },
-        {
-          label: "Consistency",
-          value: clamp((100 - Math.sqrt(scoreVariance) * 15) * confidence),
-        },
-      ],
-    },
-  }, { headers: responseCacheHeaders(Boolean(requestedProfileId)) });
+    return trace.phaseSync("api.serialization", () => NextResponse.json({
+      games,
+      season: season ? { id: season.id, name: season.name, startedAt: season.startedAt.toISOString(), historyScope: "all-time", summaryScope: "season" } : null,
+      summary: {
+        elo: seasonState?.displayElo ?? player.elo,
+        rank,
+        games: summaryStats.length,
+        wins,
+        losses,
+        averageKda: Number(average(kdas).toFixed(2)),
+        mvps: summaryStats.filter((stat) => stat.isMVP).length,
+        svps: summaryStats.filter((stat) => stat.isSVP).length,
+        currentStreak,
+        streakLabel,
+        roleStats,
+        topChampions,
+        performance: [
+          { label: "Mechanics", value: clamp(average(kdas) * 18) },
+          { label: "Damage", value: clamp(average(summaryEnriched.map((game) => game.damage)) / 300) },
+          { label: "Teamplay", value: clamp(average(summaryEnriched.map((game) => game.participation))) },
+          { label: "Economy", value: clamp(average(summaryEnriched.map((game) => game.gold)) / 150) },
+          {
+            label: "Consistency",
+            value: clamp((100 - Math.sqrt(scoreVariance) * 15) * confidence),
+          },
+        ],
+      },
+    }, { headers: responseCacheHeaders(Boolean(requestedProfileId)) }));
+  });
 }
