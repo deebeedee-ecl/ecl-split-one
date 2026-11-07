@@ -1,10 +1,20 @@
 require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") });
 require("dotenv").config();
 
-const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
+const {
+  LzyumiResponseError,
+  assertLzyumiDetailResponse,
+  assertLzyumiHistoryResponse,
+  lzyumiDetailUrl: buildLzyumiDetailUrl,
+  lzyumiInfoUrl: buildLzyumiInfoUrl,
+} = require("./lzyumi-client.cjs");
+const {
+  mapWithConcurrency,
+  retryProviderCode,
+} = require("./async-utils.cjs");
 
 const SITE_URL = process.env.ECL_SITE_URL || "https://eclchina.lol";
 const REPORT_ENGINE_SECRET = process.env.ECL_REPORT_ENGINE_SECRET || process.env.ECL_JOB_SECRET || process.env.ECL_KOOK_BOT_SECRET;
@@ -32,7 +42,9 @@ const PROXY_URL = clean(process.env.REPORT_ENGINE_PROXY_URL);
 const PROXY_SERVER = clean(process.env.REPORT_ENGINE_PROXY_SERVER);
 const PROXY_USERNAME = clean(process.env.REPORT_ENGINE_PROXY_USERNAME);
 const PROXY_PASSWORD = clean(process.env.REPORT_ENGINE_PROXY_PASSWORD);
-const LZYUMI_BASE = clean(process.env.REPORT_ENGINE_LZYUMI_BASE) || "https://a.2025lol.top/lzyumi/lol";
+const LZYUMI_BASE = clean(process.env.REPORT_ENGINE_LZYUMI_BASE) || "https://l.lzyumi.top/lzyumi/lol";
+const LZYUMI_REFERER = clean(process.env.REPORT_ENGINE_LZYUMI_REFERER) ||
+  new URL("/vippc.html", LZYUMI_BASE).toString();
 const WEGAME_COOKIE = clean(process.env.REPORT_ENGINE_WEGAME_COOKIE);
 const WEGAME_BASE = clean(process.env.REPORT_ENGINE_WEGAME_BASE) ||
   "https://www.wegame.com.cn/api/v1/wegame.pallas.game.LolBattle";
@@ -49,6 +61,11 @@ const DEBUG_WEGAME = ["1", "true", "yes", "on"].includes(
 const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
 const LZYUMI_ALL_COUNT = Number(process.env.REPORT_ENGINE_LZYUMI_ALL_COUNT || 10);
+const LZYUMI_HISTORY_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_HISTORY_CONCURRENCY || 2);
+const LZYUMI_PLAYER_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_PLAYER_CONCURRENCY || 1);
+const LZYUMI_DETAIL_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_DETAIL_CONCURRENCY || 2);
+const LZYUMI_CODE_7_RETRIES = Number(process.env.REPORT_ENGINE_LZYUMI_CODE_7_RETRIES || 2);
+const LZYUMI_CODE_7_BACKOFF_MS = Number(process.env.REPORT_ENGINE_LZYUMI_CODE_7_BACKOFF_MS || 1000);
 const REPORT_CANDIDATE_LIMIT = Number(process.env.REPORT_ENGINE_CANDIDATE_LIMIT || 24);
 const REQUIRED_MATCHES = Number(process.env.REPORT_ENGINE_REQUIRED_MATCHES || 8);
 const REPORT_GAME_EARLY_GRACE_MS = Number(process.env.REPORT_ENGINE_EARLY_GRACE_MINUTES || 10) * 60 * 1000;
@@ -67,7 +84,7 @@ const CHINA_SERVERS = {
 const LZYUMI_HEADERS = {
   Accept: "application/json, text/plain, */*",
   "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,nl;q=0.6",
-  Referer: "https://a.2025lol.top/",
+  Referer: LZYUMI_REFERER,
   "Sec-CH-UA": '"Not=A?Brand";v="99", "Opera";v="135", "Chromium";v="151"',
   "Sec-CH-UA-Mobile": "?0",
   "Sec-CH-UA-Platform": '"Windows"',
@@ -85,7 +102,6 @@ let wegameTicketState = null;
 let wegameTicketPromise = null;
 const INVISIBLE_CONTROL_PATTERN = /[\p{Cc}\p{Cf}]/gu;
 const RIOT_KEY_SPACING_PATTERN = /[\s\p{Zs}\u1160\uFFA0]+/gu;
-const LZYUMI_RIOT_TAG_ISOLATE = "\u2066";
 
 function clean(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -240,20 +256,6 @@ function debugLzyumi(label, detail) {
   console.log(`[lzyumi-debug] ${label} ${JSON.stringify(detail)}`);
 }
 
-function createLzyumiSignature() {
-  const china = new Date(Date.now() + 8 * 60 * 60 * 1000);
-  const month = String(china.getUTCMonth() + 1);
-  const day = String(china.getUTCDate());
-  const hours = String(china.getUTCHours());
-  const minutes = String(china.getUTCMinutes());
-  const seconds = String(china.getUTCSeconds());
-  const signSource = `dld${month.padStart(2, "0")}o${day.padStart(2, "0")}u${hours.padStart(2, "0")}d${minutes.padStart(2, "0")}o${seconds.padStart(2, "0")}dld`;
-  return {
-    lzyumiSign: crypto.createHash("md5").update(signSource).digest("hex"),
-    signStr: `${month}${day}${hours}${minutes}${seconds}${month.length * 3}${day.length * 3}${hours.length * 3}${minutes.length * 3}${seconds.length * 3}`,
-  };
-}
-
 async function lzyumiFetchDirect(url) {
   const agent = nodeProxyAgent();
   const response = await axios.get(url, {
@@ -310,7 +312,7 @@ async function getBrowserPage() {
   if (!browserPagePromise) {
     browserPagePromise = browserContextPromise.then(async (context) => {
       const page = context.pages()[0] || await context.newPage();
-      await page.goto("https://a.2025lol.top/", {
+      await page.goto(LZYUMI_REFERER, {
         waitUntil: "networkidle",
         timeout: LZYUMI_TIMEOUT_MS,
       }).catch(() => null);
@@ -484,13 +486,13 @@ async function lzyumiLogin() {
       'input[type="submit"]',
       'input[type="button"]',
       '[role="button"]',
-      'a:has-text("登录")',
-      'button:has-text("登录")',
-      'div:has-text("登录")',
+      'a:has-text("??")',
+      'button:has-text("??")',
+      'div:has-text("??")',
       `div:text-is("${LZYUMI_LOGIN_TARGET}")`,
       `span:text-is("${LZYUMI_LOGIN_TARGET}")`,
       `a:text-is("${LZYUMI_LOGIN_TARGET}")`,
-      'input[value*="登录"]',
+      'input[value*="??"]',
       'button',
     ].join(", "),
   );
@@ -581,36 +583,27 @@ async function lzyumiFetch(url) {
 }
 
 function lzyumiInfoUrl({ nickname, openId, areaId, filter, allCount = LZYUMI_ALL_COUNT }) {
-  const { lzyumiSign, signStr } = createLzyumiSignature();
   const areaName = CHINA_SERVERS[areaId] || CHINA_SERVERS[1];
-  const encodedNickname = clean(nickname).replace(/#/g, `*~*~*${LZYUMI_RIOT_TAG_ISOLATE}`);
-  const params = [
-    `nickname=${encodeURIComponent(encodedNickname)}`,
-    `allCount=${allCount}`,
-    `areaId=${areaId}`,
-    `areaName=${encodeURIComponent(areaName)}`,
-    "seleMe=1",
-    `filter=${filter}`,
-    `openId=${encodeURIComponent(clean(openId))}`,
-    `lzyumiSign=${lzyumiSign}`,
-    `signStr=${signStr}`,
-  ];
-  if (LZYUMI_TOKENSTR) {
-    params.push(`lzyumitokenstr=${encodeURIComponent(LZYUMI_TOKENSTR)}`);
-  }
-
-  return `${LZYUMI_BASE}/info?${params.join("&")}`;
+  return buildLzyumiInfoUrl({
+    baseUrl: LZYUMI_BASE,
+    nickname,
+    openId,
+    areaId,
+    areaName,
+    filter,
+    allCount,
+    sessionToken: LZYUMI_TOKENSTR,
+  });
 }
 
 function lzyumiDetailUrl({ openId, gameId, areaId }) {
-  const { lzyumiSign, signStr } = createLzyumiSignature();
-  const url = new URL(`${LZYUMI_BASE}/info/findOrderDetailInfoAll`);
-  url.searchParams.set("openId", openId);
-  url.searchParams.set("gameId", gameId);
-  url.searchParams.set("areaId", String(areaId));
-  url.searchParams.set("lzyumiSign", lzyumiSign);
-  url.searchParams.set("signStr", signStr);
-  return url.toString();
+  return buildLzyumiDetailUrl({
+    baseUrl: LZYUMI_BASE,
+    openId,
+    gameId,
+    areaId,
+    sessionToken: LZYUMI_TOKENSTR,
+  });
 }
 
 function debugWeGame(label, detail) {
@@ -987,6 +980,10 @@ async function fetchRecentGamesForPlayerViaWeGame(player) {
 }
 
 async function fetchRecentGamesForPlayerViaLzyumi(player) {
+  if (!LZYUMI_TOKENSTR) {
+    throw new Error("Missing REPORT_ENGINE_LZYUMI_TOKENSTR for the configured Lzyumi match source.");
+  }
+
   const areaId = player.chinaServerId || 1;
   const savedOpenId = clean(player.openId);
   const lookupNames = [clean(player.riotName), riotId(player)].filter(Boolean);
@@ -1006,11 +1003,14 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
     if (seenAttempts.has(attemptKey)) continue;
     seenAttempts.add(attemptKey);
 
-    const runAttempt = () => Promise.all(
-      LZYUMI_FILTERS.map((filter) => {
+    const runAttempt = () => mapWithConcurrency(
+      LZYUMI_FILTERS,
+      LZYUMI_HISTORY_CONCURRENCY,
+      (filter) => retryProviderCode(() => {
         const url = lzyumiInfoUrl({ ...attempt, areaId, filter });
         return lzyumiFetch(url)
           .then((response) => {
+            const history = assertLzyumiHistoryResponse(response);
             debugLzyumi("info", {
               player: riotId(player) || clean(player.displayName),
               areaId,
@@ -1019,11 +1019,12 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
               tokenSupplied: Boolean(LZYUMI_TOKENSTR),
               nicknameSupplied: Boolean(clean(attempt.nickname)),
               openIdSupplied: Boolean(clean(attempt.openId)),
-              response: lzyumiResponseSummary(response),
+              response: lzyumiResponseSummary(history),
             });
-            return response;
+            return history;
           })
           .catch((error) => {
+            if (error instanceof LzyumiResponseError) throw error;
             debugLzyumi("info-error", {
               player: riotId(player) || clean(player.displayName),
               areaId,
@@ -1036,6 +1037,18 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
             });
             return null;
           });
+      }, {
+        code: "7",
+        retries: LZYUMI_CODE_7_RETRIES,
+        baseDelayMs: LZYUMI_CODE_7_BACKOFF_MS,
+        isMatch: (error) => error instanceof LzyumiResponseError && error.code === "7",
+        onRetry: ({ attempt: retryAttempt, delayMs }) => debugLzyumi("provider-busy-retry", {
+          player: riotId(player) || clean(player.displayName),
+          areaId,
+          filter,
+          retryAttempt,
+          delayMs,
+        }),
       }),
     );
 
@@ -1312,13 +1325,14 @@ async function fetchDetailForSource(source, game) {
     });
   }
 
-  return lzyumiFetch(
+  const detail = await lzyumiFetch(
     lzyumiDetailUrl({
       openId: source.openId,
       gameId: game.gameId,
       areaId: source.areaId,
     }),
   );
+  return assertLzyumiDetailResponse(detail);
 }
 
 function findDetailPlayerForSource(source, detail) {
@@ -1455,7 +1469,9 @@ async function findMatchingGame(job) {
     ...players.filter((player) => player.kookUserId === job.requestedByKookId),
     ...players.filter((player) => player.kookUserId !== job.requestedByKookId),
   ];
-  const sources = (await Promise.all(searchPlayers.map(fetchRecentGamesForPlayer))).filter(Boolean);
+  const sources = (
+    await mapWithConcurrency(searchPlayers, LZYUMI_PLAYER_CONCURRENCY, fetchRecentGamesForPlayer)
+  ).filter(Boolean);
   const gamesById = new Map();
 
   if (sources.length === 0) {
@@ -1504,10 +1520,25 @@ async function findMatchingGame(job) {
   }
 
   const checked = (
-    await Promise.all(
-      candidates.map(async ({ source, game }) => {
+    await mapWithConcurrency(
+      candidates,
+      LZYUMI_DETAIL_CONCURRENCY,
+      async ({ source, game }) => {
         try {
-          const detail = await fetchDetailForSource(source, game);
+          const detail = await retryProviderCode(
+            () => fetchDetailForSource(source, game),
+            {
+              code: "7",
+              retries: LZYUMI_CODE_7_RETRIES,
+              baseDelayMs: LZYUMI_CODE_7_BACKOFF_MS,
+              isMatch: (error) => error instanceof LzyumiResponseError && error.code === "7",
+              onRetry: ({ attempt: retryAttempt, delayMs }) => debugLzyumi("provider-busy-detail-retry", {
+                gameId: game.gameId,
+                retryAttempt,
+                delayMs,
+              }),
+            },
+          );
 
           return {
             source,
@@ -1519,7 +1550,7 @@ async function findMatchingGame(job) {
           console.error("Detail lookup failed", game.gameId, error.message);
           return null;
         }
-      }),
+      },
     )
   ).filter(Boolean);
 
@@ -1622,6 +1653,9 @@ async function main() {
 
   if (MATCH_SOURCE === "wegame" && !WEGAME_COOKIE) {
     throw new Error("Missing REPORT_ENGINE_WEGAME_COOKIE while REPORT_ENGINE_MATCH_SOURCE=wegame.");
+  }
+  if (MATCH_SOURCE === "lzyumi" && !LZYUMI_TOKENSTR) {
+    throw new Error("Missing REPORT_ENGINE_LZYUMI_TOKENSTR while REPORT_ENGINE_MATCH_SOURCE=lzyumi.");
   }
 
   console.log(
