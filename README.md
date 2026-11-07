@@ -99,7 +99,19 @@ npm run build               # Prisma generation and production build
 npm start                   # Serve an existing production build
 npx tsc --noEmit            # TypeScript check
 npm run lint                # ESLint
+npm run test:perf           # Focused Hub benchmark tests
 ```
+
+Run the read-only Hub cold/warm audit against a local or isolated preview target:
+
+```bash
+npm run perf:hub -- --base-url http://localhost:3000 --warm-runs 3 --output .tmp/hub-performance.json --markdown .tmp/hub-performance.md
+```
+
+Add `--browser` for Playwright navigation timings. Authenticated runs use a local
+ignored storage-state file and an approved test account; credentials and browser
+state must never be committed. The full method, route budgets, and first sanitized
+result are in [`docs/performance/HUB_BASELINE.md`](docs/performance/HUB_BASELINE.md).
 
 The repository currently has focused Node tests rather than a single root `test` script:
 

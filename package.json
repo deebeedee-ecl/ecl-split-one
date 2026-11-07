@@ -7,6 +7,8 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "test": "tsx --test test/lzyumi-snapshot.test.ts",
+    "test:perf": "node --test test/hub-route-baseline.test.mjs",
+    "perf:hub": "node scripts/performance/hub-route-baseline.mjs",
     "lint": "eslint",
     "postinstall": "prisma generate"
   },
@@ -43,6 +45,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
+    "playwright": "1.63.0",
     "prisma": "^6.19.2",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",

@@ -11,6 +11,7 @@ This directory separates durable product/architecture context from dated deliver
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Runtime boundaries, data ownership, core flows, trust boundaries, and known structural risks |
 | [`INTEGRATIONS.md`](INTEGRATIONS.md) | Lzyumi, KOOK, Supabase, report-engine, and companion contracts |
 | [`RUNBOOK.md`](RUNBOOK.md) | Safe local setup, verification, diagnostics, deployment boundaries, and documentation upkeep |
+| [`performance/HUB_BASELINE.md`](performance/HUB_BASELINE.md) | Reproducible Hub cold/warm measurement method, provisional budgets, and the initial sanitized baseline |
 | [`decisions/`](decisions/) | Accepted architectural decisions and their consequences |
 
 These documents describe the best verified current understanding. They should be updated when an approved change alters behavior, ownership, or an external contract.
