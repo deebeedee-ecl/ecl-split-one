@@ -6,10 +6,12 @@ const DEFAULT_LZYUMI_BASE_URL = "https://l.lzyumi.top/lzyumi/lol";
 const RIOT_TAG_SEPARATOR = "*~*~*\u2066";
 
 class LzyumiResponseError extends Error {
-  constructor(message, code = null) {
+  constructor(message, code = null, options = {}) {
     super(message);
     this.name = "LzyumiResponseError";
     this.code = code;
+    this.reason = options.reason || null;
+    this.responseShape = options.responseShape || null;
   }
 }
 
@@ -163,10 +165,35 @@ function assertApplicationSuccess(value, label) {
   }
 }
 
+function lzyumiResponseShape(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { type: Array.isArray(value) ? "array" : typeof value };
+  }
+
+  const code = ["string", "number", "boolean"].includes(typeof value.code)
+    ? String(value.code).slice(0, 32)
+    : null;
+
+  return {
+    type: "object",
+    keys: Object.keys(value).sort().slice(0, 24),
+    code,
+    dataType: Array.isArray(value.data) ? "array" : typeof value.data,
+    hasBattleInfo: Boolean(value.battleInfo && typeof value.battleInfo === "object"),
+  };
+}
+
 function assertLzyumiHistoryResponse(value) {
   assertApplicationSuccess(value, "history");
   if (!Array.isArray(value.data)) {
-    throw new LzyumiResponseError("Lzyumi history response is missing its data array.");
+    throw new LzyumiResponseError(
+      "Lzyumi history response is missing its data array.",
+      null,
+      {
+        reason: "malformed-history",
+        responseShape: lzyumiResponseShape(value),
+      },
+    );
   }
   return value;
 }
@@ -192,6 +219,7 @@ module.exports = {
   assertLzyumiDetailResponse,
   assertLzyumiHistoryResponse,
   createLzyumiSignature,
+  lzyumiResponseShape,
   lzyumiDetailUrl,
   lzyumiEndpoints,
   lzyumiInfoUrl,
