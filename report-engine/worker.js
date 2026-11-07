@@ -1360,7 +1360,8 @@ function findDetailPlayerForSource(source, detail) {
 }
 
 async function debugCheckPlayer() {
-  const riot = cliValue("--check-player") || cliValue("--wegame-check-player");
+  const reporterFirstProbe = process.argv.includes("--check-reporter-first");
+  const riot = cliValue("--check-reporter-first") || cliValue("--check-player") || cliValue("--wegame-check-player");
   const areaId = Number(cliValue("--area-id", "1")) || 1;
   const limit = Number(cliValue("--limit", "8")) || 8;
   const openId = cliValue("--open-id");
@@ -1377,7 +1378,24 @@ async function debugCheckPlayer() {
     chinaServerId: areaId,
     openId: openId || null,
   };
-  const source = await fetchRecentGamesForPlayer(player);
+  let source;
+  if (reporterFirstProbe) {
+    const fallbackPlayer = {
+      displayName: "ECL Diagnostic Fallback",
+      riotName: "ECLDiagnosticNoSuchPlayer",
+      riotTag: "00000",
+      chinaServerId: areaId,
+      openId: null,
+    };
+    const lookup = await findFirstRecentGameSource({
+      players: [player, fallbackPlayer],
+      fetchSource: fetchRecentGamesForPlayer,
+    });
+    source = lookup.source;
+    console.log(`Reporter-first probe checked ${lookup.checked} player(s) before selecting a source.`);
+  } else {
+    source = await fetchRecentGamesForPlayer(player);
+  }
 
   if (!source) {
     console.log(`No recent ECL.GG games found for ${riot || name} on area ${areaId}.`);
@@ -1707,7 +1725,11 @@ if (process.argv.includes("--probe-network")) {
     console.error(error.message || error);
     process.exitCode = 1;
   });
-} else if (process.argv.includes("--check-player") || process.argv.includes("--wegame-check-player")) {
+} else if (
+  process.argv.includes("--check-reporter-first") ||
+  process.argv.includes("--check-player") ||
+  process.argv.includes("--wegame-check-player")
+) {
   debugCheckPlayer().catch((error) => {
     console.error(error.message || error);
     process.exitCode = 1;

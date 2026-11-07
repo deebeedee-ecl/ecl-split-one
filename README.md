@@ -156,6 +156,8 @@ node worker.js --check-player "PlayerName#Tag" --area-id 1 --limit 1
 
 The probe fetches recent history and match details but does not claim a report job or
 write to the ECL database.
+Use `--check-reporter-first` with the same arguments to verify that a successful
+reporter lookup stops before a synthetic fallback player is queried.
 
 Report lookup checks the command sender first and stops roster history fan-out as soon
 as one usable recent-game list is available. Other roster players are queried in
