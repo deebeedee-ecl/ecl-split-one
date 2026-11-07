@@ -4,6 +4,7 @@ require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
+const { shouldRetryConfirmation } = require("./confirmation-utils.cjs");
 const {
   LzyumiResponseError,
   assertLzyumiDetailResponse,
@@ -1624,13 +1625,13 @@ async function siteGet(pathname) {
   return response.data;
 }
 
-async function sitePost(pathname, body) {
+async function sitePost(pathname, body, timeout = 15000) {
   const response = await axios.post(`${SITE_URL}${pathname}`, body, {
     headers: {
       "Content-Type": "application/json",
       "x-ecl-report-engine-secret": REPORT_ENGINE_SECRET,
     },
-    timeout: 15000,
+    timeout,
   });
   return response.data;
 }
@@ -1655,6 +1656,63 @@ async function processNextJob() {
   if (!job) return;
 
   console.log(`Processing ${job.session.gameLabel || job.sessionId} (${job.id})`);
+
+  if (job.action === "CONFIRM") {
+    let confirmationResult;
+    try {
+      if (!job.rawMatchData) {
+        throw new Error("The queued confirmation is missing its saved match data.");
+      }
+
+      const submitted = await sitePost(
+        "/api/kook/inhouse/report",
+        {
+          command: "!report",
+          reporterKookUserId: job.requestedByKookId,
+          sessionId: job.sessionId,
+          rawMatchData: job.rawMatchData,
+        },
+        300000,
+      );
+      confirmationResult = await sitePost("/api/jobs/inhouse-report", {
+        jobId: job.id,
+        status: "CONFIRMED",
+        reply: submitted.reply || "The inhouse result was submitted successfully.",
+      });
+    } catch (error) {
+      const httpStatus = error.response?.status;
+      const remoteMessage = error.response?.data?.reply || error.response?.data?.message;
+      const message = clean(remoteMessage) || clean(error.message) || "The report confirmation failed.";
+
+      if (shouldRetryConfirmation(job.attempts, httpStatus)) {
+        await sitePost("/api/jobs/inhouse-report", {
+          jobId: job.id,
+          status: "CONFIRM_RETRY",
+          error: message,
+        });
+        console.error(`Report confirmation will retry: ${message}`);
+        return;
+      }
+
+      confirmationResult = await sitePost("/api/jobs/inhouse-report", {
+        jobId: job.id,
+        status: "CONFIRM_FAILED",
+        error: message,
+        reply: message,
+      });
+      console.error(`Report confirmation failed: ${message}`);
+    }
+
+    try {
+      await sendKookMessage(confirmationResult.responseChannelId, confirmationResult.reply);
+    } catch (error) {
+      console.error(`Could not send the final KOOK report message: ${error.message || error}`);
+    }
+    if (confirmationResult.status === "CONFIRMED") {
+      console.log(`Confirmed report for ${job.session.gameLabel || job.sessionId}`);
+    }
+    return;
+  }
 
   try {
     const match = await findMatchingGame(job);
