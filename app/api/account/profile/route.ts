@@ -13,6 +13,10 @@ import {
 } from "@/lib/lzyumi-snapshot";
 import { syncPlayerForProfile } from "@/lib/player-profile-sync";
 import { normalizeRiotPart, normalizeRiotTag, riotIdKey } from "@/lib/riot-id";
+import {
+  PERFORMANCE_REQUEST_HEADER,
+  withPerformanceTrace,
+} from "@/lib/performance-timing";
 
 export const preferredRegion = "icn1";
 
@@ -223,27 +227,38 @@ function lzyumiData(body: ProfilePayload, result: Awaited<ReturnType<typeof reso
 }
 
 export async function GET(request: Request) {
-  const account = await getAccountFromRequest(request);
+  return withPerformanceTrace({
+    route: "api.account.profile.get",
+    requestId: request.headers.get(PERFORMANCE_REQUEST_HEADER),
+  }, async (trace) => {
+    const account = await trace.phase("api.authentication", () => getAccountFromRequest(request));
 
-  if (!account) {
-    return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
-  }
+    if (!account) {
+      return trace.phaseSync("api.serialization", () =>
+        NextResponse.json({ message: "Not authenticated" }, { status: 401 }),
+      );
+    }
 
-  const profile = await prisma.accountProfile.findUnique({
-    where: {
-      userId: account.id,
-    },
-    include: {
-      kookVerifications: {
-        orderBy: {
-          createdAt: "desc",
+    const profile = await trace.phase("database.profile", () =>
+      prisma.accountProfile.findUnique({
+        where: {
+          userId: account.id,
         },
-        take: 1,
-      },
-    },
-  });
+        include: {
+          kookVerifications: {
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 1,
+          },
+        },
+      }),
+    );
 
-  return NextResponse.json({ profile: profileForClient(profile) });
+    return trace.phaseSync("api.serialization", () =>
+      NextResponse.json({ profile: profileForClient(profile) }),
+    );
+  });
 }
 
 export async function POST(request: Request) {
