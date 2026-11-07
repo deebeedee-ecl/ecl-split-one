@@ -93,6 +93,10 @@ test("response validation accepts complete payloads and rejects provider failure
     () => assertLzyumiHistoryResponse({ code: 2, data: [] }),
     (error) => error instanceof LzyumiResponseError && error.code === "2",
   );
+  const emptyHistory = { code: 1, data: null, battleInfo: null };
+  const normalizedEmptyHistory = assertLzyumiHistoryResponse(emptyHistory);
+  assert.deepEqual(normalizedEmptyHistory, { code: 1, data: [], battleInfo: null });
+  assert.equal(emptyHistory.data, null);
   assert.throws(
     () => assertLzyumiHistoryResponse({ code: 1, message: "private provider detail" }),
     (error) => {
@@ -130,4 +134,6 @@ test("response shape diagnostics never include provider values", () => {
       hasBattleInfo: true,
     },
   );
+
+  assert.equal(lzyumiResponseShape({ code: 1, data: null }).dataType, "null");
 });
