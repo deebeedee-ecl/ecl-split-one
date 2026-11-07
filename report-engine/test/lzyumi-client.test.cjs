@@ -11,6 +11,7 @@ const {
   lzyumiDetailUrl,
   lzyumiEndpoints,
   lzyumiInfoUrl,
+  lzyumiResponseShape,
 } = require("../lzyumi-client.cjs");
 
 const CAPTURE_TIME = new Date("2026-11-04T00:42:31.000Z");
@@ -92,9 +93,41 @@ test("response validation accepts complete payloads and rejects provider failure
     () => assertLzyumiHistoryResponse({ code: 2, data: [] }),
     (error) => error instanceof LzyumiResponseError && error.code === "2",
   );
-  assert.throws(() => assertLzyumiHistoryResponse({ code: 1 }), /data array/);
+  assert.throws(
+    () => assertLzyumiHistoryResponse({ code: 1, message: "private provider detail" }),
+    (error) => {
+      assert.equal(error.reason, "malformed-history");
+      assert.deepEqual(error.responseShape, {
+        type: "object",
+        keys: ["code", "message"],
+        code: "1",
+        dataType: "undefined",
+        hasBattleInfo: false,
+      });
+      assert.doesNotMatch(JSON.stringify(error.responseShape), /private provider detail/);
+      return true;
+    },
+  );
   assert.throws(
     () => assertLzyumiDetailResponse({ code: 1, data: { wgBattleDetailInfo: Array(9).fill({}) } }),
     /9\/10 players/,
+  );
+});
+
+test("response shape diagnostics never include provider values", () => {
+  assert.deepEqual(
+    lzyumiResponseShape({
+      code: 1,
+      message: "do not log this",
+      battleInfo: { openId: "private-open-id" },
+      nested: { token: "private-token" },
+    }),
+    {
+      type: "object",
+      keys: ["battleInfo", "code", "message", "nested"],
+      code: "1",
+      dataType: "undefined",
+      hasBattleInfo: true,
+    },
   );
 });
