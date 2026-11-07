@@ -166,6 +166,8 @@ Malformed history responses refresh the browser session and retry once by defaul
 The retry count can be tuned with `REPORT_ENGINE_LZYUMI_MALFORMED_RETRIES`.
 Diagnostics record only response shape metadata (application code, top-level keys,
 and data type), never raw provider payloads, tokens, cookies, or player identifiers.
+Lzyumi's successful empty-history response uses `data: null`; the worker normalizes
+that documented provider shape to an empty list before trying the next lookup.
 
 To build the worker container from the repository root:
 
