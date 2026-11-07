@@ -1,0 +1,94 @@
+# ECL integration contracts
+
+Last reviewed: 2026-11-07
+
+This document records responsibilities and invariants, not credentials. Supported variable names live in `.env.example`; real values stay outside version control.
+
+## Lzyumi
+
+Lzyumi is ECL's primary external provider for China-server Riot identity, rank, match history, and match details.
+
+### Profile/rank/history flow
+
+- The server signs a short-lived request through `/api/lzyumi-sign`.
+- The authenticated player's browser fetches that URL so a provider that blocks cloud IPs sees the residential connection.
+- Filter `1`: resolved identity/profile/rank.
+- Filter `2`: Solo/Duo history.
+- Filter `3`: Flex history.
+- `getPlayerRecentStat`/champion recency is optional. Failure must result in an explicit empty/unavailable section, not retained stale champion data presented as fresh.
+
+Acceptance requires matching the expected full Riot ID, China server, and `openId`. Save a coherent snapshot only after validation; do not independently advance freshness for an unchanged section.
+
+### Match-report worker flow
+
+The report engine is an always-on service used after KOOK queues a report job. It loads the saved ten-player session roster, searches recent games, fetches details, checks time/roster coverage, and sends candidate evidence back to the website. The website owns final confirmation and writes.
+
+The worker supports a configurable source and retains a WeGame path, but Lzyumi is the primary/default provider when its token flow is configured. Lzyumi provider application code `7` is treated as throttling/transient pressure and uses bounded retry/backoff with conservative concurrency.
+
+Never place a token, cookie, login, signed URL, provider response containing player data, or local browser profile in a tracked file.
+
+## KOOK
+
+### Ownership split
+
+The adjacent `ecl-kook-bot` process owns the KOOK gateway connection, parses messages, reads voice membership, sends replies, and moves users between voice channels. The website/API owns verification, eligibility, balancing/session persistence, report jobs, results, and LP.
+
+The bot should remain a thin adapter. Domain behavior belongs in tested web libraries/routes or a deliberate service boundary, not duplicated in `bot.js`.
+
+### Authentication
+
+KOOK service calls use the `x-ecl-kook-secret` header and `ECL_KOOK_BOT_SECRET`. Missing configuration must fail closed. Do not log the header or expose it to browser code.
+
+Relevant API groups include:
+
+- `/api/kook/verify` for code confirmation and stable KOOK linkage;
+- `/api/kook/commands` for account/ladder/status/report command handling;
+- `/api/kook/inhouse` for roster checking and team balancing;
+- `/api/kook/inhouse/report` for confirmed result ingestion;
+- `/api/kook/tournaments/*` for tournament-facing operations.
+
+### Public command vocabulary
+
+The currently communicated player commands are `!help`, `!verify`, `!me`, `!rank`, `!leaderboard`, `!inhouse`, `!ready`, `!status`, `!report`, `!no`, `!yes`, and `!welcome`; admin operations include force-ready and cancel. The bot also recognizes aliases/internal diagnostics in code. Keep the public help message, bot parser, and API command routing synchronized.
+
+Use stable KOOK user IDs for authorization and linkage. Usernames and channel names are presentation. Channel/user IDs belong in environment configuration, not canonical docs or hard-coded new logic.
+
+### Verification codes
+
+Current web code generates a random `ECL-` code, expires it after 24 hours, and prevents reuse by another account after confirmation. Treat the code like a short-lived password, even if onboarding currently asks users to type it in a public verification channel.
+
+## Supabase Auth
+
+The web and companion use Supabase for player authentication. Only the public anon/publishable key is browser-safe. A service-role key must never use a `NEXT_PUBLIC_*` name or be packaged into the companion.
+
+Authentication establishes the Supabase user. Application routes must then load the corresponding ECL account/profile and enforce resource ownership or role-specific authorization.
+
+## PostgreSQL and Prisma
+
+`prisma/schema.prisma` describes the current expected schema. It is not a deployment history: the repository currently lacks committed Prisma migrations. `prisma db push` is for a disposable local database only.
+
+Any result/LP correction, merge, backfill, season reset, or tournament release can affect historical data and requires an explicit environment, preview, approval, transaction/recovery design, and post-check.
+
+## Report engine
+
+`report-engine/` polls trusted job endpoints using a worker/job secret. It may read provider credentials from its deployment environment or ignored local environment file. It must not be the final authority for an ECL result: the website revalidates and owns the commit.
+
+Before a worker deployment, verify its unit tests and a read-only known-player probe. A successful provider lookup does not prove that final `!yes` ingestion is atomic or idempotent.
+
+## Windows companion
+
+The Electron companion remains a supported optional runtime for local collection/desktop workflows and historical pilots. It is not a prerequisite for ordinary profile/rank/history refresh while the signed-browser Lzyumi flow works.
+
+Companion release work has additional signing, updater, packaging, and private-data constraints in `companion/README.md` and `docs/desktop/`. Treat dated tester/release documents as historical checkpoints.
+
+## Failure behavior
+
+| Failure | Required behavior |
+| --- | --- |
+| Provider unavailable/throttled | Preserve the last verified snapshot with its original timestamp; show refresh failure |
+| Identity/server/openId mismatch | Reject the replacement; do not partially save it |
+| Optional champion-stat failure | Keep valid identity/rank/history only; clear/mark the unavailable optional section |
+| KOOK/worker secret missing or wrong | Return unauthorized; never fall back to public access |
+| Duplicate game/report retry | Return the existing completion or no-op; never apply LP twice |
+| Partial database failure | Roll back the entire logical result transaction |
+| KOOK reply/move fails after ECL write | Preserve durable ECL state and expose a retryable delivery/operations path |
