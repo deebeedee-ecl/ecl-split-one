@@ -178,13 +178,20 @@ function lzyumiResponseShape(value) {
     type: "object",
     keys: Object.keys(value).sort().slice(0, 24),
     code,
-    dataType: Array.isArray(value.data) ? "array" : typeof value.data,
+    dataType: value.data === null
+      ? "null"
+      : Array.isArray(value.data)
+        ? "array"
+        : typeof value.data,
     hasBattleInfo: Boolean(value.battleInfo && typeof value.battleInfo === "object"),
   };
 }
 
 function assertLzyumiHistoryResponse(value) {
   assertApplicationSuccess(value, "history");
+  if (value.data === null) {
+    return { ...value, data: [] };
+  }
   if (!Array.isArray(value.data)) {
     throw new LzyumiResponseError(
       "Lzyumi history response is missing its data array.",
