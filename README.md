@@ -101,7 +101,13 @@ npx tsc --noEmit            # TypeScript check
 npm run lint                # ESLint
 ```
 
-The repository currently has focused Node tests rather than a single root `test` script:
+Run the focused root tests with:
+
+```bash
+npm test
+```
+
+Additional focused regression scripts are available for the older operational flows:
 
 ```bash
 node --import tsx --test scripts/test-ranked-season.ts scripts/test-split-ii-kook-commands.ts scripts/test-desktop-update-host.ts scripts/test-split-ii-bot.cjs
@@ -163,6 +169,10 @@ Report lookup checks the command sender first and stops roster history fan-out a
 as one usable recent-game list is available. Other roster players are queried in
 priority order only when the reporter lookup is empty or fails. Match details still
 validate the returned game against the assigned inhouse roster.
+After a player confirms the preview, the worker also owns the durable confirmation
+job. KOOK receives an immediate acknowledgement, while the worker waits for the
+atomic website ingestion to finish and then posts the final result. Transient failures
+are retried a bounded number of times; duplicate confirmations remain idempotent.
 History and detail requests intentionally use conservative concurrency limits.
 Provider application code `7` is retried twice with a short increasing delay. The
 defaults can be tuned with the `REPORT_ENGINE_LZYUMI_*_CONCURRENCY`,

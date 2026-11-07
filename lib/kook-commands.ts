@@ -4,7 +4,10 @@ import path from "path";
 import { STARTING_ELO } from "@/lib/elo";
 import { getRankedSeason, rankedSeasonState } from "@/lib/ranked-season";
 import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
-import { enqueueInhouseReportJob } from "@/lib/inhouse-report-jobs";
+import {
+  enqueueInhouseReportJob,
+  queueInhouseReportConfirmation,
+} from "@/lib/inhouse-report-jobs";
 import {
   getFrozenInhouseLeaderboardRows,
   type InhouseLeaderboardRow,
@@ -949,7 +952,7 @@ export async function formatCancelReportMessage(kookUserId: string) {
   return "Cancelled that pending report confirmation.";
 }
 
-export async function submitPendingReportMessage(kookUserId: string, origin: string) {
+export async function submitPendingReportMessage(kookUserId: string) {
   const sessions = await findReportSessions(kookUserId);
   const pendingSession = sessions.find((session) => {
     const pending = pendingReportFromJson(session.reportRawJson);
@@ -974,22 +977,18 @@ export async function submitPendingReportMessage(kookUserId: string, origin: str
     return "That report confirmation expired. Type !report again for a fresh lookup.";
   }
 
-  const reportRes = await fetch(`${origin}/api/kook/inhouse/report`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-ecl-kook-secret": process.env.ECL_KOOK_BOT_SECRET ?? "",
-    },
-    body: JSON.stringify({
-      command: "!report",
-      reporterKookUserId: kookUserId,
-      sessionId: pendingSession.id,
-      rawMatchData: pending.rawMatchData,
-    }),
+  await queueInhouseReportConfirmation({
+    sessionId: pendingSession.id,
+    requestedByKookId: kookUserId,
   });
 
-  const payload = await reportRes.json().catch(() => ({}));
-  return payload.reply ?? payload.message ?? (reportRes.ok ? "Reported." : "Report failed.");
+  return [
+    `Confirmation received for ${pendingSession.gameLabel ?? "this inhouse"}.`,
+    "",
+    "ECL is applying the result. I will post the final result here.",
+    "",
+    "Duplicate !yes commands are ignored.",
+  ].join("\n");
 }
 
 export async function cancelActiveInhouseSession() {

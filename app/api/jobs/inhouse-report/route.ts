@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import {
   claimNextInhouseReportJob,
+  completeInhouseReportConfirmationJob,
   completeInhouseReportJob,
+  failInhouseReportConfirmationJob,
   failInhouseReportJob,
+  retryInhouseReportConfirmationJob,
   unauthorizedReportWorker,
   type ReportJobRawMatchData,
 } from "@/lib/inhouse-report-jobs";
@@ -73,6 +76,50 @@ export async function POST(request: Request) {
         requestedByKookId: result.job.requestedByKookId,
         sessionId: result.job.sessionId,
         reply: result.reply,
+      });
+    }
+
+    if (status === "CONFIRMED") {
+      const confirmed = await completeInhouseReportConfirmationJob({ jobId });
+      return NextResponse.json({
+        ok: true,
+        status,
+        responseChannelId: confirmed.responseChannelId,
+        requestedByKookId: confirmed.requestedByKookId,
+        sessionId: confirmed.sessionId,
+        reply: clean(body.reply) || "The inhouse result was submitted successfully.",
+      });
+    }
+
+    if (status === "CONFIRM_RETRY") {
+      const pending = await retryInhouseReportConfirmationJob({
+        jobId,
+        error: clean(body.error) || "The report confirmation will be retried.",
+      });
+      return NextResponse.json({
+        ok: true,
+        status: "CONFIRM_PENDING",
+        responseChannelId: pending.responseChannelId,
+        requestedByKookId: pending.requestedByKookId,
+        sessionId: pending.sessionId,
+      });
+    }
+
+    if (status === "CONFIRM_FAILED") {
+      const failed = await failInhouseReportConfirmationJob({
+        jobId,
+        error: clean(body.error) || "The report confirmation failed.",
+      });
+      return NextResponse.json({
+        ok: true,
+        status,
+        responseChannelId: failed.responseChannelId,
+        requestedByKookId: failed.requestedByKookId,
+        sessionId: failed.sessionId,
+        reply:
+          clean(body.reply) ||
+          clean(body.error) ||
+          "The inhouse result could not be submitted. An admin can retry it from the dashboard.",
       });
     }
 
