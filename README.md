@@ -157,7 +157,11 @@ node worker.js --check-player "PlayerName#Tag" --area-id 1 --limit 1
 The probe fetches recent history and match details but does not claim a report job or
 write to the ECL database.
 
-Full-roster lookups intentionally limit concurrent Lzyumi history and detail requests.
+Report lookup checks the command sender first and stops roster history fan-out as soon
+as one usable recent-game list is available. Other roster players are queried in
+priority order only when the reporter lookup is empty or fails. Match details still
+validate the returned game against the assigned inhouse roster.
+History and detail requests intentionally use conservative concurrency limits.
 Provider application code `7` is retried twice with a short increasing delay. The
 defaults can be tuned with the `REPORT_ENGINE_LZYUMI_*_CONCURRENCY`,
 `REPORT_ENGINE_LZYUMI_CODE_7_RETRIES`, and `REPORT_ENGINE_LZYUMI_CODE_7_BACKOFF_MS`
