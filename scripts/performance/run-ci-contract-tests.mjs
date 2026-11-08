@@ -27,12 +27,13 @@ function sanitizeJUnit(xml, workspace) {
   return sanitizeText(xml, workspace)
     .replace(/\s+time="[0-9.]+"/g, "")
     .replace(/\s*<!-- duration_ms [0-9.]+ -->\r?\n/g, "\n")
-    .replace(/file="[^"]*hub-route-baseline\.test\.mjs"/g, `file="${testPath}"`);
+    .replace(/\s+file="[^"]*hub-route-baseline\.test\.mjs"/g, "");
 }
 
 function sanitizeText(value, workspace) {
   const normalizedWorkspace = workspace.replaceAll("\\", "/");
   return value
+    .replaceAll("\r\n", "\n")
     .replaceAll(workspace, "<workspace>")
     .replaceAll(normalizedWorkspace, "<workspace>")
     .replace(/perf-[a-f0-9-]{36}/gi, "perf-<request-id>")
