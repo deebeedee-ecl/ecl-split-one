@@ -7,7 +7,9 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "test": "tsx --test test/*.test.ts",
+    "test:focused": "node --import tsx --test scripts/test-ranked-season.ts scripts/test-split-ii-kook-commands.ts scripts/test-desktop-update-host.ts scripts/test-split-ii-bot.cjs",
     "test:perf": "node --test test/hub-route-baseline.test.mjs",
+    "test:perf:ci": "node scripts/performance/run-ci-contract-tests.mjs",
     "perf:hub": "node scripts/performance/hub-route-baseline.mjs",
     "lint": "eslint",
     "postinstall": "prisma generate"

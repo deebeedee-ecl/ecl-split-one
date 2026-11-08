@@ -1,0 +1,61 @@
+name: Web CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Build, typecheck, and focused tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run root regression tests
+        run: npm test
+
+      - name: Run focused domain tests
+        run: npm run test:focused
+
+      - name: Type-check
+        run: npx tsc --noEmit --incremental false
+
+      - name: Build production web application
+        run: npm run build
+
+      - name: Run offline performance contract tests
+        run: npm run test:perf:ci
+
+      - name: Upload performance contract results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-performance-contract
+          path: .tmp/ci/performance-tests.xml
+          if-no-files-found: warn
+          retention-days: 14

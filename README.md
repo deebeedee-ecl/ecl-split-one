@@ -97,6 +97,8 @@ Run these from the repository root:
 npm run dev                 # Next.js development server
 npm run build               # Prisma generation and production build
 npm start                   # Serve an existing production build
+npm test                    # Root regression tests
+npm run test:focused        # Ranked, KOOK, tournament, and desktop-update tests
 npx tsc --noEmit            # TypeScript check
 npm run lint                # ESLint
 npm run test:perf           # Focused Hub benchmark tests
@@ -113,11 +115,30 @@ ignored storage-state file and an approved test account; credentials and browser
 state must never be committed. The full method, route budgets, and first sanitized
 result are in [`docs/performance/HUB_BASELINE.md`](docs/performance/HUB_BASELINE.md).
 
-The repository currently has focused Node tests rather than a single root `test` script:
+GitHub Actions runs the locked web install, both test commands, TypeScript, the
+standard production build, and the offline performance contract test on pull
+requests and pushes to `main`. Reproduce that web CI path locally with:
 
 ```bash
-node --import tsx --test scripts/test-ranked-season.ts scripts/test-split-ii-kook-commands.ts scripts/test-desktop-update-host.ts scripts/test-split-ii-bot.cjs
+npm ci
+npm test
+npm run test:focused
+npx tsc --noEmit --incremental false
+npm run build
+npm run test:perf:ci
 ```
+
+CI uploads `.tmp/ci/performance-tests.xml` as a short-lived artifact. That
+artifact is produced entirely from local fixtures and normalizes workspace
+paths, timings, request IDs, and ephemeral ports. It contains no target URL,
+credential value, cookie value, identity, response body, or provider payload.
+The live Hub benchmark and its provisional ceilings remain review evidence
+rather than a blocking CI gate until representative authenticated budgets are
+agreed.
+
+Repository-wide lint is not part of this initial CI path because the existing
+baseline is still noisy; new work should continue to run focused lint where
+appropriate until the scopes and baseline are remediated separately.
 
 Some maintenance scripts can write to the configured database. Do not run scripts whose names contain `release`, `repair`, `reset`, `sync`, `backfill`, or `apply` against any shared database unless the owner has explicitly approved the operation.
 

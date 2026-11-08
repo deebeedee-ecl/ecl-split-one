@@ -26,6 +26,16 @@ The root `README.md` has the fuller setup and environment-variable matrix. If it
 
 Record commands, pass/fail counts, skipped checks, and the reason for each skip. Do not describe a check as passing if it was not run.
 
+### Web CI baseline
+
+Pull requests and pushes to `main` run the locked root install, `npm test`,
+`npm run test:focused`, `npx tsc --noEmit --incremental false`, `npm run build`,
+and the offline `npm run test:perf:ci` contract check on Node.js 22. The last
+command writes a sanitized JUnit report under ignored `.tmp/ci/` for artifact
+upload, with local paths and variable timing/request values normalized; it does
+not contact a deployed site or use credentials. Full lint is not blocking while
+the known repository-wide baseline remains unresolved.
+
 ## Preview-first release workflow
 
 ECL does not require a permanently running staging environment for ordinary work, but production must not be the first place a change is exercised. Use this default path:
