@@ -1,6 +1,6 @@
 # ECL development and operations runbook
 
-Last reviewed: 2026-11-07
+Last reviewed: 2026-11-08
 
 ## Safe local start
 
@@ -86,6 +86,13 @@ For Hub performance diagnostics, run the documented command in `docs/performance
 
 Useful read-only worker probe syntax is documented in the root README. Provider probes may still expose personal/provider data, so use a known approved test identity and do not commit their output.
 
+### Report-engine deployment configuration
+
+- Keep provider tokens, cookies, worker secrets, and login material only in ignored local configuration or the deployment environment.
+- Use the supported names in `.env.example`, including `REPORT_ENGINE_LZYUMI_HISTORY_CONCURRENCY`, `REPORT_ENGINE_LZYUMI_CODE_7_RETRIES`, and `REPORT_ENGINE_LZYUMI_CODE_7_BACKOFF_MS`; keep concurrency conservative and retries bounded.
+- For a confirmation-flow release, deploy backward-compatible worker support before enabling web code that queues the new confirmation state.
+- Before production, run report-engine tests and a read-only known-player probe. Do not use a real `!yes` or shared-database mutation as the first smoke test.
+
 ## High-risk operations
 
 The following require explicit approval naming the target environment and operation:
@@ -108,7 +115,10 @@ Before an approved data operation, capture a read-only preflight, affected-row e
 - Check the candidate game's time window and roster coverage.
 - Check whether the provider game ID or session is already completed before retrying.
 - Do not manually edit LP first. Determine whether match/game/stat writes are complete or partial, then use a reviewed repair plan.
-- Separate “provider found the game,” “preview delivered,” and “confirmed result committed”; they are different checkpoints.
+- Separate “provider found the game,” “preview delivered,” “confirmation queued,” “confirmed result committed,” and “KOOK result delivered”; they are different checkpoints.
+- A KOOK/API 30-second timeout is not proof that the provider lookup or database commit failed. Check the durable report job, session status, linked match/game, ten stat rows, and LP linkage before retrying or cancelling.
+- Treat repeated `!report`/`!yes` as retries of the same durable work. They must not create another result or apply LP twice.
+- If the session is already `COMPLETED`, do not reopen or cancel it merely because KOOK missed the final reply; repair notification/operations state separately if needed.
 
 ## Profile refresh incident checklist
 

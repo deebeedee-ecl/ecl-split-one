@@ -121,7 +121,7 @@ export async function POST(request: Request) {
         break;
       case "yes":
       case "confirm":
-        reply = await submitPendingReportMessage(kookUserId, new URL(request.url).origin);
+        reply = await submitPendingReportMessage(kookUserId);
         break;
       case "no":
         reply = await formatCancelReportMessage(kookUserId);

@@ -1,6 +1,6 @@
 # ECL architecture
 
-Last reviewed: 2026-11-07
+Last reviewed: 2026-11-08
 
 ## System boundary
 
@@ -30,8 +30,8 @@ The website/API and database are the ECL source of truth. External providers sup
 | PostgreSQL/Prisma | `prisma/schema.prisma` | Durable ECL account, tournament, match, player, verification, session, and job state |
 | Supabase Auth | external | Player authentication/session identity; mapped to `User` and `AccountProfile` |
 | KOOK gateway bot | adjacent `ecl-kook-bot` repo | KOOK WebSocket connection, command parsing, voice/member operations, and message delivery |
-| Report engine | `report-engine/` | Always-on job polling and China-server match lookup/detail collection |
-| Windows companion | `companion/` | Optional local client/data collection and desktop Hub experience; not required for ordinary signed-browser profile refreshes |
+| Report engine | `report-engine/` | Always-on match-discovery and confirmation-job polling, China-server lookup/detail collection, and final KOOK result delivery |
+| Windows companion | `companion/` | Optional local client/data collection and desktop Hub experience; historical inhouse pilots used it for game-ID collection, but the current Lzyumi reporting path does not require it |
 
 ## Domain ownership
 
@@ -63,7 +63,10 @@ The website/API and database are the ECL source of truth. External providers sup
 3. The bot performs KOOK-native actions such as messages and voice moves from returned instructions.
 4. After play, the web app creates an `InhouseReportJob` for the worker.
 5. The worker claims a job, queries the configured provider, and returns a candidate with raw evidence.
-6. A player confirms the preview; the web API revalidates authorization, roster, time window, and deduplication before writing the result.
+6. A player confirms the preview with `!yes`; the web API records a durable confirmation job and returns promptly to the KOOK gateway.
+7. The report engine claims the confirmation job and submits the saved candidate back to the web API with its worker credential.
+8. The web API revalidates authorization, roster, time window, provider identity, and deduplication, then commits the match, statistics, session completion, and LP effects atomically and idempotently.
+9. KOOK delivery happens after the durable commit. Delivery failure must not revert or disguise completed ECL state; it is an operational retry concern.
 
 ### Tournament lifecycle
 
@@ -82,7 +85,7 @@ Tournament routes and library modules own registrations, identity checks, roster
 
 These are current code risks, not desired architecture:
 
-- Match-game player-stat creation and `Player` LP/streak updates occur as separate writes in current endpoints. This leaves partial-write and retry risk; track the atomicity work in GitHub issue #3.
+- The ranked-inhouse confirmation path protects its durable result with a transaction, deduplication, and an advisory lock. Other legacy result/stat/LP endpoints may still perform separate writes and retain partial-write or retry risk; continue tracking the broader atomicity work in GitHub issue #3.
 - There is no committed Prisma migration history; track it in issue #4.
 - The repository has no committed CI workflow; track the cross-runtime checks in issue #5.
 - Admin auth currently contains fallback credentials and compares a raw shared value in the cookie. Several write/read exposure concerns are grouped in security issue #13.

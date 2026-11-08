@@ -1,9 +1,17 @@
 import { Prisma } from "@prisma/client";
+import {
+  CONFIRMATION_PENDING_STATUSES,
+  DISCOVERY_PENDING_STATUSES,
+  claimedReportJobStatus,
+  reportJobAction,
+} from "@/lib/inhouse-report-job-state";
 import { reportedLzyumiGameIds } from "@/lib/lzyumi-report-dedupe";
 import { prisma } from "@/lib/prisma";
 
-export const REPORT_JOB_ACTIVE_STATUSES = ["PENDING", "PROCESSING"] as const;
+export const REPORT_JOB_ACTIVE_STATUSES = DISCOVERY_PENDING_STATUSES;
+export const REPORT_CONFIRMATION_ACTIVE_STATUSES = CONFIRMATION_PENDING_STATUSES;
 export const REPORT_JOB_LOCK_MS = 2 * 60 * 1000;
+export const REPORT_CONFIRMATION_LOCK_MS = 6 * 60 * 1000;
 
 export type ReportJobRawMatchData = {
   profile: unknown;
@@ -72,41 +80,74 @@ export async function enqueueInhouseReportJob({
 
 export async function claimNextInhouseReportJob(workerId: string) {
   const staleBefore = new Date(Date.now() - REPORT_JOB_LOCK_MS);
-  const job = await prisma.inhouseReportJob.findFirst({
-    where: {
-      OR: [
-        { status: "PENDING" },
-        {
-          status: "PROCESSING",
-          lockedAt: { lt: staleBefore },
-        },
-      ],
-    },
-    orderBy: { createdAt: "asc" },
-    include: {
-      session: {
-        include: { players: true },
+  const confirmationStaleBefore = new Date(Date.now() - REPORT_CONFIRMATION_LOCK_MS);
+  const job =
+    (await prisma.inhouseReportJob.findFirst({
+      where: {
+        OR: [
+          { status: "CONFIRM_PENDING" },
+          { status: "CONFIRM_PROCESSING", lockedAt: { lt: confirmationStaleBefore } },
+        ],
       },
-    },
-  });
+      orderBy: { createdAt: "asc" },
+    })) ??
+    (await prisma.inhouseReportJob.findFirst({
+      where: {
+        OR: [
+          { status: "PENDING" },
+          { status: "PROCESSING", lockedAt: { lt: staleBefore } },
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+    }));
 
   if (!job) return null;
 
-  const claimed = await prisma.inhouseReportJob.update({
-    where: { id: job.id },
+  const action = reportJobAction(job.status);
+  if (!action) return null;
+
+  const claimedStatus = claimedReportJobStatus(action);
+  const claim = await prisma.inhouseReportJob.updateMany({
+    where: { id: job.id, status: job.status },
     data: {
-      status: "PROCESSING",
+      status: claimedStatus,
       attempts: { increment: 1 },
       lockedAt: new Date(),
       lockedBy: workerId,
       lastError: null,
     },
+  });
+
+  if (claim.count !== 1) return null;
+
+  const claimed = await prisma.inhouseReportJob.findUniqueOrThrow({
+    where: { id: job.id },
     include: {
       session: {
         include: { players: true },
       },
     },
   });
+
+  if (action === "CONFIRM") {
+    return {
+      action,
+      id: claimed.id,
+      sessionId: claimed.sessionId,
+      requestedByKookId: claimed.requestedByKookId,
+      responseChannelId: claimed.responseChannelId,
+      attempts: claimed.attempts,
+      rawMatchData: claimed.rawMatchData,
+      session: {
+        id: claimed.session.id,
+        gameLabel: claimed.session.gameLabel,
+        createdAt: claimed.session.createdAt.toISOString(),
+        players: [],
+      },
+      reporter: null,
+      reportedGameIds: [],
+    };
+  }
 
   const profileIds = claimed.session.players
     .map((player) => player.profileId)
@@ -163,6 +204,7 @@ export async function claimNextInhouseReportJob(workerId: string) {
   const profileByKook = new Map(profilesByKook.map((profile) => [profile.kookId!, profile]));
 
   return {
+    action,
     id: claimed.id,
     sessionId: claimed.sessionId,
     requestedByKookId: claimed.requestedByKookId,
@@ -238,6 +280,8 @@ export async function completeInhouseReportJob({
         status: "FOUND",
         rawMatchData: rawPayload,
         lastError: null,
+        lockedAt: null,
+        lockedBy: null,
         completedAt: new Date(),
       },
     }),
@@ -257,6 +301,127 @@ export async function completeInhouseReportJob({
   };
 }
 
+export async function queueInhouseReportConfirmation({
+  sessionId,
+  requestedByKookId,
+}: {
+  sessionId: string;
+  requestedByKookId: string;
+}) {
+  const job = await prisma.inhouseReportJob.findFirst({
+    where: {
+      sessionId,
+      requestedByKookId,
+      status: { in: ["FOUND", "CONFIRM_FAILED", ...REPORT_CONFIRMATION_ACTIVE_STATUSES] },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!job?.rawMatchData) {
+    throw new Error("The saved report preview is missing its worker result. Type !report again.");
+  }
+
+  if ((REPORT_CONFIRMATION_ACTIVE_STATUSES as readonly string[]).includes(job.status)) {
+    return { job, queued: false };
+  }
+
+  const queued = await prisma.inhouseReportJob.updateMany({
+    where: { id: job.id, status: { in: ["FOUND", "CONFIRM_FAILED"] } },
+    data: {
+      status: "CONFIRM_PENDING",
+      attempts: 0,
+      lockedAt: null,
+      lockedBy: null,
+      lastError: null,
+      completedAt: null,
+    },
+  });
+
+  if (queued.count !== 1) {
+    const active = await prisma.inhouseReportJob.findFirst({
+      where: {
+        id: job.id,
+        status: { in: [...REPORT_CONFIRMATION_ACTIVE_STATUSES] },
+      },
+    });
+    if (active) return { job: active, queued: false };
+    throw new Error("The report confirmation changed before it could be queued. Check !status before retrying.");
+  }
+
+  return {
+    job: await prisma.inhouseReportJob.findUniqueOrThrow({ where: { id: job.id } }),
+    queued: true,
+  };
+}
+
+export async function completeInhouseReportConfirmationJob({
+  jobId,
+}: {
+  jobId: string;
+}) {
+  const changed = await prisma.inhouseReportJob.updateMany({
+    where: { id: jobId, status: "CONFIRM_PROCESSING" },
+    data: {
+      status: "CONFIRMED",
+      lastError: null,
+      lockedAt: null,
+      lockedBy: null,
+      completedAt: new Date(),
+    },
+  });
+  const job = await prisma.inhouseReportJob.findUnique({ where: { id: jobId } });
+  if (!job || (changed.count !== 1 && job.status !== "CONFIRMED")) {
+    throw new Error("The report confirmation is not currently being processed.");
+  }
+  return job;
+}
+
+export async function retryInhouseReportConfirmationJob({
+  jobId,
+  error,
+}: {
+  jobId: string;
+  error: string;
+}) {
+  const changed = await prisma.inhouseReportJob.updateMany({
+    where: { id: jobId, status: "CONFIRM_PROCESSING" },
+    data: {
+      status: "CONFIRM_PENDING",
+      lastError: clean(error) || "Confirmation will be retried.",
+      lockedAt: null,
+      lockedBy: null,
+      completedAt: null,
+    },
+  });
+  if (changed.count !== 1) {
+    throw new Error("The report confirmation is not currently being processed.");
+  }
+  return prisma.inhouseReportJob.findUniqueOrThrow({ where: { id: jobId } });
+}
+
+export async function failInhouseReportConfirmationJob({
+  jobId,
+  error,
+}: {
+  jobId: string;
+  error: string;
+}) {
+  const changed = await prisma.inhouseReportJob.updateMany({
+    where: { id: jobId, status: "CONFIRM_PROCESSING" },
+    data: {
+      status: "CONFIRM_FAILED",
+      lastError: clean(error) || "The report confirmation failed.",
+      lockedAt: null,
+      lockedBy: null,
+      completedAt: new Date(),
+    },
+  });
+  if (changed.count !== 1) {
+    throw new Error("The report confirmation is not currently being processed.");
+  }
+  return prisma.inhouseReportJob.findUniqueOrThrow({ where: { id: jobId } });
+}
+
 export async function failInhouseReportJob({
   jobId,
   error,
@@ -269,6 +434,8 @@ export async function failInhouseReportJob({
     data: {
       status: "FAILED",
       lastError: clean(error) || "Report Engine could not find a matching inhouse game.",
+      lockedAt: null,
+      lockedBy: null,
       completedAt: new Date(),
     },
   });
