@@ -87,6 +87,7 @@ test("season APIs reset the displayed ladder and summary while keeping old game 
   const boundary = new Date(Date.now() - 60000);
   const archived = { ...old, matchGameId: "old-game", playerId: "player", lpChange: 65,
     kills: 4, deaths: 2, assists: 6, isMVP: false, isSVP: false,
+    player: { name: "Player" },
     matchGame: { ocrRawJson: null, match: { roundLabel: "IH #001" } },
   };
   let current: (typeof archived)[] = [];
