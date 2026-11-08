@@ -82,6 +82,8 @@ For an incident or integration change:
 5. Distinguish provider failure, ECL validation rejection, database failure, and KOOK delivery failure.
 6. Only then propose a mutation, retry, backfill, or deployment.
 
+For Hub performance diagnostics, run the documented command in `docs/performance/HUB_BASELINE.md`. Each benchmark sample uses a random `X-ECL-Performance-Request-ID`; match it to the structured `ecl.performance` server log. Do not add account, profile, Riot, KOOK, query-string, SQL-argument, or provider fields to performance logs. `Server-Timing` is available on private/uncached instrumented read-API responses, while post-routing page/database phases and publicly cacheable requests are available in the correlated server log.
+
 Useful read-only worker probe syntax is documented in the root README. Provider probes may still expose personal/provider data, so use a known approved test identity and do not commit their output.
 
 ## High-risk operations

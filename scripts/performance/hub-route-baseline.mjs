@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { mkdir, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import http from "node:http";
 import https from "node:https";
 import path from "node:path";
@@ -211,11 +212,12 @@ function parseServerTiming(value) {
   }).filter((entry) => entry.name);
 }
 
-function requestDocument(url, { agent, cookie, cold, timeoutMs }) {
+function requestDocument(url, { agent, cookie, cold, timeoutMs, requestId }) {
   const transport = url.protocol === "https:" ? https : http;
   const headers = {
     Accept: "text/html,application/xhtml+xml",
     "User-Agent": USER_AGENT,
+    "X-ECL-Performance-Request-ID": requestId,
   };
   if (cookie) headers.Cookie = cookie;
   if (cold) {
@@ -258,16 +260,18 @@ function requestDocument(url, { agent, cookie, cold, timeoutMs }) {
 
 export async function measureHttpNavigation(url, options) {
   const expectedOrigin = url.origin;
+  const requestId = options.requestId ?? `perf-${randomUUID()}`;
   let currentUrl = new URL(url);
   let elapsedBeforeFinal = 0;
   let redirectCount = 0;
 
   while (redirectCount <= 5) {
-    const response = await requestDocument(currentUrl, options);
+    const response = await requestDocument(currentUrl, { ...options, requestId });
     const isRedirect = response.status >= 300 && response.status < 400 && response.location;
     if (!isRedirect) {
       return {
         status: response.status,
+        requestId,
         finalPath: safePath(currentUrl, expectedOrigin),
         expectedPathMatched: currentUrl.pathname === url.pathname,
         redirectCount,
@@ -344,6 +348,10 @@ async function loadPlaywright() {
 
 async function measureBrowserNavigation(page, navigation, expectedUrl, options, eventCounts) {
   const before = { ...eventCounts };
+  const requestId = `perf-${randomUUID()}`;
+  await page.context().setExtraHTTPHeaders({
+    "X-ECL-Performance-Request-ID": requestId,
+  });
   const startedAt = performance.now();
   try {
     const response = await navigation();
@@ -369,6 +377,7 @@ async function measureBrowserNavigation(page, navigation, expectedUrl, options, 
     const currentUrl = new URL(page.url());
     return {
       status: response?.status() ?? 0,
+      requestId,
       finalPath: safePath(currentUrl, expectedUrl.origin),
       expectedPathMatched: currentUrl.pathname === expectedUrl.pathname,
       ttfbMs: round(timing?.ttfbMs),
