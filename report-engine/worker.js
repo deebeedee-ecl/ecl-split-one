@@ -1,10 +1,23 @@
 require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") });
 require("dotenv").config();
 
-const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
+const { shouldRetryConfirmation } = require("./confirmation-utils.cjs");
+const {
+  LzyumiResponseError,
+  assertLzyumiDetailResponse,
+  assertLzyumiHistoryResponse,
+  lzyumiDetailUrl: buildLzyumiDetailUrl,
+  lzyumiInfoUrl: buildLzyumiInfoUrl,
+} = require("./lzyumi-client.cjs");
+const {
+  mapWithConcurrency,
+  retryProviderCode,
+} = require("./async-utils.cjs");
+const { collectLzyumiHistoryResponses } = require("./lzyumi-history.cjs");
+const { findFirstRecentGameSource } = require("./report-sources.cjs");
 
 const SITE_URL = process.env.ECL_SITE_URL || "https://eclchina.lol";
 const REPORT_ENGINE_SECRET = process.env.ECL_REPORT_ENGINE_SECRET || process.env.ECL_JOB_SECRET || process.env.ECL_KOOK_BOT_SECRET;
@@ -32,7 +45,9 @@ const PROXY_URL = clean(process.env.REPORT_ENGINE_PROXY_URL);
 const PROXY_SERVER = clean(process.env.REPORT_ENGINE_PROXY_SERVER);
 const PROXY_USERNAME = clean(process.env.REPORT_ENGINE_PROXY_USERNAME);
 const PROXY_PASSWORD = clean(process.env.REPORT_ENGINE_PROXY_PASSWORD);
-const LZYUMI_BASE = clean(process.env.REPORT_ENGINE_LZYUMI_BASE) || "https://a.2025lol.top/lzyumi/lol";
+const LZYUMI_BASE = clean(process.env.REPORT_ENGINE_LZYUMI_BASE) || "https://l.lzyumi.top/lzyumi/lol";
+const LZYUMI_REFERER = clean(process.env.REPORT_ENGINE_LZYUMI_REFERER) ||
+  new URL("/vippc.html", LZYUMI_BASE).toString();
 const WEGAME_COOKIE = clean(process.env.REPORT_ENGINE_WEGAME_COOKIE);
 const WEGAME_BASE = clean(process.env.REPORT_ENGINE_WEGAME_BASE) ||
   "https://www.wegame.com.cn/api/v1/wegame.pallas.game.LolBattle";
@@ -49,6 +64,11 @@ const DEBUG_WEGAME = ["1", "true", "yes", "on"].includes(
 const LZYUMI_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const INHOUSE_LABEL = "\u65b0\u6a21\u5f0f";
 const LZYUMI_ALL_COUNT = Number(process.env.REPORT_ENGINE_LZYUMI_ALL_COUNT || 10);
+const LZYUMI_HISTORY_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_HISTORY_CONCURRENCY || 2);
+const LZYUMI_DETAIL_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_DETAIL_CONCURRENCY || 2);
+const LZYUMI_CODE_7_RETRIES = Number(process.env.REPORT_ENGINE_LZYUMI_CODE_7_RETRIES || 2);
+const LZYUMI_CODE_7_BACKOFF_MS = Number(process.env.REPORT_ENGINE_LZYUMI_CODE_7_BACKOFF_MS || 1000);
+const LZYUMI_MALFORMED_RETRIES = Number(process.env.REPORT_ENGINE_LZYUMI_MALFORMED_RETRIES || 1);
 const REPORT_CANDIDATE_LIMIT = Number(process.env.REPORT_ENGINE_CANDIDATE_LIMIT || 24);
 const REQUIRED_MATCHES = Number(process.env.REPORT_ENGINE_REQUIRED_MATCHES || 8);
 const REPORT_GAME_EARLY_GRACE_MS = Number(process.env.REPORT_ENGINE_EARLY_GRACE_MINUTES || 10) * 60 * 1000;
@@ -67,7 +87,7 @@ const CHINA_SERVERS = {
 const LZYUMI_HEADERS = {
   Accept: "application/json, text/plain, */*",
   "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,nl;q=0.6",
-  Referer: "https://a.2025lol.top/",
+  Referer: LZYUMI_REFERER,
   "Sec-CH-UA": '"Not=A?Brand";v="99", "Opera";v="135", "Chromium";v="151"',
   "Sec-CH-UA-Mobile": "?0",
   "Sec-CH-UA-Platform": '"Windows"',
@@ -85,7 +105,6 @@ let wegameTicketState = null;
 let wegameTicketPromise = null;
 const INVISIBLE_CONTROL_PATTERN = /[\p{Cc}\p{Cf}]/gu;
 const RIOT_KEY_SPACING_PATTERN = /[\s\p{Zs}\u1160\uFFA0]+/gu;
-const LZYUMI_RIOT_TAG_ISOLATE = "\u2066";
 
 function clean(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -240,20 +259,6 @@ function debugLzyumi(label, detail) {
   console.log(`[lzyumi-debug] ${label} ${JSON.stringify(detail)}`);
 }
 
-function createLzyumiSignature() {
-  const china = new Date(Date.now() + 8 * 60 * 60 * 1000);
-  const month = String(china.getUTCMonth() + 1);
-  const day = String(china.getUTCDate());
-  const hours = String(china.getUTCHours());
-  const minutes = String(china.getUTCMinutes());
-  const seconds = String(china.getUTCSeconds());
-  const signSource = `dld${month.padStart(2, "0")}o${day.padStart(2, "0")}u${hours.padStart(2, "0")}d${minutes.padStart(2, "0")}o${seconds.padStart(2, "0")}dld`;
-  return {
-    lzyumiSign: crypto.createHash("md5").update(signSource).digest("hex"),
-    signStr: `${month}${day}${hours}${minutes}${seconds}${month.length * 3}${day.length * 3}${hours.length * 3}${minutes.length * 3}${seconds.length * 3}`,
-  };
-}
-
 async function lzyumiFetchDirect(url) {
   const agent = nodeProxyAgent();
   const response = await axios.get(url, {
@@ -310,7 +315,7 @@ async function getBrowserPage() {
   if (!browserPagePromise) {
     browserPagePromise = browserContextPromise.then(async (context) => {
       const page = context.pages()[0] || await context.newPage();
-      await page.goto("https://a.2025lol.top/", {
+      await page.goto(LZYUMI_REFERER, {
         waitUntil: "networkidle",
         timeout: LZYUMI_TIMEOUT_MS,
       }).catch(() => null);
@@ -484,13 +489,13 @@ async function lzyumiLogin() {
       'input[type="submit"]',
       'input[type="button"]',
       '[role="button"]',
-      'a:has-text("登录")',
-      'button:has-text("登录")',
-      'div:has-text("登录")',
+      'a:has-text("??")',
+      'button:has-text("??")',
+      'div:has-text("??")',
       `div:text-is("${LZYUMI_LOGIN_TARGET}")`,
       `span:text-is("${LZYUMI_LOGIN_TARGET}")`,
       `a:text-is("${LZYUMI_LOGIN_TARGET}")`,
-      'input[value*="登录"]',
+      'input[value*="??"]',
       'button',
     ].join(", "),
   );
@@ -581,36 +586,27 @@ async function lzyumiFetch(url) {
 }
 
 function lzyumiInfoUrl({ nickname, openId, areaId, filter, allCount = LZYUMI_ALL_COUNT }) {
-  const { lzyumiSign, signStr } = createLzyumiSignature();
   const areaName = CHINA_SERVERS[areaId] || CHINA_SERVERS[1];
-  const encodedNickname = clean(nickname).replace(/#/g, `*~*~*${LZYUMI_RIOT_TAG_ISOLATE}`);
-  const params = [
-    `nickname=${encodeURIComponent(encodedNickname)}`,
-    `allCount=${allCount}`,
-    `areaId=${areaId}`,
-    `areaName=${encodeURIComponent(areaName)}`,
-    "seleMe=1",
-    `filter=${filter}`,
-    `openId=${encodeURIComponent(clean(openId))}`,
-    `lzyumiSign=${lzyumiSign}`,
-    `signStr=${signStr}`,
-  ];
-  if (LZYUMI_TOKENSTR) {
-    params.push(`lzyumitokenstr=${encodeURIComponent(LZYUMI_TOKENSTR)}`);
-  }
-
-  return `${LZYUMI_BASE}/info?${params.join("&")}`;
+  return buildLzyumiInfoUrl({
+    baseUrl: LZYUMI_BASE,
+    nickname,
+    openId,
+    areaId,
+    areaName,
+    filter,
+    allCount,
+    sessionToken: LZYUMI_TOKENSTR,
+  });
 }
 
 function lzyumiDetailUrl({ openId, gameId, areaId }) {
-  const { lzyumiSign, signStr } = createLzyumiSignature();
-  const url = new URL(`${LZYUMI_BASE}/info/findOrderDetailInfoAll`);
-  url.searchParams.set("openId", openId);
-  url.searchParams.set("gameId", gameId);
-  url.searchParams.set("areaId", String(areaId));
-  url.searchParams.set("lzyumiSign", lzyumiSign);
-  url.searchParams.set("signStr", signStr);
-  return url.toString();
+  return buildLzyumiDetailUrl({
+    baseUrl: LZYUMI_BASE,
+    openId,
+    gameId,
+    areaId,
+    sessionToken: LZYUMI_TOKENSTR,
+  });
 }
 
 function debugWeGame(label, detail) {
@@ -987,6 +983,10 @@ async function fetchRecentGamesForPlayerViaWeGame(player) {
 }
 
 async function fetchRecentGamesForPlayerViaLzyumi(player) {
+  if (!LZYUMI_TOKENSTR) {
+    throw new Error("Missing REPORT_ENGINE_LZYUMI_TOKENSTR for the configured Lzyumi match source.");
+  }
+
   const areaId = player.chinaServerId || 1;
   const savedOpenId = clean(player.openId);
   const lookupNames = [clean(player.riotName), riotId(player)].filter(Boolean);
@@ -1006,11 +1006,23 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
     if (seenAttempts.has(attemptKey)) continue;
     seenAttempts.add(attemptKey);
 
-    const runAttempt = () => Promise.all(
-      LZYUMI_FILTERS.map((filter) => {
+    const runAttempt = () => collectLzyumiHistoryResponses({
+      filters: LZYUMI_FILTERS,
+      concurrency: LZYUMI_HISTORY_CONCURRENCY,
+      malformedRetries: LZYUMI_MALFORMED_RETRIES,
+      resetBrowserSession,
+      onMalformed: ({ attempt: retryAttempt, willRetry, responses: malformedResponses }) => {
+        console.warn(`[lzyumi-history] incomplete response ${JSON.stringify({
+          retryAttempt,
+          willRetry,
+          responses: malformedResponses,
+        })}`);
+      },
+      fetchHistory: (filter) => retryProviderCode(() => {
         const url = lzyumiInfoUrl({ ...attempt, areaId, filter });
         return lzyumiFetch(url)
           .then((response) => {
+            const history = assertLzyumiHistoryResponse(response);
             debugLzyumi("info", {
               player: riotId(player) || clean(player.displayName),
               areaId,
@@ -1019,11 +1031,12 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
               tokenSupplied: Boolean(LZYUMI_TOKENSTR),
               nicknameSupplied: Boolean(clean(attempt.nickname)),
               openIdSupplied: Boolean(clean(attempt.openId)),
-              response: lzyumiResponseSummary(response),
+              response: lzyumiResponseSummary(history),
             });
-            return response;
+            return history;
           })
           .catch((error) => {
+            if (error instanceof LzyumiResponseError) throw error;
             debugLzyumi("info-error", {
               player: riotId(player) || clean(player.displayName),
               areaId,
@@ -1036,8 +1049,20 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
             });
             return null;
           });
+      }, {
+        code: "7",
+        retries: LZYUMI_CODE_7_RETRIES,
+        baseDelayMs: LZYUMI_CODE_7_BACKOFF_MS,
+        isMatch: (error) => error instanceof LzyumiResponseError && error.code === "7",
+        onRetry: ({ attempt: retryAttempt, delayMs }) => debugLzyumi("provider-busy-retry", {
+          player: riotId(player) || clean(player.displayName),
+          areaId,
+          filter,
+          retryAttempt,
+          delayMs,
+        }),
       }),
-    );
+    });
 
     let responses = await runAttempt();
     const hasData = responses.some(
@@ -1312,13 +1337,14 @@ async function fetchDetailForSource(source, game) {
     });
   }
 
-  return lzyumiFetch(
+  const detail = await lzyumiFetch(
     lzyumiDetailUrl({
       openId: source.openId,
       gameId: game.gameId,
       areaId: source.areaId,
     }),
   );
+  return assertLzyumiDetailResponse(detail);
 }
 
 function findDetailPlayerForSource(source, detail) {
@@ -1335,7 +1361,8 @@ function findDetailPlayerForSource(source, detail) {
 }
 
 async function debugCheckPlayer() {
-  const riot = cliValue("--check-player") || cliValue("--wegame-check-player");
+  const reporterFirstProbe = process.argv.includes("--check-reporter-first");
+  const riot = cliValue("--check-reporter-first") || cliValue("--check-player") || cliValue("--wegame-check-player");
   const areaId = Number(cliValue("--area-id", "1")) || 1;
   const limit = Number(cliValue("--limit", "8")) || 8;
   const openId = cliValue("--open-id");
@@ -1352,7 +1379,24 @@ async function debugCheckPlayer() {
     chinaServerId: areaId,
     openId: openId || null,
   };
-  const source = await fetchRecentGamesForPlayer(player);
+  let source;
+  if (reporterFirstProbe) {
+    const fallbackPlayer = {
+      displayName: "ECL Diagnostic Fallback",
+      riotName: "ECLDiagnosticNoSuchPlayer",
+      riotTag: "00000",
+      chinaServerId: areaId,
+      openId: null,
+    };
+    const lookup = await findFirstRecentGameSource({
+      players: [player, fallbackPlayer],
+      fetchSource: fetchRecentGamesForPlayer,
+    });
+    source = lookup.source;
+    console.log(`Reporter-first probe checked ${lookup.checked} player(s) before selecting a source.`);
+  } else {
+    source = await fetchRecentGamesForPlayer(player);
+  }
 
   if (!source) {
     console.log(`No recent ECL.GG games found for ${riot || name} on area ${areaId}.`);
@@ -1455,12 +1499,24 @@ async function findMatchingGame(job) {
     ...players.filter((player) => player.kookUserId === job.requestedByKookId),
     ...players.filter((player) => player.kookUserId !== job.requestedByKookId),
   ];
-  const sources = (await Promise.all(searchPlayers.map(fetchRecentGamesForPlayer))).filter(Boolean);
+  const sourceLookup = await findFirstRecentGameSource({
+    players: searchPlayers,
+    fetchSource: fetchRecentGamesForPlayer,
+    onLookupError: ({ error, playerIndex, reporter }) => {
+      console.warn(`[lzyumi-player] source lookup failed ${JSON.stringify({
+        playerIndex,
+        reporter,
+        code: error instanceof LzyumiResponseError ? error.code : null,
+        reason: error instanceof LzyumiResponseError ? error.reason : null,
+      })}`);
+    },
+  });
+  const sources = sourceLookup.source ? [sourceLookup.source] : [];
   const gamesById = new Map();
 
   if (sources.length === 0) {
     throw new Error(
-      `No recent ECL.GG games were found for this inhouse roster. Checked ${searchPlayers.length} players, but the configured match source returned no recent game lists.`,
+      `No recent ECL.GG games were found for this inhouse roster. Checked ${sourceLookup.checked} prioritized players (${sourceLookup.failures} lookup failures), but the configured match source returned no recent game lists.`,
     );
   }
 
@@ -1475,7 +1531,7 @@ async function findMatchingGame(job) {
 
   if (gamesById.size === 0) {
     throw new Error(
-      `No unreported ECL.GG games were found for this inhouse roster. The configured match source returned games for ${sources.length}/${searchPlayers.length} players, but they were already reported or missing game IDs.`,
+      `No unreported ECL.GG games were found from the prioritized reporter/fallback history after checking ${sourceLookup.checked} player(s); the games were already reported or missing game IDs.`,
     );
   }
 
@@ -1504,10 +1560,25 @@ async function findMatchingGame(job) {
   }
 
   const checked = (
-    await Promise.all(
-      candidates.map(async ({ source, game }) => {
+    await mapWithConcurrency(
+      candidates,
+      LZYUMI_DETAIL_CONCURRENCY,
+      async ({ source, game }) => {
         try {
-          const detail = await fetchDetailForSource(source, game);
+          const detail = await retryProviderCode(
+            () => fetchDetailForSource(source, game),
+            {
+              code: "7",
+              retries: LZYUMI_CODE_7_RETRIES,
+              baseDelayMs: LZYUMI_CODE_7_BACKOFF_MS,
+              isMatch: (error) => error instanceof LzyumiResponseError && error.code === "7",
+              onRetry: ({ attempt: retryAttempt, delayMs }) => debugLzyumi("provider-busy-detail-retry", {
+                gameId: game.gameId,
+                retryAttempt,
+                delayMs,
+              }),
+            },
+          );
 
           return {
             source,
@@ -1519,7 +1590,7 @@ async function findMatchingGame(job) {
           console.error("Detail lookup failed", game.gameId, error.message);
           return null;
         }
-      }),
+      },
     )
   ).filter(Boolean);
 
@@ -1554,13 +1625,13 @@ async function siteGet(pathname) {
   return response.data;
 }
 
-async function sitePost(pathname, body) {
+async function sitePost(pathname, body, timeout = 15000) {
   const response = await axios.post(`${SITE_URL}${pathname}`, body, {
     headers: {
       "Content-Type": "application/json",
       "x-ecl-report-engine-secret": REPORT_ENGINE_SECRET,
     },
-    timeout: 15000,
+    timeout,
   });
   return response.data;
 }
@@ -1585,6 +1656,63 @@ async function processNextJob() {
   if (!job) return;
 
   console.log(`Processing ${job.session.gameLabel || job.sessionId} (${job.id})`);
+
+  if (job.action === "CONFIRM") {
+    let confirmationResult;
+    try {
+      if (!job.rawMatchData) {
+        throw new Error("The queued confirmation is missing its saved match data.");
+      }
+
+      const submitted = await sitePost(
+        "/api/kook/inhouse/report",
+        {
+          command: "!report",
+          reporterKookUserId: job.requestedByKookId,
+          sessionId: job.sessionId,
+          rawMatchData: job.rawMatchData,
+        },
+        300000,
+      );
+      confirmationResult = await sitePost("/api/jobs/inhouse-report", {
+        jobId: job.id,
+        status: "CONFIRMED",
+        reply: submitted.reply || "The inhouse result was submitted successfully.",
+      });
+    } catch (error) {
+      const httpStatus = error.response?.status;
+      const remoteMessage = error.response?.data?.reply || error.response?.data?.message;
+      const message = clean(remoteMessage) || clean(error.message) || "The report confirmation failed.";
+
+      if (shouldRetryConfirmation(job.attempts, httpStatus)) {
+        await sitePost("/api/jobs/inhouse-report", {
+          jobId: job.id,
+          status: "CONFIRM_RETRY",
+          error: message,
+        });
+        console.error(`Report confirmation will retry: ${message}`);
+        return;
+      }
+
+      confirmationResult = await sitePost("/api/jobs/inhouse-report", {
+        jobId: job.id,
+        status: "CONFIRM_FAILED",
+        error: message,
+        reply: message,
+      });
+      console.error(`Report confirmation failed: ${message}`);
+    }
+
+    try {
+      await sendKookMessage(confirmationResult.responseChannelId, confirmationResult.reply);
+    } catch (error) {
+      console.error(`Could not send the final KOOK report message: ${error.message || error}`);
+    }
+    if (confirmationResult.status === "CONFIRMED") {
+      console.log(`Confirmed report for ${job.session.gameLabel || job.sessionId}`);
+    }
+    return;
+  }
 
   try {
     const match = await findMatchingGame(job);
@@ -1623,6 +1751,9 @@ async function main() {
   if (MATCH_SOURCE === "wegame" && !WEGAME_COOKIE) {
     throw new Error("Missing REPORT_ENGINE_WEGAME_COOKIE while REPORT_ENGINE_MATCH_SOURCE=wegame.");
   }
+  if (MATCH_SOURCE === "lzyumi" && !LZYUMI_TOKENSTR) {
+    throw new Error("Missing REPORT_ENGINE_LZYUMI_TOKENSTR while REPORT_ENGINE_MATCH_SOURCE=lzyumi.");
+  }
 
   console.log(
     `ECL Report Engine polling ${SITE_URL} using ${MATCH_SOURCE} match source with ${proxyLabel(reportEngineProxy())}`,
@@ -1652,7 +1783,11 @@ if (process.argv.includes("--probe-network")) {
     console.error(error.message || error);
     process.exitCode = 1;
   });
-} else if (process.argv.includes("--check-player") || process.argv.includes("--wegame-check-player")) {
+} else if (
+  process.argv.includes("--check-reporter-first") ||
+  process.argv.includes("--check-player") ||
+  process.argv.includes("--wegame-check-player")
+) {
   debugCheckPlayer().catch((error) => {
     console.error(error.message || error);
     process.exitCode = 1;

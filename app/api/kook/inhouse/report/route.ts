@@ -13,6 +13,7 @@ import {
   type LzyumiRecentMatch,
 } from "@/lib/lzyumi";
 import { isLzyumiGameAlreadyReported } from "@/lib/lzyumi-report-dedupe";
+import { acquireRankedInhouseReportLock } from "@/lib/inhouse-report-lock";
 import { syncPlayerForProfile } from "@/lib/player-profile-sync";
 import { prisma } from "@/lib/prisma";
 import {
@@ -24,6 +25,7 @@ import {
 } from "@/lib/riot-id";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const ACTIVE_SESSION_HOURS = 48;
 const REQUIRED_MATCHED_PLAYERS = Number(process.env.INHOUSE_REPORT_REQUIRED_MATCHES || 8);
@@ -48,6 +50,8 @@ type ReportBody = {
 };
 
 type SessionPlayer = Awaited<ReturnType<typeof findActiveSessionForReporter>>["players"][number];
+
+class ReportedGameConflictError extends Error {}
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -124,8 +128,16 @@ function isPlayerWin(player: LzyumiPlayerDetail) {
 }
 
 function unauthorized(request: Request) {
-  const secret = request.headers.get("x-ecl-kook-secret");
-  return !process.env.ECL_KOOK_BOT_SECRET || secret !== process.env.ECL_KOOK_BOT_SECRET;
+  const expectedSecrets = [
+    process.env.ECL_KOOK_BOT_SECRET,
+    process.env.ECL_REPORT_ENGINE_SECRET,
+    process.env.ECL_JOB_SECRET,
+  ].map(clean).filter(Boolean);
+  const suppliedSecret =
+    request.headers.get("x-ecl-kook-secret") ??
+    request.headers.get("x-ecl-report-engine-secret") ??
+    request.headers.get("x-ecl-job-secret");
+  return expectedSecrets.length === 0 || !expectedSecrets.includes(clean(suppliedSecret));
 }
 
 function toJson(value: unknown): Prisma.InputJsonValue {
@@ -195,13 +207,16 @@ async function findReporterProfile(reporter: SessionPlayer) {
   });
 }
 
-async function findOrCreatePlayer(sessionPlayer: SessionPlayer) {
+async function findOrCreatePlayer(
+  sessionPlayer: SessionPlayer,
+  database: typeof prisma | Prisma.TransactionClient = prisma,
+) {
   const riotName = normalizeRiotPart(sessionPlayer.riotName);
   const riotTag = normalizeRiotTag(sessionPlayer.riotTag);
   const email = clean(sessionPlayer.email);
 
   const existingById = sessionPlayer.playerId
-    ? await prisma.player.findUnique({
+    ? await database.player.findUnique({
         where: {
           id: sessionPlayer.playerId,
         },
@@ -210,14 +225,17 @@ async function findOrCreatePlayer(sessionPlayer: SessionPlayer) {
 
   if (existingById) return existingById;
 
-  const player = await syncPlayerForProfile({
-    displayName: sessionPlayer.displayName,
-    riotName,
-    riotTag,
-    email,
-  });
+  const player = await syncPlayerForProfile(
+    {
+      displayName: sessionPlayer.displayName,
+      riotName,
+      riotTag,
+      email,
+    },
+    database,
+  );
 
-  return prisma.player.findUniqueOrThrow({
+  return database.player.findUniqueOrThrow({
     where: { id: player.id },
   });
 }
@@ -501,44 +519,10 @@ export async function POST(request: Request) {
   const blueWins = blueRows.filter((row) => isPlayerWin(row.detailPlayer)).length;
   const redWins = redRows.filter((row) => isPlayerWin(row.detailPlayer)).length;
   const blueWon = blueWins >= redWins;
-
-  const blueTeam = await prisma.team.upsert({
-    where: {
-      name: teamName(session.id, "BLUE"),
-    },
-    update: {},
-    create: {
-      name: teamName(session.id, "BLUE"),
-    },
-  });
-  const redTeam = await prisma.team.upsert({
-    where: {
-      name: teamName(session.id, "RED"),
-    },
-    update: {},
-    create: {
-      name: teamName(session.id, "RED"),
-    },
-  });
-
   const currentSeason = getRankedSeason();
   if (currentSeason && session.createdAt < currentSeason.startedAt) {
     return NextResponse.json({ message: "This ready session belongs to the previous ranked season. Create a fresh !ready roster before reporting." }, { status: 409 });
   }
-  const match = await prisma.match.create({
-    data: {
-      stage: "REGULAR_SEASON",
-      roundLabel: session.gameLabel ?? "Ranked Inhouse",
-      matchLabel: session.gameLabel ?? `Ranked IH ${new Date().toISOString().slice(0, 10)}`,
-      bestOf: 1,
-      status: "COMPLETED",
-      homeTeamId: blueTeam.id,
-      awayTeamId: redTeam.id,
-      winnerTeamId: blueWon ? blueTeam.id : redTeam.id,
-      homeScore: blueWon ? 1 : 0,
-      awayScore: blueWon ? 0 : 1,
-    },
-  });
 
   const blueKills = blueRows.reduce(
     (sum, row) => sum + parseScoreInfo(row.detailPlayer.scoreInfo).kills,
@@ -559,147 +543,250 @@ export async function POST(request: Request) {
   const mvpName =
     matchedRows.find((row) => row.detailPlayer.wasMvp === "1")?.sessionPlayer.displayName ?? null;
 
-  const game = await prisma.matchGame.create({
-    data: {
-      matchId: match.id,
-      gameNumber: 1,
-      winnerTeamId: blueWon ? blueTeam.id : redTeam.id,
-      homeKills: blueKills,
-      awayKills: redKills,
-      homeGold: blueGold,
-      awayGold: redGold,
-      mvpName,
-      ocrRawJson: toJson({
-        source: "kook-inhouse-report",
-        recentMatch,
-        detail: matchDetail,
-      }),
-    },
-  });
+  const applyIngestion = () => prisma.$transaction(async (tx) => {
+    await acquireRankedInhouseReportLock(tx);
 
-  let appliedPlayers = 0;
-  const reportedAt = new Date();
-  const season = currentSeason;
-  const rankedFilter = currentRankedFilter(season);
-  const doubleLpDayBounds = chinaDayBounds(reportedAt);
+    const durableSession = await tx.inhouseSession.findUnique({
+      where: { id: session.id },
+      select: {
+        status: true,
+        matchId: true,
+        matchGameId: true,
+        lzyumiGameId: true,
+      },
+    });
+    if (!durableSession) throw new Error("The inhouse session no longer exists.");
+    if (durableSession.status === "COMPLETED") {
+      return {
+        alreadyReported: true as const,
+        appliedPlayers: matchedRows.length,
+        matchId: durableSession.matchId,
+        matchGameId: durableSession.matchGameId,
+        lzyumiGameId: durableSession.lzyumiGameId,
+      };
+    }
+    if (durableSession.status !== "ASSIGNED") {
+      throw new Error("The inhouse session is no longer active.");
+    }
 
-  for (const row of matchedRows) {
-    const player = await findOrCreatePlayer(row.sessionPlayer);
-    const [gamesPlayed, latestInhouseStat, inhouseGamesToday] = await Promise.all([
-      prisma.matchGamePlayerStat.count({
-        where: {
-          playerId: player.id,
-          ...rankedFilter,
-        },
-      }),
-      prisma.matchGamePlayerStat.findFirst({
-        where: {
-          playerId: player.id,
-          ...rankedFilter,
-        },
-        orderBy: { createdAt: "desc" },
-        select: { createdAt: true },
-      }),
-      prisma.matchGamePlayerStat.count({
-        where: {
-          ...rankedFilter,
-          playerId: player.id,
-          createdAt: {
-            gte: season && season.startedAt > doubleLpDayBounds.start ? season.startedAt : doubleLpDayBounds.start,
-            lt: doubleLpDayBounds.end,
-          },
-        },
-      }),
-    ]);
-    const side = row.sessionPlayer.side;
-    const teamId = side === "BLUE" ? blueTeam.id : redTeam.id;
-    const isWin = teamId === game.winnerTeamId;
-    const score = parseScoreInfo(row.detailPlayer.scoreInfo);
-    const state = season ? (await loadRankedSeasonStates([player.id], season)).get(player.id)! : null;
-    const lp = calculateLpChange({
-      win: isWin,
-      kills: score.kills,
-      deaths: score.deaths,
-      assists: score.assists,
-      isMVP: row.detailPlayer.wasMvp === "1",
-      isSVP: row.detailPlayer.wasSvp === "1",
-      currentElo: state?.elo ?? player.elo,
-      gamesPlayed,
-      winStreak: state?.winStreak ?? player.winStreak,
-      lossStreak: state?.lossStreak ?? player.lossStreak,
-      lastPlayedAt: latestInhouseStat?.createdAt,
-      playedAt: reportedAt,
-      hasPlayedOnDoubleLpDay: inhouseGamesToday > 0,
-      doubleLpEligible: true,
-    }).lpChange;
-    const eloBefore = state?.elo ?? player.elo;
-    const eloAfter = eloBefore + lp;
+    const durableGameOwner = await tx.inhouseSession.findUnique({
+      where: { lzyumiGameId: recentMatch.gameId },
+      select: { id: true },
+    });
+    if (durableGameOwner && durableGameOwner.id !== session.id) {
+      throw new ReportedGameConflictError("That ECL.GG game has already been reported to ECL.");
+    }
 
-    await prisma.matchGamePlayerStat.create({
+    const blueTeam = await tx.team.upsert({
+      where: { name: teamName(session.id, "BLUE") },
+      update: {},
+      create: { name: teamName(session.id, "BLUE") },
+    });
+    const redTeam = await tx.team.upsert({
+      where: { name: teamName(session.id, "RED") },
+      update: {},
+      create: { name: teamName(session.id, "RED") },
+    });
+    const match = await tx.match.create({
       data: {
-        matchGameId: game.id,
-        playerId: player.id,
-        teamId,
-        riotName: player.riotName,
-        riotTag: player.riotTag,
+        stage: "REGULAR_SEASON",
+        roundLabel: session.gameLabel ?? "Ranked Inhouse",
+        matchLabel: session.gameLabel ?? `Ranked IH ${new Date().toISOString().slice(0, 10)}`,
+        bestOf: 1,
+        status: "COMPLETED",
+        homeTeamId: blueTeam.id,
+        awayTeamId: redTeam.id,
+        winnerTeamId: blueWon ? blueTeam.id : redTeam.id,
+        homeScore: blueWon ? 1 : 0,
+        awayScore: blueWon ? 0 : 1,
+      },
+    });
+    const game = await tx.matchGame.create({
+      data: {
+        matchId: match.id,
+        gameNumber: 1,
+        winnerTeamId: blueWon ? blueTeam.id : redTeam.id,
+        homeKills: blueKills,
+        awayKills: redKills,
+        homeGold: blueGold,
+        awayGold: redGold,
+        mvpName,
+        ocrRawJson: toJson({ source: "kook-inhouse-report", recentMatch, detail: matchDetail }),
+      },
+    });
+
+    let appliedPlayers = 0;
+    const reportedAt = new Date();
+    const season = currentSeason;
+    const rankedFilter = currentRankedFilter(season);
+    const doubleLpDayBounds = chinaDayBounds(reportedAt);
+    const linkedPlayerIds = matchedRows
+      .map((row) => row.sessionPlayer.playerId)
+      .filter((id): id is string => Boolean(id));
+    const linkedPlayers = linkedPlayerIds.length > 0
+      ? await tx.player.findMany({ where: { id: { in: linkedPlayerIds } } })
+      : [];
+    const linkedPlayerById = new Map(linkedPlayers.map((player) => [player.id, player]));
+    const resolvedPlayers = [];
+
+    for (const row of matchedRows) {
+      const linked = row.sessionPlayer.playerId
+        ? linkedPlayerById.get(row.sessionPlayer.playerId)
+        : undefined;
+      resolvedPlayers.push(linked ?? await findOrCreatePlayer(row.sessionPlayer, tx));
+    }
+
+    const seasonStates = season
+      ? await loadRankedSeasonStates(resolvedPlayers.map((player) => player.id), season, tx)
+      : null;
+
+    for (const [index, row] of matchedRows.entries()) {
+      const player = resolvedPlayers[index];
+      const state = seasonStates?.get(player.id) ?? null;
+      const fallbackHistory = state
+        ? null
+        : await Promise.all([
+            tx.matchGamePlayerStat.count({ where: { playerId: player.id, ...rankedFilter } }),
+            tx.matchGamePlayerStat.findFirst({
+              where: { playerId: player.id, ...rankedFilter },
+              orderBy: { createdAt: "desc" },
+              select: { createdAt: true },
+            }),
+            tx.matchGamePlayerStat.count({
+              where: {
+                ...rankedFilter,
+                playerId: player.id,
+                createdAt: { gte: doubleLpDayBounds.start, lt: doubleLpDayBounds.end },
+              },
+            }),
+          ]);
+      const gamesPlayed = state?.gamesPlayed ?? fallbackHistory?.[0] ?? 0;
+      const lastPlayedAt = state?.lastPlayedAt ?? fallbackHistory?.[1]?.createdAt;
+      const hasPlayedOnDoubleLpDay = state
+        ? state.stats.some((stat) =>
+            stat.createdAt >= (season!.startedAt > doubleLpDayBounds.start
+              ? season!.startedAt
+              : doubleLpDayBounds.start) && stat.createdAt < doubleLpDayBounds.end)
+        : (fallbackHistory?.[2] ?? 0) > 0;
+      const teamId = row.sessionPlayer.side === "BLUE" ? blueTeam.id : redTeam.id;
+      const isWin = teamId === game.winnerTeamId;
+      const score = parseScoreInfo(row.detailPlayer.scoreInfo);
+      const lp = calculateLpChange({
+        win: isWin,
         kills: score.kills,
         deaths: score.deaths,
         assists: score.assists,
-        gold: safeNumber(row.detailPlayer.goldEarned ?? row.detailPlayer.echartsMap?.goldEarned),
-        damage: safeNumber(
-          row.detailPlayer.totalDamageDealt ?? row.detailPlayer.echartsMap?.totalDamageDealt,
-        ),
-        isWin,
         isMVP: row.detailPlayer.wasMvp === "1",
         isSVP: row.detailPlayer.wasSvp === "1",
-        lpChange: lp,
-        eloBefore,
-        eloAfter,
-      },
-    });
+        currentElo: state?.elo ?? player.elo,
+        gamesPlayed,
+        winStreak: state?.winStreak ?? player.winStreak,
+        lossStreak: state?.lossStreak ?? player.lossStreak,
+        lastPlayedAt,
+        playedAt: reportedAt,
+        hasPlayedOnDoubleLpDay,
+        doubleLpEligible: true,
+      }).lpChange;
+      const eloBefore = state?.elo ?? player.elo;
+      const eloAfter = eloBefore + lp;
 
-    await prisma.player.update({
-      where: {
-        id: player.id,
-      },
+      await tx.matchGamePlayerStat.create({
+        data: {
+          matchGameId: game.id,
+          playerId: player.id,
+          teamId,
+          riotName: player.riotName,
+          riotTag: player.riotTag,
+          kills: score.kills,
+          deaths: score.deaths,
+          assists: score.assists,
+          gold: safeNumber(row.detailPlayer.goldEarned ?? row.detailPlayer.echartsMap?.goldEarned),
+          damage: safeNumber(row.detailPlayer.totalDamageDealt ?? row.detailPlayer.echartsMap?.totalDamageDealt),
+          isWin,
+          isMVP: row.detailPlayer.wasMvp === "1",
+          isSVP: row.detailPlayer.wasSvp === "1",
+          lpChange: lp,
+          eloBefore,
+          eloAfter,
+        },
+      });
+      await tx.player.update({
+        where: { id: player.id },
+        data: {
+          elo: eloAfter,
+          winStreak: isWin ? (state?.winStreak ?? player.winStreak) + 1 : 0,
+          lossStreak: isWin ? 0 : (state?.lossStreak ?? player.lossStreak) + 1,
+        },
+      });
+      if (row.sessionPlayer.playerId !== player.id) {
+        await tx.inhouseSessionPlayer.update({
+          where: { id: row.sessionPlayer.id },
+          data: { playerId: player.id },
+        });
+      }
+      appliedPlayers += 1;
+    }
+
+    await tx.inhouseSession.update({
+      where: { id: session.id },
       data: {
-        elo: eloAfter,
-        winStreak: isWin ? (state?.winStreak ?? player.winStreak) + 1 : 0,
-        lossStreak: isWin ? 0 : (state?.lossStreak ?? player.lossStreak) + 1,
+        status: "COMPLETED",
+        blueTeamId: blueTeam.id,
+        redTeamId: redTeam.id,
+        matchId: match.id,
+        matchGameId: game.id,
+        lzyumiGameId: recentMatch.gameId,
+        reportedByKookId: adminOverride ? "ADMIN" : reporterKookUserId,
+        reportRawJson: toJson({ recentMatch, reporterProfile }),
+        completedAt: new Date(),
       },
     });
 
-    await prisma.inhouseSessionPlayer.update({
-      where: {
-        id: row.sessionPlayer.id,
-      },
-      data: {
-        playerId: player.id,
-      },
-    });
-
-    appliedPlayers += 1;
-  }
-
-  await prisma.inhouseSession.update({
-    where: {
-      id: session.id,
-    },
-    data: {
-      status: "COMPLETED",
-      blueTeamId: blueTeam.id,
-      redTeamId: redTeam.id,
+    return {
+      alreadyReported: false as const,
+      appliedPlayers,
       matchId: match.id,
       matchGameId: game.id,
       lzyumiGameId: recentMatch.gameId,
-      reportedByKookId: adminOverride ? "ADMIN" : reporterKookUserId,
-      reportRawJson: toJson({
-        recentMatch,
-        reporterProfile,
-      }),
-      completedAt: new Date(),
-    },
-  });
+    };
+  }, { maxWait: 10_000, timeout: 240_000 });
+
+  let ingestion: Awaited<ReturnType<typeof applyIngestion>>;
+  try {
+    ingestion = await applyIngestion();
+  } catch (error) {
+    if (error instanceof ReportedGameConflictError) {
+      return NextResponse.json(
+        { ok: false, status: "ALREADY_REPORTED", reply: error.message },
+        { status: 409 },
+      );
+    }
+    console.error(
+      "Atomic inhouse report ingestion failed:",
+      error instanceof Error ? error.message : "Unknown database error.",
+    );
+    return NextResponse.json(
+      {
+        ok: false,
+        status: "INGESTION_FAILED",
+        reply:
+          "ECL could not apply this result yet. No partial match or LP update was saved; the Report Engine will retry transient failures.",
+      },
+      { status: 500 },
+    );
+  }
+
+  if (ingestion.alreadyReported) {
+    return NextResponse.json({
+      ok: true,
+      status: "ALREADY_REPORTED",
+      reply: `${session.gameLabel ?? "This inhouse"} has already been reported.`,
+      sessionId: session.id,
+      matchId: ingestion.matchId,
+      matchGameId: ingestion.matchGameId,
+      lzyumiGameId: ingestion.lzyumiGameId,
+    });
+  }
 
   // Revalidate live match/profile/ladder surfaces immediately after LP is applied.
   revalidatePath("/hub/inhouses");
@@ -709,13 +796,13 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     status: "INGESTED",
-    reply: `Reported. ECL ingested ${appliedPlayers}/10 players. Winner: ${
+    reply: `Reported. ECL ingested ${ingestion.appliedPlayers}/10 players. Winner: ${
       blueWon ? "Blue Side" : "Red Side"
     }.`,
     sessionId: session.id,
-    matchId: match.id,
-    matchGameId: game.id,
-    lzyumiGameId: recentMatch.gameId,
-    appliedPlayers,
+    matchId: ingestion.matchId,
+    matchGameId: ingestion.matchGameId,
+    lzyumiGameId: ingestion.lzyumiGameId,
+    appliedPlayers: ingestion.appliedPlayers,
   });
 }

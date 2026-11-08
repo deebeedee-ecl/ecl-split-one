@@ -214,9 +214,15 @@ Body:
 }
 ```
 
-The website then submits the stored preview through `/api/kook/inhouse/report`,
-compares the match against the 10 players saved from `!ready`, ingests only if
-the lobby matches, applies LP, and marks the inhouse session completed.
+The website acknowledges `!yes` immediately and queues durable confirmation work.
+The always-on Report Engine submits the stored preview through
+`/api/kook/inhouse/report`, compares the match against the 10 players saved from
+`!ready`, and posts the final success or failure message back to the same KOOK
+channel. Duplicate `!yes` commands do not create a second result.
+
+Match, game, player-stat, LP, and session-completion writes are committed in one
+database transaction. A failed attempt therefore leaves no partial match or LP
+update, and the worker can safely retry transient failures.
 
 If the player types `!no`, send:
 

@@ -1,6 +1,6 @@
 # ECL integration contracts
 
-Last reviewed: 2026-11-07
+Last reviewed: 2026-11-08
 
 This document records responsibilities and invariants, not credentials. Supported variable names live in `.env.example`; real values stay outside version control.
 
@@ -21,9 +21,13 @@ Acceptance requires matching the expected full Riot ID, China server, and `openI
 
 ### Match-report worker flow
 
-The report engine is an always-on service used after KOOK queues a report job. It loads the saved ten-player session roster, searches recent games, fetches details, checks time/roster coverage, and sends candidate evidence back to the website. The website owns final confirmation and writes.
+The report engine is an always-on service used after KOOK queues a report job. It loads the saved ten-player session roster, searches recent games, fetches details, checks time/roster coverage, and sends candidate evidence back to the website. The website owns result authority and the database commit.
+
+After the website presents a candidate, `!yes` acknowledges quickly and queues durable confirmation work instead of holding the KOOK request open for the complete ingestion. The report engine claims that confirmation job and submits the saved candidate to the website. The website revalidates the actor, session, roster, time window, provider game ID, and duplicate state before committing. Duplicate `!yes` commands must converge on the same job/result.
 
 The worker supports a configurable source and retains a WeGame path, but Lzyumi is the primary/default provider when its token flow is configured. Lzyumi provider application code `7` is treated as throttling/transient pressure and uses bounded retry/backoff with conservative concurrency.
+
+The verified match contract exposes provider game ID, history title/time, structured game type/mode, participants, teams, and match statistics. The current Lzyumi payload does not expose the human-entered custom-lobby name. Labels such as `IH #072` belong to the ECL session and are linked to the provider game; a localized history `title` is not a lobby name.
 
 Never place a token, cookie, login, signed URL, provider response containing player data, or local browser profile in a tracked file.
 
@@ -73,11 +77,15 @@ Any result/LP correction, merge, backfill, season reset, or tournament release c
 
 `report-engine/` polls trusted job endpoints using a worker/job secret. It may read provider credentials from its deployment environment or ignored local environment file. It must not be the final authority for an ECL result: the website revalidates and owns the commit.
 
+Provider concurrency and retry controls use the supported `REPORT_ENGINE_LZYUMI_*` variable names in `.env.example`. Keep production values in deployment configuration, use conservative bounded settings, and never copy tokens or cookies into documentation.
+
 Before a worker deployment, verify its unit tests and a read-only known-player probe. A successful provider lookup does not prove that final `!yes` ingestion is atomic or idempotent.
+
+Malformed Lzyumi history responses are provider failures, not evidence that a game or roster is invalid. The report worker refreshes its browser session and retries them once, may continue when other validated history filters remain usable, and logs only response shape metadata (`code`, top-level keys, and data type). It must never log raw provider payloads, tokens, cookies, `openId` values, or player identities as part of this diagnostic path.
 
 ## Windows companion
 
-The Electron companion remains a supported optional runtime for local collection/desktop workflows and historical pilots. It is not a prerequisite for ordinary profile/rank/history refresh while the signed-browser Lzyumi flow works.
+The Electron companion remains a supported optional runtime for local collection/desktop workflows and historical pilots. An earlier ranked-inhouse reporting pilot required one of the ten participants to run the companion so it could observe the League client and collect a custom-game ID. That is historical behavior: the current Lzyumi-based ranked-inhouse report flow does not require the companion while the provider flow works.
 
 Companion release work has additional signing, updater, packaging, and private-data constraints in `companion/README.md` and `docs/desktop/`. Treat dated tester/release documents as historical checkpoints.
 
@@ -92,3 +100,4 @@ Companion release work has additional signing, updater, packaging, and private-d
 | Duplicate game/report retry | Return the existing completion or no-op; never apply LP twice |
 | Partial database failure | Roll back the entire logical result transaction |
 | KOOK reply/move fails after ECL write | Preserve durable ECL state and expose a retryable delivery/operations path |
+| KOOK/API request times out while background work continues | Do not infer result failure from the transport timeout; inspect the durable job/session and committed match state before retrying or cancelling |
