@@ -24,6 +24,7 @@ import {
 } from "@/lib/riot-id";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const ACTIVE_SESSION_HOURS = 48;
 const REQUIRED_MATCHED_PLAYERS = Number(process.env.INHOUSE_REPORT_REQUIRED_MATCHES || 8);
