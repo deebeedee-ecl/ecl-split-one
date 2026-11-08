@@ -13,6 +13,7 @@ import {
   type LzyumiRecentMatch,
 } from "@/lib/lzyumi";
 import { isLzyumiGameAlreadyReported } from "@/lib/lzyumi-report-dedupe";
+import { acquireRankedInhouseReportLock } from "@/lib/inhouse-report-lock";
 import { syncPlayerForProfile } from "@/lib/player-profile-sync";
 import { prisma } from "@/lib/prisma";
 import {
@@ -543,7 +544,7 @@ export async function POST(request: Request) {
     matchedRows.find((row) => row.detailPlayer.wasMvp === "1")?.sessionPlayer.displayName ?? null;
 
   const applyIngestion = () => prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${"ecl-ranked-inhouse-report"}))`;
+    await acquireRankedInhouseReportLock(tx);
 
     const durableSession = await tx.inhouseSession.findUnique({
       where: { id: session.id },
