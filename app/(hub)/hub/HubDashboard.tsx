@@ -1,5 +1,5 @@
-import SplitTwoRegistration from "@/app/(public)/split-ii/SplitTwoRegistration";
 import { HubShell } from "./_components/HubShell";
+import { HubSplitTwoRegistration } from "./_components/HubSplitTwoRegistration";
 
 export default function HubDashboard() {
   return (
@@ -11,7 +11,7 @@ export default function HubDashboard() {
       hideHeader
       theme="blue"
     >
-      <SplitTwoRegistration inDashboard />
+      <HubSplitTwoRegistration />
     </HubShell>
   );
 }

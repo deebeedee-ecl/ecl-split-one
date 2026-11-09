@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SPLIT_II_FLOATER_RULES, SPLIT_II_REGISTRATION_RULES, type TournamentPool } from "@/lib/tournaments/split-ii-config";
 import { SPLIT_II_ROSTERS } from "@/lib/tournaments/split-ii-rosters";
-import { useSplitTwoRegistration } from "./useSplitTwoRegistration";
+import { useSplitTwoRegistration, type SplitRegistrationAuth } from "./useSplitTwoRegistration";
 import BroadcastType from "./BroadcastType";
 import DashboardAudio from "./DashboardAudio";
 import TournamentFormat from "./TournamentFormat";
@@ -22,9 +22,17 @@ import { useTournamentMatches } from './useTournamentMatches';
 import { LiveFixtures,TournamentResults,TournamentLeaders,TournamentStandings } from './TournamentMatches';
 import styles from "./split-ii.module.css";
 
-export default function SplitTwoRegistration({ inDashboard = false, preview = false }: { inDashboard?: boolean; preview?: boolean }) {
+export default function SplitTwoRegistration({
+  inDashboard = false,
+  preview = false,
+  sharedAuth,
+}: {
+  inDashboard?: boolean;
+  preview?: boolean;
+  sharedAuth?: SplitRegistrationAuth;
+}) {
   const isPreview = preview && process.env.NODE_ENV === "development";
-  const state = useSplitTwoRegistration(isPreview);
+  const state = useSplitTwoRegistration(isPreview, sharedAuth);
   const matches=useTournamentMatches(isPreview);
   const { players, player, registration, floaters, floaterRegistration, slot, account, capacity, loaded, requestState } = state;
   const [claimPool, setClaimPool] = useState<TournamentPool>("MAIN");

@@ -7,11 +7,12 @@ import { HubShell } from "../../_components/HubShell";
 import { countryByCode, worldCupCountries } from "@/lib/world-cup-countries";
 import { WorldCupNav } from "../WorldCupNav";
 import { WorldCupFlag } from "../WorldCupFlag";
-import { getAccessToken } from "@/components/account/client-account";
+import { useHubBootstrap } from "../../_components/HubBootstrapProvider";
 
 const rosterSlots = Array.from({ length: 6 }, (_, index) => `Slot ${index + 1}`);
 
 export default function WorldCupCreateTeamPage() {
+  const { accessToken } = useHubBootstrap();
   const [teamName, setTeamName] = useState("");
   const [captainName, setCaptainName] = useState("");
   const [countryCode, setCountryCode] = useState("");
@@ -30,8 +31,7 @@ export default function WorldCupCreateTeamPage() {
     setDashboardHref("");
 
     try {
-      const token = await getAccessToken();
-      if (!token) {
+      if (!accessToken) {
         throw new Error("Log in to the Hub before creating a World Cup team.");
       }
 
@@ -39,7 +39,7 @@ export default function WorldCupCreateTeamPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           teamName,

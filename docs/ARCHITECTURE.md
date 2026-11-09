@@ -37,7 +37,9 @@ The website/API and database are the ECL source of truth. External providers sup
 
 The App Router root layout owns only the global document, metadata, fonts, and body styling. The `(public)` route group owns the public header, mobile navigation, and footer, including the public `/hub` introduction. Hub application routes under `/hub/*` use the separate `(hub)` route-group layout, so the public chrome is absent from their rendered tree instead of being covered by the fixed Hub surface.
 
-The route-group split does not change authorization. The existing page-level `HubShell` and client `HubAccessGate` still control the current signed-out/profile-required presentation, and every private API/server boundary must continue to authorize independently. Centralizing the Hub session/profile bootstrap is separate follow-up work.
+The Hub route-group layout owns one client `HubBootstrapProvider`. It registers one Supabase auth subscription for the mounted Hub tree, resolves the initial session once, and loads only the profile fields needed to distinguish a missing profile from an available profile. `HubAccessGate` and route clients consume that shared state; route-specific full profile, tournament, reporting, and other domain reads remain separate.
+
+This client bootstrap controls presentation only. It is not an authorization boundary: every private API/server data boundary continues to validate the bearer session and its resource-specific permissions independently. Public routes are outside the Hub provider.
 
 ## Domain ownership
 

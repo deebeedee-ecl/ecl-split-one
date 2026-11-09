@@ -35,37 +35,6 @@ export type SignupProfilePayload = {
 };
 
 export const pendingProfileKey = "ecl.pendingSignupProfile";
-export const hubAccessCacheKey = "ecl.hubAccess";
-
-type HubAccessCacheStatus = "ready" | "profile";
-
-export function getHubAccessCache() {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.sessionStorage.getItem(hubAccessCacheKey);
-    if (!raw) return null;
-
-    const value = JSON.parse(raw) as { status?: string };
-    if (value.status === "ready" || value.status === "profile") {
-      return value as { status: HubAccessCacheStatus };
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
-export function setHubAccessCache(status: HubAccessCacheStatus) {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(hubAccessCacheKey, JSON.stringify({ status }));
-}
-
-export function clearHubAccessCache() {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.removeItem(hubAccessCacheKey);
-}
 
 export function cleanSignupProfilePayload(payload: Partial<SignupProfilePayload> & Record<string, unknown>) {
   const { email: _email, password: _password, ...profile } = payload;
@@ -146,8 +115,12 @@ async function prepareImageUpload(file: File, options: ImageUploadOptions) {
   }
 }
 
-export async function saveProfile(payload: Partial<SignupProfilePayload>, method: "POST" | "PATCH") {
-  const token = await getAccessToken();
+export async function saveProfile(
+  payload: Partial<SignupProfilePayload>,
+  method: "POST" | "PATCH",
+  accessToken?: string | null,
+) {
+  const token = accessToken ?? (await getAccessToken());
 
   if (!token) {
     throw new Error("You need to be logged in before this profile can be saved.");
@@ -171,8 +144,8 @@ export async function saveProfile(payload: Partial<SignupProfilePayload>, method
   return data.profile;
 }
 
-export async function loadProfile() {
-  const token = await getAccessToken();
+export async function loadProfile(accessToken?: string | null) {
+  const token = accessToken ?? (await getAccessToken());
 
   if (!token) return null;
 
@@ -188,8 +161,22 @@ export async function loadProfile() {
   return data.profile ?? null;
 }
 
-export async function requestKookVerificationCode() {
-  const token = await getAccessToken();
+export async function loadHubBootstrapProfile(accessToken: string) {
+  const response = await fetch("/api/account/profile/bootstrap", {
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) return null;
+
+  const data = await response.json();
+  return data.profile ?? null;
+}
+
+export async function requestKookVerificationCode(accessToken?: string | null) {
+  const token = accessToken ?? (await getAccessToken());
 
   if (!token) {
     throw new Error("You need to be logged in before requesting a KOOK code.");
@@ -211,8 +198,8 @@ export async function requestKookVerificationCode() {
   return data.verification;
 }
 
-export async function uploadAvatar(file: File) {
-  const token = await getAccessToken();
+export async function uploadAvatar(file: File, accessToken?: string | null) {
+  const token = accessToken ?? (await getAccessToken());
 
   if (!token) {
     throw new Error("You need to be logged in before uploading an avatar.");
@@ -243,8 +230,8 @@ export async function uploadAvatar(file: File) {
   return data.avatarUrl as string;
 }
 
-export async function uploadBanner(file: File) {
-  const token = await getAccessToken();
+export async function uploadBanner(file: File, accessToken?: string | null) {
+  const token = accessToken ?? (await getAccessToken());
 
   if (!token) {
     throw new Error("You need to be logged in before uploading a banner.");
@@ -275,12 +262,12 @@ export async function uploadBanner(file: File) {
   return data.bannerUrl as string;
 }
 
-export async function flushPendingProfile() {
+export async function flushPendingProfile(accessToken?: string | null) {
   const raw = window.localStorage.getItem(pendingProfileKey);
   if (!raw) return null;
 
   const payload = cleanSignupProfilePayload(JSON.parse(raw)) as SignupProfilePayload;
-  const profile = await saveProfile(payload, "POST");
+  const profile = await saveProfile(payload, "POST", accessToken);
   window.localStorage.removeItem(pendingProfileKey);
   return profile;
 }

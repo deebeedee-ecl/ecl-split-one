@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Check, X } from "lucide-react";
-import { getAccessToken } from "@/components/account/client-account";
+import { useHubBootstrap } from "../../../_components/HubBootstrapProvider";
 
 export function CaptainApplicationActions({
   applicationId,
@@ -11,20 +11,20 @@ export function CaptainApplicationActions({
   applicationId: string;
   teamId: string;
 }) {
+  const { accessToken } = useHubBootstrap();
   const [state, setState] = useState<"idle" | "saving" | "accepted" | "rejected" | "error">("idle");
 
   async function decide(decision: "Accepted" | "Rejected") {
     setState("saving");
 
     try {
-      const token = await getAccessToken();
-      if (!token) throw new Error("Login required.");
+      if (!accessToken) throw new Error("Login required.");
 
       const response = await fetch(`/api/world-cup/applications/${applicationId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ teamId, decision }),
       });

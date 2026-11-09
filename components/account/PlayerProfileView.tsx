@@ -12,7 +12,7 @@ import {
   RadarChart,
   ResponsiveContainer,
 } from "recharts";
-import { supabase } from "@/lib/supabase";
+import { useHubBootstrap } from "@/app/(hub)/hub/_components/HubBootstrapProvider";
 import {
   formatLzyumiRank as formatSharedLzyumiRank,
   getLzyumiRankRows as getSharedLzyumiRankRows,
@@ -26,8 +26,6 @@ import {
 } from "@/lib/lzyumi-snapshot";
 import { getChinaServerDisplayName, getCountryOption } from "./account-options";
 import {
-  flushPendingProfile,
-  getAccessToken,
   loadProfile,
   requestKookVerificationCode,
   type SignupProfilePayload,
@@ -361,6 +359,7 @@ async function fetchJsonWithTimeout(url: string, timeoutMs = 15000) {
 type RefreshProfileOptions = {
   targetProfileId?: string;
   reloadAccountProfile?: boolean;
+  accessToken?: string | null;
 };
 
 const activeProfileRefreshes = new Map<string, Promise<AccountProfile | null>>();
@@ -387,7 +386,7 @@ async function performLzyumiProfileRefresh(
   profile: AccountProfile,
   options: RefreshProfileOptions,
 ) {
-  const token = await getAccessToken();
+  const token = options.accessToken;
   if (!token) throw new Error("Your session expired. Please log in again.");
 
   const nickname = profile.riotTag
@@ -440,7 +439,7 @@ async function performLzyumiProfileRefresh(
     throw new Error(saveResult.message ?? `Save failed (${saveResponse.status})`);
   }
 
-  if (options.reloadAccountProfile) return loadProfile();
+  if (options.reloadAccountProfile) return loadProfile(token);
 
   const fetchedAt = typeof saveResult.fetchedAt === "string"
     ? saveResult.fetchedAt
@@ -474,6 +473,7 @@ export default function PlayerProfileView({
   initialProfile?: AccountProfile;
   showPersonalMatchPreview?: boolean;
 } = {}) {
+  const { status: hubStatus, accessToken } = useHubBootstrap();
   const [loadedProfile, setLoadedProfile] = useState<AccountProfile | null>(initialProfile ?? null);
   const [hasSession, setHasSession] = useState(Boolean(initialProfile));
   const [loading, setLoading] = useState(!initialProfile);
@@ -499,12 +499,12 @@ export default function PlayerProfileView({
         setLoadedProfile(null);
       }
 
-      const { data } = await supabase.auth.getSession();
-      if (!initialProfile) setHasSession(Boolean(data.session));
+      if (hubStatus === "loading") return;
 
-      if (data.session) {
-        await flushPendingProfile().catch(() => null);
-        const loaded = await loadProfile();
+      if (!initialProfile) setHasSession(Boolean(accessToken));
+
+      if (accessToken) {
+        const loaded = await loadProfile(accessToken);
         const isOwnProfilePage = !initialProfile;
         const isPublicOwner = Boolean(initialProfile && loaded?.id === initialProfile.id);
         if (!cancelled && (isOwnProfilePage || isPublicOwner)) setLoadedProfile(loaded);
@@ -529,6 +529,7 @@ export default function PlayerProfileView({
             const refreshed = await refreshLzyumiProfile(refreshCandidate, {
               targetProfileId: initialProfile?.id,
               reloadAccountProfile: isOwnProfilePage || isPublicOwner,
+              accessToken,
             });
 
             if (refreshed) {
@@ -552,7 +553,7 @@ export default function PlayerProfileView({
     return () => {
       cancelled = true;
     };
-  }, [initialProfile]);
+  }, [accessToken, hubStatus, initialProfile]);
 
   useEffect(() => {
     const statsProfile = initialProfile ?? loadedProfile;
@@ -562,7 +563,7 @@ export default function PlayerProfileView({
     async function loadInhouseData() {
       setInhouseLoading(true);
       try {
-        const token = initialProfile ? null : await getAccessToken();
+        const token = initialProfile ? null : accessToken;
         const query = initialProfile ? `?profileId=${encodeURIComponent(statsProfile!.id)}` : "";
         const response = await fetch(`/api/hub/my-inhouse-history${query}`, {
           cache: "no-store",
@@ -582,7 +583,7 @@ export default function PlayerProfileView({
     return () => {
       cancelled = true;
     };
-  }, [initialProfile, loadedProfile?.id]);
+  }, [accessToken, initialProfile, loadedProfile?.id]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 60000);
@@ -673,7 +674,7 @@ export default function PlayerProfileView({
     setVerificationError("");
 
     try {
-      const nextVerification = await requestKookVerificationCode();
+      const nextVerification = await requestKookVerificationCode(accessToken);
       setLoadedProfile((current) =>
         current
           ? {

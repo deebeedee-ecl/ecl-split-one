@@ -5,7 +5,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { AuthMediaPanel } from "./AuthMediaPanel";
-import { flushPendingProfile, loadProfile, setHubAccessCache } from "./client-account";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -28,13 +27,7 @@ export default function LoginForm() {
 
       if (loginError) throw loginError;
 
-      const profile = (await flushPendingProfile().catch(() => null)) ?? (await loadProfile());
-      setHubAccessCache(profile ? "ready" : "profile");
-      setMessage(
-        profile
-          ? "Logged in. Opening the Split II dashboard."
-          : "Logged in. Opening your dashboard."
-      );
+      setMessage("Logged in. Opening your dashboard.");
 
       router.push("/hub/dashboard");
       router.refresh();

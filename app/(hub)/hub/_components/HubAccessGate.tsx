@@ -1,18 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import {
-  clearHubAccessCache,
-  flushPendingProfile,
-  getHubAccessCache,
-  loadProfile,
-  setHubAccessCache,
-} from "@/components/account/client-account";
-import { supabase } from "@/lib/supabase";
-
-type HubAccessState = "checking" | "ready" | "login" | "profile";
+import { useHubBootstrap } from "./HubBootstrapProvider";
 
 export function HubAccessGate({
   allowProfileSetup = false,
@@ -22,87 +13,13 @@ export function HubAccessGate({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const [state, setState] = useState<HubAccessState>(() => {
-    const cached = getHubAccessCache();
-    if (cached?.status === "ready") return "ready";
-    if (cached?.status === "profile" && allowProfileSetup) return "profile";
-    return "checking";
-  });
+  const { status } = useHubBootstrap();
 
-  useEffect(() => {
-    let cancelled = false;
-    const cached = getHubAccessCache();
-
-    if (cached?.status === "ready" || (cached?.status === "profile" && allowProfileSetup)) {
-      setState(cached.status);
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange((event) => {
-        if (event === "SIGNED_OUT") {
-          clearHubAccessCache();
-          setState("login");
-        }
-      });
-
-      return () => {
-        cancelled = true;
-        subscription.unsubscribe();
-      };
-    }
-
-    async function checkAccess() {
-      setState("checking");
-
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        clearHubAccessCache();
-        if (!cancelled) setState("login");
-        return;
-      }
-
-      await flushPendingProfile().catch(() => null);
-      const profile = await loadProfile();
-
-      if (cancelled) return;
-
-      if (profile) {
-        setHubAccessCache("ready");
-        setState("ready");
-        return;
-      }
-
-      if (allowProfileSetup) {
-        setHubAccessCache("profile");
-        setState("profile");
-        return;
-      }
-
-      setHubAccessCache("profile");
-      setState("profile");
-    }
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") {
-        clearHubAccessCache();
-        setState("login");
-      }
-    });
-
-    checkAccess();
-
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-    };
-  }, [allowProfileSetup]);
-
-  if (state === "ready" || (state === "profile" && allowProfileSetup)) {
+  if (status === "authenticated" || (status === "profile-required" && allowProfileSetup)) {
     return children;
   }
 
-  if (state === "login") {
+  if (status === "signed-out") {
     return (
       <HubGateMessage
         title="Log in to enter the Hub"
@@ -113,7 +30,7 @@ export function HubAccessGate({
     );
   }
 
-  if (state === "profile") {
+  if (status === "profile-required") {
     return (
       <HubGateMessage
         title="Complete your Hub profile"
