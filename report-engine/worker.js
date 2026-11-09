@@ -18,6 +18,12 @@ const {
 } = require("./async-utils.cjs");
 const { collectLzyumiHistoryResponses } = require("./lzyumi-history.cjs");
 const { findFirstRecentGameSource } = require("./report-sources.cjs");
+const {
+  createSerializedOperationQueue,
+  shouldFallbackToLzyumiBrowser,
+  summarizeLzyumiTokenStatus,
+  withLzyumiSessionRecovery,
+} = require("./lzyumi-session.cjs");
 
 const SITE_URL = process.env.ECL_SITE_URL || "https://eclchina.lol";
 const REPORT_ENGINE_SECRET = process.env.ECL_REPORT_ENGINE_SECRET || process.env.ECL_JOB_SECRET || process.env.ECL_KOOK_BOT_SECRET;
@@ -26,11 +32,15 @@ const WORKER_ID = process.env.REPORT_ENGINE_WORKER_ID || "ecl-report-engine";
 const POLL_MS = Number(process.env.REPORT_ENGINE_POLL_MS || 5000);
 const LZYUMI_TIMEOUT_MS = Number(process.env.REPORT_ENGINE_LZYUMI_TIMEOUT_MS || 15000);
 const FETCH_MODE = clean(process.env.REPORT_ENGINE_FETCH_MODE || "browser").toLowerCase();
+const LZYUMI_MANUAL_LOGIN = process.argv.includes("--lzyumi-login-manual");
 const LZYUMI_PROFILE_DIR = clean(process.env.REPORT_ENGINE_LZYUMI_PROFILE_DIR) ||
   path.join(__dirname, ".lzyumi-browser-profile");
 const LZYUMI_WARMUP_MS = Number(process.env.REPORT_ENGINE_LZYUMI_WARMUP_MS || 2500);
-const LZYUMI_HEADLESS = !["0", "false", "no", "off"].includes(
+const LZYUMI_HEADLESS = LZYUMI_MANUAL_LOGIN ? false : !["0", "false", "no", "off"].includes(
   clean(process.env.REPORT_ENGINE_LZYUMI_HEADLESS).toLowerCase(),
+);
+const LZYUMI_MANUAL_LOGIN_TIMEOUT_MS = Number(
+  process.env.REPORT_ENGINE_LZYUMI_MANUAL_LOGIN_TIMEOUT_MS || 10 * 60 * 1000,
 );
 const BROWSER_EXECUTABLE_PATH = clean(process.env.REPORT_ENGINE_BROWSER_EXECUTABLE_PATH);
 const LZYUMI_LOGIN_URL = clean(process.env.REPORT_ENGINE_LZYUMI_LOGIN_URL) || "https://l.lzyumi.top/login.html";
@@ -100,6 +110,7 @@ const LZYUMI_HEADERS = {
 
 let browserContextPromise = null;
 let browserPagePromise = null;
+const serializeBrowserPageFlow = createSerializedOperationQueue();
 let championNamesPromise = null;
 let wegameTicketState = null;
 let wegameTicketPromise = null;
@@ -271,6 +282,47 @@ async function lzyumiFetchDirect(url) {
   return response.data;
 }
 
+async function debugConfiguredLzyumiTokenStatus() {
+  if (!LZYUMI_TOKENSTR) {
+    throw new Error("Missing REPORT_ENGINE_LZYUMI_TOKENSTR.");
+  }
+
+  const apiRoot = LZYUMI_BASE.replace(/\/+$/, "");
+  const infoRoot = apiRoot.endsWith("/info") ? apiRoot : `${apiRoot}/info`;
+  const url = new URL(`${infoRoot}/tokenIsSucc`);
+  url.searchParams.set("lzyumitokenstrinfo", LZYUMI_TOKENSTR);
+
+  let response;
+  try {
+    const agent = nodeProxyAgent();
+    response = await axios.get(url.toString(), {
+      headers: LZYUMI_HEADERS,
+      timeout: LZYUMI_TIMEOUT_MS,
+      httpAgent: agent,
+      httpsAgent: agent,
+      proxy: false,
+    });
+  } catch (error) {
+    if (error?.response?.data && typeof error.response.data === "object") {
+      const status = summarizeLzyumiTokenStatus(error.response.data);
+      console.log(JSON.stringify({
+        httpStatus: Number(error.response.status) || null,
+        ...status,
+      }, null, 2));
+      return;
+    }
+
+    const transportCode = typeof error?.code === "string"
+      ? error.code.slice(0, 32)
+      : "unknown";
+    throw new Error(
+      `Lzyumi token-status transport failed (${transportCode}); no credential data was logged.`,
+    );
+  }
+
+  console.log(JSON.stringify(summarizeLzyumiTokenStatus(response.data), null, 2));
+}
+
 async function getBrowserPage() {
   if (!browserContextPromise) {
     const { chromium } = require("playwright");
@@ -366,7 +418,7 @@ async function lzyumiFetchBrowserOnce(url) {
   );
 }
 
-async function lzyumiFetchPageFlow({ nickname, openId, areaId, filter = 1, allCount = LZYUMI_ALL_COUNT }) {
+async function lzyumiFetchPageFlowOnce({ nickname, openId, areaId, filter = 1, allCount = LZYUMI_ALL_COUNT }) {
   const page = await getBrowserPage();
   await page.waitForFunction(
     () => typeof window.findOrderSeleMe === "function" && typeof window.$ === "function",
@@ -411,10 +463,70 @@ async function lzyumiFetchPageFlow({ nickname, openId, areaId, filter = 1, allCo
   const json = JSON.parse(text);
   debugLzyumi("page-flow-info", {
     status: response.status(),
-    requestUrl: response.url(),
     response: lzyumiResponseSummary(json),
   });
   return json;
+}
+
+async function lzyumiFetchPageFlow(input) {
+  return serializeBrowserPageFlow(() => lzyumiFetchPageFlowOnce(input));
+}
+
+async function lzyumiDetailPageFlowOnce({ openId, gameId, areaId }) {
+  const page = await getBrowserPage();
+  await page.waitForFunction(
+    () => typeof window.findOrderDetailInfoAll === "function",
+    null,
+    { timeout: LZYUMI_TIMEOUT_MS },
+  );
+
+  const responsePromise = page.waitForResponse(
+    (response) => {
+      if (response.request().method() !== "GET") return false;
+      try {
+        const url = new URL(response.url());
+        return url.pathname.endsWith("/findOrderDetailInfoAll") &&
+          url.searchParams.get("gameId") === String(gameId);
+      } catch {
+        return false;
+      }
+    },
+    { timeout: LZYUMI_TIMEOUT_MS },
+  );
+
+  await page.evaluate(
+    ({ openIdValue, gameIdValue, areaIdValue }) => {
+      window.findOrderDetailInfoAll(
+        openIdValue,
+        gameIdValue,
+        Number(areaIdValue),
+        "",
+        "",
+      );
+    },
+    {
+      openIdValue: clean(openId),
+      gameIdValue: clean(gameId),
+      areaIdValue: areaId || 1,
+    },
+  );
+
+  const response = await responsePromise;
+  const text = await response.text();
+  if (!response.ok()) {
+    throw new Error(`HTTP ${response.status()}: ${text.slice(0, 200)}`);
+  }
+
+  const json = JSON.parse(text);
+  debugLzyumi("page-flow-detail", {
+    status: response.status(),
+    response: lzyumiResponseSummary(json),
+  });
+  return json;
+}
+
+async function lzyumiDetailPageFlow(input) {
+  return serializeBrowserPageFlow(() => lzyumiDetailPageFlowOnce(input));
 }
 
 async function firstVisibleLocator(page, selector) {
@@ -515,14 +627,68 @@ async function lzyumiLogin() {
   }
   await page.waitForTimeout(2000);
 
-  const cookies = await page.context().cookies();
-  const localStorageKeys = await page.evaluate(() => Object.keys(window.localStorage || {})).catch(() => []);
+  const authenticated = await lzyumiBrowserSessionIsAuthenticated(page);
 
   console.log("Lzyumi login attempted.");
-  console.log(`Login page URL: ${page.url()}`);
-  console.log(`Login page title: ${await page.title().catch(() => "")}`);
-  console.log(`Cookies saved: ${cookies.length}`);
-  console.log(`LocalStorage keys: ${localStorageKeys.join(", ") || "(none)"}`);
+  console.log(`Browser session authenticated: ${authenticated ? "yes" : "no"}.`);
+  await resetBrowserSession("login-complete");
+  if (!authenticated) {
+    throw new Error("Lzyumi login did not establish an authenticated browser session.");
+  }
+}
+
+async function lzyumiBrowserSessionIsAuthenticated(page) {
+  return page.evaluate(async () => {
+    const token = window.localStorage?.getItem("lzyumitokenstr") || "";
+    if (!token) return false;
+
+    try {
+      const url = new URL("/lzyumi/lol/info/tokenIsSucc", window.location.origin);
+      url.searchParams.set("lzyumitokenstrinfo", token);
+      const response = await fetch(url.toString(), {
+        credentials: "include",
+        headers: { Accept: "application/json, text/plain, */*" },
+      });
+      if (!response.ok) return false;
+      const data = await response.json();
+      return ["1", "2"].includes(String(data?.code));
+    } catch {
+      return false;
+    }
+  }).catch(() => false);
+}
+
+async function lzyumiManualLogin() {
+  const page = await getBrowserPage();
+  await page.goto(LZYUMI_LOGIN_URL, {
+    waitUntil: "domcontentloaded",
+    timeout: LZYUMI_TIMEOUT_MS,
+  });
+
+  console.log("Complete the Lzyumi login in the opened browser window.");
+  const deadline = Date.now() + Math.max(60_000, LZYUMI_MANUAL_LOGIN_TIMEOUT_MS);
+  while (Date.now() < deadline) {
+    if (await lzyumiBrowserSessionIsAuthenticated(page)) {
+      console.log("Lzyumi browser session authenticated.");
+      await resetBrowserSession("manual-login-complete");
+      return;
+    }
+    await page.waitForTimeout(1000);
+  }
+
+  throw new Error("Timed out waiting for the manual Lzyumi login.");
+}
+
+async function recoverLzyumiBrowserSession() {
+  if (!LZYUMI_LOGIN_ID || !LZYUMI_LOGIN_PASSWORD) {
+    await resetBrowserSession("provider-session-rejected");
+    throw new Error(
+      "Lzyumi rejected the browser session. Configure REPORT_ENGINE_LZYUMI_LOGIN_ID and " +
+      "REPORT_ENGINE_LZYUMI_LOGIN_PASSWORD, then run node worker.js --lzyumi-login.",
+    );
+  }
+
+  await lzyumiLogin();
 }
 
 async function browserTextFetch(url) {
@@ -982,9 +1148,11 @@ async function fetchRecentGamesForPlayerViaWeGame(player) {
   };
 }
 
-async function fetchRecentGamesForPlayerViaLzyumi(player) {
-  if (!LZYUMI_TOKENSTR) {
-    throw new Error("Missing REPORT_ENGINE_LZYUMI_TOKENSTR for the configured Lzyumi match source.");
+async function fetchRecentGamesForPlayerViaLzyumi(player, { allCount = LZYUMI_ALL_COUNT } = {}) {
+  if (!LZYUMI_TOKENSTR && FETCH_MODE === "direct") {
+    throw new Error(
+      "Missing REPORT_ENGINE_LZYUMI_TOKENSTR while REPORT_ENGINE_FETCH_MODE=direct.",
+    );
   }
 
   const areaId = player.chinaServerId || 1;
@@ -1006,9 +1174,11 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
     if (seenAttempts.has(attemptKey)) continue;
     seenAttempts.add(attemptKey);
 
-    const runAttempt = () => collectLzyumiHistoryResponses({
+    const runAttempt = (pageFlow = false) => collectLzyumiHistoryResponses({
       filters: LZYUMI_FILTERS,
-      concurrency: LZYUMI_HISTORY_CONCURRENCY,
+      // The provider page stores lookup state in shared DOM fields, so page-flow
+      // requests must be serialized even when API history calls are concurrent.
+      concurrency: pageFlow ? 1 : LZYUMI_HISTORY_CONCURRENCY,
       malformedRetries: LZYUMI_MALFORMED_RETRIES,
       resetBrowserSession,
       onMalformed: ({ attempt: retryAttempt, willRetry, responses: malformedResponses }) => {
@@ -1019,8 +1189,10 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
         })}`);
       },
       fetchHistory: (filter) => retryProviderCode(() => {
-        const url = lzyumiInfoUrl({ ...attempt, areaId, filter });
-        return lzyumiFetch(url)
+        const request = pageFlow
+          ? lzyumiFetchPageFlow({ ...attempt, areaId, filter, allCount })
+          : lzyumiFetch(lzyumiInfoUrl({ ...attempt, areaId, filter, allCount }));
+        return request
           .then((response) => {
             const history = assertLzyumiHistoryResponse(response);
             debugLzyumi("info", {
@@ -1029,6 +1201,7 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
               filter,
               base: LZYUMI_BASE,
               tokenSupplied: Boolean(LZYUMI_TOKENSTR),
+              pageFlow,
               nicknameSupplied: Boolean(clean(attempt.nickname)),
               openIdSupplied: Boolean(clean(attempt.openId)),
               response: lzyumiResponseSummary(history),
@@ -1036,13 +1209,16 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
             return history;
           })
           .catch((error) => {
-            if (error instanceof LzyumiResponseError) throw error;
+            // Browser-session failures are infrastructure/authentication errors,
+            // not evidence that a player has no match history.
+            if (pageFlow || error instanceof LzyumiResponseError) throw error;
             debugLzyumi("info-error", {
               player: riotId(player) || clean(player.displayName),
               areaId,
               filter,
               base: LZYUMI_BASE,
               tokenSupplied: Boolean(LZYUMI_TOKENSTR),
+              pageFlow,
               nicknameSupplied: Boolean(clean(attempt.nickname)),
               openIdSupplied: Boolean(clean(attempt.openId)),
               error: error.message || String(error),
@@ -1064,14 +1240,37 @@ async function fetchRecentGamesForPlayerViaLzyumi(player) {
       }),
     });
 
-    let responses = await runAttempt();
+    const runBrowserAttempt = () => withLzyumiSessionRecovery({
+      operation: () => runAttempt(true),
+      recoverSession: recoverLzyumiBrowserSession,
+      onRetry: () => console.warn(
+        "[lzyumi-session] provider rejected the browser session; refreshing it once.",
+      ),
+    });
+
+    let usingPageFlow = !LZYUMI_TOKENSTR;
+    let responses;
+    if (usingPageFlow) {
+      responses = await runBrowserAttempt();
+    } else {
+      try {
+        responses = await runAttempt(false);
+      } catch (error) {
+        if (FETCH_MODE === "direct" || !shouldFallbackToLzyumiBrowser(error)) throw error;
+        usingPageFlow = true;
+        console.warn(
+          "[lzyumi-session] configured API token was rejected; trying the authenticated browser session.",
+        );
+        responses = await runBrowserAttempt();
+      }
+    }
     const hasData = responses.some(
       (response) => response?.battleInfo?.openId || response?.data?.length,
     );
 
     if (!hasData && responses.some((response) => isEmptyLzyumiInfoResponse("", response))) {
       await resetBrowserSession("empty-player-attempt");
-      responses = await runAttempt();
+      responses = usingPageFlow ? await runBrowserAttempt() : await runAttempt(false);
       debugLzyumi("player-attempt-retry", {
         player: riotId(player) || clean(player.displayName),
         nicknameSupplied: Boolean(clean(attempt.nickname)),
@@ -1337,14 +1536,41 @@ async function fetchDetailForSource(source, game) {
     });
   }
 
-  const detail = await lzyumiFetch(
-    lzyumiDetailUrl({
-      openId: source.openId,
-      gameId: game.gameId,
-      areaId: source.areaId,
-    }),
-  );
-  return assertLzyumiDetailResponse(detail);
+  const detailInput = {
+    openId: source.openId,
+    gameId: game.gameId,
+    areaId: source.areaId,
+  };
+  const fetchBrowserDetail = () => withLzyumiSessionRecovery({
+    operation: async () => assertLzyumiDetailResponse(
+      await lzyumiDetailPageFlow(detailInput),
+    ),
+    recoverSession: recoverLzyumiBrowserSession,
+    onRetry: () => console.warn(
+      "[lzyumi-session] provider rejected the browser session during detail lookup; refreshing it once.",
+    ),
+  });
+
+  if (!LZYUMI_TOKENSTR) {
+    if (FETCH_MODE === "direct") {
+      throw new Error(
+        "Missing REPORT_ENGINE_LZYUMI_TOKENSTR while REPORT_ENGINE_FETCH_MODE=direct.",
+      );
+    }
+    return fetchBrowserDetail();
+  }
+
+  try {
+    const detail = await lzyumiFetch(lzyumiDetailUrl(detailInput));
+    return assertLzyumiDetailResponse(detail);
+  } catch (error) {
+    if (FETCH_MODE === "direct" || !shouldFallbackToLzyumiBrowser(error)) throw error;
+    console.warn(
+      "[lzyumi-session] configured API token was rejected during detail lookup; " +
+      "trying the authenticated browser session.",
+    );
+    return fetchBrowserDetail();
+  }
 }
 
 function findDetailPlayerForSource(source, detail) {
@@ -1751,8 +1977,10 @@ async function main() {
   if (MATCH_SOURCE === "wegame" && !WEGAME_COOKIE) {
     throw new Error("Missing REPORT_ENGINE_WEGAME_COOKIE while REPORT_ENGINE_MATCH_SOURCE=wegame.");
   }
-  if (MATCH_SOURCE === "lzyumi" && !LZYUMI_TOKENSTR) {
-    throw new Error("Missing REPORT_ENGINE_LZYUMI_TOKENSTR while REPORT_ENGINE_MATCH_SOURCE=lzyumi.");
+  if (MATCH_SOURCE === "lzyumi" && !LZYUMI_TOKENSTR && FETCH_MODE === "direct") {
+    throw new Error(
+      "Missing REPORT_ENGINE_LZYUMI_TOKENSTR while the Lzyumi worker uses direct mode.",
+    );
   }
 
   console.log(
@@ -1773,8 +2001,22 @@ if (process.argv.includes("--probe-network")) {
     console.error(error.message || error);
     process.exitCode = 1;
   });
+} else if (process.argv.includes("--lzyumi-token-status")) {
+  debugConfiguredLzyumiTokenStatus().catch((error) => {
+    console.error(error.message || error);
+    process.exitCode = 1;
+  });
 } else if (process.argv.includes("--page-check-player")) {
-  debugPageCheckPlayer().catch((error) => {
+  debugPageCheckPlayer().finally(
+    () => resetBrowserSession("page-check-complete"),
+  ).catch((error) => {
+    console.error(error.message || error);
+    process.exitCode = 1;
+  });
+} else if (process.argv.includes("--lzyumi-login-manual")) {
+  lzyumiManualLogin().finally(
+    () => resetBrowserSession("manual-login-exit"),
+  ).catch((error) => {
     console.error(error.message || error);
     process.exitCode = 1;
   });
@@ -1788,7 +2030,9 @@ if (process.argv.includes("--probe-network")) {
   process.argv.includes("--check-player") ||
   process.argv.includes("--wegame-check-player")
 ) {
-  debugCheckPlayer().catch((error) => {
+  debugCheckPlayer().finally(
+    () => resetBrowserSession("check-player-complete"),
+  ).catch((error) => {
     console.error(error.message || error);
     process.exitCode = 1;
   });
