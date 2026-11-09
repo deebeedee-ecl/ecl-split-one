@@ -20,8 +20,15 @@ export default function TournamentResultList({data}:{data:TournamentData}){
   const payload=report?.payload as unknown as MatchPayload|undefined;
   const fixture=report&&data.fixtures.find(f=>f.id===report.fixtureId);
   const team=(id:string)=>data.teams.find(t=>t.id===id)!;
+  const reports=[...data.reports].sort((left,right)=>{
+    const leftPayload=left.payload as unknown as MatchPayload;
+    const rightPayload=right.payload as unknown as MatchPayload;
+    return Date.parse(leftPayload.playedAt)-Date.parse(rightPayload.playedAt)
+      || left.gameNumber-right.gameNumber
+      || left.id.localeCompare(right.id);
+  });
   return <>
-    {!data.reports.length?<p className={styles.fixturesIntro}>No approved results yet. Games appear here after administrator review.</p>:<div className={styles.matchCards}>{data.reports.map(r=>{
+    {!reports.length?<p className={styles.fixturesIntro}>No approved results yet. Games appear here after administrator review.</p>:<div className={styles.matchCards}>{reports.map(r=>{
       const p=r.payload as unknown as MatchPayload,f=data.fixtures.find(v=>v.id===r.fixtureId)!;
       const winner=team(p.winnerTeamId),loser=team(f.homeTeamId===winner.id?f.awayTeamId:f.homeTeamId);
       return <button key={r.id} className={styles.resultRow} onClick={event=>{opener.current=event.currentTarget;setSelected(r.id);}} aria-label={`View ${winner.name} vs ${loser.name} match stats`}>

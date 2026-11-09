@@ -1,6 +1,6 @@
 # ECL UI walkthrough
 
-Last reviewed: 2026-11-07
+Last reviewed: 2026-11-09
 
 ## Scope and evidence
 
@@ -152,6 +152,8 @@ Real account values, KOOK IDs, verification codes, contact details, and uploaded
 ### Split II
 
 The current main dashboard and public navigation are centered on Split II. Event behavior is implemented by the Split II registration/dashboard components and event-specific admin routes.
+
+The Results tab presents approved matches in chronological order, oldest first. The ordering is derived from each report payload's `playedAt` timestamp, with game number and report ID used only as deterministic tie-breakers.
 
 ### World Cup
 
