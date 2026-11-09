@@ -6,6 +6,7 @@
   "main": "worker.js",
   "scripts": {
     "start": "node worker.js",
+    "discover:inhouse": "node worker.js --discover-inhouse",
     "test": "node --test test/*.test.cjs"
   },
   "dependencies": {
