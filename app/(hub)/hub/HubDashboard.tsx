@@ -1,4 +1,4 @@
-import SplitTwoRegistration from "../split-ii/SplitTwoRegistration";
+import SplitTwoRegistration from "@/app/(public)/split-ii/SplitTwoRegistration";
 import { HubShell } from "./_components/HubShell";
 
 export default function HubDashboard() {

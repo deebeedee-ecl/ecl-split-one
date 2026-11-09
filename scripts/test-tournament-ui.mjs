@@ -25,7 +25,7 @@ dom.window.HTMLMediaElement.prototype.pause = function () {};
 
 await mkdir(temporary, { recursive: true });
 const entry = path.join(temporary, 'tournament-ui-entry.tsx');
-await writeFile(entry, 'export {default as Page} from "../app/split-ii/SplitTwoRegistration"; export {default as Admin} from "../app/admin/split-ii/page"; export {createSplitTwo as DesktopSplitTwo} from "../companion/src/split-two"; export {default as FixturePlan} from "../app/split-ii/TournamentFixtures"; export {default as RosterBoard} from "../app/split-ii/TournamentRosters"; export {setSession} from "fixture-supabase";');
+await writeFile(entry, 'export {default as Page} from "../app/(public)/split-ii/SplitTwoRegistration"; export {default as Admin} from "../app/(public)/admin/split-ii/page"; export {createSplitTwo as DesktopSplitTwo} from "../companion/src/split-two"; export {default as FixturePlan} from "../app/(public)/split-ii/TournamentFixtures"; export {default as RosterBoard} from "../app/(public)/split-ii/TournamentRosters"; export {setSession} from "fixture-supabase";');
 const outfile = path.join(temporary, 'tournament-ui-test.cjs');
 await build({
   entryPoints: [entry], outfile, bundle: true, platform: 'node', format: 'cjs', logLevel: 'silent',

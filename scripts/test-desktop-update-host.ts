@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { desktopUpdateTarget } from "../lib/desktop-update-host";
-import { GET } from "../app/desktop-updates/windows/[file]/route";
+import { GET } from "../app/(public)/desktop-updates/windows/[file]/route";
 
 test("updater redirects only known release files to the configured public Blob prefix", async () => {
   const base = "https://wjeuparxlihzvwlv.public.blob.vercel-storage.com/ecl/windows/";

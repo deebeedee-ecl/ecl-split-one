@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
-import type { LiveMatchData } from "@/app/hub/inhouses/InhouseMatchHistoryClient";
+import type { LiveMatchData } from "@/app/(hub)/hub/inhouses/InhouseMatchHistoryClient";
 
 type WgPlayer = {
   nickName?: string;
