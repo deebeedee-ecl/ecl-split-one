@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import {
-  BLUE_SIDE_CHANNEL_ID,
   RANKED_INHOUSE_CHANNEL_ID,
-  RED_SIDE_CHANNEL_ID,
+  activeInhouseCommandResult,
   balanceInhouseTeams,
+  buildInhouseMoveInstructions,
   createInhouseSession,
   findActiveInhouseSession,
   formatInhouseRoster,
@@ -95,15 +95,12 @@ export async function POST(request: Request) {
 
     const activeSession = await findActiveInhouseSession(channelId);
     if (activeSession) {
+      const result = activeInhouseCommandResult(action, activeSession);
+
       return NextResponse.json({
         ok: true,
-        status: "ALREADY_ASSIGNED",
-        reply:
-          `${activeSession.gameLabel ?? "The current inhouse"} is already set.\n\n` +
-          "Duplicate commands are ignored. Finish/report this game, or ask an admin to cancel the stuck session from the admin dashboard.\n\n" +
-          "After it is cleared, type !inhouse to start the next game.",
+        ...result,
         session: activeSession,
-        moveInstructions: [],
       });
     }
 
@@ -171,27 +168,16 @@ export async function POST(request: Request) {
     if (session.duplicate) {
       return NextResponse.json({
         ok: true,
-        status: "ALREADY_ASSIGNED",
-        reply: `${session.gameLabel ?? "This inhouse"} is already assigned. Ignoring the duplicate !ready.`,
+        status: "ASSIGNED_RECOVERY",
+        reply: `${session.gameLabel ?? "This inhouse"} is already assigned. Reusing the saved teams and retrying the KOOK voice moves. No duplicate session was created.`,
         blueTeam,
         redTeam,
         session,
-        moveInstructions: [],
+        moveInstructions: buildInhouseMoveInstructions(session),
       });
     }
 
-    const moveInstructions = [
-      ...blueTeam.players.map((player) => ({
-        kookUserId: player.kookUserId,
-        targetChannelId: BLUE_SIDE_CHANNEL_ID,
-        side: "BLUE",
-      })),
-      ...redTeam.players.map((player) => ({
-        kookUserId: player.kookUserId,
-        targetChannelId: RED_SIDE_CHANNEL_ID,
-        side: "RED",
-      })),
-    ];
+    const moveInstructions = buildInhouseMoveInstructions(session);
 
     return NextResponse.json({
       ok: true,

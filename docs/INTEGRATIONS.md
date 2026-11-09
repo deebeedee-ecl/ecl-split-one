@@ -41,6 +41,8 @@ The adjacent `ecl-kook-bot` process owns the KOOK gateway connection, parses mes
 
 The bot should remain a thin adapter. Domain behavior belongs in tested web libraries/routes or a deliberate service boundary, not duplicated in `bot.js`.
 
+`!ready` is timeout-safe across the website/KOOK boundary. Once the website has persisted an assigned session, a repeated `!ready` returns move instructions reconstructed from that saved Blue/Red roster instead of creating another session. The bot may retry those KOOK voice moves because moving the same user to the same saved destination is idempotent. An empty move list must never be reported as a successful move, and KOOK HTTP success is insufficient unless the KOOK response also carries application code `0`.
+
 ### Authentication
 
 KOOK service calls use the `x-ecl-kook-secret` header and `ECL_KOOK_BOT_SECRET`. Missing configuration must fail closed. Do not log the header or expose it to browser code.
