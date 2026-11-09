@@ -81,6 +81,84 @@ Every production handoff should state:
 - production deployment authorization;
 - rollback target and post-deploy verification result.
 
+### Post-merge deployment verification
+
+Do not infer a deployment from a successful merge, an earlier green deployment,
+or a generic GitHub status. Verify each runtime against the exact merge commit.
+The repository provides a read-only status command that emits only bounded,
+sanitized metadata:
+
+```powershell
+npm run release:status -- --sha <merge-sha>
+```
+
+The default check reads GitHub check runs and the ECL Vercel production history.
+It prints check names, conclusions, deployment state/ID, and commit SHA; it does
+not print creator/email fields, raw CLI payloads, tokens, environment values, or
+response bodies. `SUCCESS`/`READY` are observed states. `PENDING`, `NOT_FOUND`,
+and `SKIPPED` must remain explicit and must not be reported as deployment
+success. The operator must already have authenticated `gh` and `vercel` CLIs;
+a scoped Railway check additionally requires an authenticated `railway` CLI.
+
+For a Railway-backed runtime, pass the project, environment, and service IDs
+together. Keep those IDs in ignored operator configuration or dedicated
+`ECL_RELEASE_RAILWAY_*` environment variables rather than committing them:
+
+```powershell
+npm run release:status -- --sha <merge-sha> `
+  --railway-project <project-id> `
+  --railway-environment <environment-id> `
+  --railway-service <service-id> `
+  --require-railway
+```
+
+Use `--require-railway` only when that release is expected to deploy the scoped
+service. For a web-only change, an absent report-engine deployment is not an
+error; record `NOT_FOUND` and do not trigger a worker deployment merely to make
+the statuses align. The command always uses explicit Railway scope and searches
+for the requested commit SHA instead of substituting a newer or older deploy.
+
+If a reviewed preview commit must be rebuilt for production after the automatic
+Vercel deployment fails to start, record both commits with `--vercel-sha`. The
+command verifies that the preview-source and merge commits resolve to the same
+Git tree; a mismatch fails the check:
+
+```powershell
+npm run release:status -- --sha <merge-sha> --vercel-sha <preview-sha>
+```
+
+Important release rules:
+
+- Query Vercel directly with the project and team scope when GitHub exposes no
+  deployment/status for the merge commit.
+- Poll in bounded intervals and retain the exact deployment ID. Do not attribute
+  an earlier `READY` deployment to a newer commit.
+- `vercel promote <preview> --yes` may create a fresh production build instead
+  of only changing aliases. It is a production deployment and still requires
+  explicit authorization.
+- Check Railway only for a runtime/path that could deploy there. Use explicit
+  project/environment/service scope and require the exact commit to reach
+  `SUCCESS` before reporting success.
+- Deployment Protection is not permission to bypass preview authentication. If
+  the preview cannot be opened safely, use an isolated local production build
+  for pre-merge visual verification and record the preview limitation.
+
+After the production deployment is `READY`, run the signed-out layout smoke for
+the affected public/Hub shell boundary:
+
+```powershell
+npm run smoke:layouts -- `
+  --base-url https://eclchina.lol `
+  --label production-<short-sha> `
+  --output .tmp/layout-smoke/production-<short-sha>.json
+```
+
+The smoke checks `/hub` and `/hub/dashboard` at desktop and mobile viewports. It
+asserts status/path, public header/footer and login/contact presence, Hub sidebar
+presence, and document-level horizontal overflow. Screenshots and the optional
+JSON report stay under ignored `.tmp/`; the command is signed-out, does not
+submit forms, and does not retain response bodies.
+
 ### Isolated hotfix from a dirty worktree
 
 Do not deploy the current directory when it contains unrelated or unreviewed changes. `scripts/deploy-isolated-hotfix.ps1` builds an isolated package from the Git commit attached to the current production deployment (or the base SHA recorded by an earlier run of this script) and overlays only an exact allowlist of repository-relative files. If an older direct CLI deployment has neither metadata field, supply its already-verified commit with `-BaseRef`. The script rejects globs, paths outside the repository, symlinks, `.env*`, `.git`, `.vercel`, `.tmp`, and `node_modules`.

@@ -11,6 +11,8 @@
     "test:perf": "node --test test/hub-route-baseline.test.mjs",
     "test:perf:ci": "node scripts/performance/run-ci-contract-tests.mjs",
     "perf:hub": "node scripts/performance/hub-route-baseline.mjs",
+    "release:status": "node scripts/release-status.mjs",
+    "smoke:layouts": "node scripts/smoke-layout-boundaries.mjs",
     "lint": "eslint",
     "postinstall": "prisma generate"
   },
