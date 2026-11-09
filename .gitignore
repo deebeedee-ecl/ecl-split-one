@@ -46,6 +46,9 @@ scripts/snapshot-*.json
 /report-engine/inhouse-matches.html
 /report-engine/inhouse-matches-preview.png
 /report-engine/.lzyumi-browser-profile/
+/report-engine/backfill-players.local.json
+/report-engine/inhouse-discovery-*.json
+/report-engine/inhouse-discovery-*.csv
 
 # env files (can opt-in for committing if needed)
 .env*

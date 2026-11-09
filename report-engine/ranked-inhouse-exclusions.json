@@ -1,0 +1,60 @@
+{
+  "excludedGames": [
+    {
+      "competition": "ECL Split II",
+      "matchCode": "RR05",
+      "teams": "NextGen vs Exodus",
+      "playedAt": "2026-10-27T12:38:41.000Z",
+      "durationSeconds": 2475,
+      "providerGameId": "DJWD/zdL36imdcSqQ5oILQ==",
+      "reason": "Official ECL Split II tournament match; not part of ranked inhouse."
+    },
+    {
+      "competition": "ECL Split II",
+      "matchCode": "RR03",
+      "teams": "Exodus vs BallBreakers",
+      "playedAt": "2026-10-29T12:34:22.000Z",
+      "durationSeconds": 1433,
+      "reason": "Official ECL Split II tournament match; not part of ranked inhouse."
+    },
+    {
+      "competition": "ECL Split II",
+      "matchCode": "RR01",
+      "teams": "BallBreakers vs Phoenix",
+      "playedAt": "2026-11-03T12:11:07.000Z",
+      "durationSeconds": 1842,
+      "leagueGameId": "11436337984",
+      "reason": "Official ECL Split II tournament match; not part of ranked inhouse."
+    },
+    {
+      "competition": "ECL Split II",
+      "matchCode": "RR07",
+      "teams": "Phoenix vs NextGen",
+      "playedAt": "2026-11-03T13:10:42.000Z",
+      "durationSeconds": 2013,
+      "providerGameId": "XikCldBHaNyspKUnoy5U/A==",
+      "reason": "Official ECL Split II tournament match; not part of ranked inhouse."
+    },
+    {
+      "competition": "ECL Split II",
+      "matchCode": "RR02",
+      "teams": "Zero vs NextGen",
+      "playedAt": "2026-11-08T12:31:20.000Z",
+      "durationSeconds": 2093,
+      "leagueGameId": "11451188171",
+      "providerGameId": "XZbF0zH+kICYQX/F9jiTug==",
+      "reason": "Official ECL Split II tournament match; not part of ranked inhouse."
+    },
+    {
+      "competition": "ECL Split II",
+      "matchCode": "RR09",
+      "teams": "NextGen vs BallBreakers",
+      "playedAt": "2026-11-08T13:23:38.000Z",
+      "durationSeconds": 1437,
+      "leagueGameId": "11451435642",
+      "providerGameId": "AuKd1yNJ0hKjF00G5DEwAw==",
+      "reason": "Official ECL Split II tournament match; not part of ranked inhouse."
+    }
+  ]
+}
+
