@@ -42,6 +42,7 @@ When documentation and implementation disagree, verify the current schema, route
 - Do not deploy, push, merge, publish, message the community, mutate a shared database, or run a maintenance/backfill/release/reset/sync script without explicit user authorization for that action.
 - `prisma db push` is allowed only for a disposable local database. This repository currently has no committed Prisma migration history.
 - Prefer read-only probes first. State which environment a command targets before any operation that can write data.
+- For a manual Split II tournament result or correction from Codex, follow **Manual Split II tournament results from Codex** in `docs/RUNBOOK.md`. Use the tournament submit/review workflow with a fingerprinted dry run and audit; never route it through ranked-inhouse tables or silently send a KOOK notification.
 
 ## Release workflow
 
