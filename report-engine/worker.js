@@ -24,6 +24,13 @@ const {
   summarizeLzyumiTokenStatus,
   withLzyumiSessionRecovery,
 } = require("./lzyumi-session.cjs");
+const {
+  candidatesCsv,
+  classifyCandidate,
+  customGameEvidence,
+  normalizeDiscoveryPlayers,
+  parseLzyumiGameTime,
+} = require("./backfill-discovery.cjs");
 
 const SITE_URL = process.env.ECL_SITE_URL || "https://eclchina.lol";
 const REPORT_ENGINE_SECRET = process.env.ECL_REPORT_ENGINE_SECRET || process.env.ECL_JOB_SECRET || process.env.ECL_KOOK_BOT_SECRET;
@@ -1656,6 +1663,202 @@ async function debugCheckPlayer() {
   }
 }
 
++function parseChinaDay(value, endOfDay = false) {
+  const raw = clean(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    throw new Error(`Expected a YYYY-MM-DD date, received ${raw || "an empty value"}.`);
+  }
+  const suffix = endOfDay ? "T23:59:59.999+08:00" : "T00:00:00.000+08:00";
+  const parsed = new Date(`${raw}${suffix}`);
+  if (!Number.isFinite(parsed.getTime())) throw new Error(`Invalid date: ${raw}.`);
+  return parsed;
+}
+
+function chinaDateLabel(value = new Date()) {
+  const china = new Date(value.getTime() + 8 * 60 * 60 * 1000);
+  return `${china.getUTCFullYear()}-${String(china.getUTCMonth() + 1).padStart(2, "0")}-${String(china.getUTCDate()).padStart(2, "0")}`;
+}
+
+function loadDiscoveryConfig(filePath) {
+  const resolved = path.resolve(filePath);
+  const input = JSON.parse(fs.readFileSync(resolved, "utf8").replace(/^\uFEFF/, ""));
+  return { resolved, input };
+}
+
+async function fetchDiscoveryDetail(entry) {
+  let lastError = null;
+  for (const source of entry.sources) {
+    try {
+      return await retryProviderCode(
+        () => fetchDetailForSource(source, entry.game),
+        {
+          code: "7",
+          retries: LZYUMI_CODE_7_RETRIES,
+          baseDelayMs: LZYUMI_CODE_7_BACKOFF_MS,
+          isMatch: (error) => error instanceof LzyumiResponseError && error.code === "7",
+        },
+      );
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("No participant source was available for match detail lookup.");
+}
+
+async function debugDiscoverInhouse() {
+  if (!LZYUMI_TOKENSTR && FETCH_MODE === "direct") {
+    throw new Error(
+      "Historical discovery needs REPORT_ENGINE_LZYUMI_TOKENSTR in direct mode, " +
+      "or an authenticated browser session in browser mode.",
+    );
+  }
+
+  const configPath = cliValue("--players");
+  if (!configPath) {
+    throw new Error("Usage: node worker.js --discover-inhouse --players ./backfill-players.json --since 2026-10-18");
+  }
+
+  const { resolved: resolvedConfigPath, input } = loadDiscoveryConfig(configPath);
+  const players = normalizeDiscoveryPlayers(input);
+  const sinceLabel = cliValue("--since") || clean(input.since) || "2026-10-18";
+  const untilLabel = cliValue("--until") || clean(input.until) || chinaDateLabel();
+  const since = parseChinaDay(sinceLabel);
+  const until = parseChinaDay(untilLabel, true);
+  const allCount = Math.max(1, Number(cliValue("--all-count") || input.allCount || 100) || 100);
+  const historyPrefilter = !process.argv.includes("--all-games") && input.historyPrefilter !== false;
+  const knownGameIds = new Set([
+    ...(Array.isArray(input.knownGameIds) ? input.knownGameIds : []),
+    ...process.argv.filter((value, index, args) => args[index - 1] === "--known-game"),
+  ].map((value) => clean(String(value))).filter(Boolean));
+  const configuredExcludedGamesFile = clean(input.excludedGamesFile);
+  const excludedGamesPath = configuredExcludedGamesFile
+    ? path.resolve(path.dirname(resolvedConfigPath), configuredExcludedGamesFile)
+    : path.join(__dirname, "ranked-inhouse-exclusions.json");
+  const excludedGames = fs.existsSync(excludedGamesPath)
+    ? JSON.parse(fs.readFileSync(excludedGamesPath, "utf8").replace(/^\uFEFF/, "")).excludedGames || []
+    : [];
+  const defaultOutput = path.join(path.dirname(resolvedConfigPath), `inhouse-discovery-${sinceLabel}-to-${untilLabel}`);
+  const outputBase = path.resolve(cliValue("--output") || defaultOutput);
+
+  console.log(`Discovering ECL custom games from ${sinceLabel} through ${untilLabel}.`);
+  console.log(`Players: ${players.length}; history count per filter: ${allCount}; known IDs: ${knownGameIds.size}; tournament exclusions: ${excludedGames.length}.`);
+  console.log(`History prefilter: ${historyPrefilter ? "localized custom-game label" : "disabled"}.`);
+
+  const coverage = [];
+  const gamesById = new Map();
+  try {
+    for (const [index, player] of players.entries()) {
+      const label = riotId(player) || player.displayName;
+      console.log(`[${index + 1}/${players.length}] Fetching player history...`);
+      try {
+        const source = await fetchRecentGamesForPlayerViaLzyumi(player, { allCount });
+        if (!source) {
+          coverage.push({ player: label, status: "NO_HISTORY", count: 0, oldest: null, newest: null });
+          continue;
+        }
+        source.source = "lzyumi";
+        const datedGames = source.games
+          .map((game) => ({ game, time: parseLzyumiGameTime(game, since) }))
+          .filter(({ time }) => time);
+        const times = datedGames.map(({ time }) => time.getTime());
+        coverage.push({
+          player: label,
+          status: "OK",
+          count: source.games.length,
+          oldest: times.length ? new Date(Math.min(...times)).toISOString() : null,
+          newest: times.length ? new Date(Math.max(...times)).toISOString() : null,
+        });
+
+        for (const game of source.games) {
+          const gameId = clean(game?.gameId);
+          if (!gameId) continue;
+          const gameTime = parseLzyumiGameTime(game, since);
+          if (!knownGameIds.has(gameId) && (!gameTime || gameTime < since || gameTime > until)) continue;
+          if (historyPrefilter && !knownGameIds.has(gameId) && !customGameEvidence(game, null).isCustomCandidate) continue;
+          const existing = gamesById.get(gameId);
+          if (existing) existing.sources.push(source);
+          else gamesById.set(gameId, { game, sources: [source] });
+        }
+      } catch (error) {
+        coverage.push({ player: label, status: "ERROR", count: 0, error: error.message || String(error) });
+        console.error(`History lookup failed for player ${index + 1}: ${error.message || error}`);
+      }
+    }
+
+    const entries = [...gamesById.values()];
+    console.log(`Found ${entries.length} unique dated candidate game(s); loading details one at a time.`);
+    const candidates = [];
+    for (const [index, entry] of entries.entries()) {
+      const gameId = clean(entry.game?.gameId) || "unknown";
+      console.log(`[${index + 1}/${entries.length}] Match ${gameId}...`);
+      try {
+        const detail = await fetchDiscoveryDetail(entry);
+        candidates.push(classifyCandidate({
+          game: entry.game,
+          detail,
+          knownPlayers: players,
+          since,
+          until,
+          knownGameIds,
+          excludedGames,
+        }));
+      } catch (error) {
+        candidates.push({
+          gameId,
+          gameTime: parseLzyumiGameTime(entry.game, since)?.toISOString() || null,
+          title: clean(entry.game?.title) || null,
+          titleTime: clean(entry.game?.titleTime) || null,
+          knownGameId: knownGameIds.has(gameId),
+          reviewStatus: knownGameIds.has(gameId) ? "REVIEW" : "ERROR",
+          reasons: [`detail lookup failed: ${error.message || error}`],
+          rosterMatchCount: 0,
+          matchedPlayers: [],
+          participants: [],
+          gameType: null,
+          gameMode: null,
+          mapId: null,
+          endOfGameResult: null,
+          raw: { game: entry.game, detail: null },
+        });
+      }
+    }
+
+    candidates.sort((a, b) => String(a.gameTime || "").localeCompare(String(b.gameTime || "")));
+    const discoveredIds = new Set(candidates.map((candidate) => candidate.gameId));
+    const missingKnownGameIds = [...knownGameIds].filter((gameId) => !discoveredIds.has(gameId));
+    const report = {
+      generatedAt: new Date().toISOString(),
+      readOnly: true,
+      parameters: { since: since.toISOString(), until: until.toISOString(), allCount, playerCount: players.length, historyPrefilter },
+      summary: {
+        historiesOk: coverage.filter((item) => item.status === "OK").length,
+        uniqueDatedGames: entries.length,
+        highConfidence: candidates.filter((item) => item.reviewStatus === "HIGH_CONFIDENCE").length,
+        needsReview: candidates.filter((item) => item.reviewStatus === "REVIEW").length,
+        excluded: candidates.filter((item) => item.reviewStatus === "EXCLUDE").length,
+        excludedTournament: candidates.filter((item) => item.reviewStatus === "EXCLUDE_TOURNAMENT").length,
+        errors: candidates.filter((item) => item.reviewStatus === "ERROR").length,
+        missingKnownGameIds,
+      },
+      coverage,
+      candidates,
+    };
+
+    const jsonOutput = `${outputBase}.json`;
+    const csvOutput = `${outputBase}.csv`;
+    if (!process.argv.includes("--overwrite") && (fs.existsSync(jsonOutput) || fs.existsSync(csvOutput))) {
+      throw new Error("Discovery output already exists. Choose a new --output path or pass --overwrite explicitly.");
+    }
+    fs.writeFileSync(jsonOutput, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    fs.writeFileSync(csvOutput, candidatesCsv(candidates), "utf8");
+    console.log(`Wrote ${outputBase}.json`);
+    console.log(`Wrote ${outputBase}.csv`);
+    console.log(JSON.stringify(report.summary, null, 2));
+  } finally {
+    await resetBrowserSession("discovery-complete");
+  }
+}
+
 async function debugPageCheckPlayer() {
   if (process.argv.includes("--lzyumi-login")) {
     await lzyumiLogin();
@@ -2033,6 +2236,11 @@ if (process.argv.includes("--probe-network")) {
   debugCheckPlayer().finally(
     () => resetBrowserSession("check-player-complete"),
   ).catch((error) => {
+    console.error(error.message || error);
+    process.exitCode = 1;
+  });
+} else if (process.argv.includes("--discover-inhouse")) {
+  debugDiscoverInhouse().catch((error) => {
     console.error(error.message || error);
     process.exitCode = 1;
   });

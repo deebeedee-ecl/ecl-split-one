@@ -141,6 +141,15 @@ Classify Lzyumi failures before changing tokens, building a companion flow, or c
 
 A network-switch result is diagnostic evidence, not a permanent architecture. Prefer the signed browser flow, bounded retry/backoff, and explicit failure reporting over silently depending on a hotspot.
 
+### Historical inhouse discovery
+
+- Start historical discovery with the read-only `report-engine` command documented in `report-engine/BACKFILL_DISCOVERY.md`; do not begin by automating the operator's normal browser.
+- Use a local ignored player config containing the exact full Riot IDs and date bounds. The committed example must remain synthetic.
+- Treat transport errors and incomplete player-history coverage as an incomplete scan, never as proof that no games exist.
+- Review tournament exclusions and candidate roster coverage before promoting any provider game ID to an import plan.
+- Discovery writes local JSON/CSV evidence only. It must not connect to the ECL database, claim report jobs, create ranked rows, or apply LP.
+- Provider payloads and player identities in the output are private operational evidence. Keep them ignored and never commit or paste unrestricted artifacts into logs, issues, or chat.
+
 ### Report-engine deployment configuration
 
 - Keep provider tokens, cookies, worker secrets, and login material only in ignored local configuration or the deployment environment.

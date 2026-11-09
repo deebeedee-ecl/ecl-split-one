@@ -39,6 +39,9 @@ scripts/*-output.txt
 scripts/filter-*.json
 scripts/snapshot-*.json
 /report-engine/.lzyumi-browser-profile/
+/report-engine/backfill-players.local.json
+/report-engine/inhouse-discovery-*.json
+/report-engine/inhouse-discovery-*.csv
 
 # env files (can opt-in for committing if needed)
 .env*

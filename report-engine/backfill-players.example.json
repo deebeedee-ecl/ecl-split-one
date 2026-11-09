@@ -1,0 +1,15 @@
+{
+  "since": "2026-10-18",
+  "until": "2026-11-06",
+  "allCount": 100,
+  "knownGameIds": [
+    "provider-game-id-from-reviewed-evidence"
+  ],
+  "players": [
+    "ExamplePlayer#12345",
+    {
+      "riotId": "SecondExample#67890",
+      "areaId": 1
+    }
+  ]
+}
