@@ -1,6 +1,6 @@
 # ECL development and operations runbook
 
-Last reviewed: 2026-11-09
+Last reviewed: 2026-11-10
 
 ## Safe local start
 
@@ -99,6 +99,21 @@ response bodies. `SUCCESS`/`READY` are observed states. `PENDING`, `NOT_FOUND`,
 and `SKIPPED` must remain explicit and must not be reported as deployment
 success. The operator must already have authenticated `gh` and `vercel` CLIs;
 a scoped Railway check additionally requires an authenticated `railway` CLI.
+
+### Railway runtime scope
+
+The repository-root Railway link is an operator convenience, not shared project
+configuration. The confirmed production mapping for this repository is the
+`report-engine/` runtime to the Railway service `ECL Report Engine` in the
+`production` environment. The Railway project contains multiple services, so
+leave the repository root linked at project/environment scope and pass the
+service explicitly for service-specific commands.
+
+The `ecl-kook-bot` Railway service belongs to the adjacent `ecl-kook-bot`
+repository. Do not deploy it or change its variables from this repository.
+Do not commit Railway project, environment, or service IDs; keep them in an
+ignored operator environment using the variable names in `.env.example`, or
+pass the three IDs explicitly to the read-only release-status command.
 
 For a Railway-backed runtime, pass the project, environment, and service IDs
 together. Keep those IDs in ignored operator configuration or dedicated
