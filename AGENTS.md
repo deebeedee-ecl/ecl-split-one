@@ -38,6 +38,7 @@ When documentation and implementation disagree, verify the current schema, route
 
 ## Safety and authorization
 
+- For every GitHub operation in this repository, use only the authenticated `git` and `gh` CLI. Never request or use browser control for GitHub, including as a fallback. If the CLI cannot complete an operation or requires renewed authentication, stop and report the blocker to the user.
 - Never read, print, copy, or commit `.env*` values, provider tokens, cookies, database credentials, bot tokens, signing keys, or personal user data. Use `.env.example` only for variable names.
 - Do not deploy, push, merge, publish, message the community, mutate a shared database, or run a maintenance/backfill/release/reset/sync script without explicit user authorization for that action.
 - `prisma db push` is allowed only for a disposable local database. This repository currently has no committed Prisma migration history.
