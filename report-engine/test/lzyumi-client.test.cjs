@@ -47,13 +47,14 @@ test("history URL contains the signed lookup contract and authorized session", (
   }));
 
   assert.equal(url.pathname, "/lzyumi/lol/info");
-  assert.equal(url.searchParams.get("nickname"), "ParticipantName*~*~*\u206612345");
+  assert.equal(url.searchParams.get("nickname"), "ParticipantName*~*~*12345");
   assert.equal(url.searchParams.get("openId"), "openid-value");
   assert.equal(url.searchParams.get("areaId"), "1");
   assert.equal(url.searchParams.get("areaName"), "Ionia");
   assert.equal(url.searchParams.get("seleMe"), "1");
   assert.equal(url.searchParams.get("filter"), "2");
   assert.equal(url.searchParams.get("allCount"), "20");
+  assert.equal(url.searchParams.get("modelId"), "1");
   assert.equal(url.searchParams.get("lzyumitokenstr"), "session-value");
   assert.equal(url.searchParams.get("signStr"), "1148423163366");
 });

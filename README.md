@@ -187,6 +187,26 @@ npm test
 node worker.js --check-player "PlayerName#Tag" --area-id 1 --limit 1
 ```
 
+Check the configured token without printing it or other account fields:
+
+```bash
+node worker.js --lzyumi-token-status
+```
+
+When the API token is rejected and `REPORT_ENGINE_FETCH_MODE` is not `direct`, the
+worker can fall back to the provider's authenticated browser page for history and
+match details. Seed its dedicated persistent browser profile without exposing a token:
+
+```bash
+node worker.js --lzyumi-login-manual
+```
+
+Complete the provider login in the opened window. For an unattended worker, configure
+`REPORT_ENGINE_LZYUMI_LOGIN_ID` and `REPORT_ENGINE_LZYUMI_LOGIN_PASSWORD` in its secret
+environment and run `node worker.js --lzyumi-login` once. Provider code `6` refreshes
+that browser session once; provider code `8` may trigger browser fallback but is not
+treated as proof that login credentials are invalid.
+
 The probe fetches recent history and match details but does not claim a report job or
 write to the ECL database.
 
