@@ -47,6 +47,15 @@ export async function syncPlayerForProfile(
   };
 
   if (existing) {
+    if (
+      existing.name === data.name &&
+      existing.riotName === data.riotName &&
+      existing.riotTag === data.riotTag &&
+      existing.email === data.email
+    ) {
+      return existing;
+    }
+
     return database.player.update({
       where: { id: existing.id },
       data,

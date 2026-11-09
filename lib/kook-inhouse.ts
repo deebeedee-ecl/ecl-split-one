@@ -16,6 +16,7 @@ export const RED_SIDE_CHANNEL_ID =
 const INHOUSE_SIZE = 10;
 const TEAM_SIZE = 5;
 const DUPLICATE_READY_WINDOW_MS = 2 * 60 * 1000;
+const PROFILE_SYNC_CONCURRENCY = 2;
 
 export type KookInhouseMember = {
   id?: string | null;
@@ -49,6 +50,16 @@ export type BalancedInhouseTeam = {
   players: ResolvedInhousePlayer[];
 };
 
+type PersistedInhouseMoveSession = {
+  gameLabel?: string | null;
+  blueChannelId: string;
+  redChannelId: string;
+  players: Array<{
+    kookUserId: string;
+    side: string;
+  }>;
+};
+
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -69,6 +80,65 @@ export function normalizeInhouseMembers(members: KookInhouseMember[]): Normalize
   }
 
   return normalized;
+}
+
+export async function syncInhouseProfilePlayers<TProfile extends { id: string }, TPlayer>(
+  profiles: TProfile[],
+  syncProfile: (profile: TProfile) => Promise<TPlayer>,
+  concurrency = PROFILE_SYNC_CONCURRENCY,
+) {
+  const results = new Map<string, TPlayer>();
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), profiles.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < profiles.length) {
+        const profile = profiles[nextIndex];
+        nextIndex += 1;
+        results.set(profile.id, await syncProfile(profile));
+      }
+    }),
+  );
+
+  return results;
+}
+
+export function buildInhouseMoveInstructions(session: PersistedInhouseMoveSession) {
+  return session.players.map((player) => {
+    if (player.side !== "BLUE" && player.side !== "RED") {
+      throw new Error(`Invalid persisted inhouse side for KOOK user ${player.kookUserId}.`);
+    }
+
+    return {
+      kookUserId: player.kookUserId,
+      targetChannelId:
+        player.side === "BLUE" ? session.blueChannelId : session.redChannelId,
+      side: player.side,
+    };
+  });
+}
+
+export function activeInhouseCommandResult(
+  action: "inhouse" | "ready",
+  session: PersistedInhouseMoveSession,
+) {
+  if (action === "ready") {
+    return {
+      status: "ASSIGNED_RECOVERY",
+      reply: `${session.gameLabel ?? "The current inhouse"} is already set. Reusing the saved teams and retrying the KOOK voice moves. No duplicate session was created.`,
+      moveInstructions: buildInhouseMoveInstructions(session),
+    };
+  }
+
+  return {
+    status: "ALREADY_ASSIGNED",
+    reply:
+      `${session.gameLabel ?? "The current inhouse"} is already set.\n\n` +
+      "Duplicate commands are ignored. Finish/report this game, or ask an admin to cancel the stuck session from the admin dashboard.\n\n" +
+      "After it is cleared, type !inhouse to start the next game.",
+    moveInstructions: [],
+  };
 }
 
 export async function resolveInhousePlayers(
@@ -101,14 +171,10 @@ export async function resolveInhousePlayers(
       .map((profile) => [profile.kookId as string, profile]),
   );
 
-  const playersByProfileId = new Map<
-    string,
-    Awaited<ReturnType<typeof syncPlayerForProfile>>
-  >();
-
-  for (const profile of profiles) {
-    playersByProfileId.set(profile.id, await syncPlayerForProfile(profile));
-  }
+  const playersByProfileId = await syncInhouseProfilePlayers(
+    profiles,
+    syncPlayerForProfile,
+  );
   const season = getRankedSeason();
   const seasonStates = season ? await loadRankedSeasonStates([...playersByProfileId.values()].filter(player => !!player).map(player => player!.id), season) : null;
 
@@ -224,6 +290,14 @@ export async function findActiveInhouseSession(sourceChannelId: string) {
       id: true,
       gameLabel: true,
       createdAt: true,
+      blueChannelId: true,
+      redChannelId: true,
+      players: {
+        select: {
+          kookUserId: true,
+          side: true,
+        },
+      },
     },
   });
 }
@@ -256,6 +330,7 @@ export async function createInhouseSession({
         players: {
           select: {
             kookUserId: true,
+            side: true,
           },
         },
       },
@@ -274,6 +349,9 @@ export async function createInhouseSession({
         id: duplicateSession.id,
         gameLabel: duplicateSession.gameLabel,
         createdAt: duplicateSession.createdAt,
+        blueChannelId: duplicateSession.blueChannelId,
+        redChannelId: duplicateSession.redChannelId,
+        players: duplicateSession.players,
         duplicate: true,
       };
     }
@@ -320,6 +398,14 @@ export async function createInhouseSession({
         id: true,
         gameLabel: true,
         createdAt: true,
+        blueChannelId: true,
+        redChannelId: true,
+        players: {
+          select: {
+            kookUserId: true,
+            side: true,
+          },
+        },
       },
     });
 
