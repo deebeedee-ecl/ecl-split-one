@@ -140,7 +140,7 @@ The authenticated pass did receive current live matches, so the mock fallback wa
 - KOOK verification status/code controls;
 - Identity: display name, Riot name/tag, China server;
 - Linked Accounts: KOOK username, read-only stable KOOK ID, WeChat ID;
-- Player Setup: primary/secondary role, nationality, timezone;
+- Player Setup: primary/secondary role, nationality, timezone. The nationality dropdown offers the full ISO 3166-1 country and territory set while retaining “Prefer not to say”;
 - Profile Image: avatar, bio, banner, and banner position;
 - Privacy: public Riot ID, email, and WeChat toggles;
 - Save/Create Profile action.
