@@ -12,16 +12,14 @@ import {
   roles,
 } from "./account-options";
 import {
-  clearHubAccessCache,
-  flushPendingProfile,
   loadProfile,
   requestKookVerificationCode,
   saveProfile,
-  setHubAccessCache,
   type SignupProfilePayload,
   uploadAvatar,
   uploadBanner,
 } from "./client-account";
+import { useHubBootstrap } from "@/app/(hub)/hub/_components/HubBootstrapProvider";
 
 type AccountProfile = SignupProfilePayload & {
   id: string;
@@ -68,6 +66,7 @@ const emptyProfile: SignupProfilePayload = {
 };
 
 export default function AccountDashboard() {
+  const { status, session, accessToken, markProfileAvailable } = useHubBootstrap();
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [form, setForm] = useState<SignupProfilePayload>(emptyProfile);
   const [hasSession, setHasSession] = useState(false);
@@ -93,21 +92,24 @@ export default function AccountDashboard() {
   );
 
   useEffect(() => {
+    let cancelled = false;
+
     async function boot() {
       setLoading(true);
       setError("");
 
-      const { data } = await supabase.auth.getSession();
+      if (status === "loading") return;
 
-      if (!data.session) {
+      if (status === "signed-out" || !session || !accessToken) {
         setHasSession(false);
         setLoading(false);
         return;
       }
 
       setHasSession(true);
-      await flushPendingProfile().catch(() => null);
-      const loaded = await loadProfile();
+      const loaded = await loadProfile(accessToken);
+
+      if (cancelled) return;
 
       if (loaded) {
         setProfile(loaded);
@@ -118,7 +120,7 @@ export default function AccountDashboard() {
           privacySettings: loaded.privacySettings ?? emptyProfile.privacySettings,
         });
       } else {
-        const metadata = data.session.user.user_metadata ?? {};
+        const metadata = session.user.user_metadata ?? {};
         const metadataProfile =
           metadata.ecl_profile && typeof metadata.ecl_profile === "object"
             ? (metadata.ecl_profile as Partial<SignupProfilePayload>)
@@ -145,8 +147,11 @@ export default function AccountDashboard() {
       setLoading(false);
     }
 
-    boot();
-  }, []);
+    void boot();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, session, status]);
 
   function update<K extends keyof SignupProfilePayload>(key: K, value: SignupProfilePayload[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -157,9 +162,13 @@ export default function AccountDashboard() {
     setMessage("");
 
     try {
-      const updated = await saveProfile(savePayload, profile ? "PATCH" : "POST");
+      const updated = await saveProfile(savePayload, profile ? "PATCH" : "POST", accessToken);
       setProfile(updated);
-      setHubAccessCache("ready");
+      markProfileAvailable({
+        id: updated.id,
+        accountStatus: updated.accountStatus,
+        verificationStatus: updated.verificationStatus,
+      });
       setMessage(profile ? "Profile saved." : "Profile created.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save profile.");
@@ -172,8 +181,8 @@ export default function AccountDashboard() {
     setMessage("");
     setBannerUploading(true);
     try {
-      const bannerUrl = await uploadBanner(file);
-      const updated = await saveProfile({ ...savePayload, bannerUrl }, "PATCH");
+      const bannerUrl = await uploadBanner(file, accessToken);
+      const updated = await saveProfile({ ...savePayload, bannerUrl }, "PATCH", accessToken);
       setProfile(updated);
       setForm((current) => ({ ...current, bannerUrl }));
       setMessage("Banner uploaded.");
@@ -199,7 +208,7 @@ export default function AccountDashboard() {
         bannerUrl: "",
         privacySettings: nextPrivacySettings,
       };
-      const updated = await saveProfile(nextPayload, profile ? "PATCH" : "POST");
+      const updated = await saveProfile(nextPayload, profile ? "PATCH" : "POST", accessToken);
       setProfile(updated);
       setForm((current) => ({
         ...current,
@@ -222,8 +231,8 @@ export default function AccountDashboard() {
     setAvatarUploading(true);
 
     try {
-      const avatarUrl = await uploadAvatar(file);
-      const updated = await saveProfile({ ...savePayload, avatarUrl }, "PATCH");
+      const avatarUrl = await uploadAvatar(file, accessToken);
+      const updated = await saveProfile({ ...savePayload, avatarUrl }, "PATCH", accessToken);
       setProfile(updated);
       setForm((current) => ({ ...current, avatarUrl }));
       setMessage("Avatar uploaded.");
@@ -240,7 +249,7 @@ export default function AccountDashboard() {
     setCodeRequesting(true);
 
     try {
-      const nextVerification = await requestKookVerificationCode();
+      const nextVerification = await requestKookVerificationCode(accessToken);
       setProfile((current) =>
         current
           ? {
@@ -258,7 +267,6 @@ export default function AccountDashboard() {
   }
 
   async function signOut() {
-    clearHubAccessCache();
     await supabase.auth.signOut();
     window.location.href = "/login";
   }

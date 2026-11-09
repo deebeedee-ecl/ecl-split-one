@@ -1,6 +1,6 @@
 import { FlaskConical } from "lucide-react";
 import { HubShell } from "../_components/HubShell";
-import SplitTwoRegistration from "@/app/(public)/split-ii/SplitTwoRegistration";
+import { HubSplitTwoRegistration } from "../_components/HubSplitTwoRegistration";
 
 export default function DashboardPreview() {
   return (
@@ -17,7 +17,7 @@ export default function DashboardPreview() {
         <FlaskConical size={14} />
         Design preview / Mock player profile and registrations
       </div>
-      <SplitTwoRegistration inDashboard preview />
+      <HubSplitTwoRegistration preview />
     </HubShell>
   );
 }

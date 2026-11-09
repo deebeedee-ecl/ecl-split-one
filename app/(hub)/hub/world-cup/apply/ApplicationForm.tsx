@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, MessageSquareText, Send, Sparkles } from "lucide-react";
-import { getAccessToken } from "@/components/account/client-account";
+import { useHubBootstrap } from "../../_components/HubBootstrapProvider";
 import { countryByCode, worldCupCountries } from "@/lib/world-cup-countries";
 import { WorldCupFlag } from "../WorldCupFlag";
 
@@ -34,6 +34,7 @@ export function ApplicationForm({
   initialTeamId?: string;
   recentApplications: RecentApplication[];
 }) {
+  const { status: hubStatus, accessToken } = useHubBootstrap();
   const [teamId, setTeamId] = useState(initialTeamId || "");
   const [playerName, setPlayerName] = useState("");
   const [email, setEmail] = useState("");
@@ -63,14 +64,14 @@ export function ApplicationForm({
 
     async function loadProfile() {
       try {
-        const token = await getAccessToken();
-        if (!token) {
+        if (hubStatus === "loading") return;
+        if (!accessToken) {
           if (!cancelled) setProfileStatus("Log in and verify your Hub profile before applying.");
           return;
         }
 
         const response = await fetch("/api/account/profile", {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${accessToken}` },
           cache: "no-store",
         });
         if (!response.ok) {
@@ -109,7 +110,7 @@ export function ApplicationForm({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [accessToken, hubStatus]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -124,8 +125,7 @@ export function ApplicationForm({
       return;
     }
 
-    const token = await getAccessToken();
-    if (!token) {
+    if (!accessToken) {
       setIsError(true);
       setMessage("Log in with your Hub account before applying.");
       setLoading(false);
@@ -151,7 +151,7 @@ export function ApplicationForm({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           playerName,

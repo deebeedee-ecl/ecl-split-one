@@ -53,17 +53,17 @@ Contact and onboarding surfaces collect personal contact/identity data. UI chang
 
 ## Hub access states
 
-`HubAccessGate` creates three relevant user states:
+The Hub layout's shared bootstrap and `HubAccessGate` create three relevant user states:
 
 1. No Supabase session → “Log in to enter the Hub” with a login CTA.
 2. Logged in but no loadable ECL profile → “Complete your Hub profile” with a settings CTA that retains the intended destination.
 3. Logged in with a profile → requested Hub content.
 
-Account Settings is the exception: it allows the authenticated no-profile state so the user can create/complete the profile. The server-rendered shell initially shows “Checking Hub access...” while the client resolves the session/profile.
+Account Settings is the exception: it allows the authenticated no-profile state so the user can create/complete the profile. The server-rendered shell initially shows “Checking Hub access...” while the client resolves the shared session/minimal-profile bootstrap. Route-specific full profile data still loads inside Profile, Settings, and other pages that need it.
 
 ## Authenticated Hub shell
 
-The current desktop Hub uses a narrow fixed left icon sidebar with hover descriptions and a full-page dark blue/black content surface. Its route-group layout is separate from the public shell; the existing page-level `HubShell` and `HubAccessGate` behavior remain in place pending the separately scoped authenticated-bootstrap work.
+The current desktop Hub uses a narrow fixed left icon sidebar with hover descriptions and a full-page dark blue/black content surface. Its route-group layout is separate from the public shell and owns the shared authenticated bootstrap. Page-level `HubShell` instances keep the existing presentation while their `HubAccessGate` consumers reuse the layout-level session/profile state.
 
 Primary navigation:
 

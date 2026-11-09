@@ -28,7 +28,20 @@ async function fetchRegistrationState(token: string | null): Promise<TournamentR
   }
 }
 
-export function useSplitTwoRegistration(preview: boolean) {
+export type SplitRegistrationAuth = {
+  ready: boolean;
+  accessToken: string | null;
+  userId: string | null;
+};
+
+export function useSplitTwoRegistration(
+  preview: boolean,
+  sharedAuth?: SplitRegistrationAuth,
+) {
+  const usesSharedAuth = sharedAuth !== undefined;
+  const sharedAuthReady = sharedAuth?.ready ?? false;
+  const sharedAccessToken = sharedAuth?.accessToken ?? null;
+  const sharedUserId = sharedAuth?.userId ?? null;
   const [previewPlayers, setPreviewPlayers] = useState<TournamentRosterEntry[]>(mockPlayers.slice(0, 18));
   const [previewFloaters, setPreviewFloaters] = useState<TournamentRosterEntry[]>([]);
   const [previewAccount, setPreviewAccount] = useState<TournamentViewer["account"]>("eligible");
@@ -58,10 +71,28 @@ export function useSplitTwoRegistration(preview: boolean) {
       setSessionReady(true);
       setSessionRevision(value => value + 1);
     };
+
+    if (usesSharedAuth) {
+      if (sharedAuthReady) {
+        applySession(sharedAccessToken, sharedUserId);
+      }
+      return () => {
+        disposed = true;
+        invalidateRequests();
+      };
+    }
+
     void supabase.auth.getSession().then(({ data: session }) => applySession(session.session?.access_token ?? null, session.session?.user?.id ?? null)).catch(() => applySession(null, null));
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => applySession(session?.access_token ?? null, session?.user?.id ?? null));
     return () => { disposed = true; invalidateRequests(); subscription.subscription.unsubscribe(); };
-  }, [preview, invalidateRequests]);
+  }, [
+    preview,
+    invalidateRequests,
+    sharedAccessToken,
+    sharedAuthReady,
+    sharedUserId,
+    usesSharedAuth,
+  ]);
 
   const refresh = useCallback(async (silent = false) => {
     if (preview) { setPreviewRequest("idle"); return; }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ClipboardList, ShieldCheck, UserPlus, Users } from "lucide-react";
-import { getAccessToken } from "@/components/account/client-account";
+import { useHubBootstrap } from "../../_components/HubBootstrapProvider";
 import { HubShell } from "../../_components/HubShell";
 import { WorldCupNav } from "../WorldCupNav";
 
@@ -37,6 +37,7 @@ type MyWorldCupTeam =
 
 export default function MyWorldCupTeamPage() {
   const router = useRouter();
+  const { status: hubStatus, accessToken } = useHubBootstrap();
   const [data, setData] = useState<MyWorldCupTeam | null>(null);
   const [error, setError] = useState("");
 
@@ -47,11 +48,11 @@ export default function MyWorldCupTeamPage() {
       setError("");
 
       try {
-        const token = await getAccessToken();
-        if (!token) throw new Error("Log in to view your World Cup team.");
+        if (hubStatus === "loading") return;
+        if (!accessToken) throw new Error("Log in to view your World Cup team.");
 
         const response = await fetch("/api/world-cup/my-team", {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${accessToken}` },
           cache: "no-store",
         });
         const payload = await response.json();
@@ -74,7 +75,7 @@ export default function MyWorldCupTeamPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [accessToken, hubStatus, router]);
 
   return (
     <HubShell

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
-import { getAccessToken } from "@/components/account/client-account";
+import { useHubBootstrap } from "../../../_components/HubBootstrapProvider";
 import { CaptainApplicationActions } from "./CaptainApplicationActions";
 
 type CaptainApplication = {
@@ -19,6 +19,7 @@ type CaptainApplication = {
 };
 
 export function CaptainApplicationsPanel({ teamId }: { teamId: string }) {
+  const { status: hubStatus, accessToken } = useHubBootstrap();
   const [applications, setApplications] = useState<CaptainApplication[]>([]);
   const [state, setState] = useState<"loading" | "captain" | "hidden" | "error">("loading");
 
@@ -27,14 +28,14 @@ export function CaptainApplicationsPanel({ teamId }: { teamId: string }) {
 
     async function load() {
       try {
-        const token = await getAccessToken();
-        if (!token) {
+        if (hubStatus === "loading") return;
+        if (!accessToken) {
           if (!cancelled) setState("hidden");
           return;
         }
 
         const response = await fetch(`/api/world-cup/team/${teamId}/applications`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${accessToken}` },
           cache: "no-store",
         });
 
@@ -60,7 +61,7 @@ export function CaptainApplicationsPanel({ teamId }: { teamId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [teamId]);
+  }, [accessToken, hubStatus, teamId]);
 
   if (state === "hidden" || state === "loading") return null;
 

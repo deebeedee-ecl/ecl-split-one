@@ -9,7 +9,6 @@ import {
   cleanSignupProfilePayload,
   pendingProfileKey,
   saveProfile,
-  setHubAccessCache,
   type SignupProfilePayload,
 } from "./client-account";
 import { chinaServerOptions } from "./account-options";
@@ -121,7 +120,6 @@ export default function SignupForm() {
 
       if (data.session?.access_token) {
         const profile = await saveProfile(profilePayload, "POST");
-        setHubAccessCache("ready");
         const code = profile?.kookVerifications?.[0]?.code;
         setMessage(
           code

@@ -10,8 +10,8 @@ import {
   ShieldCheck,
   UsersRound,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { getAccessToken, loadProfile } from "@/components/account/client-account";
+import { loadProfile } from "@/components/account/client-account";
+import { useHubBootstrap } from "../../_components/HubBootstrapProvider";
 import {
   englishDuration,
   findLzyumiPlayer,
@@ -102,6 +102,7 @@ function playerRiotId(player: SessionPlayer) {
 
 export default function ReportInhouseClient() {
   const router = useRouter();
+  const { status: hubStatus, accessToken } = useHubBootstrap();
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState<ReportSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<ReportSession | null>(null);
@@ -122,13 +123,13 @@ export default function ReportInhouseClient() {
 
     async function loadSessions() {
       try {
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) {
+        if (hubStatus === "loading") return;
+        if (!accessToken) {
           router.replace("/login?next=/hub/me/report-inhouse");
           return;
         }
 
-        const profile = await loadProfile();
+        const profile = await loadProfile(accessToken);
         if (!profile) {
           router.replace("/hub/settings");
           return;
@@ -136,7 +137,7 @@ export default function ReportInhouseClient() {
         setCurrentKookId(profile.kookId ?? null);
 
         const res = await fetch("/api/hub/report-session", {
-          headers: { Authorization: `Bearer ${data.session.access_token}` },
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
         const payload = (await res.json().catch(() => ({}))) as
           | ReportSessionResponse
@@ -174,7 +175,7 @@ export default function ReportInhouseClient() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [accessToken, hubStatus, router]);
 
   function resetLookup() {
     setGames([]);
@@ -303,7 +304,7 @@ export default function ReportInhouseClient() {
     setResult(null);
 
     try {
-      const token = await getAccessToken();
+      const token = accessToken;
       if (!token) throw new Error("Not logged in");
 
       const openId = rawProfile.battleInfo?.openId ?? "";

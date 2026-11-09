@@ -1,12 +1,10 @@
 "use client";
 
 import { LogOut } from "lucide-react";
-import { clearHubAccessCache } from "@/components/account/client-account";
 import { supabase } from "@/lib/supabase";
 
 export function HubLogoutButton() {
   async function signOut() {
-    clearHubAccessCache();
     await supabase.auth.signOut();
     window.location.href = "/login";
   }
