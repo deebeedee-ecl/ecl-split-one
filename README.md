@@ -15,7 +15,7 @@ The website uses PostgreSQL through Prisma, Supabase Auth for player accounts, a
 - PostgreSQL for database-backed pages and API routes
 - A Supabase project for sign-in and account features
 - Windows when running or packaging the Electron companion app
-- Docker only when building the report-engine container
+- Docker when building the report-engine container or running the optional local Supabase stack
 
 ## Web setup
 
@@ -41,13 +41,22 @@ The website uses PostgreSQL through Prisma, Supabase Auth for player accounts, a
 
 3. At minimum, configure `DATABASE_URL` for database-backed pages. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` when working on authentication or account features.
 
+   For an isolated local Supabase Auth environment, start the repository-pinned CLI stack:
+
+   ```bash
+   npm run supabase:start
+   npm run supabase:status
+   ```
+
+   Copy only the local database URL, API URL, and public anon key reported by the CLI into your ignored `.env.local`. Treat the remaining output as sensitive and do not paste or commit it. Stop the stack with `npm run supabase:stop`.
+
 4. For a new, disposable local PostgreSQL database only, create the schema from `prisma/schema.prisma`:
 
    ```bash
-   npx prisma db push
+   npm run db:push:local
    ```
 
-   This repository does not yet contain a Prisma migration history. Do not run `prisma db push` against a shared, staging, or production database. Ask the repository owner for the approved database workflow when using an existing environment.
+   This command explicitly loads the ignored `.env.local` file because Prisma does not load that Next.js-specific filename by default. Its wrapper rejects any `DATABASE_URL` that does not use a loopback PostgreSQL host. This repository does not yet contain a Prisma migration history. Do not run `prisma db push` against a shared, staging, or production database. Ask the repository owner for the approved database workflow when using an existing environment.
 
 5. Start the development server:
 
@@ -102,7 +111,13 @@ npm run test:focused        # Ranked, KOOK, tournament, and desktop-update tests
 npx tsc --noEmit            # TypeScript check
 npm run lint                # ESLint
 npm run test:perf           # Focused Hub benchmark tests
+npm run supabase:start      # Start the isolated local Supabase stack (Docker required)
+npm run supabase:status     # Show local Supabase endpoints and status
+npm run supabase:stop       # Stop the local Supabase stack
+npm run db:push:local       # Apply the Prisma schema to the disposable local database from .env.local
 ```
+
+The Supabase CLI is for the local Auth/service stack and isolated test projects. Prisma remains the schema owner for ECL application tables: do not create or apply `supabase/migrations` for them, and do not link or target a shared/production Supabase project without explicit authorization.
 
 Run the read-only Hub cold/warm audit against a local or isolated preview target:
 

@@ -13,6 +13,10 @@
     "perf:hub": "node scripts/performance/hub-route-baseline.mjs",
     "release:status": "node scripts/release-status.mjs",
     "smoke:layouts": "node scripts/smoke-layout-boundaries.mjs",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status",
+    "db:push:local": "node --env-file=.env.local scripts/db-push-local.mjs",
     "lint": "eslint",
     "postinstall": "prisma generate"
   },
@@ -51,6 +55,7 @@
     "eslint-config-next": "16.2.1",
     "playwright": "1.63.0",
     "prisma": "^6.19.2",
+    "supabase": "^3.1.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"

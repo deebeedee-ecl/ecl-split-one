@@ -7,8 +7,11 @@ Last reviewed: 2026-11-10
 1. Use Node.js 20.9+; Node.js 22 LTS is preferred.
 2. Run `npm ci` at the repository root.
 3. Copy `.env.example` to a local ignored environment file and populate only what the task needs. Never inspect or copy someone else's environment file into documentation or tool output.
-4. For a brand-new disposable local PostgreSQL database only, run `npx prisma db push`.
-5. Run `npm run dev` and use the local URL.
+4. When authentication work needs an isolated local Supabase environment, run `npm run supabase:start`; Docker is required. Use `npm run supabase:status` locally to obtain the local API URL, public anon key, and database URL, but do not paste or commit the complete output.
+5. For a brand-new disposable local PostgreSQL database only, run `npm run db:push:local` after selecting its local `DATABASE_URL` in `.env.local`. The command refuses non-loopback PostgreSQL hosts before Prisma starts.
+6. Run `npm run dev` and use the local URL. Stop the optional Supabase stack with `npm run supabase:stop` when finished.
+
+The repository-pinned Supabase CLI owns the local Auth/service stack only. Prisma remains the schema owner for ECL application tables. Do not add or apply Supabase database migrations for those tables, and do not run `supabase login`, `supabase link`, or any remote command against a shared or production project without explicit authorization naming the target.
 
 The root `README.md` has the fuller setup and environment-variable matrix. If its commands disagree with `package.json`, the current package scripts win and the README should be corrected.
 
