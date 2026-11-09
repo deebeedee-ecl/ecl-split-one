@@ -1,6 +1,6 @@
 # ECL architecture
 
-Last reviewed: 2026-11-09
+Last reviewed: 2026-11-10
 
 ## System boundary
 
@@ -32,6 +32,13 @@ The website/API and database are the ECL source of truth. External providers sup
 | KOOK gateway bot | adjacent `ecl-kook-bot` repo | KOOK WebSocket connection, command parsing, voice/member operations, and message delivery |
 | Report engine | `report-engine/` | Always-on match-discovery and confirmation-job polling, China-server lookup/detail collection, and final KOOK result delivery |
 | Windows companion | `companion/` | Optional local client/data collection and desktop Hub experience; historical inhouse pilots used it for game-ID collection, but the current Lzyumi reporting path does not require it |
+
+The report engine is deployed from `report-engine/` to the Railway service
+`ECL Report Engine` in the `production` environment. The same Railway project
+also contains `ecl-kook-bot`, but that service is owned by the adjacent
+`ecl-kook-bot` repository and must not be deployed or configured from this
+repository. Railway project, environment, and service IDs are operator-local
+release inputs rather than source-controlled architecture; see `RUNBOOK.md`.
 
 ## Web layout boundaries
 
