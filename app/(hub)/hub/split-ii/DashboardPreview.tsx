@@ -1,6 +1,6 @@
 import { FlaskConical } from "lucide-react";
 import { HubShell } from "../_components/HubShell";
-import SplitTwoRegistration from "../../split-ii/SplitTwoRegistration";
+import SplitTwoRegistration from "@/app/(public)/split-ii/SplitTwoRegistration";
 
 export default function DashboardPreview() {
   return (

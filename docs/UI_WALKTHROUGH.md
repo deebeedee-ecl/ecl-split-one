@@ -27,6 +27,8 @@ The current public header presents:
 
 The footer presents Terms & Conditions, Admin Login, and Contact Us.
 
+The public header, mobile navigation, and footer are owned by the `(public)` route-group layout. The public `/hub` introduction remains inside that shell, while `/hub/*` application routes use a separate `(hub)` layout boundary and do not render the public chrome behind the Hub surface.
+
 The home page positions ECL around a five-step loop: link a player profile → join through KOOK → play community games → report the result → track profile/rank/history. It also explains the Hub, ranked inhouses, player progression, China-server lookup, privacy separation, and tournament archives.
 
 ## Public route map
@@ -61,7 +63,7 @@ Account Settings is the exception: it allows the authenticated no-profile state 
 
 ## Authenticated Hub shell
 
-The current desktop Hub uses a narrow fixed left icon sidebar with hover descriptions and a full-page dark blue/black content surface.
+The current desktop Hub uses a narrow fixed left icon sidebar with hover descriptions and a full-page dark blue/black content surface. Its route-group layout is separate from the public shell; the existing page-level `HubShell` and `HubAccessGate` behavior remain in place pending the separately scoped authenticated-bootstrap work.
 
 Primary navigation:
 

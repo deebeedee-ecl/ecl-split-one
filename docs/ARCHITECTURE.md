@@ -1,6 +1,6 @@
 # ECL architecture
 
-Last reviewed: 2026-11-08
+Last reviewed: 2026-11-09
 
 ## System boundary
 
@@ -32,6 +32,12 @@ The website/API and database are the ECL source of truth. External providers sup
 | KOOK gateway bot | adjacent `ecl-kook-bot` repo | KOOK WebSocket connection, command parsing, voice/member operations, and message delivery |
 | Report engine | `report-engine/` | Always-on match-discovery and confirmation-job polling, China-server lookup/detail collection, and final KOOK result delivery |
 | Windows companion | `companion/` | Optional local client/data collection and desktop Hub experience; historical inhouse pilots used it for game-ID collection, but the current Lzyumi reporting path does not require it |
+
+## Web layout boundaries
+
+The App Router root layout owns only the global document, metadata, fonts, and body styling. The `(public)` route group owns the public header, mobile navigation, and footer, including the public `/hub` introduction. Hub application routes under `/hub/*` use the separate `(hub)` route-group layout, so the public chrome is absent from their rendered tree instead of being covered by the fixed Hub surface.
+
+The route-group split does not change authorization. The existing page-level `HubShell` and client `HubAccessGate` still control the current signed-out/profile-required presentation, and every private API/server boundary must continue to authorize independently. Centralizing the Hub session/profile bootstrap is separate follow-up work.
 
 ## Domain ownership
 

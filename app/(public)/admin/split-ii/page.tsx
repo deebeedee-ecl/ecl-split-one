@@ -4,7 +4,7 @@ import Image from 'next/image';
 import AdminShell from '@/components/admin/AdminShell';
 import type { TournamentData } from '@/lib/tournaments/match-types';
 import type { MatchPayload } from '@/lib/tournaments/match-policy';
-import { TournamentResults,TournamentLeaders,TournamentStandings,chinaTime } from '@/app/split-ii/TournamentMatches';
+import { TournamentResults,TournamentLeaders,TournamentStandings,chinaTime } from '@/app/(public)/split-ii/TournamentMatches';
 import styles from './reporter.module.css';
 type Line={profileId:string;teamId:string;kills:string;deaths:string;assists:string;mvp:boolean;champion:string};
 const endpoint='/api/admin/tournaments/split-ii';

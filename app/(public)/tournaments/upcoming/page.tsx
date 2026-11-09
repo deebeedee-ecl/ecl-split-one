@@ -2,7 +2,7 @@ import {
   EmptyState,
   HubPage,
   Trophy,
-} from "../../hub/_components/HubScaffold";
+} from "@/app/(hub)/hub/_components/HubScaffold";
 
 export default function UpcomingTournamentsPage() {
   return (
