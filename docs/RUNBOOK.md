@@ -1,6 +1,6 @@
 # ECL development and operations runbook
 
-Last reviewed: 2026-11-08
+Last reviewed: 2026-11-09
 
 ## Safe local start
 
@@ -81,6 +81,38 @@ Every production handoff should state:
 - production deployment authorization;
 - rollback target and post-deploy verification result.
 
+### Isolated hotfix from a dirty worktree
+
+Do not deploy the current directory when it contains unrelated or unreviewed changes. `scripts/deploy-isolated-hotfix.ps1` builds an isolated package from the Git commit attached to the current production deployment (or the base SHA recorded by an earlier run of this script) and overlays only an exact allowlist of repository-relative files. If an older direct CLI deployment has neither metadata field, supply its already-verified commit with `-BaseRef`. The script rejects globs, paths outside the repository, symlinks, `.env*`, `.git`, `.vercel`, `.tmp`, and `node_modules`.
+
+Use three separate invocations so production cannot be the first test environment:
+
+```powershell
+# Local package only; no Vercel write.
+./scripts/deploy-isolated-hotfix.ps1 -Mode Plan -Files @(
+  "app/example/ChangedComponent.tsx",
+  "scripts/test-example.mjs"
+)
+
+# Requires explicit authorization for a Preview deployment.
+./scripts/deploy-isolated-hotfix.ps1 -Mode Preview -Files @(
+  "app/example/ChangedComponent.tsx",
+  "scripts/test-example.mjs"
+)
+
+# Use the READY deployment ID printed by Preview mode. This is still allowed
+# only after the operator explicitly authorizes the named production release.
+./scripts/deploy-isolated-hotfix.ps1 -Mode Production -Approved `
+  -ExpectedPreviewDeployment "dpl_REPLACE_ME" -Files @(
+    "app/example/ChangedComponent.tsx",
+    "scripts/test-example.mjs"
+  )
+```
+
+Preview mode records an ignored local state file containing the production base SHA, the exact file allowlist, and a content fingerprint. Production mode refuses to proceed if any of those changed, if the expected preview is not `READY`, or if it is already a production deployment. It prints the previous production deployment ID and rollback command after a successful release.
+
+The `-Approved` switch is a mechanical guard, not a substitute for operator authorization. Do not run Preview or Production mode merely because the command exists. A direct CLI deployment also creates Git/deployment drift until the same change is reviewed and merged; record that fact and prevent the next Git deployment from silently reverting the hotfix.
+
 ## Read-only diagnostics first
 
 For an incident or integration change:
@@ -95,6 +127,19 @@ For an incident or integration change:
 For Hub performance diagnostics, run the documented command in `docs/performance/HUB_BASELINE.md`. Each benchmark sample uses a random `X-ECL-Performance-Request-ID`; match it to the structured `ecl.performance` server log. Do not add account, profile, Riot, KOOK, query-string, SQL-argument, or provider fields to performance logs. `Server-Timing` is available on private/uncached instrumented read-API responses, while post-routing page/database phases and publicly cacheable requests are available in the correlated server log.
 
 Useful read-only worker probe syntax is documented in the root README. Provider probes may still expose personal/provider data, so use a known approved test identity and do not commit their output.
+
+### Lzyumi access triage
+
+Classify Lzyumi failures before changing tokens, building a companion flow, or concluding that history is empty:
+
+1. Start with the established signed browser request for ordinary profile/rank/history refreshes. It uses the player's residential IP and is the expected primary path.
+2. Record only a sanitized outcome: transport failure, HTTP status, provider application code, resolved full Riot ID/server, and which requested filters returned coherent data. Never print or copy the token, signed URL, cookies, `openId`, or raw private payload.
+3. Treat application code `6` as an authentication/session problem. Treat code `7` as throttling. Code `8` is ambiguous and can represent provider/network rejection; it is not proof that the token is invalid.
+4. When code `8` or a transport failure persists, repeat the same bounded read-only request from one deliberately different network. If the same token/request works through a mobile hotspot but fails through the normal connection, classify the incident as egress-IP/network reputation rather than login/token failure.
+5. Do not rotate credentials, repeatedly hammer the provider, or mutate the stored profile snapshot during that comparison. Keep the last coherent verified snapshot and its timestamp.
+6. If a complete raw detail was already saved locally for an authorized operation, use that evidence instead of requiring another provider fetch. Verify its provider ID, numeric game ID, full identities, and timestamp before relying on it.
+
+A network-switch result is diagnostic evidence, not a permanent architecture. Prefer the signed browser flow, bounded retry/backoff, and explicit failure reporting over silently depending on a hotspot.
 
 ### Report-engine deployment configuration
 
@@ -129,6 +174,58 @@ Before an approved data operation, capture a read-only preflight, affected-row e
 - A KOOK/API 30-second timeout is not proof that the provider lookup or database commit failed. Check the durable report job, session status, linked match/game, ten stat rows, and LP linkage before retrying or cancelling.
 - Treat repeated `!report`/`!yes` as retries of the same durable work. They must not create another result or apply LP twice.
 - If the session is already `COMPLETED`, do not reopen or cancel it merely because KOOK missed the final reply; repair notification/operations state separately if needed.
+
+## Manual Split II tournament results from Codex
+
+Use this recovery workflow when a completed Split II tournament match cannot be collected automatically and the operator wants Codex to publish it manually. This is a tournament-result operation, not a ranked-inhouse import: it must never create ranked sessions, match games, player LP changes, or legacy inhouse rows.
+
+### What the operator should provide
+
+- Fixture code, such as `RR02`, and game number for a multi-game series.
+- Exact numeric League Game ID.
+- Winner, China-time completion timestamp, and duration.
+- The actual ten-player lineup. Prefer full Riot IDs from the tournament roster; identify substitutes explicitly.
+- A WeGame/post-game screenshot or a previously collected Lzyumi detail snapshot.
+- When available: K/D/A, numeric champion ID, seven item slots (`0` for an empty slot), champion damage, gold, position, and one winning-team MVP.
+
+The current tournament payload and result modal support champion, items, K/D/A, damage, gold, position, and MVP. They do not have dedicated fields for SVP, level, CS, runes, summoner spells, or WeGame rating. Preserve unsupported values in the private audit/evidence when useful, but do not invent fields or overload MVP.
+
+If provider evidence and the registered full Riot ID disagree, stop and reconcile the identity explicitly. A manual result may attach verified match statistics to the already selected tournament profile, but it must not silently rewrite the player's durable profile identity. Record any approved alias reconciliation in the operation audit.
+
+### Required workflow
+
+1. Confirm explicit authorization for the named environment and exact fixture(s). A request to inspect or diagnose a result is not authorization to publish it.
+2. Read the live tournament view with admin visibility. Resolve the fixture, both teams, and all ten players to their stable tournament `profileId` values; never persist display-name-only matching.
+3. Check the numeric League Game ID across current tournament reports, non-cancelled report jobs, legacy `MatchGame` payloads, and `InhouseSession.lzyumiGameId`. Abort on any ranked/legacy collision.
+4. Validate five players per fixture team, the winner, K/D/A totals, timestamp, duration, MVP side, and every optional field against the supplied evidence. Missing or unverified optional fields stay absent.
+5. Run a read-only dry run first. Print a bounded summary and fingerprint of the current reports, fixture/roster identities, duplicate checks, and exact proposed payload. Do not print provider tokens, cookies, `openId` values, raw signed URLs, or unrestricted provider payloads.
+6. Apply only with the immediately preceding fingerprint. Create the report through `submitTournamentReport`, then publish it through `reviewTournamentReport`; never edit an approved report row directly.
+7. For a correction, submit a new report with `replacesId` pointing to the current approved report. Approval must atomically mark the old report `REPLACED` and the correction `APPROVED`.
+8. Default Codex recovery operations to `{ notify: false }`. Sending a KOOK result message requires separate explicit authorization. Tournament approval must report `lpApplied: false`.
+9. Write an ignored local audit containing the fingerprint, old/new report IDs, before/after standings, identity reconciliation, duplicate checks, notification result, and recovery instructions.
+10. Verify the public `/api/tournaments/split-ii/matches` response: exactly one `APPROVED` report for the game, correct fixture/result/player fields, and no stale approved predecessor. Independently confirm that no KOOK notification or ranked/legacy row was created.
+
+### Reusable read-only preflight
+
+`scripts/preflight-split-ii-result.ts` performs the reusable portion of steps 2–5 without calling Lzyumi and without exposing an apply mode. Start from the sanitized shape in `scripts/split-ii-result-manifest.example.json`, place the real manifest in an ignored local directory such as `.tmp/`, and validate its structure first:
+
+```powershell
+npx tsx scripts/preflight-split-ii-result.ts `
+  --input=.tmp/split-ii-result.json `
+  --validate-only
+```
+
+After explicitly selecting/configuring the intended read-only database target, omit `--validate-only` to resolve the live fixture and all ten full Riot IDs, verify each registration snapshot against its current Ionia profile, `openId`, and `gameIdentityKey`, distinguish roster members from registered floaters, check prior floater appearances, and search tournament reports, active report jobs, legacy/ranked `MatchGame` payloads, and `InhouseSession.lzyumiGameId` for collisions:
+
+```powershell
+npx tsx scripts/preflight-split-ii-result.ts `
+  --input=.tmp/split-ii-result.json `
+  --target=production-read-only
+```
+
+The required `--target` value is a non-secret audit label; it does not select or weaken the configured database credential. The command prints a bounded summary, blockers/warnings, duplicate-check booleans, invariants, and a state fingerprint. It never prints the raw manifest identities in its normal summary, never requests provider data, never queues KOOK, and rejects `--apply`. A clean result is evidence for review, not authorization to publish; use a separately reviewed fixture-specific submit/review operation with the immediately preceding fingerprint.
+
+Recovery is another tournament correction replacing the current approved report. Never repair a tournament result by changing ranked LP or deleting historical report rows. Preserve `REPLACED` reports as the audit trail.
 
 ## Profile refresh incident checklist
 

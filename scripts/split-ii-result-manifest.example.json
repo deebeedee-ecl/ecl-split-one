@@ -1,0 +1,23 @@
+{
+  "fixtureCode": "RRXX",
+  "gameNumber": 1,
+  "leagueGameId": "12345678901",
+  "providerId": "optional-provider-detail-id",
+  "platform": "HN1",
+  "winnerTeamKey": "home",
+  "playedAt": "2026-11-08T19:23:04+08:00",
+  "durationSeconds": 1698,
+  "note": "Describe the reviewed evidence without embedding provider secrets or raw private payloads.",
+  "players": [
+    { "teamKey": "home", "riotId": "Player01#00001", "champion": "1", "items": [0, 0, 0, 0, 0, 0, 0], "kills": 1, "deaths": 1, "assists": 1, "damage": 1, "gold": 1, "position": "TOP", "mvp": true },
+    { "teamKey": "home", "riotId": "Player02#00002", "champion": "2", "items": [0, 0, 0, 0, 0, 0, 0], "kills": 1, "deaths": 1, "assists": 1, "damage": 1, "gold": 1, "position": "JUNGLE" },
+    { "teamKey": "home", "riotId": "Player03#00003", "champion": "3", "items": [0, 0, 0, 0, 0, 0, 0], "kills": 1, "deaths": 1, "assists": 1, "damage": 1, "gold": 1, "position": "MIDDLE" },
+    { "teamKey": "home", "riotId": "Player04#00004", "champion": "4", "items": [0, 0, 0, 0, 0, 0, 0], "kills": 1, "deaths": 1, "assists": 1, "damage": 1, "gold": 1, "position": "BOTTOM" },
+    { "teamKey": "home", "riotId": "Player05#00005", "champion": "5", "items": [0, 0, 0, 0, 0, 0, 0], "kills": 1, "deaths": 1, "assists": 1, "damage": 1, "gold": 1, "position": "UTILITY" },
+    { "teamKey": "away", "riotId": "Player06#00006", "champion": "6", "items": [0, 0, 0, 0, 0, 0, 0], "kills": 1, "deaths": 1, "assists": 1, "damage": 1, "gold": 1, "position": "TOP" },
+    { "teamKey": "away", "riotId": "Player07#00007", "champion": "7", "items": [0, 0, 0, 0, 0, 0, 0], "kills": 1, "deaths": 1, "assists": 1, "damage": 1, "gold": 1, "position": "JUNGLE" },
+    { "teamKey": "away", "riotId": "Player08#00008", "champion": "8", "items": [0, 0, 0, 0, 0, 0, 0], "kills": 1, "deaths": 1, "assists": 1, "damage": 1, "gold": 1, "position": "MIDDLE" },
+    { "teamKey": "away", "riotId": "Player09#00009", "champion": "9", "items": [0, 0, 0, 0, 0, 0, 0], "kills": 1, "deaths": 1, "assists": 1, "damage": 1, "gold": 1, "position": "BOTTOM" },
+    { "teamKey": "away", "riotId": "Player10#00010", "champion": "10", "items": [0, 0, 0, 0, 0, 0, 0], "kills": 1, "deaths": 1, "assists": 1, "damage": 1, "gold": 1, "position": "UTILITY" }
+  ]
+}
