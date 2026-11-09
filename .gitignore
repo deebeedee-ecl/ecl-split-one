@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -25,12 +25,14 @@
 *.pem
 
 # debug
+debug.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 .next-start.*.log
 .tmp/
+.codex-work/
 m\[1\])
 public/videos/split-one.mp4
 backups/
@@ -38,6 +40,12 @@ public/uploads/
 scripts/*-output.txt
 scripts/filter-*.json
 scripts/snapshot-*.json
+/report-engine/backfill-players.local.json
+/report-engine/inhouse-discovery-*.json
+/report-engine/inhouse-discovery-*.csv
+/report-engine/inhouse-matches.html
+/report-engine/inhouse-matches-preview.png
+/report-engine/.lzyumi-browser-profile/
 
 # env files (can opt-in for committing if needed)
 .env*
