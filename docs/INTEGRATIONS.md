@@ -27,6 +27,8 @@ After the website presents a candidate, `!yes` acknowledges quickly and queues d
 
 The worker supports a configurable source and retains a WeGame path, but Lzyumi is the primary/default provider when its token flow is configured. Lzyumi provider application code `7` is treated as throttling/transient pressure and uses bounded retry/backoff with conservative concurrency.
 
+When a configured Lzyumi API token is rejected, a non-`direct` worker may fall back to the provider's authenticated browser page. History and detail calls run through that page so its dedicated persistent profile supplies the provider session without returning the token to ECL code or logs. Provider code `6` means the browser must log in again and permits one bounded session refresh; code `8` may select the browser fallback but is treated as a provider/network failure rather than definitive login evidence. Browser page-flow requests are serialized because the provider page keeps lookup state in shared DOM controls.
+
 The verified match contract exposes provider game ID, history title/time, structured game type/mode, participants, teams, and match statistics. The current Lzyumi payload does not expose the human-entered custom-lobby name. Labels such as `IH #072` belong to the ECL session and are linked to the provider game; a localized history `title` is not a lobby name.
 
 Never place a token, cookie, login, signed URL, provider response containing player data, or local browser profile in a tracked file.

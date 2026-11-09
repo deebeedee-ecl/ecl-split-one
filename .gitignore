@@ -38,6 +38,7 @@ public/uploads/
 scripts/*-output.txt
 scripts/filter-*.json
 scripts/snapshot-*.json
+/report-engine/.lzyumi-browser-profile/
 
 # env files (can opt-in for committing if needed)
 .env*

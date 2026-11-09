@@ -3,7 +3,7 @@
 const crypto = require("crypto");
 
 const DEFAULT_LZYUMI_BASE_URL = "https://l.lzyumi.top/lzyumi/lol";
-const RIOT_TAG_SEPARATOR = "*~*~*\u2066";
+const RIOT_TAG_SEPARATOR = "*~*~*";
 
 class LzyumiResponseError extends Error {
   constructor(message, code = null, options = {}) {
@@ -113,6 +113,7 @@ function lzyumiInfoUrl({
   areaName = "",
   filter = 1,
   allCount = 10,
+  modelId = 1,
   sessionToken = "",
   timestamp = new Date(),
 } = {}) {
@@ -125,6 +126,7 @@ function lzyumiInfoUrl({
   info.searchParams.set("seleMe", "1");
   info.searchParams.set("filter", String(Number(filter) || 1));
   info.searchParams.set("openId", clean(openId));
+  info.searchParams.set("modelId", String(Number(modelId) || 1));
   addSignedParameters(info, { areaId, sessionToken, timestamp });
   return info.toString();
 }

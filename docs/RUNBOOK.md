@@ -144,6 +144,9 @@ A network-switch result is diagnostic evidence, not a permanent architecture. Pr
 ### Report-engine deployment configuration
 
 - Keep provider tokens, cookies, worker secrets, and login material only in ignored local configuration or the deployment environment.
+- Check a configured worker token without exposing it with `node worker.js --lzyumi-token-status`; the command prints only the provider code, authentication classification, and account `endTime`.
+- Seed a dedicated persistent browser session with `node worker.js --lzyumi-login-manual`, or configure login credentials in the worker's secret environment and run `node worker.js --lzyumi-login`. Never copy the resulting token, cookies, or browser profile into logs, chat, or tracked files.
+- In non-`direct` mode, provider codes `6` and `8` may trigger the authenticated browser fallback. Code `6` permits one bounded session recovery; code `8` remains an ambiguous provider/network failure and is not proof that credentials expired.
 - Use the supported names in `.env.example`, including `REPORT_ENGINE_LZYUMI_HISTORY_CONCURRENCY`, `REPORT_ENGINE_LZYUMI_CODE_7_RETRIES`, and `REPORT_ENGINE_LZYUMI_CODE_7_BACKOFF_MS`; keep concurrency conservative and retries bounded.
 - For a confirmation-flow release, deploy backward-compatible worker support before enabling web code that queues the new confirmation state.
 - Before production, run report-engine tests and a read-only known-player probe. Do not use a real `!yes` or shared-database mutation as the first smoke test.
