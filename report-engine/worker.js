@@ -1663,7 +1663,7 @@ async function debugCheckPlayer() {
   }
 }
 
-+function parseChinaDay(value, endOfDay = false) {
+function parseChinaDay(value, endOfDay = false) {
   const raw = clean(value);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
     throw new Error(`Expected a YYYY-MM-DD date, received ${raw || "an empty value"}.`);
