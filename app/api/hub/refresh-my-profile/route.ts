@@ -5,13 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { getAccountFromRequest } from "@/lib/account-auth";
 import { getLzyumiRankRows, formatLzyumiRank } from "@/lib/hub-profile";
 import {
-  hasLzyumiRecentStatData,
   LzyumiSnapshotValidationError,
-  markValidatedLzyumiSnapshot,
-  normalizeLzyumiRankedGames,
+  resolveLzyumiSnapshotRefresh,
   shouldRefreshLzyumiSnapshots,
-  validateLzyumiSnapshotIdentity,
 } from "@/lib/lzyumi-snapshot";
+import { LzyumiBrowserContractError } from "@/lib/lzyumi-browser-contract";
 
 export const dynamic = "force-dynamic";
 export const preferredRegion = "icn1";
@@ -32,8 +30,8 @@ export async function POST(request: Request) {
   let body: {
     rawProfile?: unknown;
     recentStat?: unknown;
-    soloGames?: unknown[];
-    flexGames?: unknown[];
+    soloResponse?: unknown;
+    flexResponse?: unknown;
     targetProfileId?: unknown;
   };
   try {
@@ -42,9 +40,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { rawProfile, recentStat, soloGames, flexGames } = body;
-  if (!rawProfile) {
-    return NextResponse.json({ message: "rawProfile required" }, { status: 400 });
+  const { rawProfile, recentStat, soloResponse, flexResponse } = body;
+  if (!rawProfile || !recentStat || !soloResponse || !flexResponse) {
+    return NextResponse.json(
+      { message: "Complete Lzyumi responses are required" },
+      { status: 400 },
+    );
   }
 
   const targetProfileId = typeof body.targetProfileId === "string"
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Invalid target profile" }, { status: 400 });
   }
 
-  const payloadSize = JSON.stringify({ rawProfile, recentStat, soloGames, flexGames }).length;
+  const payloadSize = JSON.stringify({ rawProfile, recentStat, soloResponse, flexResponse }).length;
   if (payloadSize > 2_000_000) {
     return NextResponse.json({ message: "ECL.GG snapshot is too large" }, { status: 413 });
   }
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
       openId: true,
       lzyumiLastLookupAt: true,
       lzyumiRawProfile: true,
+      lzyumiRecentStat: true,
       lzyumiRankedGames: true,
     },
   });
@@ -89,14 +91,35 @@ export async function POST(request: Request) {
 
   try {
     const fetchedAt = new Date();
-    const identity = validateLzyumiSnapshotIdentity({
-      rawProfile,
-      riotName: profile.riotName,
-      riotTag: profile.riotTag,
-      areaId: profile.chinaServerId,
-      existingOpenId: profile.openId,
-    });
-    const rankedGames = normalizeLzyumiRankedGames(soloGames, flexGames);
+    const refresh = resolveLzyumiSnapshotRefresh(
+      {
+        rawProfile: profile.lzyumiRawProfile,
+        recentStat: profile.lzyumiRecentStat,
+        rankedGames: profile.lzyumiRankedGames,
+        lastLookupAt: profile.lzyumiLastLookupAt,
+      },
+      {
+        profileResponse: rawProfile,
+        soloResponse,
+        flexResponse,
+        recentStat,
+        riotName: profile.riotName,
+        riotTag: profile.riotTag,
+        areaId: profile.chinaServerId,
+        existingOpenId: profile.openId,
+        fetchedAt,
+      },
+    );
+
+    if (refresh.status === "rejected") {
+      const error = refresh.error;
+      const status =
+        error instanceof LzyumiSnapshotValidationError && error.code !== "INVALID_SNAPSHOT"
+          ? 409
+          : 422;
+      const code = error instanceof LzyumiBrowserContractError ? error.kind : error.code;
+      return NextResponse.json({ message: error.message, code }, { status });
+    }
 
     if (!shouldRefreshLzyumiSnapshots(
       profile.lzyumiRawProfile,
@@ -112,12 +135,8 @@ export async function POST(request: Request) {
       });
     }
 
-    const ranks = getLzyumiRankRows(rawProfile);
+    const ranks = getLzyumiRankRows(refresh.rawProfile);
     const hasRanks = Boolean(ranks.solo || ranks.flex);
-    const validatedRawProfile = markValidatedLzyumiSnapshot(rawProfile, fetchedAt);
-    const validatedRecentStat = hasLzyumiRecentStatData(recentStat)
-      ? markValidatedLzyumiSnapshot(recentStat, fetchedAt)
-      : null;
 
     // Save one coherent snapshot. A failed source leaves the previous snapshot
     // and timestamp untouched instead of mixing fresh and stale sections.
@@ -127,15 +146,15 @@ export async function POST(request: Request) {
         lzyumiLastLookupAt: profile.lzyumiLastLookupAt,
       },
       data: {
-        openId: identity.openId,
+        openId: refresh.identity.openId,
         lzyumiVerifiedAt: fetchedAt,
         lzyumiLastLookupAt: fetchedAt,
-        lzyumiRawProfile: validatedRawProfile as Prisma.InputJsonValue,
-        lzyumiRecentStat: validatedRecentStat
-          ? (validatedRecentStat as Prisma.InputJsonValue)
+        lzyumiRawProfile: refresh.rawProfile as Prisma.InputJsonValue,
+        lzyumiRecentStat: refresh.recentStat
+          ? (refresh.recentStat as Prisma.InputJsonValue)
           : Prisma.JsonNull,
-        lzyumiRankedGames: rankedGames as Prisma.InputJsonValue,
-        currentRank: hasRanks ? getCurrentRank(rawProfile) : null,
+        lzyumiRankedGames: refresh.rankedGames as Prisma.InputJsonValue,
+        currentRank: hasRanks ? getCurrentRank(refresh.rawProfile) : null,
       },
     });
 
@@ -154,7 +173,8 @@ export async function POST(request: Request) {
       ok: true,
       skipped: false,
       hasRanks,
-      hasRecentStat: Boolean(validatedRecentStat),
+      hasRecentStat: Boolean(refresh.recentStat),
+      recentStatStatus: refresh.recentStatStatus,
       fetchedAt: fetchedAt.toISOString(),
     });
   } catch (error) {

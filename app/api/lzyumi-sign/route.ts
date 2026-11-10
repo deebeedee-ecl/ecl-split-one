@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createLzyumiSignature, getChinaServer } from "@/lib/lzyumi";
+import { buildLzyumiEndpointUrl } from "@/lib/lzyumi-browser-contract";
 
 export const dynamic = "force-dynamic";
 export const preferredRegion = "icn1";
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "openId and gameId required for detail" }, { status: 400 });
     }
 
-    const url = new URL(`${LZYUMI_BASE}/findOrderDetailInfoAll`);
+    const url = buildLzyumiEndpointUrl(LZYUMI_BASE, "detail");
     url.searchParams.set("openId", openId);
     url.searchParams.set("gameId", gameId);
     url.searchParams.set("areaId", String(server.id));
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "openId required for recent stats" }, { status: 400 });
     }
 
-    const url = new URL(`${LZYUMI_BASE}/getPlayerRecentStat`);
+    const url = buildLzyumiEndpointUrl(LZYUMI_BASE, "recent");
     url.searchParams.set("openId", openId);
     url.searchParams.set("areaId", String(server.id));
     url.searchParams.set("lzyumiSign", lzyumiSign);

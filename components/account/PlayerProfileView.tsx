@@ -24,6 +24,11 @@ import {
   LZYUMI_SNAPSHOT_VERSION,
   shouldRefreshLzyumiSnapshots,
 } from "@/lib/lzyumi-snapshot";
+import {
+  fetchLzyumiBrowserResponse,
+  unavailableLzyumiRecentStat,
+  type LzyumiOptionalRecentStat,
+} from "@/lib/lzyumi-browser-contract";
 import { getChinaServerDisplayName, getCountryOption } from "./account-options";
 import {
   loadProfile,
@@ -350,12 +355,6 @@ function shouldRefreshStats(profile: AccountProfile) {
   );
 }
 
-async function fetchJsonWithTimeout(url: string, timeoutMs = 15000) {
-  const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-  if (!response.ok) throw new Error(`ECL.GG request failed (${response.status})`);
-  return response.json();
-}
-
 type RefreshProfileOptions = {
   targetProfileId?: string;
   reloadAccountProfile?: boolean;
@@ -408,18 +407,33 @@ async function performLzyumiProfileRefresh(
   );
   if (urls.some((url) => !url)) throw new Error("ECL.GG returned an invalid lookup URL.");
 
-  const [rawProfile, rawSolo, rawFlex] = await Promise.all(
-    urls.map((url) => fetchJsonWithTimeout(url!)),
-  );
-  if (!rawProfile?.battleInfo) {
-    const message = typeof rawProfile?.message === "string" ? rawProfile.message : null;
-    throw new Error(
-      message ?? "Account not found on ECL.GG. Check your Riot name and server in profile settings.",
+  const [rawProfile, soloResponse, flexResponse] = await Promise.all([
+    fetchLzyumiBrowserResponse(urls[0]!, "profile"),
+    fetchLzyumiBrowserResponse(urls[1]!, "history"),
+    fetchLzyumiBrowserResponse(urls[2]!, "history"),
+  ]);
+  const battleInfo = rawProfile.battleInfo as Record<string, unknown>;
+  const openId = String(battleInfo.openId);
+  let recentStat: LzyumiOptionalRecentStat;
+  try {
+    const signResponse = await fetch(
+      `/api/lzyumi-sign?type=recent&openId=${encodeURIComponent(openId)}&areaId=${areaId}`,
     );
+    if (!signResponse.ok) throw new Error("Could not prepare recent stats.");
+    const signedRecent = (await signResponse.json()) as { url?: unknown };
+    if (typeof signedRecent.url !== "string") {
+      throw new Error("ECL.GG returned an invalid recent-stat URL.");
+    }
+    recentStat = {
+      status: "available",
+      value: await fetchLzyumiBrowserResponse(signedRecent.url, "recent"),
+    };
+  } catch (error) {
+    recentStat = unavailableLzyumiRecentStat(error);
   }
 
-  const soloGames = Array.isArray(rawSolo?.data) ? rawSolo.data : [];
-  const flexGames = Array.isArray(rawFlex?.data) ? rawFlex.data : [];
+  const soloGames = soloResponse.data as unknown[];
+  const flexGames = flexResponse.data as unknown[];
   const saveResponse = await fetch("/api/hub/refresh-my-profile", {
     method: "POST",
     headers: {
@@ -428,9 +442,9 @@ async function performLzyumiProfileRefresh(
     },
     body: JSON.stringify({
       rawProfile,
-      recentStat: null,
-      soloGames,
-      flexGames,
+      recentStat,
+      soloResponse,
+      flexResponse,
       targetProfileId: options.targetProfileId,
     }),
   });
@@ -457,7 +471,13 @@ async function performLzyumiProfileRefresh(
       _eclSnapshotVersion: LZYUMI_SNAPSHOT_VERSION,
       _eclFetchedAt: fetchedAt,
     },
-    lzyumiRecentStat: null,
+    lzyumiRecentStat: recentStat.status === "available"
+      ? {
+          ...recentStat.value,
+          _eclSnapshotVersion: LZYUMI_SNAPSHOT_VERSION,
+          _eclFetchedAt: fetchedAt,
+        }
+      : null,
     lzyumiRankedGames: {
       _eclSnapshotVersion: LZYUMI_SNAPSHOT_VERSION,
       soloGames,
