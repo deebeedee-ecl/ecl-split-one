@@ -17,6 +17,13 @@ const {
   retryProviderCode,
 } = require("./async-utils.cjs");
 const { collectLzyumiHistoryResponses } = require("./lzyumi-history.cjs");
+const {
+  createDiscoveryRequestBudget,
+  createProviderPressureCooldown,
+  detailParticipantMatchesExpectedIdentity,
+  findBoundedLzyumiMatch,
+  sourceMatchesExpectedIdentity,
+} = require("./lzyumi-discovery.cjs");
 const { findFirstRecentGameSource } = require("./report-sources.cjs");
 const {
   createSerializedOperationQueue,
@@ -86,6 +93,10 @@ const LZYUMI_DETAIL_CONCURRENCY = Number(process.env.REPORT_ENGINE_LZYUMI_DETAIL
 const LZYUMI_CODE_7_RETRIES = Number(process.env.REPORT_ENGINE_LZYUMI_CODE_7_RETRIES || 2);
 const LZYUMI_CODE_7_BACKOFF_MS = Number(process.env.REPORT_ENGINE_LZYUMI_CODE_7_BACKOFF_MS || 1000);
 const LZYUMI_MALFORMED_RETRIES = Number(process.env.REPORT_ENGINE_LZYUMI_MALFORMED_RETRIES || 1);
+const LZYUMI_DISCOVERY_MODE = clean(process.env.REPORT_ENGINE_LZYUMI_DISCOVERY_MODE || "legacy").toLowerCase();
+const LZYUMI_HISTORY_REQUEST_LIMIT = Number(process.env.REPORT_ENGINE_LZYUMI_HISTORY_REQUEST_LIMIT || 8);
+const LZYUMI_DETAIL_REQUEST_LIMIT = Number(process.env.REPORT_ENGINE_LZYUMI_DETAIL_REQUEST_LIMIT || 4);
+const LZYUMI_PRESSURE_COOLDOWN_MS = Number(process.env.REPORT_ENGINE_LZYUMI_PRESSURE_COOLDOWN_MS || 60_000);
 const REPORT_CANDIDATE_LIMIT = Number(process.env.REPORT_ENGINE_CANDIDATE_LIMIT || 24);
 const REQUIRED_MATCHES = Number(process.env.REPORT_ENGINE_REQUIRED_MATCHES || 8);
 const REPORT_GAME_EARLY_GRACE_MS = Number(process.env.REPORT_ENGINE_EARLY_GRACE_MINUTES || 10) * 60 * 1000;
@@ -118,6 +129,9 @@ const LZYUMI_HEADERS = {
 let browserContextPromise = null;
 let browserPagePromise = null;
 const serializeBrowserPageFlow = createSerializedOperationQueue();
+const lzyumiDiscoveryCooldown = createProviderPressureCooldown({
+  cooldownMs: LZYUMI_PRESSURE_COOLDOWN_MS,
+});
 let championNamesPromise = null;
 let wegameTicketState = null;
 let wegameTicketPromise = null;
@@ -1155,7 +1169,13 @@ async function fetchRecentGamesForPlayerViaWeGame(player) {
   };
 }
 
-async function fetchRecentGamesForPlayerViaLzyumi(player, { allCount = LZYUMI_ALL_COUNT } = {}) {
+async function fetchRecentGamesForPlayerViaLzyumi(player, {
+  allCount = LZYUMI_ALL_COUNT,
+  filters = LZYUMI_FILTERS,
+  requestBudget = null,
+  strictIdentity = false,
+  onProviderPressure = () => {},
+} = {}) {
   if (!LZYUMI_TOKENSTR && FETCH_MODE === "direct") {
     throw new Error(
       "Missing REPORT_ENGINE_LZYUMI_TOKENSTR while REPORT_ENGINE_FETCH_MODE=direct.",
@@ -1182,7 +1202,7 @@ async function fetchRecentGamesForPlayerViaLzyumi(player, { allCount = LZYUMI_AL
     seenAttempts.add(attemptKey);
 
     const runAttempt = (pageFlow = false) => collectLzyumiHistoryResponses({
-      filters: LZYUMI_FILTERS,
+      filters,
       // The provider page stores lookup state in shared DOM fields, so page-flow
       // requests must be serialized even when API history calls are concurrent.
       concurrency: pageFlow ? 1 : LZYUMI_HISTORY_CONCURRENCY,
@@ -1196,6 +1216,7 @@ async function fetchRecentGamesForPlayerViaLzyumi(player, { allCount = LZYUMI_AL
         })}`);
       },
       fetchHistory: (filter) => retryProviderCode(() => {
+        requestBudget?.consumeHistory();
         const request = pageFlow
           ? lzyumiFetchPageFlow({ ...attempt, areaId, filter, allCount })
           : lzyumiFetch(lzyumiInfoUrl({ ...attempt, areaId, filter, allCount }));
@@ -1237,13 +1258,16 @@ async function fetchRecentGamesForPlayerViaLzyumi(player, { allCount = LZYUMI_AL
         retries: LZYUMI_CODE_7_RETRIES,
         baseDelayMs: LZYUMI_CODE_7_BACKOFF_MS,
         isMatch: (error) => error instanceof LzyumiResponseError && error.code === "7",
-        onRetry: ({ attempt: retryAttempt, delayMs }) => debugLzyumi("provider-busy-retry", {
-          player: riotId(player) || clean(player.displayName),
-          areaId,
-          filter,
-          retryAttempt,
-          delayMs,
-        }),
+        onRetry: ({ attempt: retryAttempt, delayMs, error }) => {
+          onProviderPressure(error);
+          debugLzyumi("provider-busy-retry", {
+            player: riotId(player) || clean(player.displayName),
+            areaId,
+            filter,
+            retryAttempt,
+            delayMs,
+          });
+        },
       }),
     });
 
@@ -1264,6 +1288,7 @@ async function fetchRecentGamesForPlayerViaLzyumi(player, { allCount = LZYUMI_AL
         responses = await runAttempt(false);
       } catch (error) {
         if (FETCH_MODE === "direct" || !shouldFallbackToLzyumiBrowser(error)) throw error;
+        onProviderPressure(error);
         usingPageFlow = true;
         console.warn(
           "[lzyumi-session] configured API token was rejected; trying the authenticated browser session.",
@@ -1310,6 +1335,13 @@ async function fetchRecentGamesForPlayerViaLzyumi(player, { allCount = LZYUMI_AL
     }
 
     const openId = clean(profile?.battleInfo?.openId) || attempt.openId;
+    if (strictIdentity && !sourceMatchesExpectedIdentity({
+      player,
+      profile,
+      openId,
+      areaId,
+      resolvedRiotIdMatches,
+    })) continue;
     const gamesById = new Map();
 
     for (const response of responses) {
@@ -1359,6 +1391,30 @@ function matchRoster(players, detail) {
 
   for (const player of players) {
     if (detailPlayers.some((detailPlayer) => detailPlayerMatches(player, detailPlayer))) {
+      matched.push(player.displayName);
+    } else {
+      missing.push(player.displayName);
+    }
+  }
+
+  return { matched, missing };
+}
+
+function detailPlayerMatchesVerified(player, detailPlayer) {
+  return detailParticipantMatchesExpectedIdentity({
+    player,
+    detailPlayer,
+    riotIdentityMatches: detailPlayerMatches,
+  });
+}
+
+function matchVerifiedRoster(players, detail) {
+  const detailPlayers = detail?.data?.wgBattleDetailInfo || [];
+  const matched = [];
+  const missing = [];
+
+  for (const player of players) {
+    if (detailPlayers.some((detailPlayer) => detailPlayerMatchesVerified(player, detailPlayer))) {
       matched.push(player.displayName);
     } else {
       missing.push(player.displayName);
@@ -1534,7 +1590,10 @@ function cliValue(name, fallback = "") {
   return clean(process.argv[index + 1]) || fallback;
 }
 
-async function fetchDetailForSource(source, game) {
+async function fetchDetailForSource(source, game, {
+  beforeLzyumiRequest = () => {},
+  onProviderPressure = () => {},
+} = {}) {
   if (source?.source === "wegame") {
     return wegameGetBattleDetail({
       openId: source.openId,
@@ -1549,9 +1608,10 @@ async function fetchDetailForSource(source, game) {
     areaId: source.areaId,
   };
   const fetchBrowserDetail = () => withLzyumiSessionRecovery({
-    operation: async () => assertLzyumiDetailResponse(
-      await lzyumiDetailPageFlow(detailInput),
-    ),
+    operation: async () => {
+      beforeLzyumiRequest();
+      return assertLzyumiDetailResponse(await lzyumiDetailPageFlow(detailInput));
+    },
     recoverSession: recoverLzyumiBrowserSession,
     onRetry: () => console.warn(
       "[lzyumi-session] provider rejected the browser session during detail lookup; refreshing it once.",
@@ -1568,10 +1628,12 @@ async function fetchDetailForSource(source, game) {
   }
 
   try {
+    beforeLzyumiRequest();
     const detail = await lzyumiFetch(lzyumiDetailUrl(detailInput));
     return assertLzyumiDetailResponse(detail);
   } catch (error) {
     if (FETCH_MODE === "direct" || !shouldFallbackToLzyumiBrowser(error)) throw error;
+    onProviderPressure(error);
     console.warn(
       "[lzyumi-session] configured API token was rejected during detail lookup; " +
       "trying the authenticated browser session.",
@@ -1922,7 +1984,104 @@ async function debugProbeNetwork() {
   printTrace("Browser fetch", browserTrace);
 }
 
-async function findMatchingGame(job) {
+async function findMatchingGameBounded(job) {
+  lzyumiDiscoveryCooldown.assertAvailable();
+
+  const players = job.session.players;
+  const searchPlayers = [
+    ...players.filter((player) => player.kookUserId === job.requestedByKookId),
+    ...players.filter((player) => player.kookUserId !== job.requestedByKookId),
+  ];
+  const budget = createDiscoveryRequestBudget({
+    historyLimit: LZYUMI_HISTORY_REQUEST_LIMIT,
+    detailLimit: LZYUMI_DETAIL_REQUEST_LIMIT,
+  });
+
+  let result;
+  try {
+    result = await findBoundedLzyumiMatch({
+      players: searchPlayers,
+      filters: LZYUMI_FILTERS,
+      historyConcurrency: LZYUMI_HISTORY_CONCURRENCY,
+      budget,
+      reportedGameIds: job.reportedGameIds,
+      fetchHistory: (player, filter, requestBudget) => fetchRecentGamesForPlayerViaLzyumi(player, {
+        filters: [filter],
+        requestBudget,
+        strictIdentity: true,
+        onProviderPressure: (error) => lzyumiDiscoveryCooldown.record(error),
+      }),
+      fetchDetail: (source, game, requestBudget) => retryProviderCode(
+        () => fetchDetailForSource(source, game, {
+          beforeLzyumiRequest: () => requestBudget.consumeDetail(),
+          onProviderPressure: (error) => lzyumiDiscoveryCooldown.record(error),
+        }),
+        {
+          code: "7",
+          retries: LZYUMI_CODE_7_RETRIES,
+          baseDelayMs: LZYUMI_CODE_7_BACKOFF_MS,
+          isMatch: (error) => error instanceof LzyumiResponseError && error.code === "7",
+          onRetry: ({ error }) => lzyumiDiscoveryCooldown.record(error),
+        },
+      ),
+      isInWindow: (game) => !gameTimeWindowIssue(game, job.session.createdAt),
+      sortValue: (game) => gameSortValue(game, job.session.createdAt),
+      matchRoster: (detail) => matchVerifiedRoster(players, detail),
+      requiredMatches: REQUIRED_MATCHES,
+      onLookupError: ({ stage, error, playerIndex, filter }) => {
+        console.warn(`[lzyumi-discovery] ${stage} lookup failed ${JSON.stringify({
+          playerIndex,
+          filter,
+          code: error instanceof LzyumiResponseError ? error.code : null,
+          reason: error instanceof LzyumiResponseError ? error.reason : null,
+        })}`);
+      },
+    });
+  } catch (error) {
+    if (lzyumiDiscoveryCooldown.record(error)) {
+      console.warn("[lzyumi-discovery] provider pressure started a bounded discovery cooldown.");
+    }
+    throw error;
+  }
+
+  debugLzyumi("bounded-discovery-summary", {
+    historyRequests: result.budget.history.used,
+    historyLimit: result.budget.history.limit,
+    detailRequests: result.budget.detail.used,
+    detailLimit: result.budget.detail.limit,
+    candidatesConsidered: result.candidatesConsidered,
+    sourcesChecked: result.sourcesChecked,
+    historyFailures: result.historyFailures,
+    detailFailures: result.detailFailures,
+    found: Boolean(result.match),
+  });
+
+  if (result.match) return result.match;
+  if (result.best) {
+    throw new Error(
+      `${formatRosterMiss(result.best.rosterMatch)} Best candidate: ${formatCandidateSummary(
+        result.best,
+        job.session.createdAt,
+      )}.`,
+    );
+  }
+  if (result.closestOutOfWindow) {
+    throw new Error(
+      `No matching inhouse found in the expected time window; ${gameTimeWindowIssue(
+        result.closestOutOfWindow.game,
+        job.session.createdAt,
+      )}.`,
+    );
+  }
+
+  throw new Error(
+    `No matching inhouse was found within the bounded Lzyumi request budget ` +
+    `(${result.budget.history.used}/${result.budget.history.limit} history, ` +
+    `${result.budget.detail.used}/${result.budget.detail.limit} detail).`,
+  );
+}
+
+async function findMatchingGameLegacy(job) {
   const players = job.session.players;
   const searchPlayers = [
     ...players.filter((player) => player.kookUserId === job.requestedByKookId),
@@ -2044,6 +2203,13 @@ async function findMatchingGame(job) {
           )}.`
       : "No recent ECL.GG games were found for this inhouse roster.",
   );
+}
+
+async function findMatchingGame(job) {
+  if (MATCH_SOURCE === "lzyumi" && LZYUMI_DISCOVERY_MODE === "bounded") {
+    return findMatchingGameBounded(job);
+  }
+  return findMatchingGameLegacy(job);
 }
 
 async function siteGet(pathname) {
@@ -2185,9 +2351,13 @@ async function main() {
       "Missing REPORT_ENGINE_LZYUMI_TOKENSTR while the Lzyumi worker uses direct mode.",
     );
   }
+  if (!["legacy", "bounded"].includes(LZYUMI_DISCOVERY_MODE)) {
+    throw new Error("REPORT_ENGINE_LZYUMI_DISCOVERY_MODE must be legacy or bounded.");
+  }
 
   console.log(
-    `ECL Report Engine polling ${SITE_URL} using ${MATCH_SOURCE} match source with ${proxyLabel(reportEngineProxy())}`,
+    `ECL Report Engine polling ${SITE_URL} using ${MATCH_SOURCE} match source ` +
+    `(Lzyumi discovery: ${LZYUMI_DISCOVERY_MODE}) with ${proxyLabel(reportEngineProxy())}`,
   );
   for (;;) {
     try {
