@@ -9,6 +9,7 @@ import {
   summarizeLzyumiPlayer,
   type LzyumiPlayerSummary,
 } from "@/lib/lzyumi-display";
+import { fetchLzyumiBrowserResponse } from "@/lib/lzyumi-browser-contract";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -237,7 +238,7 @@ export default function AdminInhousePage() {
               );
               if (!signResponse.ok) return null;
               const { url } = (await signResponse.json()) as { url: string };
-              const detail = (await fetch(url).then((response) => response.json())) as LzyumiDetail;
+              const detail = await fetchLzyumiBrowserResponse(url, "detail") as LzyumiDetail;
               return [game.gameId, detail] as const;
             } catch {
               return null;
@@ -286,7 +287,7 @@ export default function AdminInhousePage() {
         const detailSign = await fetch(
           `/api/lzyumi-sign?type=detail&openId=${encodeURIComponent(openId)}&gameId=${encodeURIComponent(selectedGameId)}&areaId=${areaId}`,
         ).then((r) => r.json());
-        detail = await fetch(detailSign.url).then((r) => r.json());
+        detail = await fetchLzyumiBrowserResponse(detailSign.url, "detail") as LzyumiDetail;
       }
 
       const res = await fetch("/api/admin/inhouse/report", {

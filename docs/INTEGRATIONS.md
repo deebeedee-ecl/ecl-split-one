@@ -15,9 +15,11 @@ Lzyumi is ECL's primary external provider for China-server Riot identity, rank, 
 - Filter `1`: resolved identity/profile/rank.
 - Filter `2`: Solo/Duo history.
 - Filter `3`: Flex history.
-- `getPlayerRecentStat`/champion recency is optional. Failure must result in an explicit empty/unavailable section, not retained stale champion data presented as fresh.
+- Browser signing uses `/lzyumi/lol/info` for profile/history, `/lzyumi/lol/info/getPlayerRecentStat` for optional recent stats, and `/lzyumi/lol/info/findOrderDetailInfoAll` for match detail.
+- Profile and history success requires HTTP success, endpoint application code `1`, and the expected object/array shape. HTTP errors, malformed payloads, and application codes `6`, `7`, or `8` are provider failures, never valid empty history.
+- `getPlayerRecentStat`/champion recency is optional. It requires its own code-`1` object contract; failure must result in an explicit unavailable section, not retained stale champion data presented as fresh.
 
-Acceptance requires matching the expected full Riot ID, China server, and `openId`. Save a coherent snapshot only after validation; do not independently advance freshness for an unchanged section.
+Acceptance requires matching the expected full Riot ID, China server, and `openId`. Save profile/rank/Solo/Flex as one coherent snapshot only after every required response passes validation. A rejected replacement preserves the prior snapshot and timestamp; do not independently advance freshness for an unchanged section. Application-code semantics are endpoint-specific and must not be copied to token/session-status endpoints.
 
 ### Match-report worker flow
 

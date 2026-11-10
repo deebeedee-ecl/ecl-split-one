@@ -1,4 +1,10 @@
 import { riotIdKey, splitRiotId } from "@/lib/riot-id";
+import {
+  LzyumiBrowserContractError,
+  validateLzyumiHistoryResponse,
+  validateLzyumiOptionalRecentStat,
+  validateLzyumiProfileResponse,
+} from "@/lib/lzyumi-browser-contract";
 
 export const LZYUMI_SNAPSHOT_VERSION = 2;
 export const LZYUMI_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 12;
@@ -15,6 +21,37 @@ export type ValidatedLzyumiIdentity = {
   openId: string;
   resolvedName: string;
 };
+
+export type ExistingLzyumiSnapshot = {
+  rawProfile: unknown;
+  recentStat: unknown;
+  rankedGames: unknown;
+  lastLookupAt: Date | string | null;
+};
+
+type LzyumiSnapshotReplacementInput = Omit<SnapshotIdentityInput, "rawProfile"> & {
+  profileResponse: unknown;
+  soloResponse: unknown;
+  flexResponse: unknown;
+  recentStat: unknown;
+  fetchedAt?: Date;
+};
+
+export type LzyumiSnapshotRefreshResult =
+  | {
+      status: "accepted";
+      identity: ValidatedLzyumiIdentity;
+      rawProfile: Record<string, unknown>;
+      recentStat: Record<string, unknown> | null;
+      recentStatStatus: "available" | "unavailable";
+      rankedGames: ReturnType<typeof normalizeLzyumiRankedGames>;
+      fetchedAt: Date;
+    }
+  | {
+      status: "rejected";
+      previous: ExistingLzyumiSnapshot;
+      error: LzyumiSnapshotValidationError | LzyumiBrowserContractError;
+    };
 
 export class LzyumiSnapshotValidationError extends Error {
   constructor(
@@ -160,4 +197,54 @@ export function normalizeLzyumiRankedGames(soloGames: unknown, flexGames: unknow
     soloGames,
     flexGames,
   };
+}
+
+export function resolveLzyumiSnapshotRefresh(
+  previous: ExistingLzyumiSnapshot,
+  {
+    profileResponse,
+    soloResponse,
+    flexResponse,
+    recentStat,
+    riotName,
+    riotTag,
+    areaId,
+    existingOpenId,
+    fetchedAt = new Date(),
+  }: LzyumiSnapshotReplacementInput,
+): LzyumiSnapshotRefreshResult {
+  try {
+    const rawProfile = validateLzyumiProfileResponse(profileResponse);
+    const soloHistory = validateLzyumiHistoryResponse(soloResponse);
+    const flexHistory = validateLzyumiHistoryResponse(flexResponse);
+    const identity = validateLzyumiSnapshotIdentity({
+      rawProfile,
+      riotName,
+      riotTag,
+      areaId,
+      existingOpenId,
+    });
+    const rankedGames = normalizeLzyumiRankedGames(soloHistory.data, flexHistory.data);
+    const optionalRecentStat = validateLzyumiOptionalRecentStat(recentStat);
+
+    return {
+      status: "accepted",
+      identity,
+      rawProfile: markValidatedLzyumiSnapshot(rawProfile, fetchedAt),
+      recentStat: optionalRecentStat.status === "available"
+        ? markValidatedLzyumiSnapshot(optionalRecentStat.value, fetchedAt)
+        : null,
+      recentStatStatus: optionalRecentStat.status,
+      rankedGames,
+      fetchedAt,
+    };
+  } catch (error) {
+    if (
+      error instanceof LzyumiSnapshotValidationError ||
+      error instanceof LzyumiBrowserContractError
+    ) {
+      return { status: "rejected", previous, error };
+    }
+    throw error;
+  }
 }

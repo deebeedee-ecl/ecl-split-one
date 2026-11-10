@@ -6,28 +6,32 @@ import {
   LzyumiSnapshotValidationError,
   markValidatedLzyumiSnapshot,
   normalizeLzyumiRankedGames,
+  resolveLzyumiSnapshotRefresh,
   shouldRefreshLzyumiSnapshots,
   validateLzyumiSnapshotIdentity,
 } from "../lib/lzyumi-snapshot";
 
 const validProfile = {
+  code: 1,
   battleInfo: {
-    nameInfoNew: "Kasper#82130",
-    openId: "trusted-open-id",
+    nameInfoNew: "ContractTester#T100",
+    openId: "synthetic-open-id",
     areaId: 1,
+    mapOneInfoList: [],
   },
+  data: [],
 };
 
 test("accepts a snapshot for the saved Riot identity and openId", () => {
   assert.deepEqual(
     validateLzyumiSnapshotIdentity({
       rawProfile: validProfile,
-      riotName: " Kasper ",
-      riotTag: "#82130",
+      riotName: " ContractTester ",
+      riotTag: "#T100",
       areaId: 1,
-      existingOpenId: "trusted-open-id",
+      existingOpenId: "synthetic-open-id",
     }),
-    { openId: "trusted-open-id", resolvedName: "Kasper#82130" },
+    { openId: "synthetic-open-id", resolvedName: "ContractTester#T100" },
   );
 });
 
@@ -35,9 +39,12 @@ test("rejects a provider response for a different Riot tag", () => {
   assert.throws(
     () =>
       validateLzyumiSnapshotIdentity({
-        rawProfile: { battleInfo: { ...validProfile.battleInfo, nameInfoNew: "Kasper#75904" } },
-        riotName: "Kasper",
-        riotTag: "82130",
+        rawProfile: {
+          ...validProfile,
+          battleInfo: { ...validProfile.battleInfo, nameInfoNew: "ContractTester#T200" },
+        },
+        riotName: "ContractTester",
+        riotTag: "T100",
         areaId: 1,
       }),
     (error) =>
@@ -50,10 +57,10 @@ test("rejects a changed openId during an automatic refresh", () => {
     () =>
       validateLzyumiSnapshotIdentity({
         rawProfile: validProfile,
-        riotName: "Kasper",
-        riotTag: "82130",
+        riotName: "ContractTester",
+        riotTag: "T100",
         areaId: 1,
-        existingOpenId: "another-open-id",
+        existingOpenId: "different-synthetic-open-id",
       }),
     (error) =>
       error instanceof LzyumiSnapshotValidationError && error.code === "OPEN_ID_MISMATCH",
@@ -65,8 +72,8 @@ test("rejects a snapshot from another China server", () => {
     () =>
       validateLzyumiSnapshotIdentity({
         rawProfile: validProfile,
-        riotName: "Kasper",
-        riotTag: "82130",
+        riotName: "ContractTester",
+        riotTag: "T100",
         areaId: 14,
       }),
     (error) =>
@@ -109,4 +116,58 @@ test("refreshes missing, legacy, and stale snapshots but keeps a fresh pair", ()
     shouldRefreshLzyumiSnapshots(raw, ranked, "2026-11-07T00:00:00.000Z", now),
     true,
   );
+});
+
+test("keeps the previous snapshot and timestamp when required history is rejected", () => {
+  const previous = {
+    rawProfile: { marker: "previous-profile" },
+    recentStat: { marker: "previous-recent" },
+    rankedGames: { marker: "previous-history" },
+    lastLookupAt: "2026-11-09T10:00:00.000Z",
+  };
+  const result = resolveLzyumiSnapshotRefresh(previous, {
+    profileResponse: validProfile,
+    soloResponse: { code: 7, data: [] },
+    flexResponse: { code: 1, data: [] },
+    recentStat: { status: "unavailable", reason: "throttled" },
+    riotName: "ContractTester",
+    riotTag: "T100",
+    areaId: 1,
+    existingOpenId: "synthetic-open-id",
+    fetchedAt: new Date("2026-11-10T10:00:00.000Z"),
+  });
+
+  assert.equal(result.status, "rejected");
+  if (result.status !== "rejected") return;
+  assert.equal(result.previous, previous);
+  assert.equal(result.previous.lastLookupAt, "2026-11-09T10:00:00.000Z");
+  assert.deepEqual(result.previous.rawProfile, { marker: "previous-profile" });
+  assert.equal(result.error.message.includes("provider code 7"), true);
+});
+
+test("accepts a complete core snapshot while marking optional recent stats unavailable", () => {
+  const previous = {
+    rawProfile: { marker: "previous-profile" },
+    recentStat: { marker: "stale-recent-must-not-survive" },
+    rankedGames: { marker: "previous-history" },
+    lastLookupAt: "2026-11-09T10:00:00.000Z",
+  };
+  const result = resolveLzyumiSnapshotRefresh(previous, {
+    profileResponse: validProfile,
+    soloResponse: { code: 1, data: [{ gameId: "synthetic-solo-game" }] },
+    flexResponse: { code: 1, data: [] },
+    recentStat: { status: "unavailable", reason: "http-error" },
+    riotName: "ContractTester",
+    riotTag: "T100",
+    areaId: 1,
+    existingOpenId: "synthetic-open-id",
+    fetchedAt: new Date("2026-11-10T10:00:00.000Z"),
+  });
+
+  assert.equal(result.status, "accepted");
+  if (result.status !== "accepted") return;
+  assert.equal(result.recentStatStatus, "unavailable");
+  assert.equal(result.recentStat, null);
+  assert.deepEqual(result.rankedGames.soloGames, [{ gameId: "synthetic-solo-game" }]);
+  assert.equal(result.rawProfile._eclFetchedAt, "2026-11-10T10:00:00.000Z");
 });

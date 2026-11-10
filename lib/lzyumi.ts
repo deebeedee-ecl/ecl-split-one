@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
 import { riotIdKey, splitRiotId } from "@/lib/riot-id";
+import {
+  buildLzyumiEndpointUrl,
+  LzyumiBrowserContractError,
+  validateLzyumiHistoryResponse,
+  validateLzyumiProfileResponse,
+  validateLzyumiRecentStatResponse,
+} from "@/lib/lzyumi-browser-contract";
 
 export type ChinaServer = {
   id: number;
@@ -238,7 +245,7 @@ function signedDetailUrl({
   baseUrl?: string;
 }) {
   const { lzyumiSign, signStr } = createLzyumiSignature();
-  const url = new URL(`${baseUrl}/findOrderDetailInfoAll`);
+  const url = buildLzyumiEndpointUrl(baseUrl, "detail");
 
   url.searchParams.set("openId", openId);
   url.searchParams.set("gameId", gameId);
@@ -372,6 +379,20 @@ export async function lookupLzyumiIdentity({
 
   for (const lookupName of lookupNames) {
     const rawProfile = await lookupLzyumiProfile({ riotName: lookupName, areaId, baseUrl });
+    try {
+      validateLzyumiProfileResponse(rawProfile);
+    } catch (error) {
+      if (error instanceof LzyumiBrowserContractError && error.kind === "not-found") {
+        fallback ??= {
+          status: "not_found",
+          areaId: server.id,
+          areaName: server.name,
+          rawProfile,
+        };
+        continue;
+      }
+      throw error;
+    }
     const resolvedName = rawProfile.battleInfo?.nameInfoNew;
     const openId = rawProfile.battleInfo?.openId;
 
@@ -434,8 +455,10 @@ export async function fetchLzyumiRankedGames({
       `signStr=${signStr}`,
     ];
     const url = `${baseUrl}?${params.join("&")}`;
-    const res = await lzyumiFetch<LzyumiLookupResponse>(url);
-    return Array.isArray(res.data) ? res.data : [];
+    const res = validateLzyumiHistoryResponse(
+      await lzyumiFetch<LzyumiLookupResponse>(url),
+    );
+    return res.data as LzyumiRecentMatch[];
   }
 
   const [soloGames, flexGames] = await Promise.all([
@@ -456,19 +479,14 @@ export async function fetchLzyumiRecentStat({
   baseUrl?: string;
 }): Promise<LzyumiRecentStatResponse> {
   const { lzyumiSign, signStr } = createLzyumiSignature();
-  const url = new URL(baseUrl);
-  const configuredPath = url.pathname.replace(/\/+$/, "");
-  const apiPath = configuredPath.endsWith("/info")
-    ? configuredPath.slice(0, -"/info".length)
-    : configuredPath;
-  url.pathname = `${apiPath}/getPlayerRecentStat`.replace(/\/{2,}/g, "/");
-  url.search = "";
-  url.hash = "";
+  const url = buildLzyumiEndpointUrl(baseUrl, "recent");
   url.searchParams.set("openId", openId);
   url.searchParams.set("areaId", String(areaId));
   url.searchParams.set("lzyumiSign", lzyumiSign);
   url.searchParams.set("signStr", signStr);
-  return lzyumiFetch<LzyumiRecentStatResponse>(url.toString());
+  return validateLzyumiRecentStatResponse(
+    await lzyumiFetch<LzyumiRecentStatResponse>(url.toString()),
+  ) as LzyumiRecentStatResponse;
 }
 
 export async function fetchLzyumiMatchDetail({

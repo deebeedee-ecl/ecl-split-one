@@ -31,6 +31,11 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useEffect } from "react";
+import {
+  fetchLzyumiBrowserResponse,
+  unavailableLzyumiRecentStat,
+  type LzyumiOptionalRecentStat,
+} from "@/lib/lzyumi-browser-contract";
 
 type AdminSection =
   | "dashboard"
@@ -465,32 +470,33 @@ function LzyumiRefreshPanel() {
           }));
 
           // Step 3: call ECL.GG from the browser (uses the admin's residential IP).
-          const [rawProfile, soloResponse, flexResponse] = await Promise.all(
-            signed.map(async ({ url }) => {
-              const response = await fetch(url, { headers: { Accept: "application/json" } });
-              if (!response.ok) throw new Error("ECL.GG fetch failed");
-              return response.json();
-            }),
-          );
-          const openId = rawProfile?.battleInfo?.openId;
-          if (!openId) throw new Error("ECL.GG identity response is incomplete");
+          const [rawProfile, soloResponse, flexResponse] = await Promise.all([
+            fetchLzyumiBrowserResponse(signed[0].url, "profile"),
+            fetchLzyumiBrowserResponse(signed[1].url, "history"),
+            fetchLzyumiBrowserResponse(signed[2].url, "history"),
+          ]);
+          const battleInfo = rawProfile.battleInfo as Record<string, unknown>;
+          const openId = String(battleInfo.openId);
 
           // This provider endpoint is currently unreliable. Rank and ranked
           // history remain a valid coherent snapshot even when it is down.
-          const recentStat = await (async () => {
+          const recentStat: LzyumiOptionalRecentStat = await (async () => {
             try {
               const recentSignRes = await fetch(
                 `/api/lzyumi-sign?type=recent&openId=${encodeURIComponent(openId)}&areaId=${p.chinaServerId}`,
                 { credentials: "include" },
               );
-              if (!recentSignRes.ok) return null;
-              const { url: recentUrl } = (await recentSignRes.json()) as { url: string };
-              const recentResponse = await fetch(recentUrl, {
-                headers: { Accept: "application/json" },
-              });
-              return recentResponse.ok ? recentResponse.json() : null;
-            } catch {
-              return null;
+              if (!recentSignRes.ok) throw new Error("Recent-stat signing failed");
+              const { url: recentUrl } = (await recentSignRes.json()) as { url?: unknown };
+              if (typeof recentUrl !== "string") {
+                throw new Error("Recent-stat URL is invalid");
+              }
+              return {
+                status: "available",
+                value: await fetchLzyumiBrowserResponse(recentUrl, "recent"),
+              };
+            } catch (error) {
+              return unavailableLzyumiRecentStat(error);
             }
           })();
 
@@ -503,8 +509,8 @@ function LzyumiRefreshPanel() {
               profileId: p.id,
               rawProfile,
               recentStat,
-              soloGames: Array.isArray(soloResponse?.data) ? soloResponse.data : [],
-              flexGames: Array.isArray(flexResponse?.data) ? flexResponse.data : [],
+              soloResponse,
+              flexResponse,
             }),
           });
           if (!saveRes.ok) {
