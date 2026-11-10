@@ -54,9 +54,18 @@ test("source identity requires the full Riot ID and rejects server or openId mis
   assert.equal(sourceMatchesExpectedIdentity(valid), true);
   assert.equal(sourceMatchesExpectedIdentity({ ...valid, player: { ...player, openId: null } }), false);
   assert.equal(sourceMatchesExpectedIdentity({ ...valid, openId: "other-open-id" }), false);
+  assert.equal(sourceMatchesExpectedIdentity({ ...valid, areaId: 14 }), false);
   assert.equal(sourceMatchesExpectedIdentity({
     ...valid,
     profile: { battleInfo: { ...valid.profile.battleInfo, areaId: 14 } },
+  }), false);
+  assert.equal(sourceMatchesExpectedIdentity({
+    ...valid,
+    profile: { battleInfo: { ...valid.profile.battleInfo, areaId: undefined } },
+  }), false);
+  assert.equal(sourceMatchesExpectedIdentity({
+    ...valid,
+    player: { ...player, chinaServerId: null },
   }), false);
   assert.equal(sourceMatchesExpectedIdentity({
     ...valid,
@@ -84,6 +93,14 @@ test("detail roster identity rejects full Riot ID, server, and openId mismatches
   assert.equal(detailParticipantMatchesExpectedIdentity({
     ...valid,
     detailPlayer: { ...valid.detailPlayer, translateAreaId: 14 },
+  }), false);
+  assert.equal(detailParticipantMatchesExpectedIdentity({
+    ...valid,
+    detailPlayer: { ...valid.detailPlayer, translateAreaId: undefined },
+  }), false);
+  assert.equal(detailParticipantMatchesExpectedIdentity({
+    ...valid,
+    player: { ...player, chinaServerId: null },
   }), false);
   assert.equal(detailParticipantMatchesExpectedIdentity({
     ...valid,
@@ -180,6 +197,73 @@ test("bounded discovery never exceeds two concurrent history filters", async () 
 
   assert.equal(peak, 2);
   assert.equal(budget.snapshot().history.used, 4);
+});
+
+test("prioritizes observed custom candidates across concurrent history outcomes", async () => {
+  const detailCalls = [];
+  const budget = createDiscoveryRequestBudget({ historyLimit: 2, detailLimit: 1 });
+
+  const result = await findBoundedLzyumiMatch({
+    players: ["reporter"],
+    filters: [1, 2],
+    historyConcurrency: 2,
+    budget,
+    fetchHistory: async (_player, filter, requestBudget) => {
+      requestBudget.consumeHistory();
+      return {
+        games: filter === 1
+          ? [game("unknown-first", 42, 0)]
+          : [game("observed-custom", 10, 1)],
+      };
+    },
+    fetchDetail: async (_source, candidate, requestBudget) => {
+      requestBudget.consumeDetail();
+      detailCalls.push(candidate.gameId);
+      return detail(candidate.gameId === "observed-custom" ? "CUSTOM_GAME" : "MATCHED_GAME", 10);
+    },
+    isInWindow: () => true,
+    sortValue: (candidate) => candidate.distance,
+    matchRoster: (candidateDetail) => ({
+      matched: Array.from({ length: candidateDetail.data.matched }, (_, index) => `p${index}`),
+      missing: [],
+    }),
+    requiredMatches: 8,
+  });
+
+  assert.equal(result.match.game.gameId, "observed-custom");
+  assert.deepEqual(detailCalls, ["observed-custom"]);
+});
+
+test("stops fetching history after the detail budget is exhausted", async () => {
+  let historyCalls = 0;
+  const budget = createDiscoveryRequestBudget({ historyLimit: 8, detailLimit: 1 });
+
+  const result = await findBoundedLzyumiMatch({
+    players: ["reporter"],
+    filters: [1, 2, 3, 4, 5, 6, 7, 8],
+    historyConcurrency: 2,
+    budget,
+    fetchHistory: async (_player, filter, requestBudget) => {
+      requestBudget.consumeHistory();
+      historyCalls += 1;
+      return { games: [game(`candidate-${filter}`, 10, filter)] };
+    },
+    fetchDetail: async (_source, _candidate, requestBudget) => {
+      requestBudget.consumeDetail();
+      return detail("MATCHED_GAME", 10);
+    },
+    isInWindow: () => true,
+    sortValue: (candidate) => candidate.distance,
+    matchRoster: () => ({ matched: [], missing: [] }),
+    requiredMatches: 8,
+  });
+
+  assert.equal(result.match, null);
+  assert.equal(historyCalls, 2);
+  assert.deepEqual(result.budget, {
+    history: { used: 2, limit: 8 },
+    detail: { used: 1, limit: 1 },
+  });
 });
 
 test("provider pressure starts a cooldown without exposing provider data", () => {

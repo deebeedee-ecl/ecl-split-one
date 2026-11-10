@@ -105,8 +105,12 @@ function sourceMatchesExpectedIdentity({
   const savedOpenId = typeof player.openId === "string" ? player.openId.trim() : "";
   if (!savedOpenId || openId !== savedOpenId) return false;
 
+  const expectedAreaId = Number(player.chinaServerId);
+  const requestedAreaId = Number(areaId);
   const resolvedAreaId = Number(battleInfo.areaId ?? battleInfo.area ?? battleInfo.translateAreaId);
-  return !Number.isFinite(resolvedAreaId) || resolvedAreaId <= 0 || resolvedAreaId === Number(areaId);
+  return Number.isFinite(expectedAreaId) && expectedAreaId > 0 &&
+    Number.isFinite(requestedAreaId) && requestedAreaId === expectedAreaId &&
+    Number.isFinite(resolvedAreaId) && resolvedAreaId === expectedAreaId;
 }
 
 function detailParticipantMatchesExpectedIdentity({ player, detailPlayer, riotIdentityMatches }) {
@@ -116,13 +120,14 @@ function detailParticipantMatchesExpectedIdentity({ player, detailPlayer, riotId
   const resolvedOpenId = typeof detailPlayer?.openIdNow === "string" ? detailPlayer.openIdNow.trim() : "";
   if (!savedOpenId || resolvedOpenId !== savedOpenId) return false;
 
-  const expectedAreaId = Number(player.chinaServerId || 1);
+  const expectedAreaId = Number(player.chinaServerId);
   const resolvedAreaId = Number(
     detailPlayer?.translateAreaId ??
     detailPlayer?.areaId ??
     detailPlayer?.area,
   );
-  return Number.isFinite(resolvedAreaId) && resolvedAreaId === expectedAreaId;
+  return Number.isFinite(expectedAreaId) && expectedAreaId > 0 &&
+    Number.isFinite(resolvedAreaId) && resolvedAreaId === expectedAreaId;
 }
 
 async function findBoundedLzyumiMatch({
@@ -143,7 +148,7 @@ async function findBoundedLzyumiMatch({
   const historyFilters = Array.from(filters || []);
   const concurrency = Math.min(2, positiveInteger(historyConcurrency, 1));
   const reported = new Set(reportedGameIds || []);
-  const seenGames = new Set();
+  const candidatesByGameId = new Map();
   const attemptedDetails = new Set();
   let best = null;
   let closestOutOfWindow = null;
@@ -152,11 +157,58 @@ async function findBoundedLzyumiMatch({
   let sourcesChecked = 0;
   let candidatesConsidered = 0;
 
+  const result = (match = null) => ({
+    match,
+    best,
+    closestOutOfWindow,
+    historyFailures,
+    detailFailures,
+    sourcesChecked,
+    candidatesConsidered,
+    budget: budget.snapshot(),
+  });
+
+  const attemptCandidates = async (candidates) => {
+    const pending = candidates
+      .filter((candidate) => !attemptedDetails.has(candidate.gameId))
+      .sort((a, b) => a.priority - b.priority || sortValue(a.game) - sortValue(b.game));
+
+    for (const candidate of pending) {
+      if (budget.remainingDetail() <= 0) return null;
+      attemptedDetails.add(candidate.gameId);
+
+      let detail;
+      try {
+        detail = await fetchDetail(candidate.source, candidate.game, budget);
+      } catch (error) {
+        if (providerPressureCode(error)) throw error;
+        if (!(error instanceof LzyumiDiscoveryBudgetError)) {
+          detailFailures += 1;
+          await onLookupError({
+            stage: "detail",
+            error,
+            playerIndex: candidate.playerIndex,
+            filter: candidate.filter,
+          });
+        }
+        continue;
+      }
+
+      if (!detailConfirmsCustomGame(detail)) continue;
+      const rosterMatch = matchRoster(detail);
+      const checked = { ...candidate, detail, rosterMatch };
+      if (!best || rosterMatch.matched.length > best.rosterMatch.matched.length) best = checked;
+      if (rosterMatch.matched.length >= requiredMatches) return checked;
+    }
+
+    return null;
+  };
+
   outer:
   for (let playerIndex = 0; playerIndex < searchPlayers.length; playerIndex += 1) {
     for (let filterIndex = 0; filterIndex < historyFilters.length;) {
       const available = budget.remainingHistory();
-      if (available <= 0) break outer;
+      if (available <= 0 || budget.remainingDetail() <= 0) break outer;
 
       const batchSize = Math.min(concurrency, available, historyFilters.length - filterIndex);
       const batch = historyFilters.slice(filterIndex, filterIndex + batchSize);
@@ -190,11 +242,9 @@ async function findBoundedLzyumiMatch({
         if (!outcome.source) continue;
 
         sourcesChecked += 1;
-        const pending = [];
         for (const game of outcome.source.games || []) {
           const gameId = String(game?.gameId || "").trim();
-          if (!gameId || reported.has(gameId) || seenGames.has(gameId)) continue;
-          seenGames.add(gameId);
+          if (!gameId || reported.has(gameId) || attemptedDetails.has(gameId)) continue;
 
           const priority = historyCandidatePriority(game);
           if (priority == null) continue;
@@ -205,60 +255,30 @@ async function findBoundedLzyumiMatch({
             continue;
           }
 
-          pending.push({ source: outcome.source, game, priority });
-        }
-
-        pending.sort((a, b) => a.priority - b.priority || sortValue(a.game) - sortValue(b.game));
-        candidatesConsidered += pending.length;
-
-        for (const candidate of pending) {
-          const gameId = String(candidate.game.gameId);
-          if (attemptedDetails.has(gameId) || budget.remainingDetail() <= 0) continue;
-          attemptedDetails.add(gameId);
-
-          let detail;
-          try {
-            detail = await fetchDetail(candidate.source, candidate.game, budget);
-          } catch (error) {
-            if (providerPressureCode(error)) throw error;
-            if (!(error instanceof LzyumiDiscoveryBudgetError)) {
-              detailFailures += 1;
-              await onLookupError({ stage: "detail", error, playerIndex, filter: outcome.filter });
-            }
-            continue;
+          const existing = candidatesByGameId.get(gameId);
+          if (!existing) {
+            candidatesConsidered += 1;
           }
-
-          if (!detailConfirmsCustomGame(detail)) continue;
-          const rosterMatch = matchRoster(detail);
-          const checked = { ...candidate, detail, rosterMatch };
-          if (!best || rosterMatch.matched.length > best.rosterMatch.matched.length) best = checked;
-          if (rosterMatch.matched.length >= requiredMatches) {
-            return {
-              match: checked,
-              best,
-              closestOutOfWindow,
-              historyFailures,
-              detailFailures,
-              sourcesChecked,
-              candidatesConsidered,
-              budget: budget.snapshot(),
-            };
+          if (!existing || priority < existing.priority ||
+              (priority === existing.priority && sortValue(game) < sortValue(existing.game))) {
+            candidatesByGameId.set(gameId, {
+              source: outcome.source,
+              game,
+              gameId,
+              priority,
+              playerIndex,
+              filter: outcome.filter,
+            });
           }
         }
       }
+
+      const match = await attemptCandidates([...candidatesByGameId.values()]);
+      if (match) return result(match);
     }
   }
 
-  return {
-    match: null,
-    best,
-    closestOutOfWindow,
-    historyFailures,
-    detailFailures,
-    sourcesChecked,
-    candidatesConsidered,
-    budget: budget.snapshot(),
-  };
+  return result();
 }
 
 module.exports = {
