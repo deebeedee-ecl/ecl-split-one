@@ -22,6 +22,12 @@ Lzyumi is ECL's primary external provider for China-server Riot identity, rank, 
 
 Acceptance requires matching the expected full Riot ID, China server, and `openId`. Save profile/rank/Solo/Flex as one coherent snapshot only after every required response passes validation. A rejected replacement preserves the prior snapshot and timestamp; do not independently advance freshness for an unchanged section. Application-code semantics are endpoint-specific and must not be copied to token/session-status endpoints.
 
+#### Intended explicit manual refresh contract (not deployed)
+
+The planned OP.GG-style action uses a durable, short-lived, one-use permit bound to the authenticated requester profile and one active, verified, stale target profile. Permit issuance must atomically enforce per-profile cooldown, per-requester cooldown, and a requester rolling-window budget across serverless instances. One permit authorizes only the fixed profile filter `1`, Solo/Duo filter `2`, Flex filter `3`, optional recent-stat, and coherent snapshot-save bundle derived from stored target identity.
+
+The existing scheduled `LzyumiRefreshQueue` is not the manual-permit store. It owns one background lease per target profile and has no requester-bound lifecycle. The dedicated permit ledger and API remain blocked on the reviewed Prisma migration baseline in issue #4; current production has no manual refresh action. See ADR 0002 for authorization, replay, persistence, and rollback boundaries.
+
 ### Match-report worker flow
 
 The report engine is an always-on service used after KOOK queues a report job. It loads the saved ten-player session roster, searches recent games, fetches details, checks time/roster coverage, and sends candidate evidence back to the website. The website owns result authority and the database commit.

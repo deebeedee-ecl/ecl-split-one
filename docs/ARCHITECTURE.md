@@ -74,6 +74,8 @@ This client bootstrap controls presentation only. It is not an authorization bou
 5. The application verifies full Riot ID, China server, and `openId` before accepting a snapshot.
 6. A complete validated replacement is saved and then replaces the visible snapshot atomically. Optional recent champion statistics may fail without invalidating valid identity/rank data; their stale values must not survive as if refreshed. A failed required refresh leaves the prior snapshot and successful timestamp visible and unchanged.
 
+The intended manual owner/viewer refresh is not deployed. ADR 0002 defines its server-side contract: a durable one-use permit ledger must atomically enforce target and requester pressure limits before the browser receives a fixed request bundle. Do not implement this with process memory or reuse the scheduled `LzyumiRefreshQueue`; durable storage remains dependent on the migration baseline in issue #4.
+
 ### KOOK inhouse lifecycle
 
 1. The adjacent bot reads KOOK events and voice membership.
