@@ -102,9 +102,9 @@ The authenticated desktop and mobile pass confirmed that this is a large event m
 - personal inhouse match-history preview;
 - a KOOK verification notice/code flow when the profile is not linked.
 
-The profile can auto-refresh stale/missing provider data and shows failure separately. Data freshness must remain tied to a coherent validated snapshot.
+The route-specific profile request renders the last coherent stored snapshot before any stale/missing provider refresh completes. The signed browser refresh then runs in the background, keeps that snapshot visible while pending or failed, and replaces it only after the complete identity-checked snapshot is accepted. Data freshness remains tied to the last successful coherent replacement.
 
-In the authenticated pass, cold profile navigation was still on “Loading profile...” at the initial 2.5-second capture and a later cold pass briefly showed “Checking Hub access...”; the profile subsequently rendered successfully. Treat this as a slow/fragile loading experience, not a permanent profile failure.
+Historical walkthrough evidence from 2026-11-07 captured “Loading profile...” at 2.5 seconds because the provider refresh blocked the stored snapshot. The current flow still waits for the route-specific account profile request, but no longer waits for the browser-based Lzyumi refresh before rendering a valid saved snapshot.
 
 ### Ranked Ladder
 

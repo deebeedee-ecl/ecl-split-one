@@ -65,11 +65,12 @@ This client bootstrap controls presentation only. It is not an authorization bou
 
 ### Authenticated profile refresh
 
-1. The authenticated browser asks `/api/lzyumi-sign` for a short-lived signed provider URL.
-2. The browser calls Lzyumi from the player's residential IP.
-3. Filter `1` supplies identity/profile/rank; `2` Solo/Duo history; `3` Flex history.
-4. The application verifies full Riot ID, China server, and `openId` before accepting a snapshot.
-5. A complete validated replacement is saved. Optional recent champion statistics may fail without invalidating valid identity/rank data; their stale values must not survive as if refreshed.
+1. The route-specific account profile request returns the last stored coherent snapshot, which renders before any stale-data refresh completes.
+2. When that snapshot is stale or missing, the authenticated browser asks `/api/lzyumi-sign` for short-lived signed provider URLs in the background.
+3. The browser calls Lzyumi from the player's residential IP.
+4. Filter `1` supplies identity/profile/rank; `2` Solo/Duo history; `3` Flex history.
+5. The application verifies full Riot ID, China server, and `openId` before accepting a snapshot.
+6. A complete validated replacement is saved and then replaces the visible snapshot atomically. Optional recent champion statistics may fail without invalidating valid identity/rank data; their stale values must not survive as if refreshed. A failed required refresh leaves the prior snapshot and successful timestamp visible and unchanged.
 
 ### KOOK inhouse lifecycle
 
