@@ -28,6 +28,39 @@ async function settle() {
   await new Promise((resolve) => setImmediate(resolve));
 }
 
+test("Hub hydration starts from one deterministic loading snapshot", async () => {
+  const calls = { getSession: 0, subscribe: 0 };
+  const store = createHubBootstrapStore({
+    async getSession() {
+      calls.getSession += 1;
+      return null;
+    },
+    subscribe() {
+      calls.subscribe += 1;
+      return () => {};
+    },
+    async flushPendingProfile() {},
+    async loadMinimalProfile() {
+      return null;
+    },
+  });
+
+  assert.strictEqual(store.getServerSnapshot(), store.getSnapshot());
+  assert.deepEqual(store.getServerSnapshot(), {
+    status: "loading",
+    session: null,
+    profile: null,
+  });
+  assert.deepEqual(calls, { getSession: 0, subscribe: 0 });
+
+  store.start();
+  await settle();
+  assert.deepEqual(calls, { getSession: 1, subscribe: 1 });
+  assert.equal(store.getSnapshot().status, "signed-out");
+  assert.equal(store.getServerSnapshot().status, "loading");
+  store.stop();
+});
+
 test("one Hub store shares one initial session and minimal-profile bootstrap", async () => {
   const activeSession = session("user-a");
   const calls = { getSession: 0, subscribe: 0, flush: 0, profile: 0, cleanup: 0 };
@@ -149,6 +182,8 @@ test("Hub layout owns bootstrap while protected APIs retain server authorization
   assert.equal((provider.match(/onAuthStateChange/g) ?? []).length, 1);
   assert.equal((provider.match(/auth\.getSession/g) ?? []).length, 1);
   assert.doesNotMatch(gate, /supabase|onAuthStateChange|getSession|loadProfile/);
+  assert.doesNotMatch(gate, /localStorage|sessionStorage|getHubAccessCache/);
+  assert.doesNotMatch(provider, /localStorage|sessionStorage|getHubAccessCache/);
   assert.match(bootstrapRoute, /getAccountFromRequest\(request\)/);
   assert.match(bootstrapRoute, /select:\s*{[\s\S]*id:\s*true/);
   assert.match(profileRoute, /getAccountFromRequest\(request\)/);
