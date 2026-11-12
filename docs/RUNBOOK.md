@@ -248,21 +248,11 @@ A network-switch result is diagnostic evidence, not a permanent architecture. Pr
 - Discovery writes local JSON/CSV evidence only. It must not connect to the ECL database, claim report jobs, create ranked rows, or apply LP.
 - Provider payloads and player identities in the output are private operational evidence. Keep them ignored and never commit or paste unrestricted artifacts into logs, issues, or chat.
 
-### Dated ranked-inhouse backfill for 2026-11-12
+### Completed ranked-inhouse backfill from 2026-11-12
 
-The service-authenticated endpoint `/api/jobs/inhouse-backfill-2026-11-12` and `scripts/manual-inhouse-backfill-2026-11-12.ts` are intentionally limited to the five reviewed custom/classic games from this incident. The committed scope contains hashes of the exact provider-game set and the single authorized unlinked exclusion; it does not contain the provider IDs, player identities, or raw provider evidence. This path must not be generalized or reused for another date. Keep it outside `/api/admin/*`, whose cookie middleware intentionally rejects worker-secret requests before route authentication.
+The reviewed five-game recovery completed under operation marker `ranked-inhouse-backfill-2026-11-12`; its one-off endpoint, import library, and client were removed after verification. Keep the private manifest and apply/post-verification audits in ignored operational storage. Do not recreate or generalize the removed write path for another incident.
 
-1. Keep the reviewed discovery JSON and generated manifest in ignored `.tmp/` storage. Prepare the manifest from the original read-only discovery artifact; the script locates the authorized exclusion by hash and refuses a different five-game set.
-2. Deploy and verify the change in Preview first. Preview must not have production write credentials, and the endpoint rejects `apply` unless `VERCEL_ENV=production`.
-3. A production deployment and the database import each require explicit operator authorization. Deployment authorization is not import authorization.
-4. After the authorized production deployment, run the script without `--apply` against the production endpoint. Record its bounded plan and fingerprint. A clean plan must report five games, 45 included stat rows, five excluded slots, no duplicate/partial collision, exact provider teams, atomic/idempotent writes, and `notify: false`.
-5. Confirm the production backup/recovery point and retain the immediately preceding fingerprint. Apply with `--apply --approved-production --fingerprint=...`; the endpoint reacquires the ranked advisory lock and recomputes the full preflight inside one transaction before writing.
-6. Verify exactly five completed operation sessions, five matches, five match games, nine session/stat rows per game, and 45 total LP changes. Verify every stored provider game ID is unique, the excluded identity has no session/stat/LP row, affected `Player` ratings match their last imported `eloAfter`, and no KOOK notification was sent.
-7. Save an ignored local audit containing the preflight response, fingerprint, deployment ID, returned match IDs, row-count assertions, notification assertion, and backup/recovery reference. Do not paste the raw manifest or identities into the PR or deployment log.
-
-Retries are safe only when all five sessions are complete and carry this exact operation marker; they return `ALREADY_APPLIED`. Any partial/foreign session, report-job, tournament, or legacy match collision blocks the operation. If an affected player has a ranked result after the first backfilled game, direct insertion is blocked and the season must be replayed through a separately reviewed repair.
-
-Recovery must preserve history. Freeze further ranked writes, inspect the operation-marked sessions and `MatchGame.ocrRawJson`, and either restore the confirmed backup or run a separately reviewed reverse/replay transaction that removes only this operation's rows and recomputes every affected player from remaining season stats. Never hand-edit LP or delete rows ad hoc. After the audit is accepted, remove the dated endpoint and script in a cleanup PR; do not bundle that cleanup with the first deployment/import.
+Recovery must preserve history. Freeze further ranked writes, inspect only sessions and `MatchGame.ocrRawJson` carrying that exact operation marker, and either restore the confirmed backup or run a separately reviewed reverse/replay transaction that removes only those operation rows and recomputes every affected player from remaining season stats. Never hand-edit LP or delete rows ad hoc.
 
 ### Report-engine deployment configuration
 
