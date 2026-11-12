@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   UsersRound,
 } from "lucide-react";
-import { loadProfile } from "@/components/account/client-account";
+import { loadReporterProfile } from "@/components/account/client-account";
 import { useHubBootstrap } from "../../_components/HubBootstrapProvider";
 import {
   englishDuration,
@@ -130,7 +130,7 @@ export default function ReportInhouseClient() {
           return;
         }
 
-        const profile = await loadProfile(accessToken);
+        const profile = await loadReporterProfile(accessToken);
         if (!profile) {
           router.replace("/hub/settings");
           return;

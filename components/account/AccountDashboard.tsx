@@ -12,7 +12,7 @@ import {
   roles,
 } from "./account-options";
 import {
-  loadProfile,
+  loadSettingsProfile,
   requestKookVerificationCode,
   saveProfile,
   type SignupProfilePayload,
@@ -20,18 +20,10 @@ import {
   uploadBanner,
 } from "./client-account";
 import { useHubBootstrap } from "@/app/(hub)/hub/_components/HubBootstrapProvider";
+import { profileLoadErrorMessage } from "./profile-request";
+import type { SettingsProfileDto } from "@/lib/account-profile-dto";
 
-type AccountProfile = SignupProfilePayload & {
-  id: string;
-  email: string;
-  verificationStatus: string;
-  accountStatus: string;
-  kookVerifications?: Array<{
-    code: string;
-    status: string;
-    expiresAt: string;
-  }>;
-};
+type AccountProfile = SettingsProfileDto;
 
 const emptyProfile: SignupProfilePayload = {
   displayName: "",
@@ -71,6 +63,8 @@ export default function AccountDashboard() {
   const [form, setForm] = useState<SignupProfilePayload>(emptyProfile);
   const [hasSession, setHasSession] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [bannerUploading, setBannerUploading] = useState(false);
   const [codeRequesting, setCodeRequesting] = useState(false);
@@ -93,10 +87,12 @@ export default function AccountDashboard() {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     async function boot() {
       setLoading(true);
       setError("");
+      setLoadError("");
 
       if (status === "loading") return;
 
@@ -107,51 +103,56 @@ export default function AccountDashboard() {
       }
 
       setHasSession(true);
-      const loaded = await loadProfile(accessToken);
+      try {
+        const loaded = await loadSettingsProfile(accessToken, { signal: controller.signal });
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      if (loaded) {
-        setProfile(loaded);
-        setForm({
-          ...emptyProfile,
-          ...loaded,
-          championPool: loaded.championPool ?? emptyProfile.championPool,
-          privacySettings: loaded.privacySettings ?? emptyProfile.privacySettings,
-        });
-      } else {
-        const metadata = session.user.user_metadata ?? {};
-        const metadataProfile =
-          metadata.ecl_profile && typeof metadata.ecl_profile === "object"
-            ? (metadata.ecl_profile as Partial<SignupProfilePayload>)
-            : null;
-        const riotId =
-          typeof metadata.riot_id === "string" ? metadata.riot_id.split("#") : [];
+        if (loaded) {
+          setProfile(loaded);
+          setForm({
+            ...emptyProfile,
+            ...loaded,
+            championPool: loaded.championPool ?? emptyProfile.championPool,
+            privacySettings: loaded.privacySettings ?? emptyProfile.privacySettings,
+          });
+        } else {
+          const metadata = session.user.user_metadata ?? {};
+          const metadataProfile =
+            metadata.ecl_profile && typeof metadata.ecl_profile === "object"
+              ? (metadata.ecl_profile as Partial<SignupProfilePayload>)
+              : null;
+          const riotId =
+            typeof metadata.riot_id === "string" ? metadata.riot_id.split("#") : [];
 
-        setForm((current) => ({
-          ...current,
-          ...metadataProfile,
-          championPool: metadataProfile?.championPool ?? current.championPool,
-          privacySettings: metadataProfile?.privacySettings ?? current.privacySettings,
-          displayName:
-            metadataProfile?.displayName ??
-            (typeof metadata.display_name === "string" ? metadata.display_name : current.displayName),
-          riotName: metadataProfile?.riotName ?? riotId[0] ?? current.riotName,
-          riotTag: metadataProfile?.riotTag ?? riotId[1] ?? current.riotTag,
-          kookUsername:
-            metadataProfile?.kookUsername ??
-            (typeof metadata.kook_username === "string" ? metadata.kook_username : current.kookUsername),
-        }));
+          setForm((current) => ({
+            ...current,
+            ...metadataProfile,
+            championPool: metadataProfile?.championPool ?? current.championPool,
+            privacySettings: metadataProfile?.privacySettings ?? current.privacySettings,
+            displayName:
+              metadataProfile?.displayName ??
+              (typeof metadata.display_name === "string" ? metadata.display_name : current.displayName),
+            riotName: metadataProfile?.riotName ?? riotId[0] ?? current.riotName,
+            riotTag: metadataProfile?.riotTag ?? riotId[1] ?? current.riotTag,
+            kookUsername:
+              metadataProfile?.kookUsername ??
+              (typeof metadata.kook_username === "string" ? metadata.kook_username : current.kookUsername),
+          }));
+        }
+      } catch (loadFailure) {
+        if (!cancelled) setLoadError(profileLoadErrorMessage(loadFailure));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      setLoading(false);
     }
 
     void boot();
     return () => {
       cancelled = true;
+      controller.abort();
     };
-  }, [accessToken, session, status]);
+  }, [accessToken, loadAttempt, session, status]);
 
   function update<K extends keyof SignupProfilePayload>(key: K, value: SignupProfilePayload[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -272,7 +273,17 @@ export default function AccountDashboard() {
   }
 
   if (loading) {
-    return <div className="border border-[#1f1f1f] bg-[#0d0d0d] p-8 text-[#9ca3af]">Loading account...</div>;
+    return (
+      <div
+        aria-busy="true"
+        aria-label="Loading account settings"
+        className="grid gap-4 border border-[#1f1f1f] bg-[#0d0d0d] p-8"
+      >
+        <div className="h-7 w-56 animate-pulse bg-white/[0.08]" />
+        <div className="h-24 animate-pulse bg-white/[0.05]" />
+        <p className="text-sm font-semibold text-[#9ca3af]">Loading account settings…</p>
+      </div>
+    );
   }
 
   if (!hasSession) {
@@ -290,6 +301,26 @@ export default function AccountDashboard() {
             Sign up
           </Link>
         </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="border border-red-500/30 bg-[#0d0d0d] p-8" role="alert">
+        <h2 className="text-2xl font-black uppercase text-white">Account settings unavailable</h2>
+        <p className="mt-3 max-w-2xl text-[#d1d5db]">{loadError}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setLoading(true);
+            setLoadError("");
+            setLoadAttempt((attempt) => attempt + 1);
+          }}
+          className="mt-6 bg-[#b11226] px-5 py-3 font-black uppercase text-white"
+        >
+          Try again
+        </button>
       </div>
     );
   }

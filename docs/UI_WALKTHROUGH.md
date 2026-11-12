@@ -59,7 +59,7 @@ The Hub layout's shared bootstrap and `HubAccessGate` create three relevant user
 2. Logged in but no loadable ECL profile → “Complete your Hub profile” with a settings CTA that retains the intended destination.
 3. Logged in with a profile → requested Hub content.
 
-Account Settings is the exception: it allows the authenticated no-profile state so the user can create/complete the profile. The server-rendered shell initially shows “Checking Hub access...” while the client resolves the shared session/minimal-profile bootstrap. Route-specific full profile data still loads inside Profile, Settings, and other pages that need it.
+Account Settings is the exception: it allows the authenticated no-profile state so the user can create/complete the profile. The server-rendered shell initially shows “Checking Hub access...” while the client resolves the shared session/minimal-profile bootstrap. Route-specific narrow profile projections still load inside Profile, Settings, and other pages that need them.
 
 ## Authenticated Hub shell
 
@@ -106,6 +106,8 @@ The route-specific profile request renders the last coherent stored snapshot bef
 
 Historical walkthrough evidence from 2026-11-07 captured “Loading profile...” at 2.5 seconds because the provider refresh blocked the stored snapshot. The current flow still waits for the route-specific account profile request, but no longer waits for the browser-based Lzyumi refresh before rendering a valid saved snapshot.
 
+The route-specific request has a bounded skeleton and distinguishes a missing profile from a timeout/API failure. Failures offer an explicit retry; background refresh separately reports refreshing, success, and failure while preserving the last coherent snapshot. The performance radar starts with valid positive dimensions before its responsive measurement, avoiding the earlier Recharts `width(-1)` / `height(-1)` mount.
+
 ### Ranked Ladder
 
 `/hub/leaderboard` shows the active ranked-season description and rows derived from reported ranked inhouses. The empty state explains that the ladder populates after reports. Player names link to public Hub player profiles.
@@ -148,6 +150,8 @@ The authenticated pass did receive current live matches, so the mock fallback wa
 - Save/Create Profile action.
 
 Real account values, KOOK IDs, verification codes, contact details, and uploaded media must never be copied into repository documentation or fixtures.
+
+Settings loads an editable settings projection rather than the full account row. Its initial request uses the same bounded timeout/error/retry contract as Profile, while an authenticated account with no profile still reaches the creation form instead of being treated as an API failure.
 
 ## Event-specific Hub routes
 
@@ -193,7 +197,7 @@ This is a navigation inventory, not a security endorsement. Admin authentication
 - The dashboard is hard-wired to the current event, while older event route families remain in the app. A future neutral dashboard/event switcher needs an explicit product decision rather than another one-off replacement.
 - Inhouse mock fallback must be replaced by a clearly labelled development fixture or a production empty/error state.
 - Every audited authenticated Hub route emitted React production hydration error `#418` (server/client text or HTML mismatch). Investigate the shared shell and time/client-dependent rendering before treating it as page-local noise.
-- The profile surface emitted a Recharts warning with width and height `-1`, indicating that a chart mounts before its container has usable dimensions.
+- Historical evidence from 2026-11-07 captured a Recharts width/height `-1` warning. The current chart supplies positive initial/minimum dimensions; retain a browser-console assertion in preview checks so a responsive-layout regression is not hidden.
 - At a 390-pixel viewport, the fixed Hub shell keeps the full icon sidebar and its inner scroll container becomes wider than the visible content area. The right-side “HUB” badge was measured beyond the container edge on Settings, and visible horizontal scrollbars appeared on the mobile captures.
-- Cold My Profile and Account Settings navigation can remain in “Loading/Checking” for several seconds before the same authenticated data renders. Loading feedback exists, but the delay and hydration errors make the transition look stuck.
+- Historical cold Profile and Settings navigation could look stuck in generic loading text. The current route requests use bounded skeleton, error, and retry states; authenticated preview verification should cover both cold refresh and client navigation.
 - The authenticated pass verified read-only loaded states only. Save/upload/verification-code/provider-refresh/report/tournament-application actions still require focused tests and explicit approval before any live exercise.

@@ -31,28 +31,14 @@ import {
 } from "@/lib/lzyumi-browser-contract";
 import { getChinaServerDisplayName, getCountryOption } from "./account-options";
 import {
-  loadProfile,
+  loadPlayerProfile,
   requestKookVerificationCode,
-  type SignupProfilePayload,
 } from "./client-account";
 import { runStoredProfileRefreshFlow } from "./player-profile-refresh";
+import { profileLoadErrorMessage } from "./profile-request";
+import type { PlayerProfileDto } from "@/lib/account-profile-dto";
 
-export type AccountProfile = SignupProfilePayload & {
-  id: string;
-  email: string;
-  verificationStatus: string;
-  accountStatus: string;
-  lzyumiLastLookupAt?: string | null;
-  lzyumiRawProfile?: unknown;
-  lzyumiRecentStat?: unknown;
-  lzyumiRankedGames?: unknown;
-  bannerUrl?: string | null;
-  kookVerifications?: Array<{
-    code: string;
-    status: string;
-    expiresAt: string;
-  }>;
-};
+export type AccountProfile = PlayerProfileDto;
 
 type InhouseHistoryGame = {
   id: string;
@@ -454,7 +440,7 @@ async function performLzyumiProfileRefresh(
     throw new Error(saveResult.message ?? `Save failed (${saveResponse.status})`);
   }
 
-  if (options.reloadAccountProfile) return loadProfile(token);
+  if (options.reloadAccountProfile) return loadPlayerProfile(token);
 
   const fetchedAt = typeof saveResult.fetchedAt === "string"
     ? saveResult.fetchedAt
@@ -464,7 +450,7 @@ async function performLzyumiProfileRefresh(
   }
 
   if (saveResult.skipped) {
-    return options.reloadAccountProfile ? loadProfile(token) : profile;
+    return options.reloadAccountProfile ? loadPlayerProfile(token) : profile;
   }
 
   const freshRanks = getSharedLzyumiRankRows(rawProfile, null);
@@ -506,8 +492,11 @@ export default function PlayerProfileView({
   const [loadedProfile, setLoadedProfile] = useState<AccountProfile | null>(initialProfile ?? null);
   const [hasSession, setHasSession] = useState(Boolean(initialProfile));
   const [loading, setLoading] = useState(!initialProfile);
+  const [profileLoadError, setProfileLoadError] = useState("");
+  const [profileLoadAttempt, setProfileLoadAttempt] = useState(0);
   const [refreshingStats, setRefreshingStats] = useState(false);
   const [statRefreshError, setStatRefreshError] = useState("");
+  const [statRefreshSucceeded, setStatRefreshSucceeded] = useState(false);
   const [inhouseData, setInhouseData] = useState<InhouseProfileData | null>(null);
   const [inhouseLoading, setInhouseLoading] = useState(true);
   const [codeRequesting, setCodeRequesting] = useState(false);
@@ -524,6 +513,7 @@ export default function PlayerProfileView({
   useEffect(() => {
     const revision = ++profileRequestRevision.current;
     let cancelled = false;
+    const controller = new AbortController();
     const isCurrent = () =>
       !cancelled && profileRequestRevision.current === revision;
     const hubUserId = hubSession?.user.id ?? null;
@@ -535,27 +525,31 @@ export default function PlayerProfileView({
       setLoadedProfile(null);
       setRefreshingStats(false);
       setStatRefreshError("");
+      setStatRefreshSucceeded(false);
     }
 
     if (hubStatus === "loading") {
       return () => {
         cancelled = true;
+        controller.abort();
       };
     }
 
     if (!initialProfile) setHasSession(Boolean(accessToken));
+    if (!initialProfile) setProfileLoadError("");
 
+    const fallbackProfile = initialProfile ?? null;
     let reloadAccountProfileAfterRefresh = !initialProfile;
-    void runStoredProfileRefreshFlow({
+    void runStoredProfileRefreshFlow<AccountProfile>({
       async loadStoredProfile() {
         if (!accessToken) {
           return {
-            visibleProfile: initialProfile ?? null,
+            visibleProfile: fallbackProfile,
             refreshCandidate: null,
           };
         }
 
-        const loaded = await loadProfile(accessToken);
+        const loaded = await loadPlayerProfile(accessToken, { signal: controller.signal });
         const isOwnProfilePage = !initialProfile;
         const isPublicOwner = Boolean(initialProfile && loaded?.id === initialProfile.id);
         reloadAccountProfileAfterRefresh = isOwnProfilePage || isPublicOwner;
@@ -563,10 +557,10 @@ export default function PlayerProfileView({
         return {
           visibleProfile: reloadAccountProfileAfterRefresh
             ? loaded
-            : initialProfile,
+            : fallbackProfile,
           refreshCandidate: reloadAccountProfileAfterRefresh
             ? loaded
-            : initialProfile,
+            : fallbackProfile,
         };
       },
       shouldRefresh(profile) {
@@ -592,18 +586,27 @@ export default function PlayerProfileView({
       onReady() {
         setLoading(false);
       },
+      onLoadError(error) {
+        if (!initialProfile) {
+          setProfileLoadError(profileLoadErrorMessage(error));
+          setLoading(false);
+        }
+      },
       onRefreshStart() {
         setRefreshingStats(true);
         setStatRefreshError("");
+        setStatRefreshSucceeded(false);
       },
       onRefreshSkipped() {
         setRefreshingStats(false);
       },
       onRefreshSuccess(profile) {
         setLoadedProfile(profile);
+        setStatRefreshSucceeded(true);
       },
       onRefreshError(error) {
         setStatRefreshError(error instanceof Error ? error.message : "Stats refresh failed");
+        setStatRefreshSucceeded(false);
       },
       onRefreshEnd() {
         setRefreshingStats(false);
@@ -612,8 +615,9 @@ export default function PlayerProfileView({
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
-  }, [accessToken, hubSession?.user.id, hubStatus, initialProfile]);
+  }, [accessToken, hubSession?.user.id, hubStatus, initialProfile, profileLoadAttempt]);
 
   useEffect(() => {
     const statsProfile = initialProfile ?? loadedProfile;
@@ -662,8 +666,14 @@ export default function PlayerProfileView({
 
   if (loading) {
     return (
-      <section className="rounded-[1.7rem] border border-white/[0.08] bg-[#191a1f] p-8 text-[#c6ccd8] shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
-        Loading profile...
+      <section
+        aria-busy="true"
+        aria-label="Loading profile"
+        className="grid gap-4 rounded-[1.7rem] border border-white/[0.08] bg-[#191a1f] p-8 shadow-[0_18px_54px_rgba(0,0,0,0.34)]"
+      >
+        <div className="h-7 w-48 animate-pulse rounded bg-white/[0.08]" />
+        <div className="h-24 animate-pulse rounded-2xl bg-white/[0.05]" />
+        <p className="text-sm font-semibold text-[#aeb5da]">Loading your saved profile…</p>
       </section>
     );
   }
@@ -675,6 +685,21 @@ export default function PlayerProfileView({
         description="Your player profile appears here after you sign in with your ECL account."
         actionHref="/login"
         actionLabel="Log in"
+      />
+    );
+  }
+
+  if (profileLoadError) {
+    return (
+      <EmptyProfile
+        title="Your profile could not be loaded"
+        description={profileLoadError}
+        actionLabel="Try again"
+        onAction={() => {
+          setLoading(true);
+          setProfileLoadError("");
+          setProfileLoadAttempt((attempt) => attempt + 1);
+        }}
       />
     );
   }
@@ -881,6 +906,8 @@ export default function PlayerProfileView({
               <p className="mt-1 text-sm font-black text-[#ffd84d] animate-pulse">Fetching stats…</p>
             ) : statRefreshError ? (
               <p className="mt-1 text-sm font-black text-[#ff6b6b]" title={statRefreshError}>Update failed</p>
+            ) : statRefreshSucceeded ? (
+              <p className="mt-1 text-sm font-black text-[#48f0df]">Stats updated</p>
             ) : (
               <p className="mt-1 text-lg font-black text-[#48f0df]">{lastUpdatedLabel}</p>
             )}
@@ -891,6 +918,18 @@ export default function PlayerProfileView({
                   ? `Identity-checked snapshot fetched ${lastUpdatedLabel}.`
                   : "Waiting for a fresh identity-checked ECL.GG snapshot."}
             </p>
+            {statRefreshError && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStatRefreshError("");
+                  setProfileLoadAttempt((attempt) => attempt + 1);
+                }}
+                className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-[#ffd84d] hover:text-white"
+              >
+                Retry update
+              </button>
+            )}
           </div>
 
         </aside>
@@ -1264,11 +1303,13 @@ function EmptyProfile({
   description,
   actionHref,
   actionLabel,
+  onAction,
 }: {
   title: string;
   description: string;
-  actionHref: string;
+  actionHref?: string;
   actionLabel: string;
+  onAction?: () => void;
 }) {
   return (
     <section className="rounded-[1.7rem] border border-dashed border-white/[0.14] bg-[#191a1f] p-10 text-center shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
@@ -1277,12 +1318,22 @@ function EmptyProfile({
       <p className="mx-auto mt-3 max-w-2xl text-sm font-semibold leading-6 text-[#aeb5da]">
         {description}
       </p>
-      <Link
-        href={actionHref}
-        className="mt-7 inline-flex rounded-2xl bg-[#ff1728] px-5 py-3 text-sm font-black text-white transition hover:bg-[#d91524]"
-      >
-        {actionLabel}
-      </Link>
+      {actionHref ? (
+        <Link
+          href={actionHref}
+          className="mt-7 inline-flex rounded-2xl bg-[#ff1728] px-5 py-3 text-sm font-black text-white transition hover:bg-[#d91524]"
+        >
+          {actionLabel}
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-7 inline-flex rounded-2xl bg-[#ff1728] px-5 py-3 text-sm font-black text-white transition hover:bg-[#d91524]"
+        >
+          {actionLabel}
+        </button>
+      )}
     </section>
   );
 }
@@ -1393,7 +1444,13 @@ function PerformanceRadar({
         </div>
       </div>
       <div className="mt-3 h-56 w-full" aria-label="Inhouse performance ratings">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer
+          width="100%"
+          height="100%"
+          minWidth={1}
+          minHeight={224}
+          initialDimension={{ width: 320, height: 224 }}
+        >
           <RadarChart data={chartData} outerRadius="62%">
             <PolarGrid stroke="rgba(174,181,218,0.18)" />
             <PolarAngleAxis

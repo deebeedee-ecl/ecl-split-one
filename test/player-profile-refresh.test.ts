@@ -39,6 +39,9 @@ function callbacks(state: ReturnType<typeof createFlowState>) {
     onReady() {
       state.ready = true;
     },
+    onLoadError(error: unknown) {
+      state.error = error instanceof Error ? error.message : "load failed";
+    },
     onRefreshStart() {
       state.refreshing = true;
       state.error = "";
@@ -105,6 +108,26 @@ test("publishes the stored snapshot while browser refresh is still pending, then
   assert.equal(state.profile.recent, null);
   assert.equal(state.refreshing, false);
   assert.equal(state.successCount, 1);
+});
+
+test("a stored-profile load failure exits loading through an actionable error callback", async () => {
+  const state = createFlowState();
+
+  await runStoredProfileRefreshFlow({
+    async loadStoredProfile() {
+      throw new Error("profile request timed out");
+    },
+    shouldRefresh: () => false,
+    async refreshProfile() {
+      return null;
+    },
+    isCurrent: () => true,
+    ...callbacks(state),
+  });
+
+  assert.equal(state.ready, false);
+  assert.equal(state.refreshing, false);
+  assert.equal(state.error, "profile request timed out");
 });
 
 test("a required refresh failure keeps the previous snapshot and successful timestamp", async () => {

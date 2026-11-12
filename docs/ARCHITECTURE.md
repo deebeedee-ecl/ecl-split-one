@@ -44,7 +44,9 @@ release inputs rather than source-controlled architecture; see `RUNBOOK.md`.
 
 The App Router root layout owns only the global document, metadata, fonts, and body styling. The `(public)` route group owns the public header, mobile navigation, and footer, including the public `/hub` introduction. Hub application routes under `/hub/*` use the separate `(hub)` route-group layout, so the public chrome is absent from their rendered tree instead of being covered by the fixed Hub surface.
 
-The Hub route-group layout owns one client `HubBootstrapProvider`. It registers one Supabase auth subscription for the mounted Hub tree, resolves the initial session once, and loads only the profile fields needed to distinguish a missing profile from an available profile. `HubAccessGate` and route clients consume that shared state; route-specific full profile, tournament, reporting, and other domain reads remain separate.
+The Hub route-group layout owns one client `HubBootstrapProvider`. It registers one Supabase auth subscription for the mounted Hub tree, resolves the initial session once, and loads only the profile fields needed to distinguish a missing profile from an available profile. `HubAccessGate` and route clients consume that shared state; route-specific profile, tournament, reporting, and other domain reads remain separate.
+
+The authenticated account-profile API uses explicit screen projections. Profile receives identity, presentation fields, and only the snapshot fragments that its UI renders; Settings receives editable account fields and the latest KOOK verification state without `openId` or raw Lzyumi snapshots. Tournament application and inhouse reporting use smaller purpose-specific projections. A missing profile remains distinct from a timed-out or failed request so Profile and Settings can leave their bounded skeleton state and offer a retry.
 
 This client bootstrap controls presentation only. It is not an authorization boundary: every private API/server data boundary continues to validate the bearer session and its resource-specific permissions independently. Public routes are outside the Hub provider.
 

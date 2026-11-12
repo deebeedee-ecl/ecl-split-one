@@ -10,6 +10,7 @@ type StoredProfileRefreshFlow<TProfile> = {
   isCurrent: () => boolean;
   onStoredProfile: (profile: TProfile | null) => void;
   onReady: () => void;
+  onLoadError: (error: unknown) => void;
   onRefreshStart: () => void;
   onRefreshSkipped: () => void;
   onRefreshSuccess: (profile: TProfile) => void;
@@ -29,13 +30,20 @@ export async function runStoredProfileRefreshFlow<TProfile>({
   isCurrent,
   onStoredProfile,
   onReady,
+  onLoadError,
   onRefreshStart,
   onRefreshSkipped,
   onRefreshSuccess,
   onRefreshError,
   onRefreshEnd,
 }: StoredProfileRefreshFlow<TProfile>) {
-  const loaded = await loadStoredProfile();
+  let loaded: StoredProfileRefreshLoad<TProfile>;
+  try {
+    loaded = await loadStoredProfile();
+  } catch (error) {
+    if (isCurrent()) onLoadError(error);
+    return;
+  }
   if (!isCurrent()) return;
 
   onStoredProfile(loaded.visibleProfile);
