@@ -8,8 +8,11 @@ const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_SETTLE_MS = 2_500;
 
 export const VIEWPORTS = {
+  mobile320: { width: 320, height: 844 },
+  mobile360: { width: 360, height: 844 },
+  mobile390: { width: 390, height: 844 },
+  tablet: { width: 768, height: 900 },
   desktop: { width: 1440, height: 900 },
-  mobile: { width: 390, height: 844 },
 };
 
 export const ROUTE_CASES = [
@@ -33,6 +36,34 @@ export const ROUTE_CASES = [
       publicLoginLinks: 0,
       publicContactLinks: 0,
       minimumHubSidebarLinks: 1,
+      minimumHubNavigationControls: 9,
+      hubNavigationKeyboardUsable: true,
+    },
+  },
+  {
+    id: "hub-profile",
+    route: "/hub/me",
+    expected: {
+      bodyHeaderCount: 0,
+      bodyFooterCount: 0,
+      publicLoginLinks: 0,
+      publicContactLinks: 0,
+      minimumHubSidebarLinks: 1,
+      minimumHubNavigationControls: 9,
+      hubNavigationKeyboardUsable: true,
+    },
+  },
+  {
+    id: "hub-settings",
+    route: "/hub/settings",
+    expected: {
+      bodyHeaderCount: 0,
+      bodyFooterCount: 0,
+      publicLoginLinks: 0,
+      publicContactLinks: 0,
+      minimumHubSidebarLinks: 1,
+      minimumHubNavigationControls: 9,
+      hubNavigationKeyboardUsable: true,
     },
   },
 ];
@@ -169,7 +200,16 @@ export function evaluateObservation(routeCase, observation) {
     && observation.hubSidebarLinks < expected.minimumHubSidebarLinks) {
     failures.push(`hubSidebarLinks expected at least ${expected.minimumHubSidebarLinks}, received ${observation.hubSidebarLinks}`);
   }
+  if ("minimumHubNavigationControls" in expected
+    && observation.hubNavigationControls < expected.minimumHubNavigationControls) {
+    failures.push(`hubNavigationControls expected at least ${expected.minimumHubNavigationControls}, received ${observation.hubNavigationControls}`);
+  }
+  if ("hubNavigationKeyboardUsable" in expected
+    && observation.hubNavigationKeyboardUsable !== expected.hubNavigationKeyboardUsable) {
+    failures.push(`hubNavigationKeyboardUsable expected ${expected.hubNavigationKeyboardUsable}, received ${observation.hubNavigationKeyboardUsable}`);
+  }
   if (observation.horizontalOverflow) failures.push("document has horizontal overflow");
+  if (observation.hubShellHorizontalOverflow) failures.push("Hub shell has horizontal overflow");
   return { pass: failures.length === 0, failures };
 }
 
@@ -182,16 +222,45 @@ async function loadPlaywright() {
 }
 
 async function inspectPage(page, status) {
-  return page.evaluate((responseStatus) => ({
-    status: responseStatus,
-    pathname: window.location.pathname,
-    bodyHeaderCount: document.querySelectorAll("body > header").length,
-    bodyFooterCount: document.querySelectorAll("body > footer").length,
-    publicLoginLinks: document.querySelectorAll('header a[href="/login"]').length,
-    publicContactLinks: document.querySelectorAll('footer a[href="/contact"]').length,
-    hubSidebarLinks: document.querySelectorAll('aside a[href="/hub/dashboard"]').length,
-    horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-  }), status);
+  return page.evaluate(async (responseStatus) => {
+    const hubShell = document.querySelector("main.fixed");
+    const hubNavigation = document.querySelector('nav[aria-label="Hub navigation"]');
+    const navigationControls = hubNavigation
+      ? [...hubNavigation.querySelectorAll("a[href], button:not([disabled])")]
+      : [];
+    let hubNavigationKeyboardUsable = true;
+
+    for (const control of navigationControls) {
+      control.focus();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const controlRect = control.getBoundingClientRect();
+      const navigationRect = hubNavigation.getBoundingClientRect();
+      if (document.activeElement !== control
+        || controlRect.right <= navigationRect.left
+        || controlRect.left >= navigationRect.right
+        || controlRect.bottom <= navigationRect.top
+        || controlRect.top >= navigationRect.bottom) {
+        hubNavigationKeyboardUsable = false;
+        break;
+      }
+    }
+
+    return {
+      status: responseStatus,
+      pathname: window.location.pathname,
+      bodyHeaderCount: document.querySelectorAll("body > header").length,
+      bodyFooterCount: document.querySelectorAll("body > footer").length,
+      publicLoginLinks: document.querySelectorAll('header a[href="/login"]').length,
+      publicContactLinks: document.querySelectorAll('footer a[href="/contact"]').length,
+      hubSidebarLinks: document.querySelectorAll('aside a[href="/hub/dashboard"]').length,
+      hubNavigationControls: navigationControls.length,
+      hubNavigationKeyboardUsable,
+      horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      hubShellHorizontalOverflow: Boolean(
+        hubShell && hubShell.scrollWidth > hubShell.clientWidth,
+      ),
+    };
+  }, status);
 }
 
 export async function runSmoke(options) {

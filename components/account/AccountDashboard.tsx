@@ -327,8 +327,8 @@ export default function AccountDashboard() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-      <aside className="border border-[#1f1f1f] bg-[#0d0d0d] p-6">
-        <div className="flex items-center gap-4">
+      <aside className="min-w-0 border border-[#1f1f1f] bg-[#0d0d0d] p-4 sm:p-6">
+        <div className="flex min-w-0 flex-col items-start gap-4 sm:flex-row sm:items-center">
           <div className="flex h-24 w-24 items-center justify-center border border-[#b11226]/50 bg-[#b11226]/15 text-5xl font-black">
             {form.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -337,11 +337,11 @@ export default function AccountDashboard() {
               avatarLetter
             )}
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#b11226]">
               {profile ? `${profile.accountStatus} / ${profile.verificationStatus}` : "PROFILE SETUP"}
             </p>
-            <h2 className="mt-1 text-3xl font-black text-white">
+            <h2 className="mt-1 break-words text-3xl font-black text-white">
               {form.displayName || "Complete your profile"}
             </h2>
             <p className="mt-1 text-sm text-[#9ca3af]">
@@ -398,8 +398,8 @@ export default function AccountDashboard() {
         </button>
       </aside>
 
-      <section className="border border-[#1f1f1f] bg-[#0d0d0d] p-5 sm:p-6">
-        <div className="grid gap-5">
+      <section className="min-w-0 border border-[#1f1f1f] bg-[#0d0d0d] p-4 sm:p-6">
+        <div className="grid min-w-0 gap-5">
           <Panel title="Identity">
             <Field label="Display name" value={form.displayName} onChange={(value) => update("displayName", value)} />
             <Field label="Riot name" value={form.riotName} onChange={(value) => update("riotName", value)} />
@@ -477,9 +477,9 @@ function AvatarUpload({
   onChange: (file: File | null) => void;
 }) {
   return (
-    <label className="block text-sm">
+    <label className="block min-w-0 text-sm">
       <span className="mb-2 block font-bold text-[#d1d5db]">Upload avatar</span>
-      <div className="flex items-center gap-3 border border-[#1f1f1f] bg-[#050505] p-3">
+      <div className="flex min-w-0 items-center gap-3 border border-[#1f1f1f] bg-[#050505] p-3">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden border border-[#1f1f1f] bg-black text-xs font-black uppercase text-[#9ca3af]">
           {preview ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -493,7 +493,7 @@ function AvatarUpload({
           accept="image/png,image/jpeg,image/webp"
           disabled={uploading}
           onChange={(event) => onChange(event.target.files?.[0] ?? null)}
-          className="w-full text-xs font-bold text-[#9ca3af] file:mr-3 file:border-0 file:bg-[#1f1f1f] file:px-3 file:py-2 file:text-xs file:font-black file:uppercase file:text-white disabled:opacity-50"
+          className="min-w-0 w-full max-w-full text-xs font-bold text-[#9ca3af] file:mr-3 file:border-0 file:bg-[#1f1f1f] file:px-3 file:py-2 file:text-xs file:font-black file:uppercase file:text-white disabled:opacity-50"
         />
       </div>
       <span className="mt-2 block text-xs text-[#6b7280]">
@@ -513,7 +513,7 @@ function BannerUpload({
   onChange: (file: File | null) => void;
 }) {
   return (
-    <label className="block text-sm md:col-span-2">
+    <label className="block min-w-0 text-sm md:col-span-2">
       <span className="mb-2 block font-bold text-[#d1d5db]">Profile banner</span>
       <div className="border border-[#1f1f1f] bg-[#050505] p-3">
         {preview && (
@@ -525,7 +525,7 @@ function BannerUpload({
           accept="image/png,image/jpeg,image/webp"
           disabled={uploading}
           onChange={(event) => onChange(event.target.files?.[0] ?? null)}
-          className="w-full text-xs font-bold text-[#9ca3af] file:mr-3 file:border-0 file:bg-[#1f1f1f] file:px-3 file:py-2 file:text-xs file:font-black file:uppercase file:text-white disabled:opacity-50"
+          className="min-w-0 w-full max-w-full text-xs font-bold text-[#9ca3af] file:mr-3 file:border-0 file:bg-[#1f1f1f] file:px-3 file:py-2 file:text-xs file:font-black file:uppercase file:text-white disabled:opacity-50"
         />
       </div>
       <span className="mt-2 block text-xs text-[#6b7280]">
@@ -551,7 +551,7 @@ function BannerControls({
   onPositionChange: (positionY: number) => void;
 }) {
   return (
-    <div className="block text-sm md:col-span-2">
+    <div className="block min-w-0 text-sm md:col-span-2">
       <div className="mb-2 flex items-center justify-between gap-3">
         <span className="block font-bold text-[#d1d5db]">Profile banner</span>
         {preview && (
@@ -580,7 +580,7 @@ function BannerControls({
           accept="image/png,image/jpeg,image/webp"
           disabled={uploading}
           onChange={(event) => onChange(event.target.files?.[0] ?? null)}
-          className="w-full text-xs font-bold text-[#9ca3af] file:mr-3 file:border-0 file:bg-[#1f1f1f] file:px-3 file:py-2 file:text-xs file:font-black file:uppercase file:text-white disabled:opacity-50"
+          className="min-w-0 w-full max-w-full text-xs font-bold text-[#9ca3af] file:mr-3 file:border-0 file:bg-[#1f1f1f] file:px-3 file:py-2 file:text-xs file:font-black file:uppercase file:text-white disabled:opacity-50"
         />
         {preview && (
           <label className="mt-4 block">
@@ -660,25 +660,25 @@ function CountryField({
 
 function Status({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-[#1f1f1f] bg-black/25 p-3">
+    <div className="min-w-0 border border-[#1f1f1f] bg-black/25 p-3">
       <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#9ca3af]">{label}</p>
-      <p className="mt-1 font-black text-white">{value || "-"}</p>
+      <p className="mt-1 break-words font-black text-white">{value || "-"}</p>
     </div>
   );
 }
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="border border-[#1f1f1f] bg-black/25 p-4">
+    <section className="min-w-0 border border-[#1f1f1f] bg-black/25 p-4">
       <h3 className="mb-4 text-sm font-black uppercase tracking-[0.18em] text-white">{title}</h3>
-      <div className="grid gap-4 md:grid-cols-2">{children}</div>
+      <div className="grid min-w-0 gap-4 md:grid-cols-2">{children}</div>
     </section>
   );
 }
 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <label className="block text-sm">
+    <label className="block min-w-0 text-sm">
       <span className="mb-2 block font-bold text-[#d1d5db]">{label}</span>
       <input value={value ?? ""} onChange={(event) => onChange(event.target.value)} className="w-full border border-[#1f1f1f] bg-[#050505] px-3 py-3 text-white outline-none transition focus:border-[#b11226]" />
     </label>
@@ -687,16 +687,16 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
 
 function ReadOnlyField({ label, value }: { label: string; value: string }) {
   return (
-    <label className="block text-sm">
+    <label className="block min-w-0 text-sm">
       <span className="mb-2 block font-bold text-[#d1d5db]">{label}</span>
-      <div className="w-full border border-[#1f1f1f] bg-[#050505] px-3 py-3 text-[#9ca3af]">{value}</div>
+      <div className="w-full break-words border border-[#1f1f1f] bg-[#050505] px-3 py-3 text-[#9ca3af]">{value}</div>
     </label>
   );
 }
 
 function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
   return (
-    <label className="block text-sm">
+    <label className="block min-w-0 text-sm">
       <span className="mb-2 block font-bold text-[#d1d5db]">{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full border border-[#1f1f1f] bg-[#050505] px-3 py-3 text-white outline-none transition focus:border-[#b11226]">
         {options.map((option) => <option key={option} value={option}>{option}</option>)}

@@ -30,7 +30,10 @@ test("public Hub and application Hub shell expectations are distinct", () => {
     publicLoginLinks: 1,
     publicContactLinks: 1,
     hubSidebarLinks: 0,
+    hubNavigationControls: 0,
+    hubNavigationKeyboardUsable: true,
     horizontalOverflow: false,
+    hubShellHorizontalOverflow: false,
   });
   const hubResult = evaluateObservation(ROUTE_CASES[1], {
     status: 200,
@@ -40,7 +43,10 @@ test("public Hub and application Hub shell expectations are distinct", () => {
     publicLoginLinks: 0,
     publicContactLinks: 0,
     hubSidebarLinks: 2,
+    hubNavigationControls: 9,
+    hubNavigationKeyboardUsable: true,
     horizontalOverflow: false,
+    hubShellHorizontalOverflow: false,
   });
   assert.equal(publicResult.pass, true);
   assert.equal(hubResult.pass, true);
@@ -55,7 +61,10 @@ test("hidden public shell behind Hub fails the smoke", () => {
     publicLoginLinks: 1,
     publicContactLinks: 1,
     hubSidebarLinks: 2,
+    hubNavigationControls: 9,
+    hubNavigationKeyboardUsable: true,
     horizontalOverflow: false,
+    hubShellHorizontalOverflow: false,
   });
   assert.equal(result.pass, false);
   assert.deepEqual(result.failures, [
@@ -63,5 +72,26 @@ test("hidden public shell behind Hub fails the smoke", () => {
     "bodyFooterCount expected 0, received 1",
     "publicLoginLinks expected 0, received 1",
     "publicContactLinks expected 0, received 1",
+  ]);
+});
+
+test("Hub shell overflow and inaccessible responsive navigation fail the smoke", () => {
+  const result = evaluateObservation(ROUTE_CASES[1], {
+    status: 200,
+    pathname: "/hub/dashboard",
+    bodyHeaderCount: 0,
+    bodyFooterCount: 0,
+    publicLoginLinks: 0,
+    publicContactLinks: 0,
+    hubSidebarLinks: 1,
+    hubNavigationControls: 9,
+    hubNavigationKeyboardUsable: false,
+    horizontalOverflow: false,
+    hubShellHorizontalOverflow: true,
+  });
+  assert.equal(result.pass, false);
+  assert.deepEqual(result.failures, [
+    "hubNavigationKeyboardUsable expected true, received false",
+    "Hub shell has horizontal overflow",
   ]);
 });
