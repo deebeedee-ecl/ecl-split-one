@@ -15,6 +15,8 @@ The repository-pinned Supabase CLI owns the local Auth/service stack only. Prism
 
 The root `README.md` has the fuller setup and environment-variable matrix. If its commands disagree with `package.json`, the current package scripts win and the README should be corrected.
 
+For the existing-production Prisma migration baseline, follow [`database/PRISMA_MIGRATION_BASELINE.md`](database/PRISMA_MIGRATION_BASELINE.md). Its inspection command is read-only and plan-only by default. Backup creation, a live-schema read, baseline metadata writes, migration deployment, and restore are separate authorization boundaries; do not collapse them into one operation.
+
 ## Choose checks by changed runtime
 
 | Change area | Minimum focused check | Broader check before handoff when practical |

@@ -13,6 +13,7 @@
     "perf:hub": "node scripts/performance/hub-route-baseline.mjs",
     "release:status": "node scripts/release-status.mjs",
     "smoke:layouts": "node scripts/smoke-layout-boundaries.mjs",
+    "db:baseline:inspect": "node scripts/prisma-baseline-inspect.mjs",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",
