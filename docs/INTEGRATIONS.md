@@ -1,6 +1,6 @@
 # ECL integration contracts
 
-Last reviewed: 2026-11-08
+Last reviewed: 2026-11-13
 
 This document records responsibilities and invariants, not credentials. Supported variable names live in `.env.example`; real values stay outside version control.
 
@@ -12,6 +12,7 @@ Lzyumi is ECL's primary external provider for China-server Riot identity, rank, 
 
 - The server signs a short-lived request through `/api/lzyumi-sign`.
 - The authenticated player's browser fetches that URL so a provider that blocks cloud IPs sees the residential connection.
+- Opening another player's public profile renders the last verified snapshot and timestamp without signing or sending Lzyumi requests from the viewer's browser. The current automatic browser refresh is limited to the authenticated user's own profile until the explicit manual-refresh contract and its server-side request budgets are available.
 - Filter `1`: resolved identity/profile/rank.
 - Filter `2`: Solo/Duo history.
 - Filter `3`: Flex history.
@@ -25,7 +26,7 @@ Acceptance requires matching the expected full Riot ID, China server, and `openI
 
 The report engine is an always-on service used after KOOK queues a report job. It loads the saved ten-player session roster, searches recent games, fetches details, checks time/roster coverage, and sends candidate evidence back to the website. The website owns result authority and the database commit.
 
-The optional bounded Lzyumi discovery mode fetches history filters incrementally with concurrency capped at two, deduplicates opaque provider game IDs, and applies the session window and already-reported checks before detail lookup. Observed `battleTypeInfo` values are only a history prefilter: acceptance still requires detail `gameType === CUSTOM_GAME`, verified Riot identity/server/`openId`, roster coverage, and the existing website-side duplicate validation. History and detail calls have separate hard request ceilings, details are fetched sequentially until one candidate passes, and provider codes `7`/`8` start a short in-process cooldown. The legacy strategy remains the reversible default until isolated preview verification is recorded.
+The optional bounded Lzyumi discovery mode fetches history filters incrementally with concurrency capped at two, deduplicates opaque provider game IDs, and applies the session window and already-reported checks before detail lookup. Observed `battleTypeInfo` values are only a history prefilter: acceptance still requires detail `gameType === CUSTOM_GAME`, verified Riot identity/server/`openId`, roster coverage, and the existing website-side duplicate validation. History and detail calls have separate hard request ceilings, details are fetched sequentially until one candidate passes, and provider codes `7`/`8` start a short in-process cooldown. Keep `legacy` as the immediate rollback setting until a controlled full KOOK golden-path canary records a correct preview, one confirmed 10/10 ingestion, and the next-session transition; activation or an isolated provider probe alone is not rollout verification.
 
 After the website presents a candidate, `!yes` acknowledges quickly and queues durable confirmation work instead of holding the KOOK request open for the complete ingestion. The report engine claims that confirmation job and submits the saved candidate to the website. The website revalidates the actor, session, roster, time window, provider game ID, and duplicate state before committing. Duplicate `!yes` commands must converge on the same job/result.
 

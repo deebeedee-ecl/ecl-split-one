@@ -34,7 +34,10 @@ import {
   loadPlayerProfile,
   requestKookVerificationCode,
 } from "./client-account";
-import { runStoredProfileRefreshFlow } from "./player-profile-refresh";
+import {
+  runStoredProfileRefreshFlow,
+  selectImplicitProfileRefreshCandidate,
+} from "./player-profile-refresh";
 import { profileLoadErrorMessage } from "./profile-request";
 import type { PlayerProfileDto } from "@/lib/account-profile-dto";
 
@@ -558,9 +561,10 @@ export default function PlayerProfileView({
           visibleProfile: reloadAccountProfileAfterRefresh
             ? loaded
             : fallbackProfile,
-          refreshCandidate: reloadAccountProfileAfterRefresh
-            ? loaded
-            : fallbackProfile,
+          refreshCandidate: selectImplicitProfileRefreshCandidate({
+            publicProfile: fallbackProfile,
+            authenticatedProfile: loaded,
+          }),
         };
       },
       shouldRefresh(profile) {

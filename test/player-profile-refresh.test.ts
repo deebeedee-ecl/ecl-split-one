@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { runStoredProfileRefreshFlow } from "../components/account/player-profile-refresh";
+import {
+  runStoredProfileRefreshFlow,
+  selectImplicitProfileRefreshCandidate,
+} from "../components/account/player-profile-refresh";
 
 type TestProfile = {
   id: string;
@@ -62,6 +65,63 @@ function callbacks(state: ReturnType<typeof createFlowState>) {
     },
   };
 }
+
+test("public profile navigation never runs an implicit refresh through another viewer", async () => {
+  const publicProfile = {
+    id: "synthetic-public-profile",
+    rank: "Gold I",
+    lzyumiLastLookupAt: "2026-11-10T00:00:00.000Z",
+    recent: null,
+  };
+  const authenticatedProfile = {
+    ...publicProfile,
+    id: "synthetic-viewer-profile",
+  };
+  const state = createFlowState();
+  let refreshCalls = 0;
+
+  await runStoredProfileRefreshFlow({
+    async loadStoredProfile() {
+      return {
+        visibleProfile: publicProfile,
+        refreshCandidate: selectImplicitProfileRefreshCandidate({
+          publicProfile,
+          authenticatedProfile,
+        }),
+      };
+    },
+    shouldRefresh: () => true,
+    async refreshProfile() {
+      refreshCalls += 1;
+      return publicProfile;
+    },
+    isCurrent: () => true,
+    ...callbacks(state),
+  });
+
+  assert.equal(state.profile, publicProfile);
+  assert.equal(state.ready, true);
+  assert.equal(state.refreshing, false);
+  assert.equal(refreshCalls, 0);
+});
+
+test("the authenticated user's own profile remains eligible for the existing implicit refresh", () => {
+  const authenticatedProfile = {
+    id: "synthetic-owner-profile",
+    rank: "Gold I",
+    lzyumiLastLookupAt: "2026-11-10T00:00:00.000Z",
+    recent: null,
+  };
+
+  assert.equal(selectImplicitProfileRefreshCandidate({
+    publicProfile: null,
+    authenticatedProfile,
+  }), authenticatedProfile);
+  assert.equal(selectImplicitProfileRefreshCandidate({
+    publicProfile: authenticatedProfile,
+    authenticatedProfile,
+  }), authenticatedProfile);
+});
 
 test("publishes the stored snapshot while browser refresh is still pending, then replaces it atomically", async () => {
   const stored: TestProfile = {
