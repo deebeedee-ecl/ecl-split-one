@@ -248,7 +248,7 @@ A network-switch result is diagnostic evidence, not a permanent architecture. Pr
 
 ### Dated ranked-inhouse backfill for 2026-11-12
 
-The endpoint `/api/admin/inhouse/backfill-2026-11-12` and `scripts/manual-inhouse-backfill-2026-11-12.ts` are intentionally limited to the five reviewed custom/classic games from this incident. The committed scope contains hashes of the exact provider-game set and the single authorized unlinked exclusion; it does not contain the provider IDs, player identities, or raw provider evidence. This path must not be generalized or reused for another date.
+The service-authenticated endpoint `/api/jobs/inhouse-backfill-2026-11-12` and `scripts/manual-inhouse-backfill-2026-11-12.ts` are intentionally limited to the five reviewed custom/classic games from this incident. The committed scope contains hashes of the exact provider-game set and the single authorized unlinked exclusion; it does not contain the provider IDs, player identities, or raw provider evidence. This path must not be generalized or reused for another date. Keep it outside `/api/admin/*`, whose cookie middleware intentionally rejects worker-secret requests before route authentication.
 
 1. Keep the reviewed discovery JSON and generated manifest in ignored `.tmp/` storage. Prepare the manifest from the original read-only discovery artifact; the script locates the authorized exclusion by hash and refuses a different five-game set.
 2. Deploy and verify the change in Preview first. Preview must not have production write credentials, and the endpoint rejects `apply` unless `VERCEL_ENV=production`.

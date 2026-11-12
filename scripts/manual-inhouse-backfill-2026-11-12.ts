@@ -87,7 +87,7 @@ async function requestImport() {
   const inputPath = path.resolve(requiredOption("--input"));
   const auditPath = path.resolve(requiredOption("--audit"));
   const endpoint = new URL(requiredOption("--endpoint"));
-  if (endpoint.href !== "https://eclchina.lol/api/admin/inhouse/backfill-2026-11-12") {
+  if (endpoint.href !== "https://eclchina.lol/api/jobs/inhouse-backfill-2026-11-12") {
     throw new Error("The import endpoint must be the exact authorized production URL.");
   }
   const manifest = parseManualInhouseImportManifest(JSON.parse(await readFile(inputPath, "utf8")));
