@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import test from "node:test";
 import {
   classifyExistingManualImport,
@@ -8,6 +9,11 @@ import {
   parseManualInhouseImportManifest,
   providerProfileIdentityIssues,
 } from "../lib/manual-inhouse-import";
+
+test("worker-secret route stays outside the admin cookie middleware", () => {
+  assert.equal(existsSync("app/api/jobs/inhouse-backfill-2026-11-12/route.ts"), true);
+  assert.equal(existsSync("app/api/admin/inhouse/backfill-2026-11-12/route.ts"), false);
+});
 
 function syntheticManifest() {
   const chinaHours = [20, 21, 21, 22, 23];

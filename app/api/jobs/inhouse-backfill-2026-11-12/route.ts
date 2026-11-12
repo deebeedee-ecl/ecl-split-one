@@ -22,7 +22,6 @@ function failure(error: unknown) {
   const conflict = /blocked|fingerprint|already exists|collision|partial|replay/i.test(message);
   return NextResponse.json({ ok: false, message }, { status: conflict ? 409 : 400 });
 }
-
 export async function POST(request: Request) {
   if (unauthorizedReportWorker(request)) {
     return NextResponse.json({ ok: false, message: "Unauthorized." }, { status: 401 });
