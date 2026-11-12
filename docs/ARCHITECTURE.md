@@ -1,6 +1,6 @@
 # ECL architecture
 
-Last reviewed: 2026-11-10
+Last reviewed: 2026-11-13
 
 ## System boundary
 
@@ -68,7 +68,7 @@ This client bootstrap controls presentation only. It is not an authorization bou
 ### Authenticated profile refresh
 
 1. The route-specific account profile request returns the last stored coherent snapshot, which renders before any stale-data refresh completes.
-2. When that snapshot is stale or missing, the authenticated browser asks `/api/lzyumi-sign` for short-lived signed provider URLs in the background.
+2. On the authenticated user's own profile path, a stale or missing snapshot causes the browser to ask `/api/lzyumi-sign` for short-lived signed provider URLs in the background. Opening another player's public profile never enters this implicit refresh flow; it renders only the last verified snapshot and timestamp.
 3. The browser calls Lzyumi from the player's residential IP.
 4. Filter `1` supplies identity/profile/rank; `2` Solo/Duo history; `3` Flex history.
 5. The application verifies full Riot ID, China server, and `openId` before accepting a snapshot.
