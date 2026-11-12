@@ -1,6 +1,8 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
+import type { SettingsProfileDto } from "@/lib/account-profile-dto";
+import { requestAccountProfile } from "./profile-request";
 
 export type SignupProfilePayload = {
   displayName: string;
@@ -141,24 +143,47 @@ export async function saveProfile(
     throw new Error(data.message ?? "Profile save failed.");
   }
 
-  return data.profile;
+  return data.profile as SettingsProfileDto;
 }
 
-export async function loadProfile(accessToken?: string | null) {
-  const token = accessToken ?? (await getAccessToken());
+function requiredProfileToken(accessToken?: string | null) {
+  return accessToken ? Promise.resolve(accessToken) : getAccessToken();
+}
 
+export async function loadPlayerProfile(
+  accessToken?: string | null,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+) {
+  const token = await requiredProfileToken(accessToken);
   if (!token) return null;
+  return requestAccountProfile("profile", token, options);
+}
 
-  const response = await fetch("/api/account/profile", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+export async function loadSettingsProfile(
+  accessToken?: string | null,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+) {
+  const token = await requiredProfileToken(accessToken);
+  if (!token) return null;
+  return requestAccountProfile("settings", token, options);
+}
 
-  if (!response.ok) return null;
+export async function loadApplicationProfile(
+  accessToken?: string | null,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+) {
+  const token = await requiredProfileToken(accessToken);
+  if (!token) return null;
+  return requestAccountProfile("application", token, options);
+}
 
-  const data = await response.json();
-  return data.profile ?? null;
+export async function loadReporterProfile(
+  accessToken?: string | null,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+) {
+  const token = accessToken ?? (await getAccessToken());
+  if (!token) return null;
+  return requestAccountProfile("reporter", token, options);
 }
 
 export async function loadHubBootstrapProfile(accessToken: string) {

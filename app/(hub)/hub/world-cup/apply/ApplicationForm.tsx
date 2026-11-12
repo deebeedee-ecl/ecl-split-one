@@ -6,6 +6,7 @@ import { ArrowLeft, MessageSquareText, Send, Sparkles } from "lucide-react";
 import { useHubBootstrap } from "../../_components/HubBootstrapProvider";
 import { countryByCode, worldCupCountries } from "@/lib/world-cup-countries";
 import { WorldCupFlag } from "../WorldCupFlag";
+import { loadApplicationProfile } from "@/components/account/client-account";
 
 type TeamOption = {
   id: string;
@@ -70,17 +71,7 @@ export function ApplicationForm({
           return;
         }
 
-        const response = await fetch("/api/account/profile", {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          cache: "no-store",
-        });
-        if (!response.ok) {
-          if (!cancelled) setProfileStatus("Log in and verify your Hub profile before applying.");
-          return;
-        }
-
-        const data = await response.json();
-        const profile = data?.profile;
+        const profile = await loadApplicationProfile(accessToken);
         if (!profile) {
           if (!cancelled) setProfileStatus("Create and verify your Hub profile before applying.");
           return;

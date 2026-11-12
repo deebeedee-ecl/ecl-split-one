@@ -17,6 +17,17 @@ import {
   PERFORMANCE_REQUEST_HEADER,
   withPerformanceTrace,
 } from "@/lib/performance-timing";
+import {
+  accountApplicationProfileSelect,
+  accountPlayerProfileSelect,
+  accountReporterProfileSelect,
+  accountSettingsProfileSelect,
+  toApplicationProfileDto,
+  toPlayerProfileDto,
+  toReporterProfileDto,
+  toSettingsProfileDto,
+  type AccountProfileView,
+} from "@/lib/account-profile-dto";
 
 export const preferredRegion = "icn1";
 
@@ -91,10 +102,6 @@ function getCurrentRankFromRawProfile(value: unknown) {
   const formatted = formatLzyumiRank(rank);
 
   return formatted.label === "Unranked" ? null : formatted.label;
-}
-
-function profileForClient<T>(profile: T): T {
-  return profile;
 }
 
 function needsInitialLzyumiRefresh(profile: {
@@ -239,24 +246,50 @@ export async function GET(request: Request) {
       );
     }
 
-    const profile = await trace.phase("database.profile", () =>
-      prisma.accountProfile.findUnique({
-        where: {
-          userId: account.id,
-        },
-        include: {
-          kookVerifications: {
-            orderBy: {
-              createdAt: "desc",
-            },
-            take: 1,
-          },
-        },
-      }),
-    );
+    const requestedView = new URL(request.url).searchParams.get("view") ?? "settings";
+    if (!["profile", "settings", "application", "reporter"].includes(requestedView)) {
+      return trace.phaseSync("api.serialization", () =>
+        NextResponse.json({ message: "Unknown profile view" }, { status: 400 }),
+      );
+    }
+
+    const view = requestedView as AccountProfileView;
+    const profile = await trace.phase("database.profile", async () => {
+      const where = { userId: account.id };
+
+      if (view === "profile") {
+        const result = await prisma.accountProfile.findUnique({
+          where,
+          select: accountPlayerProfileSelect,
+        });
+        return result ? toPlayerProfileDto(result) : null;
+      }
+
+      if (view === "application") {
+        const result = await prisma.accountProfile.findUnique({
+          where,
+          select: accountApplicationProfileSelect,
+        });
+        return result ? toApplicationProfileDto(result) : null;
+      }
+
+      if (view === "reporter") {
+        const result = await prisma.accountProfile.findUnique({
+          where,
+          select: accountReporterProfileSelect,
+        });
+        return result ? toReporterProfileDto(result) : null;
+      }
+
+      const result = await prisma.accountProfile.findUnique({
+        where,
+        select: accountSettingsProfileSelect,
+      });
+      return result ? toSettingsProfileDto(result) : null;
+    });
 
     return trace.phaseSync("api.serialization", () =>
-      NextResponse.json({ profile: profileForClient(profile) }),
+      NextResponse.json({ profile }),
     );
   });
 }
@@ -312,7 +345,7 @@ export async function POST(request: Request) {
 
   const expiresAt = getKookVerificationExpiresAt();
 
-  let profile = await prisma.$transaction(async (tx) => {
+  const profile = await prisma.$transaction(async (tx) => {
     const user = await tx.user.upsert({
       where: {
         id: account.id,
@@ -424,22 +457,18 @@ export async function POST(request: Request) {
 
   if (profile) {
     await runInitialLzyumiRefresh(profile);
-    profile = await prisma.accountProfile.findUnique({
-      where: {
-        id: profile.id,
-      },
-      include: {
-        kookVerifications: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 1,
-        },
-      },
-    });
   }
 
-  return NextResponse.json({ profile: profileForClient(profile) });
+  const responseProfile = profile
+    ? await prisma.accountProfile.findUnique({
+        where: { id: profile.id },
+        select: accountSettingsProfileSelect,
+      })
+    : null;
+
+  return NextResponse.json({
+    profile: responseProfile ? toSettingsProfileDto(responseProfile) : null,
+  });
 }
 
 export async function PATCH(request: Request) {
@@ -541,5 +570,12 @@ export async function PATCH(request: Request) {
     await syncPlayerForProfile(profile);
   }
 
-  return NextResponse.json({ profile: profileForClient(profile) });
+  const responseProfile = await prisma.accountProfile.findUnique({
+    where: { id: profile.id },
+    select: accountSettingsProfileSelect,
+  });
+
+  return NextResponse.json({
+    profile: responseProfile ? toSettingsProfileDto(responseProfile) : null,
+  });
 }
