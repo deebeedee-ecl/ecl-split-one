@@ -52,6 +52,36 @@ test("rejects a provider response for a different Riot tag", () => {
   );
 });
 
+test("an identity mismatch preserves the previous coherent snapshot", () => {
+  const previous = {
+    rawProfile: { marker: "previous-profile" },
+    recentStat: { marker: "previous-recent" },
+    rankedGames: { marker: "previous-history" },
+    lastLookupAt: "2026-11-09T10:00:00.000Z",
+  };
+  const result = resolveLzyumiSnapshotRefresh(previous, {
+    profileResponse: {
+      ...validProfile,
+      battleInfo: { ...validProfile.battleInfo, nameInfoNew: "AnotherPlayer#T200" },
+    },
+    soloResponse: { code: 1, data: [] },
+    flexResponse: { code: 1, data: [] },
+    recentStat: { status: "unavailable", reason: "not-found" },
+    riotName: "ContractTester",
+    riotTag: "T100",
+    areaId: 1,
+    existingOpenId: "synthetic-open-id",
+    fetchedAt: new Date("2026-11-10T10:00:00.000Z"),
+  });
+
+  assert.equal(result.status, "rejected");
+  if (result.status !== "rejected") return;
+  assert.ok(result.error instanceof LzyumiSnapshotValidationError);
+  assert.equal(result.error.code, "IDENTITY_MISMATCH");
+  assert.equal(result.previous, previous);
+  assert.equal(result.previous.lastLookupAt, "2026-11-09T10:00:00.000Z");
+});
+
 test("rejects a changed openId during an automatic refresh", () => {
   assert.throws(
     () =>

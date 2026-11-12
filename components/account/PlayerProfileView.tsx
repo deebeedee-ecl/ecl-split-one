@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BarChart3, CheckCircle2, Crown, Sparkles, Trophy, UserCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   PolarAngleAxis,
   PolarGrid,
@@ -35,6 +35,7 @@ import {
   requestKookVerificationCode,
   type SignupProfilePayload,
 } from "./client-account";
+import { runStoredProfileRefreshFlow } from "./player-profile-refresh";
 
 export type AccountProfile = SignupProfilePayload & {
   id: string;
@@ -457,7 +458,15 @@ async function performLzyumiProfileRefresh(
 
   const fetchedAt = typeof saveResult.fetchedAt === "string"
     ? saveResult.fetchedAt
-    : new Date().toISOString();
+    : null;
+  if (!fetchedAt || Number.isNaN(new Date(fetchedAt).getTime())) {
+    throw new Error("The refreshed profile did not include a valid snapshot timestamp.");
+  }
+
+  if (saveResult.skipped) {
+    return options.reloadAccountProfile ? loadProfile(token) : profile;
+  }
+
   const freshRanks = getSharedLzyumiRankRows(rawProfile, null);
   const primaryRank = freshRanks.solo ?? freshRanks.flex;
   const formattedRank = formatSharedLzyumiRank(primaryRank);
@@ -493,7 +502,7 @@ export default function PlayerProfileView({
   initialProfile?: AccountProfile;
   showPersonalMatchPreview?: boolean;
 } = {}) {
-  const { status: hubStatus, accessToken } = useHubBootstrap();
+  const { status: hubStatus, accessToken, session: hubSession } = useHubBootstrap();
   const [loadedProfile, setLoadedProfile] = useState<AccountProfile | null>(initialProfile ?? null);
   const [hasSession, setHasSession] = useState(Boolean(initialProfile));
   const [loading, setLoading] = useState(!initialProfile);
@@ -508,72 +517,103 @@ export default function PlayerProfileView({
   const [shouldAutoReport] = useState(() =>
     typeof window !== "undefined" && window.location.search.includes("autoreport=1"),
   );
+  const profileRequestRevision = useRef(0);
+  const activeHubUserId = useRef<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
+    const revision = ++profileRequestRevision.current;
     let cancelled = false;
+    const isCurrent = () =>
+      !cancelled && profileRequestRevision.current === revision;
+    const hubUserId = hubSession?.user.id ?? null;
+    const userChanged = activeHubUserId.current !== hubUserId;
+    activeHubUserId.current = hubUserId;
 
-    async function boot() {
-      if (!initialProfile) {
-        setLoading(true);
-        setLoadedProfile(null);
-      }
+    if (!initialProfile && userChanged) {
+      setLoading(true);
+      setLoadedProfile(null);
+      setRefreshingStats(false);
+      setStatRefreshError("");
+    }
 
-      if (hubStatus === "loading") return;
+    if (hubStatus === "loading") {
+      return () => {
+        cancelled = true;
+      };
+    }
 
-      if (!initialProfile) setHasSession(Boolean(accessToken));
+    if (!initialProfile) setHasSession(Boolean(accessToken));
 
-      if (accessToken) {
+    let reloadAccountProfileAfterRefresh = !initialProfile;
+    void runStoredProfileRefreshFlow({
+      async loadStoredProfile() {
+        if (!accessToken) {
+          return {
+            visibleProfile: initialProfile ?? null,
+            refreshCandidate: null,
+          };
+        }
+
         const loaded = await loadProfile(accessToken);
         const isOwnProfilePage = !initialProfile;
         const isPublicOwner = Boolean(initialProfile && loaded?.id === initialProfile.id);
-        if (!cancelled && (isOwnProfilePage || isPublicOwner)) setLoadedProfile(loaded);
+        reloadAccountProfileAfterRefresh = isOwnProfilePage || isPublicOwner;
 
-        const refreshCandidate = isOwnProfilePage || isPublicOwner
-          ? loaded
-          : initialProfile;
+        return {
+          visibleProfile: reloadAccountProfileAfterRefresh
+            ? loaded
+            : initialProfile,
+          refreshCandidate: reloadAccountProfileAfterRefresh
+            ? loaded
+            : initialProfile,
+        };
+      },
+      shouldRefresh(profile) {
+        return Boolean(
+          shouldRefreshStats(profile) &&
+          profile.riotName &&
+          profile.chinaServerId,
+        );
+      },
+      refreshProfile(profile) {
+        // Keep the established signed-browser flow. The save endpoint remains
+        // authoritative for authorization and complete snapshot validation.
+        return refreshLzyumiProfile(profile, {
+          targetProfileId: initialProfile?.id,
+          reloadAccountProfile: reloadAccountProfileAfterRefresh,
+          accessToken,
+        });
+      },
+      isCurrent,
+      onStoredProfile(profile) {
+        setLoadedProfile(profile);
+      },
+      onReady() {
+        setLoading(false);
+      },
+      onRefreshStart() {
+        setRefreshingStats(true);
+        setStatRefreshError("");
+      },
+      onRefreshSkipped() {
+        setRefreshingStats(false);
+      },
+      onRefreshSuccess(profile) {
+        setLoadedProfile(profile);
+      },
+      onRefreshError(error) {
+        setStatRefreshError(error instanceof Error ? error.message : "Stats refresh failed");
+      },
+      onRefreshEnd() {
+        setRefreshingStats(false);
+      },
+    });
 
-        // Refresh the viewed profile when stats are missing or stale. A signed-in
-        // scout supplies the residential browser IP; the server still validates
-        // the target Riot identity before accepting the snapshot.
-        // Uses browser-based lzyumi fetch (user's residential IP, bypasses cloud IP block).
-        if (
-          refreshCandidate &&
-          shouldRefreshStats(refreshCandidate) &&
-          refreshCandidate.riotName &&
-          refreshCandidate.chinaServerId
-        ) {
-          setRefreshingStats(true);
-          setStatRefreshError("");
-          try {
-            const refreshed = await refreshLzyumiProfile(refreshCandidate, {
-              targetProfileId: initialProfile?.id,
-              reloadAccountProfile: isOwnProfilePage || isPublicOwner,
-              accessToken,
-            });
-
-            if (refreshed) {
-              if (!cancelled) setLoadedProfile(refreshed);
-            } else {
-              throw new Error("The refreshed profile could not be loaded.");
-            }
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : "Stats refresh failed";
-            if (!cancelled) setStatRefreshError(msg);
-          } finally {
-            if (!cancelled) setRefreshingStats(false);
-          }
-        }
-      }
-
-      if (!cancelled) setLoading(false);
-    }
-
-    boot();
     return () => {
       cancelled = true;
     };
-  }, [accessToken, hubStatus, initialProfile]);
+  }, [accessToken, hubSession?.user.id, hubStatus, initialProfile]);
 
   useEffect(() => {
     const statsProfile = initialProfile ?? loadedProfile;
