@@ -805,8 +805,8 @@ export default function PlayerProfileView({
           ) : (
             <div className="h-44 bg-[radial-gradient(circle_at_80%_15%,rgba(72,240,223,0.32),transparent_28%),linear-gradient(135deg,#252b64,#10131f_58%,#07090f)]" />
           )}
-          <div className="-mt-14 flex flex-col gap-6 px-7 pb-7 md:flex-row md:items-end">
-            <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-[1.7rem] bg-[#24262d] text-4xl font-black text-white ring-4 ring-[#191a1f]">
+          <div className="-mt-14 flex flex-col gap-6 px-4 pb-5 sm:px-7 sm:pb-7 md:flex-row md:items-end">
+            <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-[1.7rem] bg-[#24262d] text-4xl font-black text-white ring-4 ring-[#191a1f] sm:h-32 sm:w-32">
               {safeAvatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={safeAvatarUrl} alt="" className="h-full w-full object-cover" />
@@ -817,7 +817,7 @@ export default function PlayerProfileView({
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-4xl font-black tracking-normal text-white md:text-5xl">
+                <h2 className="break-words text-3xl font-black tracking-normal text-white sm:text-4xl md:text-5xl">
                   {profile.displayName}
                 </h2>
                 {isKookVerified && (
@@ -842,7 +842,7 @@ export default function PlayerProfileView({
               </div>
 
               {showRiotId && (
-                <p className="mt-3 text-base font-bold text-[#aeb5da]">
+                <p className="mt-3 break-words text-base font-bold text-[#aeb5da]">
                   Riot ID: {profile.riotName}#{profile.riotTag}
                   {chinaServerName ? ` · ${chinaServerName}` : ""}
                 </p>
@@ -1228,7 +1228,7 @@ function ProfileMatchHistoryPreview({
 
   return (
     <section className="rounded-[1.7rem] border border-white/[0.08] bg-[#191a1f] p-6 shadow-[0_18px_54px_rgba(0,0,0,0.34)]">
-      <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="mb-5 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <BarChart3 className="text-[#ff1728]" size={24} />
           <div>

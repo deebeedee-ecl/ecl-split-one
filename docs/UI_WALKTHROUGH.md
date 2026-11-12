@@ -63,7 +63,7 @@ Account Settings is the exception: it allows the authenticated no-profile state 
 
 ## Authenticated Hub shell
 
-The current desktop Hub uses a narrow fixed left icon sidebar with hover descriptions and a full-page dark blue/black content surface. Its route-group layout is separate from the public shell and owns the shared authenticated bootstrap. Page-level `HubShell` instances keep the existing presentation while their `HubAccessGate` consumers reuse the layout-level session/profile state.
+The current desktop Hub uses a narrow fixed left icon sidebar with hover descriptions and a full-page dark blue/black content surface. Below the desktop breakpoint, that sidebar becomes a sticky horizontal icon navigation with a bounded local scroller; keyboard focus brings every navigation action into view. The shared page header reflows its title, description, and `HUB` badge rather than retaining the desktop row. Its route-group layout is separate from the public shell and owns the shared authenticated bootstrap. Page-level `HubShell` instances keep the existing presentation while their `HubAccessGate` consumers reuse the layout-level session/profile state.
 
 Primary navigation:
 
@@ -80,7 +80,7 @@ Secondary actions:
 - Return to website
 - Log out
 
-The Hub sidebar does not currently include the existing World Cup route family. The live mobile pass confirmed that the same fixed-width icon sidebar remains visible; there is no separate collapsed Hub menu.
+The Hub navigation does not currently include the existing World Cup route family. Historical mobile evidence showed the desktop fixed-width sidebar at narrow widths; the responsive shell now uses the bounded horizontal navigation described above.
 
 ## Hub page map
 
@@ -198,6 +198,6 @@ This is a navigation inventory, not a security endorsement. Admin authentication
 - Inhouse mock fallback must be replaced by a clearly labelled development fixture or a production empty/error state.
 - Historical evidence from the 2026-11-07 authenticated walkthrough showed React production hydration error `#418` on every audited Hub route. The shared Hub bootstrap introduced afterward now exposes the same deterministic `loading` snapshot to server rendering and the first client render, then resolves auth in an effect. A 2026-11-12 follow-up found no hydration error on cold desktop/mobile Hub loads or synthetic authenticated client navigation; retain the focused bootstrap snapshot test and browser-console assertion so browser storage cannot re-enter the initial render path.
 - Historical evidence from 2026-11-07 captured a Recharts width/height `-1` warning. The current chart supplies positive initial/minimum dimensions; retain a browser-console assertion in preview checks so a responsive-layout regression is not hidden.
-- At a 390-pixel viewport, the fixed Hub shell keeps the full icon sidebar and its inner scroll container becomes wider than the visible content area. The right-side “HUB” badge was measured beyond the container edge on Settings, and visible horizontal scrollbars appeared on the mobile captures.
+- Historical 2026-11-07 evidence at 390 pixels showed the fixed Hub sidebar, a wider inner scroll area, and the Settings `HUB` badge beyond the container edge. The responsive shell now reflows the navigation/header, contains intentionally wide archive tables in labelled keyboard-focusable scrollers, and uses a compact Inhouses score layout below the tablet breakpoint. Retain browser checks at 320, 360, 390, and 768 pixels so page-level overflow cannot regress.
 - Historical cold Profile and Settings navigation could look stuck in generic loading text. The current route requests use bounded skeleton, error, and retry states; authenticated preview verification should cover both cold refresh and client navigation.
 - The authenticated pass verified read-only loaded states only. Save/upload/verification-code/provider-refresh/report/tournament-application actions still require focused tests and explicit approval before any live exercise.

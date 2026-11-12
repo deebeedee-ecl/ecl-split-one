@@ -438,8 +438,12 @@ export function InhouseArchiveClient({ liveMatches }: { liveMatches?: LiveMatchD
         </Link>
       </div>
 
-      <section className="overflow-hidden rounded-[1.4rem] border border-white/[0.08] bg-[#101420] shadow-[0_24px_90px_rgba(0,0,0,0.34)]">
-        <div className="grid grid-cols-[7rem_minmax(14rem,1fr)_8rem_7rem_8rem_7rem] border-b border-white/[0.08] px-5 py-4 text-xs font-black uppercase tracking-[0.14em] text-[#8f97c5]">
+      <section
+        aria-label="Full inhouse match archive"
+        tabIndex={0}
+        className="overflow-x-auto rounded-[1.4rem] border border-white/[0.08] bg-[#101420] shadow-[0_24px_90px_rgba(0,0,0,0.34)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#48f0df]"
+      >
+        <div className="grid min-w-[58rem] grid-cols-[7rem_minmax(14rem,1fr)_8rem_7rem_8rem_7rem] border-b border-white/[0.08] px-5 py-4 text-xs font-black uppercase tracking-[0.14em] text-[#8f97c5]">
           <span>ID</span>
           <span>Match</span>
           <span>Score</span>
@@ -451,7 +455,7 @@ export function InhouseArchiveClient({ liveMatches }: { liveMatches?: LiveMatchD
           <Link
             key={match.id}
             href={`/hub/inhouses/${getMatchSlug(match.id)}`}
-            className="grid grid-cols-[7rem_minmax(14rem,1fr)_8rem_7rem_8rem_7rem] items-center border-b border-white/[0.06] px-5 py-4 text-sm font-bold text-white transition last:border-b-0 hover:bg-white/[0.04]"
+            className="grid min-w-[58rem] grid-cols-[7rem_minmax(14rem,1fr)_8rem_7rem_8rem_7rem] items-center border-b border-white/[0.06] px-5 py-4 text-sm font-bold text-white transition last:border-b-0 hover:bg-white/[0.04]"
           >
             <span className="font-black text-[#48f0df]">{match.id}</span>
             <span className="min-w-0">
@@ -535,34 +539,34 @@ function ScoreStrip({ match }: { match: LiveMatchData }) {
 
   return (
     <div
-      className="grid grid-cols-[minmax(7rem,1fr)_3rem_4.25rem_5.5rem_4.25rem_3rem_minmax(7rem,1fr)] items-center overflow-hidden rounded-sm text-white shadow-[0_18px_54px_rgba(36,30,120,0.24)] lg:grid-cols-[minmax(9rem,1fr)_4rem_5rem_7rem_5rem_4rem_minmax(9rem,1fr)] 2xl:grid-cols-[1fr_5rem_6rem_8rem_6rem_5rem_1fr]"
+      className="grid grid-cols-[minmax(0,1fr)_5rem_minmax(0,1fr)] grid-rows-[auto_auto_auto] items-stretch overflow-hidden rounded-sm text-white shadow-[0_18px_54px_rgba(36,30,120,0.24)] md:grid-cols-[minmax(7rem,1fr)_3rem_4.25rem_5.5rem_4.25rem_3rem_minmax(7rem,1fr)] md:grid-rows-1 lg:grid-cols-[minmax(9rem,1fr)_4rem_5rem_7rem_5rem_4rem_minmax(9rem,1fr)] 2xl:grid-cols-[1fr_5rem_6rem_8rem_6rem_5rem_1fr]"
       style={{
         background:
           "linear-gradient(90deg, rgba(42, 85, 255, 0.95) 0%, rgba(35, 59, 180, 0.78) 20%, rgba(13, 11, 31, 0.98) 43%, rgba(13, 11, 31, 0.98) 57%, rgba(126, 18, 47, 0.78) 80%, rgba(255, 30, 48, 0.95) 100%)",
       }}
     >
-      <div className="min-w-0 truncate px-3 py-4 text-xl font-black uppercase tracking-normal sm:text-2xl lg:px-5 lg:text-3xl 2xl:px-6 2xl:py-5 2xl:text-4xl">
+      <div className="col-start-1 row-start-1 min-w-0 truncate px-1 py-3 text-xs font-black uppercase tracking-normal sm:px-3 sm:text-xl md:col-auto md:row-auto md:py-4 md:text-2xl lg:px-5 lg:text-3xl 2xl:px-6 2xl:py-5 2xl:text-4xl" title={match.blue}>
         {match.blue}
       </div>
-      <div className="border-l border-white/[0.16] py-4 text-center text-3xl font-black text-[#7c8cff] lg:text-4xl 2xl:py-5 2xl:text-5xl">
+      <div className="col-start-1 row-start-2 border-t border-white/[0.16] py-2 text-center text-3xl font-black text-[#7c8cff] md:col-auto md:row-auto md:border-l md:border-t-0 md:py-4 lg:text-4xl 2xl:py-5 2xl:text-5xl">
         {blueScore}
       </div>
-      <div className="border-x border-white/[0.16] py-4 text-center text-sm font-light uppercase text-white/74 sm:text-base lg:text-xl 2xl:py-5 2xl:text-2xl">
+      <div className="col-start-1 row-start-3 border-t border-white/[0.16] py-2 text-center text-xs font-light uppercase text-white/74 md:col-auto md:row-auto md:border-x md:border-t-0 md:py-4 md:text-sm lg:text-xl 2xl:py-5 2xl:text-2xl">
         {match.blueResult}
       </div>
-      <div className="py-3 text-center 2xl:py-4">
+      <div className="col-start-2 row-span-3 row-start-1 flex flex-col justify-center border-x border-white/[0.16] py-3 text-center md:col-auto md:row-auto md:block md:border-x-0 2xl:py-4">
         <p className="text-[0.6rem] font-black uppercase tracking-[0.14em] text-white/65 sm:text-xs">
           Game Time
         </p>
         <p className="text-xl font-light tracking-normal sm:text-2xl lg:text-3xl 2xl:text-4xl">{match.duration}</p>
       </div>
-      <div className="border-x border-white/[0.16] py-4 text-center text-sm font-light uppercase text-white/74 sm:text-base lg:text-xl 2xl:py-5 2xl:text-2xl">
+      <div className="col-start-3 row-start-3 border-t border-white/[0.16] py-2 text-center text-xs font-light uppercase text-white/74 md:col-auto md:row-auto md:border-x md:border-t-0 md:py-4 md:text-sm lg:text-xl 2xl:py-5 2xl:text-2xl">
         {match.redResult}
       </div>
-      <div className="py-4 text-center text-3xl font-black text-[#ff3048] lg:text-4xl 2xl:py-5 2xl:text-5xl">
+      <div className="col-start-3 row-start-2 border-t border-white/[0.16] py-2 text-center text-3xl font-black text-[#ff3048] md:col-auto md:row-auto md:border-t-0 md:py-4 lg:text-4xl 2xl:py-5 2xl:text-5xl">
         {redScore}
       </div>
-      <div className="min-w-0 truncate px-3 py-4 text-right text-xl font-black uppercase tracking-normal sm:text-2xl lg:px-5 lg:text-3xl 2xl:px-6 2xl:py-5 2xl:text-4xl">
+      <div className="col-start-3 row-start-1 min-w-0 truncate px-1 py-3 text-right text-xs font-black uppercase tracking-normal sm:px-3 sm:text-xl md:col-auto md:row-auto md:py-4 md:text-2xl lg:px-5 lg:text-3xl 2xl:px-6 2xl:py-5 2xl:text-4xl" title={match.red}>
         {match.red}
       </div>
     </div>
@@ -589,25 +593,25 @@ function GameStats({ match }: { match: LiveMatchData }) {
           return (
             <div
               key={label}
-              className="grid grid-cols-[minmax(0,1fr)_6rem_minmax(0,1fr)] items-center border-b border-white/16 py-4 text-center sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)]"
+              className="grid grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] items-center border-b border-white/16 py-4 text-center sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)]"
             >
-              <span className="text-2xl font-light text-white">
+              <span className="text-lg font-light text-white sm:text-2xl">
                 {key === "drakes" && !drakeCounts ? <DragonList value={blue} /> : blue}
               </span>
-              <span className="text-sm font-black uppercase tracking-[0.08em] text-white/75">
+              <span className="text-[0.65rem] font-black uppercase tracking-[0.06em] text-white/75 sm:text-sm sm:tracking-[0.08em]">
                 <StatLabel label={label} />
               </span>
-              <span className="text-2xl font-light text-white">
+              <span className="text-lg font-light text-white sm:text-2xl">
                 {key === "drakes" && !drakeCounts ? <DragonList value={red} /> : red}
               </span>
             </div>
           );
         })}
         <div
-          className="grid grid-cols-[minmax(0,1fr)_6rem_minmax(0,1fr)] items-center border-b border-white/16 py-4 sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)]"
+          className="grid grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] items-center border-b border-white/16 py-4 sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)]"
         >
           <DraftIcons champions={match.blueDraft} tone="blue" />
-          <span className="text-center text-sm font-black uppercase tracking-[0.08em] text-white/75">
+          <span className="text-center text-[0.65rem] font-black uppercase tracking-[0.06em] text-white/75 sm:text-sm sm:tracking-[0.08em]">
             Bans
           </span>
           <DraftIcons champions={match.redDraft} tone="red" />
