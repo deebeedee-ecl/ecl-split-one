@@ -3,7 +3,7 @@ import { tournamentIdentity } from './identity';
 import { SPLIT_II_SLUG } from "./split-ii-config";
 import { SPLIT_II_TEAMS, SPLIT_II_FIXTURE_WEEKS } from "./split-ii-fixtures";
 import { SPLIT_II_ROSTERS } from "./split-ii-rosters";
-import { TournamentError, calculateTables, instant, integer, parseReport, text, type MatchPayload, type Schedule } from "./match-policy";
+import { TournamentError, calculateTables, guestParticipantId, instant, integer, parseReport, storedProviderId, text, type MatchPayload, type Schedule } from "./match-policy";
 
 type Tx = Prisma.TransactionClient;
 export type TournamentActor = { profileId?: string; admin: boolean };
@@ -122,12 +122,17 @@ export async function normalizedReport(tx:Tx,eventId:string,input:ReturnType<typ
   const ids=[fixture.homeTeamId,fixture.awayTeamId];
   if(!ids.includes(input.payload.winnerTeamId)||ids.some(id=>input.payload.players.filter(p=>p.teamId===id).length!==5))throw new TournamentError("Each fixture team must have exactly five players.");
   if(Date.parse(input.payload.playedAt)>Date.now()+300000)throw new TournamentError("A completed game cannot be dated in the future.");
-  const registrations=await tx.tournamentRegistration.findMany({where:{tournamentId:eventId,profileId:{in:input.payload.players.map(p=>p.profileId)}},include:{profile:{select:{riotName:true,riotTag:true,chinaServerId:true}},memberships:{where:{tournamentId:eventId}}}});
+  const registrations=await tx.tournamentRegistration.findMany({where:{tournamentId:eventId,profileId:{in:input.payload.players.filter(p=>!p.guestSubstitute).map(p=>p.profileId)}},include:{profile:{select:{riotName:true,riotTag:true,chinaServerId:true}},memberships:{where:{tournamentId:eventId}}}});
   for(const player of input.payload.players){
+    if(player.guestSubstitute){
+      if(input.source==='HUB'||input.platform!=='HN1'||player.profileId!==guestParticipantId(input.platform,player.riotId))throw new TournamentError("Guest substitute identity is invalid.");
+      player.substitute=true;
+      continue;
+    }
     const r=registrations.find(r=>r.profileId===player.profileId);
     if(!r||(r.pool!=='FLOATER'&&!r.memberships.some(m=>m.teamId===player.teamId)))throw new TournamentError("A lineup contains an unregistered player or a player from another team.");
     if(r.profile.chinaServerId!==1||input.platform!=='HN1')throw new TournamentError("Split II reporting currently requires the registered Ionia accounts.");
-    const identity=tournamentIdentity(r);player.name=r.displayNameSnapshot;player.riotId=`${identity.name}#${identity.tag}`;
+    const identity=tournamentIdentity(r);player.name=r.displayNameSnapshot;player.riotId=`${identity.name}#${identity.tag}`;player.substitute=r.pool==='FLOATER';
   }
   return fixture;
 }
@@ -143,7 +148,9 @@ export async function submitTournamentReport(db:PrismaClient,actor:TournamentAct
     if(input.replacesId&&!await tx.tournamentReport.findFirst({where:{id:input.replacesId,tournamentId:eventId,fixtureId:input.fixtureId,gameNumber:input.gameNumber,status:'APPROVED'}}))throw new TournamentError("The result being corrected is no longer current.",409);
     const prior=await tx.tournamentReport.findFirst({where:{fixtureId:input.fixtureId,gameNumber:input.gameNumber,status:'PENDING',payload:{equals:json(input.payload)},leagueGameId:input.leagueGameId,replacesId:input.replacesId??null,source:input.source}});
     if(prior)return {id:prior.id,status:prior.status,duplicate:true};
-    const report=await tx.tournamentReport.create({data:{tournamentId:eventId,fixtureId:input.fixtureId,gameNumber:input.gameNumber,source:input.source,submittedBy:actor.profileId??'ADMIN',platform:input.platform,leagueGameId:input.leagueGameId,payload:json(input.payload),...(input.raw!==undefined?{raw:json(input.raw)}:{}),...(input.evidence?{evidence:json(input.evidence)}:{}),replacesId:input.replacesId??null}});
+    if(input.providerId&&await tx.tournamentReport.findFirst({where:{status:{in:['PENDING','APPROVED']},raw:{path:['providerGameId'],equals:input.providerId},...(input.replacesId?{id:{not:input.replacesId}}:{})},select:{id:true}}))throw new TournamentError("This Lzyumi game already has a pending or approved tournament result.",409);
+    const privateRaw=input.providerId?{provider:'LZYUMI',providerGameId:input.providerId,...(input.raw!==undefined?{evidence:input.raw}:{})}:input.raw;
+    const report=await tx.tournamentReport.create({data:{tournamentId:eventId,fixtureId:input.fixtureId,gameNumber:input.gameNumber,source:input.source,submittedBy:actor.profileId??'ADMIN',platform:input.platform,leagueGameId:input.leagueGameId,payload:json(input.payload),...(privateRaw!==undefined?{raw:json(privateRaw)}:{}),...(input.evidence?{evidence:json(input.evidence)}:{}),replacesId:input.replacesId??null}});
     return {id:report.id,status:report.status,duplicate:false};
   },{maxWait:10000,timeout:20000});
 }
@@ -158,21 +165,27 @@ export async function reviewTournamentReport(db:PrismaClient,reportId:string,dec
     if(report.status===(decision==='approve'?'APPROVED':'REJECTED'))return {id:report.id,status:report.status,duplicate:true};
     if(report.status!=='PENDING')throw new TournamentError("This report is no longer awaiting review.",409);
     if(decision==='reject')return tx.tournamentReport.update({where:{id:report.id},data:{status:'REJECTED',reviewNote:note,reviewedAt:new Date()},select:{id:true,status:true}});
-    const input=parseReport({fixtureId:report.fixtureId,gameNumber:report.gameNumber,platform:report.platform,leagueGameId:report.leagueGameId,source:report.source,payload:report.payload});
+    const input=parseReport({fixtureId:report.fixtureId,gameNumber:report.gameNumber,platform:report.platform,leagueGameId:report.leagueGameId,providerId:storedProviderId(report.raw),source:report.source,payload:report.payload,raw:report.raw});
     if(mvpProfileId!==undefined){
       if(mvpProfileId&&!input.payload.players.some(p=>p.profileId===mvpProfileId&&p.teamId===input.payload.winnerTeamId))throw new TournamentError('Select an MVP from the winning lineup.');
       for(const p of input.payload.players)p.mvp=p.profileId===mvpProfileId;
     }
     await normalizedReport(tx,eventId,input);
-    if(report.leagueGameId){
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${report.platform+':'+report.leagueGameId},0))::text`;
-      const variants:Prisma.InputJsonValue[]=[report.leagueGameId];
-      if(Number.isSafeInteger(Number(report.leagueGameId)))variants.push(Number(report.leagueGameId));
-      const legacy=await tx.inhouseReportJob.findFirst({where:{status:{notIn:['CANCELLED','FAILED','DESKTOP_CANCELLED','DESKTOP_EXPIRED','DESKTOP_REJECTED']},OR:variants.flatMap(id=>[{rawMatchData:{path:['gameId'],equals:id}},{rawMatchData:{path:['raw','gameId'],equals:id}}])},select:{id:true}});
-      const legacyGame=await tx.matchGame.findFirst({where:{OR:variants.flatMap(id=>[{ocrRawJson:{path:['gameId'],equals:id}},{ocrRawJson:{path:['raw','gameId'],equals:id}}])},select:{id:true}});
-      const legacySession=await tx.inhouseSession.findFirst({where:{lzyumiGameId:report.leagueGameId},select:{id:true}});
+    const providerId=storedProviderId(report.raw);
+    const externalGameId=report.leagueGameId??providerId;
+    if(externalGameId){
+      const identityLock=report.leagueGameId?`${report.platform}:${report.leagueGameId}`:`LZYUMI:${providerId}`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${identityLock},0))::text`;
+      const variants:Prisma.InputJsonValue[]=[externalGameId];
+      if(report.leagueGameId&&Number.isSafeInteger(Number(report.leagueGameId)))variants.push(Number(report.leagueGameId));
+      const legacy=await tx.inhouseReportJob.findFirst({where:{status:{notIn:['CANCELLED','FAILED','DESKTOP_CANCELLED','DESKTOP_EXPIRED','DESKTOP_REJECTED']},OR:variants.flatMap(id=>[{rawMatchData:{path:['gameId'],equals:id}},{rawMatchData:{path:['raw','gameId'],equals:id}},{rawMatchData:{path:['recentMatch','gameId'],equals:id}},{rawMatchData:{path:['raw','recentMatch','gameId'],equals:id}}])},select:{id:true}});
+      const legacyGame=await tx.matchGame.findFirst({where:{OR:variants.flatMap(id=>[{ocrRawJson:{path:['gameId'],equals:id}},{ocrRawJson:{path:['raw','gameId'],equals:id}},{ocrRawJson:{path:['recentMatch','gameId'],equals:id}},{ocrRawJson:{path:['raw','recentMatch','gameId'],equals:id}}])},select:{id:true}});
+      const legacySession=await tx.inhouseSession.findFirst({where:{lzyumiGameId:externalGameId},select:{id:true}});
       if(legacy||legacyGame||legacySession)throw new TournamentError("This League game is already in an inhouse/legacy report. Resolve that assignment first.",409);
-      if(await tx.tournamentReport.findFirst({where:{platform:report.platform,leagueGameId:report.leagueGameId,status:'APPROVED',...(report.replacesId?{id:{not:report.replacesId}}:{})},select:{id:true}}))throw new TournamentError("This League game already has an approved tournament result.",409);
+      const duplicate=report.leagueGameId
+        ? await tx.tournamentReport.findFirst({where:{platform:report.platform,leagueGameId:report.leagueGameId,status:'APPROVED',...(report.replacesId?{id:{not:report.replacesId}}:{})},select:{id:true}})
+        : await tx.tournamentReport.findFirst({where:{status:'APPROVED',raw:{path:['providerGameId'],equals:providerId!},...(report.replacesId?{id:{not:report.replacesId}}:{})},select:{id:true}});
+      if(duplicate)throw new TournamentError("This external game already has an approved tournament result.",409);
     }
     const approved=await tx.tournamentReport.findMany({where:{fixtureId:report.fixtureId,status:'APPROVED'}});
     if(approved.some(r=>r.gameNumber===report.gameNumber&&r.id!==report.replacesId))throw new TournamentError("This fixture game already has a result. Submit a correction instead.",409);
@@ -198,6 +211,14 @@ export async function reviewTournamentReport(db:PrismaClient,reportId:string,dec
     const floaterIds=new Set(floaters.map(f=>f.profileId));
     for(const p of input.payload.players.filter(p=>floaterIds.has(p.profileId))){
       if(await tx.tournamentFloaterAppearance.findUnique({where:{tournamentId_teamId_profileId:{tournamentId:eventId,teamId:p.teamId,profileId:p.profileId}}}))throw new TournamentError(`${p.name} has already played a tournament game for that team.`,409);
+    }
+    const guestPlayers=input.payload.players.filter(p=>p.guestSubstitute);
+    if(guestPlayers.length){
+      const priorGuestReports=await tx.tournamentReport.findMany({where:{tournamentId:eventId,status:'APPROVED',...(report.replacesId?{id:{not:report.replacesId}}:{})},select:{payload:true}});
+      for(const player of guestPlayers){
+        const repeated=priorGuestReports.some(candidate=>(candidate.payload as unknown as MatchPayload).players.some(existing=>existing.guestSubstitute&&existing.profileId===player.profileId&&existing.teamId===player.teamId));
+        if(repeated)throw new TournamentError(`${player.name} has already played a tournament game for that team.`,409);
+      }
     }
     await tx.tournamentReport.update({where:{id:report.id},data:{status:'APPROVED',payload:json(input.payload),reviewNote:note,reviewedAt:new Date()}});
     for(const p of input.payload.players.filter(p=>floaterIds.has(p.profileId)))await tx.tournamentFloaterAppearance.create({data:{tournamentId:eventId,teamId:p.teamId,profileId:p.profileId,reportId:report.id}});

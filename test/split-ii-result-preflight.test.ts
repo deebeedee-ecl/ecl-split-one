@@ -48,6 +48,18 @@ test("manifest validation rejects a non-boolean MVP flag", () => {
   assert.throws(() => parseManifest(value), /mvp must be a boolean/);
 });
 
+test("manifest validation accepts a provider-only guest substitute recovery", () => {
+  const value = manifest();
+  value.leagueGameId = null as unknown as string;
+  (value.players[4] as Record<string, unknown>).guestSubstitute = true;
+  const parsed = parseManifest(value);
+  const summary = publicManifestSummary(parsed);
+  assert.equal(parsed.leagueGameId, null);
+  assert.equal(summary.providerIdPresent, true);
+  assert.equal(summary.guestSubstituteCount, 1);
+  assert.equal(JSON.stringify(summary).includes("Player5"), false);
+});
+
 test("identity integrity accepts a coherent tournament snapshot and openId key", () => {
   assert.deepEqual(identityIntegrityIssues({
     suppliedRiotId: "Player Name#12345",

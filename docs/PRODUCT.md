@@ -59,6 +59,8 @@ The completion step must be exactly-once. A retry must return the already-comple
 
 The durable journey is registration → eligibility/roster formation → fixtures → game/result reporting → review/correction → standings/archive.
 
+Split II normally requires roster members or registered floaters. An administrator may record an owner-approved, last-minute unregistered substitute only from verified match evidence. That guest remains a tournament-only participant keyed by platform plus full Riot ID, is labelled as a substitute in results, and does not create or modify an ECL account, ranked player, LP, or ELO record.
+
 ## Identity model
 
 ECL must reconcile several identities without treating mutable names as keys:
