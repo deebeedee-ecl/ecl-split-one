@@ -1,6 +1,6 @@
 # ECL integration contracts
 
-Last reviewed: 2026-11-13
+Last reviewed: 2026-11-14
 
 This document records responsibilities and invariants, not credentials. Supported variable names live in `.env.example`; real values stay outside version control.
 
@@ -18,6 +18,8 @@ Lzyumi is ECL's primary external provider for China-server Riot identity, rank, 
 - Filter `3`: Flex history.
 - Browser signing uses `/lzyumi/lol/info` for profile/history, `/lzyumi/lol/info/getPlayerRecentStat` for optional recent stats, and `/lzyumi/lol/info/findOrderDetailInfoAll` for match detail.
 - Profile and history success requires HTTP success, endpoint application code `1`, and the expected object/array shape. HTTP errors, malformed payloads, and application codes `6`, `7`, or `8` are provider failures, never valid empty history.
+- Identity lookup uses a bounded cascade: bare Riot name, full `name#tag`, then saved-`openId` variants when available. A bare-name response is only a candidate until `battleInfo.nameInfoNew`, `areaId`, and `openId` prove the expected full identity. Lzyumi has been observed returning code `1` with `battleInfo: null` and `data: null` for the full ID while the bare name resolves the exact same `name#tag`; that response is `IDENTITY_NOT_FOUND`/`INCOMPLETE_LOOKUP`, not empty history.
+- `HISTORY_EMPTY` is valid only after identity resolution succeeded and the requested history endpoint returned a coherent empty array. Filter `1` may include localized custom-game history rows; `title` containing `新模式` is a discovery candidate only, and final custom-game acceptance still requires detail `gameType === CUSTOM_GAME` plus the normal server, identity, time, roster, and duplicate checks.
 - `getPlayerRecentStat`/champion recency is optional. It requires its own code-`1` object contract; failure must result in an explicit unavailable section, not retained stale champion data presented as fresh.
 
 Acceptance requires matching the expected full Riot ID, China server, and `openId`. Save profile/rank/Solo/Flex as one coherent snapshot only after every required response passes validation. A rejected replacement preserves the prior snapshot and timestamp; do not independently advance freshness for an unchanged section. Application-code semantics are endpoint-specific and must not be copied to token/session-status endpoints.
