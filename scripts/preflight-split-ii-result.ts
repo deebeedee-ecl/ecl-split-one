@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { tournamentIdentity } from "../lib/tournaments/identity";
+import { guestParticipantId } from "../lib/tournaments/match-policy";
 import { SPLIT_II_SLUG } from "../lib/tournaments/split-ii-config";
 
 type ManifestPlayer = {
@@ -19,12 +20,13 @@ type ManifestPlayer = {
   gold?: number;
   position?: string;
   mvp?: boolean;
+  guestSubstitute?: boolean;
 };
 
 export type ResultManifest = {
   fixtureCode: string;
   gameNumber: number;
-  leagueGameId: string;
+  leagueGameId: string | null;
   providerId?: string;
   platform: "HN1";
   winnerTeamKey: string;
@@ -90,6 +92,9 @@ export function parseManifest(value: unknown): ResultManifest {
     if (player.mvp !== undefined && typeof player.mvp !== "boolean") {
       throw new Error(`players[${index}].mvp must be a boolean.`);
     }
+    if (player.guestSubstitute !== undefined && typeof player.guestSubstitute !== "boolean") {
+      throw new Error(`players[${index}].guestSubstitute must be a boolean.`);
+    }
     if (
       player.champion !== undefined &&
       typeof player.champion !== "string" &&
@@ -110,11 +115,15 @@ export function parseManifest(value: unknown): ResultManifest {
       ...(optionalInteger(player.gold, `players[${index}].gold`) === undefined ? {} : { gold: Number(player.gold) }),
       ...(player.position === undefined ? {} : { position: text(player.position, `players[${index}].position`) }),
       ...(player.mvp === undefined ? {} : { mvp: player.mvp }),
+      ...(player.guestSubstitute === undefined ? {} : { guestSubstitute: player.guestSubstitute }),
     };
   });
 
-  const leagueGameId = text(input.leagueGameId, "manifest.leagueGameId");
-  if (!/^\d{6,30}$/.test(leagueGameId)) throw new Error("manifest.leagueGameId must be numeric.");
+  const leagueGameId = input.leagueGameId === undefined || input.leagueGameId === null ? null : text(input.leagueGameId, "manifest.leagueGameId");
+  if (leagueGameId && !/^\d{6,30}$/.test(leagueGameId)) throw new Error("manifest.leagueGameId must be numeric.");
+  const providerId = input.providerId === undefined ? undefined : text(input.providerId, "manifest.providerId");
+  if (providerId && !/^[A-Za-z0-9+/_=-]{8,200}$/.test(providerId)) throw new Error("manifest.providerId has an invalid format.");
+  if (!leagueGameId && !providerId) throw new Error("manifest requires leagueGameId or providerId.");
   const playedAt = text(input.playedAt, "manifest.playedAt");
   if (!Number.isFinite(Date.parse(playedAt))) throw new Error("manifest.playedAt must be an ISO timestamp.");
   const durationSeconds = integer(input.durationSeconds, "manifest.durationSeconds", 1);
@@ -125,7 +134,7 @@ export function parseManifest(value: unknown): ResultManifest {
     fixtureCode: text(input.fixtureCode, "manifest.fixtureCode").toUpperCase(),
     gameNumber: integer(input.gameNumber, "manifest.gameNumber", 1),
     leagueGameId,
-    ...(input.providerId === undefined ? {} : { providerId: text(input.providerId, "manifest.providerId") }),
+    ...(providerId === undefined ? {} : { providerId }),
     platform: "HN1",
     winnerTeamKey: text(input.winnerTeamKey, "manifest.winnerTeamKey").toLowerCase(),
     playedAt,
@@ -204,6 +213,7 @@ export function publicManifestSummary(manifest: ResultManifest) {
       player.position !== undefined
     ).length,
     mvpCount: manifest.players.filter((player) => player.mvp).length,
+    guestSubstituteCount: manifest.players.filter((player) => player.guestSubstitute).length,
   };
 }
 
@@ -288,7 +298,7 @@ async function main() {
       teamKey: string;
       profileId: string;
       teamId: string;
-      eligibility: "ROSTER" | "FLOATER";
+      eligibility: "ROSTER" | "FLOATER" | "GUEST_SUBSTITUTE";
       kills: number;
       deaths: number;
       assists: number;
@@ -297,6 +307,22 @@ async function main() {
     for (const [index, player] of manifest.players.entries()) {
       const candidates = registrationByIdentity.get(normalizedRiotId(player.riotId)) ?? [];
       const team = teamByKey.get(player.teamKey);
+      if (player.guestSubstitute) {
+        if (!team) continue;
+        if (candidates.length) blockers.push(`players[${index}] is registered and must not be submitted as a guest substitute.`);
+        resolvedPlayers.push({
+          slot: index,
+          teamKey: team.key,
+          profileId: guestParticipantId(manifest.platform, player.riotId),
+          teamId: team.id,
+          eligibility: "GUEST_SUBSTITUTE",
+          kills: player.kills,
+          deaths: player.deaths,
+          assists: player.assists,
+          mvp: Boolean(player.mvp),
+        });
+        continue;
+      }
       if (candidates.length !== 1) {
         blockers.push(`players[${index}] did not resolve to exactly one registered full Riot ID.`);
         continue;
@@ -345,7 +371,7 @@ async function main() {
       });
     }
     if (new Set(resolvedPlayers.map((player) => player.profileId)).size !== resolvedPlayers.length) {
-      blockers.push("The lineup contains a duplicate registered profile.");
+      blockers.push("The lineup contains a duplicate stable participant identity.");
     }
 
     const floaterLines = resolvedPlayers.filter((player) => player.eligibility === "FLOATER");
@@ -361,6 +387,20 @@ async function main() {
     if (priorFloaterAppearances.length) {
       blockers.push("A proposed floater has already appeared for that tournament team.");
     }
+    const guestLines = resolvedPlayers.filter((player) => player.eligibility === "GUEST_SUBSTITUTE");
+    const priorGuestReports = guestLines.length
+      ? await db.tournamentReport.findMany({
+          where: { tournamentId: event.id, status: "APPROVED" },
+          select: { id: true, payload: true },
+        })
+      : [];
+    const repeatedGuestAppearances = guestLines.flatMap((player) => priorGuestReports
+      .filter((report) => {
+        const payload = report.payload as unknown as { players?: Array<{ profileId?: string; teamId?: string; guestSubstitute?: boolean }> };
+        return payload.players?.some((existing) => existing.guestSubstitute && existing.profileId === player.profileId && existing.teamId === player.teamId);
+      })
+      .map((report) => ({ profileId: player.profileId, teamId: player.teamId, reportId: report.id })));
+    if (repeatedGuestAppearances.length) blockers.push("A proposed guest substitute has already appeared for that tournament team.");
 
     const mvpPlayers = resolvedPlayers.filter((player) => player.mvp);
     if (mvpPlayers.length > 1) blockers.push("At most one player may be marked MVP.");
@@ -372,9 +412,10 @@ async function main() {
       warnings.push("One or more optional champion/item/damage/gold/position stat lines are incomplete.");
     }
 
-    const numericGameId = Number(manifest.leagueGameId);
-    const gameIdVariants: Prisma.InputJsonValue[] = [manifest.leagueGameId];
-    if (Number.isSafeInteger(numericGameId)) gameIdVariants.push(numericGameId);
+    const externalGameId = manifest.leagueGameId ?? manifest.providerId!;
+    const numericGameId = manifest.leagueGameId ? Number(manifest.leagueGameId) : Number.NaN;
+    const gameIdVariants: Prisma.InputJsonValue[] = [externalGameId];
+    if (manifest.leagueGameId && Number.isSafeInteger(numericGameId)) gameIdVariants.push(numericGameId);
     const jsonPaths = [
       ["gameId"],
       ["raw", "gameId"],
@@ -386,8 +427,9 @@ async function main() {
         where: {
           tournamentId: event.id,
           OR: [
-            { leagueGameId: manifest.leagueGameId },
             { fixtureId: fixture.id, gameNumber: manifest.gameNumber },
+            ...(manifest.leagueGameId ? [{ leagueGameId: manifest.leagueGameId }] : []),
+            ...(manifest.providerId ? [{ raw: { path: ["providerGameId"], equals: manifest.providerId } }] : []),
           ],
         },
         select: { id: true, status: true, fixtureId: true, gameNumber: true, leagueGameId: true },
@@ -410,14 +452,14 @@ async function main() {
         select: { id: true },
       }),
       db.inhouseSession.findFirst({
-        where: { lzyumiGameId: manifest.leagueGameId },
+        where: { lzyumiGameId: externalGameId },
         select: { id: true },
       }),
     ]);
-    if (tournamentReports.length) blockers.push("The fixture slot or League Game ID already exists in tournament reports.");
-    if (reportJob) blockers.push("The League Game ID already exists in a non-cancelled ranked report job.");
-    if (legacyGame) blockers.push("The League Game ID already exists in legacy/ranked MatchGame data.");
-    if (inhouseSession) blockers.push("The League Game ID already exists on an inhouse session.");
+    if (tournamentReports.length) blockers.push("The fixture slot or external game identity already exists in tournament reports.");
+    if (reportJob) blockers.push("The external game identity already exists in a non-cancelled ranked report job.");
+    if (legacyGame) blockers.push("The external game identity already exists in legacy/ranked MatchGame data.");
+    if (inhouseSession) blockers.push("The external game identity already exists on an inhouse session.");
 
     const allReports = await db.tournamentReport.findMany({
       where: { tournamentId: event.id },
@@ -447,6 +489,7 @@ async function main() {
         teamIds: registration.memberships.map((membership) => membership.teamId).sort(),
       })),
       priorFloaterAppearances,
+      repeatedGuestAppearances,
       duplicateChecks: {
         tournamentReports: tournamentReports.map((report) => report.id),
         reportJob: reportJob?.id ?? null,

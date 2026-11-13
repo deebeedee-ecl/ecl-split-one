@@ -161,6 +161,8 @@ The current main dashboard and public navigation are centered on Split II. Event
 
 The Results tab presents approved matches in chronological order, oldest first. The ordering is derived from each report payload's `playedAt` timestamp, with game number and report ID used only as deterministic tie-breakers.
 
+The match-stat dialog labels registered floaters and approved last-minute guest players with a `SUB` badge. Guest Riot IDs are result snapshots, not links to an ECL account.
+
 ### World Cup
 
 The repository also contains a full World Cup route family:

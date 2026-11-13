@@ -90,6 +90,8 @@ Authentication establishes the Supabase user. Application routes must then load 
 
 Any result/LP correction, merge, backfill, season reset, or tournament release can affect historical data and requires an explicit environment, preview, approval, transaction/recovery design, and post-check.
 
+Lzyumi match history exposes an opaque provider game ID rather than the numeric League Game ID. For an administrator-reviewed tournament recovery, that opaque value may be used as the private external-game identity when the numeric ID is unavailable. It must never be presented as a numeric League ID or exposed in the public tournament response; approval still checks it against tournament, ranked-report, legacy-game, and inhouse-session identities.
+
 ## Report engine
 
 `report-engine/` polls trusted job endpoints using a worker/job secret. It may read provider credentials from its deployment environment or ignored local environment file. It must not be the final authority for an ECL result: the website revalidates and owns the commit.

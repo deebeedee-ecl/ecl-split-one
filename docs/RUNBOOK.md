@@ -302,28 +302,28 @@ Use this recovery workflow when a completed Split II tournament match cannot be 
 ### What the operator should provide
 
 - Fixture code, such as `RR02`, and game number for a multi-game series.
-- Exact numeric League Game ID.
+- Exact numeric League Game ID. If it is unavailable, provide the opaque Lzyumi provider game ID plus a previously collected, verified detail snapshot; never invent or relabel an opaque ID as numeric.
 - Winner, China-time completion timestamp, and duration.
-- The actual ten-player lineup. Prefer full Riot IDs from the tournament roster; identify substitutes explicitly.
+- The actual ten-player lineup. Prefer full Riot IDs from the tournament roster; identify registered floaters and owner-approved last-minute guest substitutes explicitly.
 - A WeGame/post-game screenshot or a previously collected Lzyumi detail snapshot.
 - When available: K/D/A, numeric champion ID, seven item slots (`0` for an empty slot), champion damage, gold, position, and one winning-team MVP.
 
 The current tournament payload and result modal support champion, items, K/D/A, damage, gold, position, and MVP. They do not have dedicated fields for SVP, level, CS, runes, summoner spells, or WeGame rating. Preserve unsupported values in the private audit/evidence when useful, but do not invent fields or overload MVP.
 
-If provider evidence and the registered full Riot ID disagree, stop and reconcile the identity explicitly. A manual result may attach verified match statistics to the already selected tournament profile, but it must not silently rewrite the player's durable profile identity. Record any approved alias reconciliation in the operation audit.
+If provider evidence and the registered full Riot ID disagree, stop and reconcile the identity explicitly. A manual result may attach verified match statistics to the already selected tournament profile, but it must not silently rewrite the player's durable profile identity. Record any approved alias reconciliation in the operation audit. An unregistered player may be recorded only as an explicitly owner-approved guest substitute keyed by platform and full Riot ID; this must not create an ECL account or ranked player record.
 
 ### Required workflow
 
 1. Confirm explicit authorization for the named environment and exact fixture(s). A request to inspect or diagnose a result is not authorization to publish it.
 2. Read the live tournament view with admin visibility. Resolve the fixture, both teams, and all ten players to their stable tournament `profileId` values; never persist display-name-only matching.
-3. Check the numeric League Game ID across current tournament reports, non-cancelled report jobs, legacy `MatchGame` payloads, and `InhouseSession.lzyumiGameId`. Abort on any ranked/legacy collision.
-4. Validate five players per fixture team, the winner, K/D/A totals, timestamp, duration, MVP side, and every optional field against the supplied evidence. Missing or unverified optional fields stay absent.
+3. Check the numeric League Game ID, or the private Lzyumi provider ID fallback, across current tournament reports, non-cancelled report jobs, legacy `MatchGame` payloads, and `InhouseSession.lzyumiGameId`. Abort on any ranked/legacy collision.
+4. Validate five players per fixture team, the winner, K/D/A totals, timestamp, duration, MVP side, and every optional field against the supplied evidence. Resolve normal players to stable registered `profileId` values. Record an approved unregistered substitute as a tournament-only guest identity and mark it `SUB`; do not map it to another person's profile. Missing or unverified optional fields stay absent.
 5. Run a read-only dry run first. Print a bounded summary and fingerprint of the current reports, fixture/roster identities, duplicate checks, and exact proposed payload. Do not print provider tokens, cookies, `openId` values, raw signed URLs, or unrestricted provider payloads.
 6. Apply only with the immediately preceding fingerprint. Create the report through `submitTournamentReport`, then publish it through `reviewTournamentReport`; never edit an approved report row directly.
 7. For a correction, submit a new report with `replacesId` pointing to the current approved report. Approval must atomically mark the old report `REPLACED` and the correction `APPROVED`.
 8. Default Codex recovery operations to `{ notify: false }`. Sending a KOOK result message requires separate explicit authorization. Tournament approval must report `lpApplied: false`.
 9. Write an ignored local audit containing the fingerprint, old/new report IDs, before/after standings, identity reconciliation, duplicate checks, notification result, and recovery instructions.
-10. Verify the public `/api/tournaments/split-ii/matches` response: exactly one `APPROVED` report for the game, correct fixture/result/player fields, and no stale approved predecessor. Independently confirm that no KOOK notification or ranked/legacy row was created.
+10. Verify the public `/api/tournaments/split-ii/matches` response: exactly one `APPROVED` report for the game, correct fixture/result/player fields, substitute labels where applicable, no private provider ID, and no stale approved predecessor. Independently confirm that no KOOK notification or ranked/legacy row was created.
 
 ### Reusable read-only preflight
 
@@ -343,7 +343,7 @@ npx tsx scripts/preflight-split-ii-result.ts `
   --target=production-read-only
 ```
 
-The required `--target` value is a non-secret audit label; it does not select or weaken the configured database credential. The command prints a bounded summary, blockers/warnings, duplicate-check booleans, invariants, and a state fingerprint. It never prints the raw manifest identities in its normal summary, never requests provider data, never queues KOOK, and rejects `--apply`. A clean result is evidence for review, not authorization to publish; use a separately reviewed fixture-specific submit/review operation with the immediately preceding fingerprint.
+The manifest normally supplies `leagueGameId`. For the verified Lzyumi-only fallback, set `leagueGameId` to `null`, supply `providerId`, and mark each approved unregistered player with `guestSubstitute: true`. The required `--target` value is a non-secret audit label; it does not select or weaken the configured database credential. The command prints a bounded summary, blockers/warnings, duplicate-check booleans, invariants, and a state fingerprint. It never prints the raw manifest identities in its normal summary, never requests provider data, never queues KOOK, and rejects `--apply`. A clean result is evidence for review, not authorization to publish; use a separately reviewed fixture-specific submit/review operation with the immediately preceding fingerprint.
 
 Recovery is another tournament correction replacing the current approved report. Never repair a tournament result by changing ranked LP or deleting historical report rows. Preserve `REPLACED` reports as the audit trail.
 

@@ -75,6 +75,16 @@ export async function testMatchWorkflow(db:PrismaClient,connection:Connection,pr
   assert.equal((await db.tournamentReport.findUniqueOrThrow({where:{id:repeat.id}})).status,'PENDING');
   const opposite=view.fixtures.find(v=>v.homeTeamId!==home.id&&v.awayTeamId!==home.id)!;
   const other=await submitTournamentReport(db,{admin:true},reportFor(opposite,'100003',true));await reviewTournamentReport(db,other.id,'approve','Floater different team');assert.equal(await db.tournamentFloaterAppearance.count(),2);
+  const guestFixture=view.fixtures.find(v=>![f.id,repeated.id,opposite.id].includes(v.id))!;
+  const guestInput=reportFor(guestFixture,'100004');Object.assign(guestInput,{leagueGameId:null,providerId:'opaque-provider-guest-1'});
+  const guestLine=guestInput.payload.players[4] as Omit<(typeof guestInput.payload.players)[number],'profileId'>&{profileId?:string;guestSubstitute?:{riotId:string;displayName:string}};delete guestLine.profileId;guestLine.guestSubstitute={riotId:'EmergencySub#85175',displayName:'Emergency Sub'};
+  const guestReport=await submitTournamentReport(db,{admin:true},guestInput);assert.equal(guestReport.status,'PENDING');
+  const guestSaved=await db.tournamentReport.findUniqueOrThrow({where:{id:guestReport.id}});assert.deepEqual(guestSaved.raw,{provider:'LZYUMI',providerGameId:'opaque-provider-guest-1'});
+  const guestPublished=await reviewTournamentReport(db,guestReport.id,'approve','Verified last-minute guest substitute and Lzyumi provider identity',undefined,{notify:false});assert.equal(guestPublished.status,'APPROVED');assert.ok('notificationQueued' in guestPublished);assert.equal(guestPublished.notificationQueued,false);assert.equal(guestPublished.lpApplied,false);
+  const guestPayload=(await db.tournamentReport.findUniqueOrThrow({where:{id:guestReport.id}})).payload as unknown as {players:{profileId:string;riotId:string;substitute:boolean;guestSubstitute?:boolean}[]};
+  assert.ok(guestPayload.players.some(p=>p.riotId==='EmergencySub#85175'&&p.profileId.startsWith('guest:')&&p.substitute&&p.guestSubstitute));
+  const duplicateGuest=reportFor(view.fixtures.find(v=>![f.id,repeated.id,opposite.id,guestFixture.id].includes(v.id))!,'100005');Object.assign(duplicateGuest,{leagueGameId:null,providerId:'opaque-provider-guest-1'});
+  await assert.rejects(()=>submitTournamentReport(db,{admin:true},duplicateGuest),/Lzyumi game already has/);
   const fix=await submitTournamentReport(db,{admin:true},{...reportFor(f,'100001',false),replacesId:first.id});await reviewTournamentReport(db,fix.id,'approve','Corrected actual lineup');assert.equal((await db.tournamentReport.findUniqueOrThrow({where:{id:first.id}})).status,'REPLACED');assert.equal(await db.tournamentFloaterAppearance.count(),1);
   const duplicate=await submitTournamentReport(db,{admin:true},reportFor(repeated,'100001'));await assert.rejects(()=>reviewTournamentReport(db,duplicate.id,'approve','Duplicate League ID'),/already has an approved/);
   console.log('PASS: review gate, exact lineups, approved statistics, corrections, duplicate IDs and once-per-team floaters');

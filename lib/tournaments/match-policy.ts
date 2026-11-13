@@ -1,10 +1,12 @@
+import { createHash } from "node:crypto";
+
 export class TournamentError extends Error {
   constructor(message: string, public status = 400) { super(message); }
 }
 export type Schedule = { state: "PROPOSED" | "CONFIRMED"; at: string; byTeam: string; revision: number; channelId?: string; actor: string };
-export type MatchPlayer = { profileId: string; teamId: string; name: string; riotId: string; champion?: string; items?: number[]; damage?: number; gold?: number; position?: string; kills?: number; deaths?: number; assists?: number; mvp: boolean };
+export type MatchPlayer = { profileId: string; teamId: string; name: string; riotId: string; substitute: boolean; guestSubstitute?: boolean; champion?: string; items?: number[]; damage?: number; gold?: number; position?: string; kills?: number; deaths?: number; assists?: number; mvp: boolean };
 export type MatchPayload = { winnerTeamId: string; durationSeconds: number; playedAt: string; players: MatchPlayer[]; note: string; statsComplete: boolean };
-export type ReportInput = { fixtureId: string; gameNumber: number; platform: string; leagueGameId: string | null; source: "MANUAL" | "JSON" | "HUB"; payload: MatchPayload; raw?: unknown; evidence?: { name: string; dataUrl: string }; replacesId?: string };
+export type ReportInput = { fixtureId: string; gameNumber: number; platform: string; leagueGameId: string | null; providerId: string | null; source: "MANUAL" | "JSON" | "HUB"; payload: MatchPayload; raw?: unknown; evidence?: { name: string; dataUrl: string }; replacesId?: string };
 export function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new TournamentError("Expected an object.");
   return value as Record<string, unknown>;
@@ -23,16 +25,54 @@ export function instant(value: unknown): string {
   if (!parts || !Number.isFinite(Date.parse(s)) || Number(parts[2])<1 || Number(parts[2])>12 || Number(parts[3])<1 || Number(parts[3])>new Date(Date.UTC(Number(parts[1]),Number(parts[2]),0)).getUTCDate() || Number(parts[4])>23 || Number(parts[5])>59) throw new TournamentError("Choose a valid date/time with an explicit time zone (China time is UTC+8).");
   return new Date(s).toISOString();
 }
+
+function fullRiotId(value: unknown) {
+  const riotId = text(value, 80).normalize("NFKC");
+  const separator = riotId.lastIndexOf("#");
+  const name = riotId.slice(0, separator).trim();
+  const tag = riotId.slice(separator + 1).trim().replace(/^#+/, "");
+  if (separator < 1 || !name || !tag || name.length > 32 || tag.length > 16 || /[\u0000-\u001f\u007f]/.test(riotId)) {
+    throw new TournamentError("Guest substitutes require a valid full Riot ID.");
+  }
+  return { riotId: `${name}#${tag}`, name };
+}
+
+export function guestParticipantId(platform: string, riotId: string) {
+  const normalized = riotId.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+  return `guest:${createHash("sha256").update(`${platform}:${normalized}`).digest("hex").slice(0, 32)}`;
+}
+
+export function storedProviderId(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (raw.provider !== "LZYUMI" || typeof raw.providerGameId !== "string") return null;
+  const providerId = raw.providerGameId.trim();
+  return /^[A-Za-z0-9+/_=-]{8,200}$/.test(providerId) ? providerId : null;
+}
+
 export function parseReport(value: unknown): ReportInput {
   const b = object(value), p = object(b.payload);
   if (!["MANUAL", "JSON", "HUB"].includes(String(b.source))) throw new TournamentError("Choose a report source.");
+  const source = b.source as ReportInput["source"];
+  const platform = text(b.platform ?? "HN1", 12).toUpperCase();
+  if (!/^[A-Z0-9]{2,12}$/.test(platform)) throw new TournamentError("Invalid League platform.");
   if (!Array.isArray(p.players) || p.players.length !== 10) throw new TournamentError("Select all ten actual players, including any floaters.");
   const players = p.players.map(v => {
     const row = object(v);
     const stats = [row.kills, row.deaths, row.assists];
     if(row.items!==undefined&&(!Array.isArray(row.items)||row.items.length>7))throw new TournamentError('Items must contain at most seven item IDs.');
     if (stats.some(v => v !== undefined && v !== null) && !stats.every(v => typeof v === "number")) throw new TournamentError("Enter all three K/D/A values for a player, or leave all three blank.");
-    return { profileId: text(row.profileId, 100), teamId: text(row.teamId, 150), name: "", riotId: "", mvp: row.mvp === true,
+    const guest = row.guestSubstitute === undefined
+      ? null
+      : row.guestSubstitute === true
+        ? { riotId: row.riotId, displayName: row.name }
+        : object(row.guestSubstitute);
+    if (guest && source === "HUB") throw new TournamentError("Hub reports cannot introduce guest substitutes.");
+    const guestIdentity = guest ? fullRiotId(guest.riotId) : null;
+    const guestName = guestIdentity && guest ? (guest.displayName === undefined ? guestIdentity.name : text(guest.displayName, 80)) : "";
+    return { profileId: guestIdentity ? guestParticipantId(platform, guestIdentity.riotId) : text(row.profileId, 100), teamId: text(row.teamId, 150),
+      name: guestName, riotId: guestIdentity?.riotId ?? "",
+      substitute: Boolean(guestIdentity), ...(guestIdentity ? { guestSubstitute: true as const } : {}), mvp: row.mvp === true,
       ...(stats.every(v => typeof v === "number") ? { kills: integer(row.kills, 0, 200), deaths: integer(row.deaths, 0, 200), assists: integer(row.assists, 0, 300) } : {}),
       ...(row.champion ? { champion: text(row.champion, 80) } : {}),
       ...(Array.isArray(row.items)?{items:row.items.map(id=>integer(id,0,100000))}:{}),
@@ -44,9 +84,10 @@ export function parseReport(value: unknown): ReportInput {
   if (players.filter(p => p.mvp).length > 1) throw new TournamentError("Choose at most one MVP.");
   const winnerTeamId = text(p.winnerTeamId, 150);
   if (players.some(p => p.mvp && p.teamId !== winnerTeamId)) throw new TournamentError("The MVP must be on the winning team.");
-  const platform = text(b.platform ?? "HN1", 12).toUpperCase();
-  if (!/^[A-Z0-9]{2,12}$/.test(platform)) throw new TournamentError("Invalid League platform.");
   const leagueGameId = b.leagueGameId ? text(b.leagueGameId, 20) : null;
+  const providerId = b.providerId ? text(b.providerId, 200) : null;
+  if (providerId && !/^[A-Za-z0-9+/_=-]{8,200}$/.test(providerId)) throw new TournamentError("Provider ID has an invalid format.");
+  if (!leagueGameId && !providerId) throw new TournamentError("Provide an exact League Game ID or verified Lzyumi provider ID.");
   if (leagueGameId && !/^\d{5,20}$/.test(leagueGameId)) throw new TournamentError("Game ID must contain 5–20 digits.");
   let evidence: ReportInput["evidence"];
   if (b.evidence) {
@@ -54,7 +95,7 @@ export function parseReport(value: unknown): ReportInput {
     if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(dataUrl)) throw new TournamentError("Evidence must be a PNG, JPEG or WebP screenshot under 1.5 MB.");
     evidence = { name: text(e.name, 100), dataUrl };
   }
-  return { fixtureId: text(b.fixtureId, 150), gameNumber: integer(b.gameNumber ?? 1, 1, 5), platform, leagueGameId, source: b.source as ReportInput["source"],
+  return { fixtureId: text(b.fixtureId, 150), gameNumber: integer(b.gameNumber ?? 1, 1, 5), platform, leagueGameId, providerId, source,
     payload: { winnerTeamId, durationSeconds: integer(p.durationSeconds, 60, 14400), playedAt: instant(p.playedAt), players, note: text(p.note ?? "", 2000), statsComplete: players.every(p => p.kills !== undefined) },
     ...(b.raw !== undefined ? { raw: b.raw } : {}), ...(evidence ? { evidence } : {}), ...(b.replacesId ? { replacesId: text(b.replacesId, 100) } : {}) };
 }

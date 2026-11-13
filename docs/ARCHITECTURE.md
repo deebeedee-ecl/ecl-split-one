@@ -92,6 +92,8 @@ The intended manual owner/viewer refresh is not deployed. ADR 0002 defines its s
 
 Tournament routes and library modules own registrations, identity checks, rosters, fixtures, reports, notifications, and collection jobs. The tournament database models are separate from the older general `Team`/`Match` models, so code must be explicit about which competition model it is changing.
 
+Approved last-minute guest substitutes are represented inside the tournament report payload with a deterministic tournament-only key derived from platform and normalized full Riot ID. They are never silently mapped to an `AccountProfile`. When a numeric League Game ID is unavailable, an opaque Lzyumi provider ID is retained only in private report evidence and used for locking, duplicate detection, and ranked/legacy collision checks.
+
 ## Trust boundaries
 
 - Browser input, KOOK messages, provider payloads, and companion uploads are untrusted until validated.
