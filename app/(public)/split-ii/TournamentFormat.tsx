@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { SPLIT_II_TEAMS } from "@/lib/tournaments/split-ii-fixtures";
+import { SPLIT_II_SEMIFINALS, SPLIT_II_SEMIFINAL_SIDE_RULE, SPLIT_II_TEAMS } from "@/lib/tournaments/split-ii-fixtures";
 import styles from "./split-ii.module.css";
 
 const teams = Object.entries(SPLIT_II_TEAMS).map(([logo, team]) => ({ logo, ...team }));
@@ -26,13 +26,10 @@ export default function TournamentFormat() {
       <section className={styles.formatCard} aria-labelledby="playoff-format-heading">
         <div className={styles.formatCardTitle}><span>02</span><h4 id="playoff-format-heading">Playoffs / Bo3</h4></div>
         <div className={styles.formatBracket} aria-label="Best-of-three semifinals lead to the best-of-three final">
-          <div className={styles.formatSemifinals}>
-            <div className={styles.formatMatch}><p>SEMIFINAL 1 / Bo3</p><div><strong>1st place</strong><span>vs</span><strong>4th place</strong></div></div>
-            <div className={styles.formatMatch}><p>SEMIFINAL 2 / Bo3</p><div><strong>2nd place</strong><span>vs</span><strong>3rd place</strong></div></div>
-          </div>
+          <div className={styles.formatSemifinals}>{SPLIT_II_SEMIFINALS.map((semifinal,index)=><div key={semifinal.code} className={styles.formatMatch}><p>SEMIFINAL {index+1} / Bo3</p><div><strong>{semifinal.homeSeed}. {SPLIT_II_TEAMS[semifinal.home].name}</strong><span>vs</span><strong>{semifinal.awaySeed}. {SPLIT_II_TEAMS[semifinal.away].name}</strong></div><small>Game 1 side selection: {SPLIT_II_TEAMS[semifinal.gameOneSideSelection].name}</small></div>)}</div>
           <div className={`${styles.formatMatch} ${styles.formatFinal}`}><p>FINAL / Bo3 / 20 NOVEMBER</p><div><strong>Winner SF1</strong><span>vs</span><strong>Winner SF2</strong></div><span className={styles.formatChampion}>ECL SPLIT II CHAMPIONS</span></div>
         </div>
-        <p className={styles.formatSeries}>Both semifinals and the final are best of three. Win two games to take the series.</p>
+        <p className={styles.formatSeries}>Both semifinals and the final are best of three. Win two games to take the series. {SPLIT_II_SEMIFINAL_SIDE_RULE}</p>
       </section>
 
       <section className={styles.formatCard} aria-labelledby="tie-format-heading">

@@ -1,32 +1,47 @@
 import Image from 'next/image';
 import type { TournamentData } from '@/lib/tournaments/match-types';
+import { SPLIT_II_SEMIFINALS, SPLIT_II_SEMIFINAL_SIDE_RULE } from '@/lib/tournaments/split-ii-fixtures';
 import TournamentResultList from './TournamentResultList';
 import styles from './split-ii.module.css';
 export const chinaTime=(value:string)=>new Date(value).toLocaleString('en-GB',{timeZone:'Asia/Shanghai',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:false})+' CST';
 const totalWinTime=(seconds:number)=>`${Math.floor(seconds/3600)}:${String(Math.floor(seconds%3600/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
-export function LiveFixtures({data}:{data:TournamentData}){
+type Fixture=TournamentData['fixtures'][number];
+function FixtureRows({data,fixtures}:{data:TournamentData;fixtures:Fixture[]}){
   const team=(id:string)=>data.teams.find(t=>t.id===id)!;
-  const weeks=[...new Set(data.fixtures.map(f=>f.week))].sort((a,b)=>a-b);
+  return <ol className={`${styles.fixtureList} ${styles.liveFixtureList}`}>{fixtures.map(f=>{
+    const target=Math.floor(f.bestOf/2)+1;
+    const homeWon=f.homeScore>=target,awayWon=f.awayScore>=target;
+    const complete=homeWon||awayWon;
+    const outcome=(won:boolean)=>complete?(won?styles.fixtureWin:styles.fixtureLoss):'';
+    const definition=SPLIT_II_SEMIFINALS.find(row=>row.code===f.code);
+    const selector=definition&&data.teams.find(t=>t.key===definition.gameOneSideSelection);
+    return <li key={f.id}>
+      <span className={styles.fixtureNumber}>{f.code.replace(/^RR/,'')}</span>
+      <div className={`${styles.fixtureTeam} ${outcome(homeWon)}`}><Image src={team(f.homeTeamId).logo} alt="" width={28} height={28}/><strong>{team(f.homeTeamId).name}{complete&&<span className={styles.srOnly}>{homeWon?' — Win':' — Loss'}</span>}</strong></div>
+      <span className={styles.fixtureVersus}>{f.homeScore||f.awayScore?<><span className={outcome(homeWon)}>{f.homeScore}</span> : <span className={outcome(awayWon)}>{f.awayScore}</span></>:'vs'}</span>
+      <div className={`${styles.fixtureTeam} ${styles.fixtureOpponent} ${outcome(awayWon)}`}><strong>{team(f.awayTeamId).name}{complete&&<span className={styles.srOnly}>{awayWon?' — Win':' — Loss'}</span>}</strong><Image src={team(f.awayTeamId).logo} alt="" width={28} height={28}/></div>
+      {!complete&&(selector||f.schedule)&&<p className={styles.fixtureSchedule}>{selector&&<>Game 1 side selection: {selector.name}.{f.schedule&&' '}</>}{f.schedule&&<>{chinaTime(f.schedule.at)} / {f.schedule.state==='CONFIRMED'?'Confirmed':'Awaiting opposing captain'}</>}</p>}
+    </li>;
+  })}</ol>;
+}
+export function LiveFixtures({data}:{data:TournamentData}){
+  const roundRobin=data.fixtures.filter(f=>f.stage==='ROUND_ROBIN');
+  const semifinals=data.fixtures.filter(f=>f.stage==='SEMIFINAL').sort((a,b)=>a.code.localeCompare(b.code));
+  const weeks=[...new Set(roundRobin.map(f=>f.week))].sort((a,b)=>a-b);
   return <section aria-labelledby="live-fixtures-heading">
-    <div className={styles.sectionHeading}><div><p>ECL SPLIT II / FIXTURES</p><h3 id="live-fixtures-heading">Round robin fixtures.</h3></div></div>
-    <p className={styles.fixturesIntro}>Two Bo1 matches per team each week. All times are China time.</p>
-    <div className={styles.fixtureWeeks}>{weeks.map(week=>{
-      const fixtures=data.fixtures.filter(f=>f.week===week);
+    <div className={styles.sectionHeading}><div><p>ECL SPLIT II / FIXTURES</p><h3 id="live-fixtures-heading">Fixtures &amp; playoffs.</h3></div></div>
+    <p className={styles.fixturesIntro}>Semifinals are Bo3. Round-robin fixtures remain below as the completed league record. All scheduled times are China time.</p>
+    <div className={styles.fixtureWeeks}>
+      {semifinals.length>0&&<section className={styles.fixtureWeek} aria-labelledby="live-fixtures-semifinals">
+        <div className={styles.fixtureWeekHeading}><div><h4 id="live-fixtures-semifinals">Semifinals</h4><p>{semifinals.length} series / first to two wins</p></div><span>Bo3</span></div>
+        <FixtureRows data={data} fixtures={semifinals}/>
+        <p className={styles.fixtureRule}>{SPLIT_II_SEMIFINAL_SIDE_RULE}</p>
+      </section>}
+      {weeks.map(week=>{
+      const fixtures=roundRobin.filter(f=>f.week===week);
       return <section key={week} className={styles.fixtureWeek} aria-labelledby={`live-fixtures-week-${week}`}>
         <div className={styles.fixtureWeekHeading}><div><h4 id={`live-fixtures-week-${week}`}>Week {week}</h4><p>{fixtures.length} matches</p></div><span>{[...new Set(fixtures.map(f=>`Bo${f.bestOf}`))].join(' / ')}</span></div>
-        <ol className={`${styles.fixtureList} ${styles.liveFixtureList}`} aria-label={`Week ${week} fixtures`}>{fixtures.map(f=>{
-          const target=Math.floor(f.bestOf/2)+1;
-          const homeWon=f.homeScore>=target,awayWon=f.awayScore>=target;
-          const complete=homeWon||awayWon;
-          const outcome=(won:boolean)=>complete?(won?styles.fixtureWin:styles.fixtureLoss):'';
-          return <li key={f.id}>
-            <span className={styles.fixtureNumber}>{f.code.replace(/^RR/,'')}</span>
-            <div className={`${styles.fixtureTeam} ${outcome(homeWon)}`}><Image src={team(f.homeTeamId).logo} alt="" width={28} height={28}/><strong>{team(f.homeTeamId).name}{complete&&<span className={styles.srOnly}>{homeWon?' — Win':' — Loss'}</span>}</strong></div>
-            <span className={styles.fixtureVersus}>{f.homeScore||f.awayScore?<><span className={outcome(homeWon)}>{f.homeScore}</span> : <span className={outcome(awayWon)}>{f.awayScore}</span></>:'vs'}</span>
-            <div className={`${styles.fixtureTeam} ${styles.fixtureOpponent} ${outcome(awayWon)}`}><strong>{team(f.awayTeamId).name}{complete&&<span className={styles.srOnly}>{awayWon?' — Win':' — Loss'}</span>}</strong><Image src={team(f.awayTeamId).logo} alt="" width={28} height={28}/></div>
-            {!complete&&f.schedule&&<p className={styles.fixtureSchedule}>{chinaTime(f.schedule.at)} / {f.schedule.state==='CONFIRMED'?'Confirmed':'Awaiting opposing captain'}</p>}
-          </li>;
-        })}</ol>
+        <FixtureRows data={data} fixtures={fixtures}/>
       </section>;
     })}</div>
   </section>;

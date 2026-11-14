@@ -165,6 +165,11 @@ The Standings tab orders teams by wins and then by lower total duration of the
 games they won. It displays that `Win time` value; only teams equal on both
 wins and total winning time retain the provisional `*` marker.
 
+The Fixtures tab shows confirmed playoff series before the completed
+round-robin weeks. Semifinal cards expose Bo3 scoring, the Game 1 side-selection
+team, the rule that each game's loser selects side for the next game, and any
+confirmed China-time schedule. Tournament format shows the same seeded bracket.
+
 The match-stat dialog labels registered floaters and approved last-minute guest players with a `SUB` badge. Guest Riot IDs are result snapshots, not links to an ECL account.
 
 ### World Cup

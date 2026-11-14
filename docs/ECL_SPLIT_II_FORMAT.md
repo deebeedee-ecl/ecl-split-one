@@ -22,6 +22,22 @@ November 14, 2026. The standings table exposes this value as `Win time`, and
 the shared standings calculation supplies the same order to public and KOOK
 surfaces.
 
+## Confirmed semifinals (November 14)
+
+The completed round robin and total-winning-time tie-break produced these seeds:
+
+1. BallBreakers
+2. Zero
+3. Exodus
+4. Phoenix
+5. NextGen
+
+The confirmed Bo3 semifinals are `SF01` BallBreakers versus Phoenix and `SF02`
+Zero versus Exodus. The higher seed has side selection for Game 1: BallBreakers
+in `SF01` and Zero in `SF02`. After each game, the losing team receives side
+selection for the next game. The final fixture is created only after both
+semifinal winners are known.
+
 The owner explicitly confirmed Bo3 for both playoff stages, overriding the
 reference file's default Bo1 selectors. The six-team reference's fifteen-game
 count and two-team elimination were adapted to five teams. The display explains
