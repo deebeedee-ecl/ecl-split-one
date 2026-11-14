@@ -74,6 +74,17 @@ For schema changes and durable workflow changes, prefer an expand/deploy/migrate
 
 Do not combine irreversible cleanup with the first production deployment. High-risk behavior should use a feature flag or another reversible activation path when practical.
 
+For the approved Split II semifinal release, use
+`scripts/release-split-ii-semifinals.ts`. Run `check --target=production` first,
+review the standings, planned `SF01`/`SF02` matchups, blockers, and fingerprint,
+then run `apply --target=production --apply --fingerprint=<fingerprint>` only
+with explicit production authorization. The apply transaction locks the event,
+revalidates the fingerprint, tolerates already-correct rows, and writes an
+ignored audit. Before a semifinal schedule or report exists, recovery may
+delete only those two fixture rows in one separately reviewed transaction;
+after use, preserve the fixture history and correct records through the normal
+tournament workflow.
+
 ### Release evidence
 
 Every production handoff should state:

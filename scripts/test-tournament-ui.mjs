@@ -170,6 +170,10 @@ try {
   assert.ok(format.textContent.includes('5th place is eliminated'));
   assert.ok(format.textContent.includes('Both semifinals and the final are best of three'));
   assert.ok(format.textContent.includes('lower total winning time receives the higher seed'));
+  assert.ok(format.textContent.includes('1. BallBreakersvs4. Phoenix'));
+  assert.ok(format.textContent.includes('2. Zerovs3. Exodus'));
+  assert.ok(format.textContent.includes('Game 1 side selection: BallBreakers'));
+  assert.ok(format.textContent.includes('losing team receives side selection'));
   await act(async()=>button('Fixtures').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));
   await until(()=>container.textContent.includes('Fixtures are reconnecting automatically.')||container.textContent.includes('Loading the latest fixtures'));
   assert.equal(container.querySelectorAll('.fixtureList > li').length,0,'No fictional unplayed scores while live data is unavailable');
@@ -317,12 +321,15 @@ try {
   assert.equal(posts,beforeRejectedPost+1,'Registration writes must not be automatically retried');
   console.log('PASS: scheduled opening, full capacity, unavailable roster, retry recovery and rejected signup has no false confirmation');
   const home={id:'home',key:'ballbreakers',name:'BallBreakers',logo:'/kook/split2/ballbreakers.png',members:[]},away={id:'away',key:'phoenix',name:'Phoenix',logo:'/kook/split2/phoenix.png',members:[]};
-  matchState={teams:[home,away],fixtures:[{id:'f1',code:'RR01',week:1,bestOf:1,homeTeamId:'home',awayTeamId:'away',homeScore:1,awayScore:0,schedule:{at:'2026-10-26T12:00:00Z',state:'CONFIRMED'}}],standings:[{id:'home',name:'BallBreakers',played:1,wins:1,losses:0,winTimeSeconds:1800,tied:false},{id:'away',name:'Phoenix',played:1,wins:0,losses:1,winTimeSeconds:0,tied:false}],reports:[{id:'r1',fixtureId:'f1',gameNumber:1,leagueGameId:'100001',payload:{winnerTeamId:'home',durationSeconds:1800,playedAt:'2026-10-24T12:00:00Z',note:'Approved fixture',players:[{profileId:'p1',name:'Test MVP',riotId:'MVP#1234',teamId:'home',kills:5,deaths:2,assists:10,mvp:true,substitute:true,champion:'51',items:[3031,3006,0],damage:60158,gold:20732,position:'BOTTOM'}]}},{id:'r0',fixtureId:'f1',gameNumber:1,leagueGameId:'100000',payload:{winnerTeamId:'home',durationSeconds:1800,playedAt:'2026-10-23T12:00:00Z',note:'Earlier approved fixture',players:[{profileId:'p1',name:'Test MVP',riotId:'MVP#1234',teamId:'home',kills:5,deaths:2,assists:10,mvp:true,substitute:true,champion:'51',items:[3031,3006,0],damage:60158,gold:20732,position:'BOTTOM'}]}}],leaders:{kda:[{profileId:'p1',name:'Test MVP',kda:7.5,statGames:1}],assists:[{profileId:'p1',name:'Test MVP',assists:10,statGames:1}],mvps:[{profileId:'p1',name:'Test MVP',mvps:1,games:1}]}};
+  matchState={teams:[home,away],fixtures:[{id:'f1',code:'RR01',stage:'ROUND_ROBIN',week:1,bestOf:1,homeTeamId:'home',awayTeamId:'away',homeScore:1,awayScore:0,schedule:{at:'2026-10-26T12:00:00Z',state:'CONFIRMED'}},{id:'sf1',code:'SF01',stage:'SEMIFINAL',week:3,bestOf:3,homeTeamId:'home',awayTeamId:'away',homeScore:0,awayScore:0,schedule:null}],standings:[{id:'home',name:'BallBreakers',played:1,wins:1,losses:0,winTimeSeconds:1800,tied:false},{id:'away',name:'Phoenix',played:1,wins:0,losses:1,winTimeSeconds:0,tied:false}],reports:[{id:'r1',fixtureId:'f1',gameNumber:1,leagueGameId:'100001',payload:{winnerTeamId:'home',durationSeconds:1800,playedAt:'2026-10-24T12:00:00Z',note:'Approved fixture',players:[{profileId:'p1',name:'Test MVP',riotId:'MVP#1234',teamId:'home',kills:5,deaths:2,assists:10,mvp:true,substitute:true,champion:'51',items:[3031,3006,0],damage:60158,gold:20732,position:'BOTTOM'}]}},{id:'r0',fixtureId:'f1',gameNumber:1,leagueGameId:'100000',payload:{winnerTeamId:'home',durationSeconds:1800,playedAt:'2026-10-23T12:00:00Z',note:'Earlier approved fixture',players:[{profileId:'p1',name:'Test MVP',riotId:'MVP#1234',teamId:'home',kills:5,deaths:2,assists:10,mvp:true,substitute:true,champion:'51',items:[3031,3006,0],damage:60158,gold:20732,position:'BOTTOM'}]}}],leaders:{kda:[{profileId:'p1',name:'Test MVP',kda:7.5,statGames:1}],assists:[{profileId:'p1',name:'Test MVP',assists:10,statGames:1}],mvps:[{profileId:'p1',name:'Test MVP',mvps:1,games:1}]}};
   state=structuredClone(config);await mount();
   const activate=async label=>{await act(async()=>button(label).dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})));await flush();};
   await activate('Fixtures');assert.ok(!container.textContent.includes('26 Oct, 20:00 CST'));assert.ok(!container.textContent.includes('Confirmed'));assert.ok(container.textContent.includes('1 : 0'));
-  assert.equal(container.querySelectorAll('.fixtureWeek').length,1);
-  assert.equal(container.querySelectorAll('.liveFixtureList > li').length,1);
+  assert.equal(container.querySelectorAll('.fixtureWeek').length,2);
+  assert.equal(container.querySelectorAll('.liveFixtureList > li').length,2);
+  assert.ok(container.textContent.includes('Semifinals'));
+  assert.ok(container.textContent.includes('Game 1 side selection: BallBreakers'));
+  assert.ok(container.textContent.includes('losing team receives side selection'));
   assert.ok(container.querySelector('.fixtureTeam.fixtureWin').textContent.includes('BallBreakers'));
   assert.ok(container.querySelector('.fixtureTeam.fixtureLoss').textContent.includes('Phoenix'));
   assert.ok(container.querySelector('.fixtureTeam.fixtureWin').textContent.includes('Win'));
@@ -381,7 +388,7 @@ try {
   const native=DesktopSplitTwo({api:{onSplitTwo:cb=>{nativeListener=cb;}}});native.start({demo:false,splitTwo:{tournament:nativeData,enabled:false,message:'Uploads disconnected'}});
   assert.equal(nativeRoot.querySelector('[data-split-refresh]'),null);
   nativeRoot.querySelector('[data-split-tab="rosters"]').click();assert.ok(nativeRoot.textContent.includes('Player0#1234'));
-  nativeRoot.querySelector('[data-split-tab="fixtures"]').click();assert.ok(!nativeRoot.textContent.includes('Time to be confirmed'));assert.ok(nativeRoot.querySelector('.s2-fixture .s2-win').textContent.includes('BallBreakers'));
+  nativeRoot.querySelector('[data-split-tab="fixtures"]').click();assert.ok(!nativeRoot.textContent.includes('Time to be confirmed'));assert.ok(nativeRoot.textContent.includes('Semifinals'));assert.ok(nativeRoot.textContent.includes('Game 1 side selection: BallBreakers'));assert.ok(nativeRoot.querySelector('.s2-fixture .s2-win').textContent.includes('BallBreakers'));
   nativeRoot.querySelector('[data-split-tab="results"]').click();assert.ok(!nativeRoot.textContent.includes('RR01'));nativeRoot.querySelector('[data-s2-result]').click();assert.ok(document.querySelector('.s2-dialog[open]'));assert.ok(document.querySelector('.s2-dialog').textContent.includes('60,158'));assert.ok(document.querySelector('.s2-dialog img[src="items/3031.png"]'));document.querySelector('[data-s2-close]').click();assert.ok(!document.querySelector('.s2-dialog[open]'));
   nativeRoot.querySelector('[data-split-tab="standings"]').click();assert.ok(nativeRoot.textContent.includes('PTS'));
   nativeRoot.querySelector('[data-split-tab="stats"]').click();assert.ok(nativeRoot.textContent.includes('Top 3 KDA'));assert.ok(nativeRoot.textContent.includes('7.50'));

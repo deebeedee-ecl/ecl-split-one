@@ -5,10 +5,10 @@ import vm from 'node:vm';
 import { transformSync } from 'esbuild';
 import { splitTwoReadReply, splitTwoHelp, splitTwoReportHelp, fixtureFinished, completedFixtureReply } from '../lib/tournaments/kook-copy';
 import * as policy from '../lib/tournaments/match-policy';
-import { SPLIT_II_FIXTURE_WEEKS, SPLIT_II_TEAMS } from '../lib/tournaments/split-ii-fixtures';
+import { SPLIT_II_FIXTURE_WEEKS, SPLIT_II_SEMIFINALS, SPLIT_II_TEAMS } from '../lib/tournaments/split-ii-fixtures';
 
 function sample() {
-  const teams = Object.entries(SPLIT_II_TEAMS).map(([key, t]) => ({ id: key, name: t.name, members: [{ profileId: key + '-player' }] }));
+  const teams = Object.entries(SPLIT_II_TEAMS).map(([key, t]) => ({ id: key, key, name: t.name, members: [{ profileId: key + '-player' }] }));
   const fixtures = SPLIT_II_FIXTURE_WEEKS.flatMap(w => w.matches.map(([homeTeamId, awayTeamId], i) => ({
     id: 'RR' + String((w.week - 1) * 5 + i + 1).padStart(2, '0'), code: 'RR' + String((w.week - 1) * 5 + i + 1).padStart(2, '0'),
     week: w.week, stage: 'ROUND_ROBIN', bestOf: 1, homeTeamId, awayTeamId, revision: 0,
@@ -20,8 +20,9 @@ function sample() {
     f.homeScore = Number(f.homeTeamId === winnerTeamId); f.awayScore = Number(f.awayTeamId === winnerTeamId);
     return { id: 'report-' + fixtureId, fixtureId, gameNumber: 1, status: 'APPROVED', payload: { winnerTeamId, durationSeconds: 1842, playedAt: `2026-11-0${i + 1}T12:11:07.000Z` } };
   });
+  fixtures.push(...SPLIT_II_SEMIFINALS.map(row => ({ id: row.code, code: row.code, week: 3, stage: 'SEMIFINAL', bestOf: 3, homeTeamId: row.home, awayTeamId: row.away, revision: 0, homeScore: 0, awayScore: 0, schedule: null })));
   const standings = teams.map(t => ({ ...t, played: 0, wins: 0, losses: 0, winTimeSeconds: 0, tied: false }));
-  for (const f of fixtures.filter(f => f.homeScore || f.awayScore)) for (const t of standings.filter(t => f.homeTeamId === t.id || f.awayTeamId === t.id)) {
+  for (const f of fixtures.filter(f => f.stage === 'ROUND_ROBIN' && (f.homeScore || f.awayScore))) for (const t of standings.filter(t => f.homeTeamId === t.id || f.awayTeamId === t.id)) {
     t.played++; if ((f.homeScore ? f.homeTeamId : f.awayTeamId) === t.id) {
       t.wins++;
       t.winTimeSeconds += Number(reports.find(report => report.fixtureId === f.id)?.payload.durationSeconds ?? 0);
@@ -33,19 +34,22 @@ function sample() {
 type View = Parameters<typeof splitTwoReadReply>[2];
 const asView = (v: ReturnType<typeof sample>) => v as unknown as View;
 
-test('remaining fixtures reflect approved results and preserve RR codes/week grouping', () => {
+test('remaining fixtures include confirmed semifinals, side selection and RR codes', () => {
   const v = asView(sample());
   const reply = splitTwoReadReply('fixtures', [], v)!;
-  assert.match(reply, /6 unplayed fixtures/);
+  assert.match(reply, /8 unplayed fixtures/);
   for (const code of ['RR02', 'RR04', 'RR06', 'RR08', 'RR09', 'RR10']) assert.ok(reply.includes(code));
   for (const code of ['RR01', 'RR03', 'RR05', 'RR07']) assert.ok(!reply.includes(code));
-  assert.ok(reply.includes('Week 1') && reply.includes('Week 2'));
+  assert.ok(reply.includes('Round robin / Week 1') && reply.includes('Round robin / Week 2'));
+  assert.match(reply, /SF01: BallBreakers vs Phoenix .*Game 1 side: BallBreakers/);
+  assert.match(reply, /SF02: Zero vs Exodus .*Game 1 side: Zero/);
+  assert.match(reply, /losing team receives side selection/);
   assert.equal(reply, splitTwoReadReply('remaining', [], v));
 });
 test('full draw shows final scores, with no stale scheduling text on completed games', () => {
   const v = sample(); v.fixtures[0].schedule = { state: 'CONFIRMED', at: '2026-11-03T12:00:00Z' };
   const reply = splitTwoReadReply('fixtures', ['all'], asView(v))!;
-  assert.match(reply, /10 fixtures/); assert.match(reply, /RR01: BallBreakers 1–0 Phoenix \/ Final/);
+  assert.match(reply, /12 fixtures/); assert.match(reply, /RR01: BallBreakers 1–0 Phoenix \/ Final/);
   assert.ok(!reply.split('\n').find(line => line.startsWith('RR01:'))!.includes('CONFIRMED'));
   assert.ok(!reply.includes('Time TBC'));
   assert.match(splitTwoReadReply('fixtures', ['bad'], asView(v))!, /Use !split2 fixtures/);
@@ -61,7 +65,7 @@ test('standings expose winning time and retain only exact ties as provisional', 
 test('results omit pending reports and include an approved game in an unfinished Bo3', () => {
   const v = sample();
   v.reports.push({ id: 'pending', fixtureId: 'RR02', gameNumber: 1, status: 'PENDING', payload: { winnerTeamId: 'zero', durationSeconds: 999, playedAt: '2026-11-04T00:00:00Z' } });
-  v.fixtures.push({ ...v.fixtures[0], id: 'SF01', code: 'SF01', stage: 'SEMIFINAL', bestOf: 3, homeScore: 1, awayScore: 0 });
+  Object.assign(v.fixtures.find(f => f.code === 'SF01')!, { homeScore: 1, awayScore: 0 });
   v.reports.push({ id: 'semi-game1', fixtureId: 'SF01', gameNumber: 1, status: 'APPROVED', payload: { winnerTeamId: 'ballbreakers', durationSeconds: 1000, playedAt: '2026-11-04T01:00:00Z' } });
   const reply = splitTwoReadReply('results', [], asView(v))!;
   assert.ok(!reply.includes('RR02:')); assert.ok(reply.includes('SF01:'));
@@ -70,8 +74,8 @@ test('results omit pending reports and include an approved game in an unfinished
 test('published scores determine completion; all finished and no-result states are clear', () => {
   const v = sample(); assert.equal(fixtureFinished(asView(v).fixtures[0]), true);
   assert.equal(fixtureFinished(asView(v).fixtures[1]), false);
-  for (const f of v.fixtures) f.homeScore = 1;
-  assert.match(splitTwoReadReply('remaining', [], asView(v))!, /Round robin complete/);
+  for (const f of v.fixtures) f.homeScore = Math.ceil(f.bestOf / 2);
+  assert.match(splitTwoReadReply('remaining', [], asView(v))!, /No unplayed tournament fixtures remain/);
   v.reports = []; assert.match(splitTwoReadReply('results', [], asView(v))!, /No published results/);
 });
 

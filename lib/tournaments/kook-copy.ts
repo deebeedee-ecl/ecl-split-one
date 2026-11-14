@@ -1,4 +1,5 @@
 import type { TournamentData } from './match-types';
+import { SPLIT_II_SEMIFINALS, SPLIT_II_SEMIFINAL_SIDE_RULE } from './split-ii-fixtures';
 
 type View = Pick<TournamentData, 'teams' | 'fixtures' | 'reports' | 'standings'>;
 type Fixture = View['fixtures'][number];
@@ -7,14 +8,14 @@ const hub = 'https://eclchina.lol/hub/split-ii';
 export const splitTwoHelp = [
   'ECL Split II / Coach',
   '!split2 standings — current table',
-  '!split2 fixtures — remaining round-robin fixtures',
-  '!split2 fixtures all — full draw, including scores',
+  '!split2 fixtures — remaining tournament fixtures',
+  '!split2 fixtures all — full draw and playoffs, including scores',
   '!split2 results — published results',
   '!split2 report — how to report a game',
   '!split2 schedule FIXTURE YYYY-MM-DD HH:mm — propose China time',
   '!split2 confirm FIXTURE REVISION — opposing captain confirms',
   '!split2 cancel FIXTURE REVISION — cancel a proposal',
-  'Use the RR code shown beside a fixture. Captains schedule their own games; admins can override.',
+  'Use the fixture code shown beside a matchup. Captains schedule their own games; admins can override.',
   'Tournament reports require admin review and never award inhouse LP.',
 ].join('\n');
 
@@ -61,14 +62,15 @@ export function splitTwoReadReply(action: string, args: string[], view: View): s
   if (action === 'fixtures' || action === 'remaining') {
     const mode = action === 'remaining' ? 'remaining' : (args[0]?.toLowerCase() || 'remaining');
     if (!['remaining', 'all'].includes(mode)) return 'Use !split2 fixtures, !split2 remaining or !split2 fixtures all.';
-    const fixtures = view.fixtures.filter(f => f.stage === 'ROUND_ROBIN' && (mode === 'all' || !fixtureFinished(f)))
+    const fixtures = view.fixtures.filter(f => mode === 'all' || !fixtureFinished(f))
       .sort((a, b) => a.week - b.week || a.code.localeCompare(b.code));
-    if (!fixtures.length) return ['ECL Split II / Remaining fixtures', 'Round robin complete. No round-robin fixtures remain.', hub].join('\n');
-    const lines = [`ECL Split II / ${mode === 'all' ? 'All round-robin fixtures' : 'Remaining fixtures'}`,
-      `${fixtures.length} ${mode === 'all' ? 'fixtures' : 'unplayed fixtures'} / Bo1`];
-    let week = -1;
+    if (!fixtures.length) return ['ECL Split II / Remaining fixtures', 'No unplayed tournament fixtures remain.', hub].join('\n');
+    const lines = [`ECL Split II / ${mode === 'all' ? 'All fixtures and playoffs' : 'Remaining fixtures'}`,
+      `${fixtures.length} ${mode === 'all' ? 'fixtures' : 'unplayed fixtures'}`];
+    let group = '';
     for (const fixture of fixtures) {
-      if (fixture.week !== week) { week = fixture.week; lines.push(`\nWeek ${week}`); }
+      const nextGroup = fixture.stage === 'ROUND_ROBIN' ? `Round robin / Week ${fixture.week}` : `Semifinals / Bo${fixture.bestOf}`;
+      if (nextGroup !== group) { group = nextGroup; lines.push(`\n${group}`); }
       const played = fixtureFinished(fixture);
       const matchup = played
         ? `${name(fixture.homeTeamId)} ${fixture.homeScore}–${fixture.awayScore} ${name(fixture.awayTeamId)}`
@@ -76,8 +78,11 @@ export function splitTwoReadReply(action: string, args: string[], view: View): s
       const when = !played && fixture.schedule
         ? ` / ${new Date(fixture.schedule.at).toLocaleString('en-GB', { timeZone: 'Asia/Shanghai', hour12: false })} China / ${fixture.schedule.state}`
         : !played ? ' / Unscheduled' : ' / Final';
-      lines.push(`${fixture.code}: ${matchup}${when}`);
+      const definition = SPLIT_II_SEMIFINALS.find(row => row.code === fixture.code);
+      const selector = definition ? view.teams.find(team => team.key === definition.gameOneSideSelection)?.name : null;
+      lines.push(`${fixture.code}: ${matchup}${when}${selector ? ` / Game 1 side: ${selector}` : ''}`);
     }
+    if (fixtures.some(fixture => fixture.stage === 'SEMIFINAL')) lines.push(SPLIT_II_SEMIFINAL_SIDE_RULE);
     lines.push(hub);
     return lines.join('\n');
   }
