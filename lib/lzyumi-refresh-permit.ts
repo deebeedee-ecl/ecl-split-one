@@ -1,5 +1,6 @@
 export const LZYUMI_MANUAL_REFRESH_REQUEST_BUDGET = Object.freeze({
-  profileFilters: Object.freeze([1, 2, 3] as const),
+  profileIdentityAttempts: 5 as const,
+  historyFilters: Object.freeze([2, 3] as const),
   recentStatRequests: 1 as const,
   snapshotSaveAttempts: 1 as const,
 });

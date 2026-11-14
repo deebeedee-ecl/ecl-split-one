@@ -5,6 +5,8 @@ import { runManualLzyumiRefresh } from "../components/account/manual-lzyumi-refr
 
 const targetProfileId = "11111111-1111-4111-8111-111111111111";
 const permitToken = "synthetic-permit-token-long-enough-for-client-validation";
+const expectedRiotId = "SyntheticPlayer#1000";
+const expectedAreaId = 1;
 
 function json(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
@@ -37,12 +39,25 @@ function issuedPermit() {
     targetProfileId,
     expiresAt: "2026-11-25T12:02:00.000Z",
     requests: {
-      profile: "https://provider.invalid/profile",
-      solo: "https://provider.invalid/solo",
-      flex: "https://provider.invalid/flex",
-      recent: "https://provider.invalid/recent",
+      identityAttempts: [{
+        kind: "bare-name",
+        url: "https://provider.invalid/profile?attempt=bare-name",
+      }],
+      solo: "https://provider.invalid/solo?openId=synthetic-open-id",
+      flex: "https://provider.invalid/flex?openId=synthetic-open-id",
+      recent: "https://provider.invalid/recent?openId=synthetic-open-id",
     },
   };
+}
+
+function manualRefresh(fetcher: typeof fetch) {
+  return runManualLzyumiRefresh({
+    targetProfileId,
+    accessToken: "synthetic-access-token",
+    expectedRiotId,
+    expectedAreaId,
+    fetcher,
+  });
 }
 
 test("owner manual refresh fetches the fixed browser bundle and consumes a complete snapshot", async () => {
@@ -51,10 +66,10 @@ test("owner manual refresh fetches the fixed browser bundle and consumes a compl
     const url = String(input);
     calls.push({ url, init });
     if (url === "/api/hub/lzyumi-refresh-permits") return json(issuedPermit());
-    if (url.endsWith("/profile")) return json(coreProfile());
-    if (url.endsWith("/solo")) return json(history("synthetic-solo-game"));
-    if (url.endsWith("/flex")) return json(history("synthetic-flex-game"));
-    if (url.endsWith("/recent")) return json({ code: 1, data: {} });
+    if (url.includes("/profile?")) return json(coreProfile());
+    if (url.includes("/solo?")) return json(history("synthetic-solo-game"));
+    if (url.includes("/flex?")) return json(history("synthetic-flex-game"));
+    if (url.includes("/recent?")) return json({ code: 1, data: {} });
     if (url === "/api/hub/lzyumi-refresh-permits/consume") {
       return json({
         ok: true,
@@ -66,11 +81,7 @@ test("owner manual refresh fetches the fixed browser bundle and consumes a compl
     throw new Error(`Unexpected request: ${url}`);
   };
 
-  const result = await runManualLzyumiRefresh({
-    targetProfileId,
-    accessToken: "synthetic-access-token",
-    fetcher,
-  });
+  const result = await manualRefresh(fetcher);
 
   assert.deepEqual(result, {
     status: "success",
@@ -86,26 +97,92 @@ test("owner manual refresh fetches the fixed browser bundle and consumes a compl
   assert.equal(body.recentStat.status, "available");
 });
 
+test("owner manual refresh resolves a bounded identity fallback before history", async () => {
+  const calls: string[] = [];
+  const permit = issuedPermit();
+  permit.requests.identityAttempts = [
+    {
+      kind: "bare-name",
+      url: "https://provider.invalid/profile?attempt=bare-name",
+    },
+    {
+      kind: "full-id",
+      url: "https://provider.invalid/profile?attempt=full-id",
+    },
+  ];
+  const fetcher: typeof fetch = async (input) => {
+    const url = String(input);
+    calls.push(url);
+    if (url === "/api/hub/lzyumi-refresh-permits") return json(permit);
+    if (url.includes("attempt=bare-name")) {
+      return json({ code: 1, battleInfo: null, data: null });
+    }
+    if (url.includes("attempt=full-id")) return json(coreProfile());
+    if (url.includes("/solo?")) return json(history("synthetic-solo-game"));
+    if (url.includes("/flex?")) return json(history("synthetic-flex-game"));
+    if (url.includes("/recent?")) return json({ code: 1, data: {} });
+    if (url === "/api/hub/lzyumi-refresh-permits/consume") {
+      return json({
+        ok: true,
+        targetProfileId,
+        fetchedAt: "2026-11-25T12:00:00.000Z",
+        recentStatStatus: "available",
+      });
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  const result = await manualRefresh(fetcher);
+
+  assert.equal(result.status, "success");
+  assert.deepEqual(calls.slice(0, 3), [
+    "/api/hub/lzyumi-refresh-permits",
+    "https://provider.invalid/profile?attempt=bare-name",
+    "https://provider.invalid/profile?attempt=full-id",
+  ]);
+  const fullIdIndex = calls.findIndex((url) => url.includes("attempt=full-id"));
+  assert.ok(calls.findIndex((url) => url.includes("/solo?")) > fullIdIndex);
+  assert.ok(calls.findIndex((url) => url.includes("/flex?")) > fullIdIndex);
+});
+
+test("verified identity must match the server-bound history openId", async () => {
+  const calls: string[] = [];
+  const permit = issuedPermit();
+  permit.requests.solo = "https://provider.invalid/solo?openId=foreign-open-id";
+  const fetcher: typeof fetch = async (input) => {
+    const url = String(input);
+    calls.push(url);
+    if (url === "/api/hub/lzyumi-refresh-permits") return json(permit);
+    if (url.includes("/profile?")) return json(coreProfile());
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  const result = await manualRefresh(fetcher);
+
+  assert.equal(result.status, "failure");
+  assert.equal(result.code, "INVALID_PERMIT_RESPONSE");
+  assert.equal(calls.some((url) => url.includes("/solo?")), false);
+  assert.equal(calls.includes("/api/hub/lzyumi-refresh-permits/consume"), false);
+});
+
 test("provider core failure does not consume or replace the stored snapshot", async () => {
   const calls: string[] = [];
   const fetcher: typeof fetch = async (input) => {
     const url = String(input);
     calls.push(url);
     if (url === "/api/hub/lzyumi-refresh-permits") return json(issuedPermit());
-    if (url.endsWith("/profile")) return json({ code: 7, data: [] });
-    if (url.endsWith("/solo")) return json(history("synthetic-solo-game"));
-    if (url.endsWith("/flex")) return json(history("synthetic-flex-game"));
+    if (url.includes("/profile?")) return json({ code: 7, data: [] });
+    if (url.includes("/solo?")) return json(history("synthetic-solo-game"));
+    if (url.includes("/flex?")) return json(history("synthetic-flex-game"));
     throw new Error(`Unexpected request: ${url}`);
   };
 
-  const result = await runManualLzyumiRefresh({
-    targetProfileId,
-    accessToken: "synthetic-access-token",
-    fetcher,
-  });
+  const result = await manualRefresh(fetcher);
 
   assert.equal(result.status, "failure");
-  assert.equal(result.code, "PROVIDER_CORE_UNAVAILABLE");
+  assert.equal(result.code, "THROTTLED");
+  assert.equal(calls.some((url) => url.includes("/solo?")), false);
+  assert.equal(calls.some((url) => url.includes("/flex?")), false);
   assert.equal(calls.includes("/api/hub/lzyumi-refresh-permits/consume"), false);
 });
 
@@ -114,10 +191,10 @@ test("optional recent-stat failure is consumed as explicitly unavailable", async
   const fetcher: typeof fetch = async (input, init) => {
     const url = String(input);
     if (url === "/api/hub/lzyumi-refresh-permits") return json(issuedPermit());
-    if (url.endsWith("/profile")) return json(coreProfile());
-    if (url.endsWith("/solo")) return json(history("synthetic-solo-game"));
-    if (url.endsWith("/flex")) return json(history("synthetic-flex-game"));
-    if (url.endsWith("/recent")) return json({ code: 8, data: null });
+    if (url.includes("/profile?")) return json(coreProfile());
+    if (url.includes("/solo?")) return json(history("synthetic-solo-game"));
+    if (url.includes("/flex?")) return json(history("synthetic-flex-game"));
+    if (url.includes("/recent?")) return json({ code: 8, data: null });
     if (url === "/api/hub/lzyumi-refresh-permits/consume") {
       consumeBody = JSON.parse(String(init?.body));
       return json({
@@ -130,11 +207,7 @@ test("optional recent-stat failure is consumed as explicitly unavailable", async
     throw new Error(`Unexpected request: ${url}`);
   };
 
-  const result = await runManualLzyumiRefresh({
-    targetProfileId,
-    accessToken: "synthetic-access-token",
-    fetcher,
-  });
+  const result = await manualRefresh(fetcher);
 
   assert.equal(result.status, "success");
   assert.ok(consumeBody);
@@ -156,11 +229,7 @@ test("durable cooldown is exposed without starting provider requests", async () 
     }, 429);
   };
 
-  const result = await runManualLzyumiRefresh({
-    targetProfileId,
-    accessToken: "synthetic-access-token",
-    fetcher,
-  });
+  const result = await manualRefresh(fetcher);
 
   assert.deepEqual(result, {
     status: "cooldown",
@@ -177,11 +246,7 @@ test("disabled permit rollout produces an explicit unavailable state", async () 
     code: "PERMITS_UNAVAILABLE",
   }, 503);
 
-  const result = await runManualLzyumiRefresh({
-    targetProfileId,
-    accessToken: "synthetic-access-token",
-    fetcher,
-  });
+  const result = await manualRefresh(fetcher);
 
   assert.deepEqual(result, {
     status: "unavailable",
@@ -198,11 +263,7 @@ test("mismatched permit target is rejected before any provider request", async (
     return json({ ...issuedPermit(), targetProfileId: "22222222-2222-4222-8222-222222222222" });
   };
 
-  const result = await runManualLzyumiRefresh({
-    targetProfileId,
-    accessToken: "synthetic-access-token",
-    fetcher,
-  });
+  const result = await manualRefresh(fetcher);
 
   assert.equal(result.status, "failure");
   assert.equal(result.code, "INVALID_PERMIT_RESPONSE");

@@ -3,11 +3,17 @@ import {
   unavailableLzyumiRecentStat,
   type LzyumiOptionalRecentStat,
 } from "../../lib/lzyumi-browser-contract";
+import {
+  lzyumiIdentityFailureMessage,
+  resolveLzyumiBrowserIdentity,
+  type LzyumiIdentityAttemptKind,
+  type SignedLzyumiIdentityAttempt,
+} from "../../lib/lzyumi-browser-identity";
 
 type ManualRefreshFetcher = typeof fetch;
 
 type PermitBundle = {
-  profile: string;
+  identityAttempts: SignedLzyumiIdentityAttempt[];
   solo: string;
   flex: string;
   recent: string;
@@ -56,13 +62,33 @@ async function readJson(response: Response) {
 function isIssuedPermit(value: unknown, expectedTargetProfileId: string): value is IssuedPermit {
   if (!isRecord(value) || value.ok !== true || !isRecord(value.requests)) return false;
   const requests = value.requests;
+  const allowedKinds = new Set<LzyumiIdentityAttemptKind>([
+    "bare-name",
+    "full-id",
+    "bare-name-with-open-id",
+    "full-id-with-open-id",
+    "open-id-only",
+  ]);
+  const identityAttempts = Array.isArray(requests.identityAttempts)
+    ? requests.identityAttempts
+    : [];
+  const identityKinds = new Set<string>();
+  const validIdentityAttempts = identityAttempts.length > 0 &&
+    identityAttempts.length <= 5 &&
+    identityAttempts.every((attempt) => {
+      if (!isRecord(attempt) || typeof attempt.kind !== "string") return false;
+      if (!allowedKinds.has(attempt.kind as LzyumiIdentityAttemptKind)) return false;
+      if (identityKinds.has(attempt.kind)) return false;
+      identityKinds.add(attempt.kind);
+      return typeof attempt.url === "string" && attempt.url.length > 0;
+    });
   return (
     typeof value.permitToken === "string" &&
     value.permitToken.length >= 32 &&
     value.targetProfileId === expectedTargetProfileId &&
     typeof value.expiresAt === "string" &&
     !Number.isNaN(new Date(value.expiresAt).getTime()) &&
-    typeof requests.profile === "string" &&
+    validIdentityAttempts &&
     typeof requests.solo === "string" &&
     typeof requests.flex === "string" &&
     typeof requests.recent === "string"
@@ -133,10 +159,14 @@ function rejectedResult(
 export async function runManualLzyumiRefresh({
   targetProfileId,
   accessToken,
+  expectedRiotId,
+  expectedAreaId,
   fetcher = fetch,
 }: {
   targetProfileId: string;
   accessToken: string;
+  expectedRiotId: string;
+  expectedAreaId: number;
   fetcher?: ManualRefreshFetcher;
 }): Promise<ManualLzyumiRefreshResult> {
   const headers = {
@@ -169,12 +199,51 @@ export async function runManualLzyumiRefresh({
     };
   }
 
-  let profileResponse: Record<string, unknown>;
+  const identity = await resolveLzyumiBrowserIdentity({
+    attempts: issueBody.requests.identityAttempts,
+    expectedRiotId,
+    expectedAreaId,
+    lookup: (attempt) => fetchLzyumiBrowserResponse(
+      attempt.url,
+      "profile",
+      15_000,
+      fetcher,
+    ),
+  });
+  if (identity.status !== "RESOLVED") {
+    return {
+      status: "failure",
+      code: identity.status,
+      retryAt: null,
+      message: lzyumiIdentityFailureMessage(identity),
+    };
+  }
+
+  const boundOpenIds = [
+    issueBody.requests.solo,
+    issueBody.requests.flex,
+    issueBody.requests.recent,
+  ].map((url) => {
+    try {
+      return new URL(url).searchParams.get("openId")?.trim() ?? "";
+    } catch {
+      return "";
+    }
+  });
+  if (boundOpenIds.some((openId) => !openId || openId !== identity.openId)) {
+    return {
+      status: "failure",
+      code: "INVALID_PERMIT_RESPONSE",
+      retryAt: null,
+      message: "Manual League refresh returned an invalid request bundle.",
+    };
+  }
+
+  const profileResponse = identity.rawProfile;
   let soloResponse: Record<string, unknown>;
   let flexResponse: Record<string, unknown>;
   try {
-    [profileResponse, soloResponse, flexResponse] = await Promise.all([
-      fetchLzyumiBrowserResponse(issueBody.requests.profile, "profile", 15_000, fetcher),
+    [soloResponse, flexResponse] = await Promise.all([
       fetchLzyumiBrowserResponse(issueBody.requests.solo, "history", 15_000, fetcher),
       fetchLzyumiBrowserResponse(issueBody.requests.flex, "history", 15_000, fetcher),
     ]);
