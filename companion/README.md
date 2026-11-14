@@ -67,6 +67,11 @@ npm.cmd start
 
 `npm.cmd test` runs the tests. `npm.cmd run pack` builds an unpacked Windows application; `npm.cmd run dist` builds the Windows installer at `release-logo/ECL-Hub-Setup-0.7.1.exe`. `npm.cmd run dist:portable` builds a portable executable under `release-hub/`. Both are full offline packages: installing does not need to download Electron separately. The installed launcher is normally `%LOCALAPPDATA%/Programs/ECL Hub/ECL Hub.exe`, also accessible through the desktop/Start menu shortcut.
 
+`npm.cmd run build:verify` performs a credential-free build using an explicit
+verification-only public Supabase origin/key. It is for source/build validation,
+not packaging or release; real account login is intentionally non-functional in
+that output.
+
 Version 0.7 adds **Preview example match** in Collector: a labelled fictional ten-player scoreboard, not saved, counted or submitted. It also implements a separately consented, reporter-scoped KOOK upload pilot. The server code must be separately deployed and enabled; a new installer alone does not activate it. See `../docs/desktop/REPORTING_PILOT.md` for setup, commands, review restrictions and outstanding live tests. No automatic point awards or independent League ownership proof are implemented.
 
 ## Native Workspace

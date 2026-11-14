@@ -29,8 +29,7 @@ import {
   Swords,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchLzyumiBrowserResponse,
   unavailableLzyumiRecentStat,
@@ -1075,7 +1074,7 @@ function MessagesSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function loadMessages() {
+  const loadMessages = useCallback(async () => {
     setLoading(true);
     setError("");
 
@@ -1092,7 +1091,7 @@ function MessagesSection() {
 
     setMessages(await res.json());
     setLoading(false);
-  }
+  }, []);
 
   async function setMessageStatus(id: string, status: "new" | "resolved") {
     const res = await fetch("/api/admin/contact-messages", {
@@ -1112,8 +1111,9 @@ function MessagesSection() {
   }
 
   useEffect(() => {
-    loadMessages();
-  }, []);
+    const initialLoad = window.setTimeout(loadMessages, 0);
+    return () => window.clearTimeout(initialLoad);
+  }, [loadMessages]);
 
   return (
     <Panel title="Contact Messages" icon={MessageSquareText}>

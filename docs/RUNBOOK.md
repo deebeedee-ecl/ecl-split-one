@@ -31,6 +31,21 @@ For the existing-production Prisma migration baseline, follow [`database/PRISMA_
 
 Record commands, pass/fail counts, skipped checks, and the reason for each skip. Do not describe a check as passing if it was not run.
 
+Before implementing an operation that depends on local production access, run
+the credential-free local inspection first:
+
+```powershell
+npm run ops:preflight
+```
+
+With explicit authorization for a production read-only probe, add
+`--target=production-read-only --network`. The command reports only tool health,
+bounded Git metadata, database protocol/schema, and a sanitized connection
+category; it never prints hosts, usernames, passwords, tokens, CLI account
+details, or raw provider/database errors. A failed database probe must be
+resolved before building a direct-DB apply path; otherwise choose a reviewed
+server-side operation from the start.
+
 ### Web CI baseline
 
 Pull requests and pushes to `main` run the locked root install, `npm test`,

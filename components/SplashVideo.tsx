@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { X, Volume2, SkipForward } from "lucide-react";
 
 const STORAGE_KEY = "ecl_splash_video_dismissed";
@@ -10,9 +10,21 @@ export default function SplashVideo() {
   const [hasStartedWithSound, setHasStartedWithSound] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
+  const handleClose = useCallback(() => {
+    setIsOpen(false);
+    localStorage.setItem(STORAGE_KEY, "true");
+
+    if (videoRef.current) {
+      videoRef.current.pause();
+    }
+  }, []);
+
   useEffect(() => {
-    const dismissed = localStorage.getItem(STORAGE_KEY);
-    setIsOpen(!dismissed);
+    const initialRead = window.setTimeout(() => {
+      const dismissed = localStorage.getItem(STORAGE_KEY);
+      setIsOpen(!dismissed);
+    }, 0);
+    return () => window.clearTimeout(initialRead);
   }, []);
 
   useEffect(() => {
@@ -31,16 +43,7 @@ export default function SplashVideo() {
       document.removeEventListener("keydown", handleEscape);
       document.body.style.overflow = "";
     };
-  }, [isOpen]);
-
-  const handleClose = () => {
-    setIsOpen(false);
-    localStorage.setItem(STORAGE_KEY, "true");
-
-    if (videoRef.current) {
-      videoRef.current.pause();
-    }
-  };
+  }, [handleClose, isOpen]);
 
   const handleVideoEnd = () => {
     handleClose();

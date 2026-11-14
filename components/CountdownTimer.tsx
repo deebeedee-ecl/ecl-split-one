@@ -45,21 +45,22 @@ const EMPTY_TIME: TimeLeft = {
 };
 
 export default function CountdownTimer() {
-  const [mounted, setMounted] = useState(false);
-  const [timeLeft, setTimeLeft] = useState<TimeLeft>(EMPTY_TIME);
+  const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
 
   useEffect(() => {
-    setMounted(true);
-    setTimeLeft(getTimeLeft(TARGET_DATE));
+    const refresh = () => setTimeLeft(getTimeLeft(TARGET_DATE));
+    const initialRefresh = window.setTimeout(refresh, 0);
 
-    const interval = setInterval(() => {
-      setTimeLeft(getTimeLeft(TARGET_DATE));
-    }, 1000);
+    const interval = window.setInterval(refresh, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      window.clearTimeout(initialRefresh);
+      window.clearInterval(interval);
+    };
   }, []);
 
-  const isStarted = mounted && timeLeft.total <= 0;
+  const displayTime = timeLeft ?? EMPTY_TIME;
+  const isStarted = timeLeft !== null && timeLeft.total <= 0;
 
   return (
     <div className="mt-10">
@@ -83,13 +84,13 @@ export default function CountdownTimer() {
             <Divider />
 
             <div className="flex items-center gap-4">
-              <TimeUnit value={timeLeft.days} label="D" />
+              <TimeUnit value={displayTime.days} label="D" />
               <Divider />
-              <TimeUnit value={timeLeft.hours} label="H" />
+              <TimeUnit value={displayTime.hours} label="H" />
               <Divider />
-              <TimeUnit value={timeLeft.minutes} label="M" />
+              <TimeUnit value={displayTime.minutes} label="M" />
               <Divider />
-              <TimeUnit value={timeLeft.seconds} label="S" />
+              <TimeUnit value={displayTime.seconds} label="S" />
             </div>
           </>
         )}
