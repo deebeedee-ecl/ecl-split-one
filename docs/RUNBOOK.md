@@ -85,6 +85,14 @@ delete only those two fixture rows in one separately reviewed transaction;
 after use, preserve the fixture history and correct records through the normal
 tournament workflow.
 
+If the operator workstation cannot reach PostgreSQL, the authenticated Split II
+admin page exposes the same bounded release as **Publish SF01 & SF02**. The
+server-side action locks the event, rechecks completed non-provisional standings,
+rejects any unexpected or changed semifinal row, and inserts only missing exact
+fixtures. It is idempotent and never queues a KOOK notification. Capture the
+returned inserted codes and verify the public tournament API immediately. The
+same recovery boundary above applies.
+
 ### Release evidence
 
 Every production handoff should state:

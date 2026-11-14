@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { tournamentIdentity } from './identity';
 import { SPLIT_II_SLUG } from "./split-ii-config";
 import { SPLIT_II_TEAMS, SPLIT_II_FIXTURE_WEEKS } from "./split-ii-fixtures";
+import { buildSplitTwoSemifinalPlan } from "./split-ii-playoffs";
 import { SPLIT_II_ROSTERS } from "./split-ii-rosters";
 import { TournamentError, calculateTables, guestParticipantId, instant, integer, parseReport, storedProviderId, text, type MatchPayload, type Schedule } from "./match-policy";
 
@@ -43,6 +44,50 @@ export async function seedMatchWorkflow(db: PrismaClient) {
     }
     return {teams:5,members:25,fixtures:10,alreadySeeded:false};
   },{maxWait:10000,timeout:60000});
+}
+
+export async function publishSplitTwoSemifinals(db: PrismaClient, actor: TournamentActor) {
+  if (!actor.admin) throw new TournamentError("Admin access required.", 403);
+  const result = await db.$transaction(async tx => {
+    const eventId = await eventLock(tx);
+    const [teams, fixtures, reports] = await Promise.all([
+      tx.tournamentTeam.findMany({ where: { tournamentId: eventId }, select: { id: true, key: true, name: true } }),
+      tx.tournamentFixture.findMany({ where: { tournamentId: eventId }, select: { id: true, code: true, stage: true, week: true, bestOf: true, pairKey: true, homeTeamId: true, awayTeamId: true, schedule: true, revision: true } }),
+      tx.tournamentReport.findMany({ where: { tournamentId: eventId, status: "APPROVED" }, select: { fixtureId: true, payload: true } }),
+    ]);
+    const standings = calculateTables(teams, fixtures, reports).standings;
+    const plan = buildSplitTwoSemifinalPlan(eventId, teams, standings);
+    const plannedCodes = new Set<string>(plan.map(row => row.code));
+    const candidates = fixtures.filter(fixture => fixture.stage === "SEMIFINAL" || plannedCodes.has(fixture.code));
+    for (const fixture of candidates) {
+      const expected = plan.find(row => row.code === fixture.code);
+      if (!expected || fixture.id !== expected.id || fixture.stage !== expected.stage || fixture.week !== expected.week || fixture.bestOf !== expected.bestOf || fixture.pairKey !== expected.pairKey || fixture.homeTeamId !== expected.homeTeamId || fixture.awayTeamId !== expected.awayTeamId || fixture.schedule !== null || fixture.revision !== 0) {
+        throw new TournamentError(`Existing semifinal fixture ${fixture.code} needs review.`, 409);
+      }
+    }
+    const existingCodes = new Set(candidates.map(fixture => fixture.code));
+    const inserted: string[] = [];
+    for (const row of plan) {
+      if (existingCodes.has(row.code)) continue;
+      await tx.tournamentFixture.create({ data: {
+        id: row.id,
+        tournamentId: row.tournamentId,
+        code: row.code,
+        stage: row.stage,
+        week: row.week,
+        bestOf: row.bestOf,
+        pairKey: row.pairKey,
+        homeTeamId: row.homeTeamId,
+        awayTeamId: row.awayTeamId,
+        schedule: Prisma.DbNull,
+        revision: row.revision,
+      } });
+      inserted.push(row.code);
+    }
+    return { inserted, alreadyApplied: inserted.length === 0, fixtures: plan.map(row => ({ code: row.code, homeTeam: row.homeTeam, awayTeam: row.awayTeam, bestOf: row.bestOf, gameOneSideSelection: row.gameOneSideSelection })) };
+  }, { maxWait: 10_000, timeout: 30_000 });
+  console.info("[split-ii] semifinal fixtures published", { inserted: result.inserted, alreadyApplied: result.alreadyApplied });
+  return result;
 }
 
 export async function tournamentView(db: PrismaClient, actor: TournamentActor = {admin:false}) {

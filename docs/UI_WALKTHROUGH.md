@@ -200,6 +200,12 @@ The current admin sidebar exposes:
 - Inhouse Reporter
 - Sign Out / Return to Website
 
+The Split II Tournament page includes a protected **Confirmed playoff fixtures**
+release control while SF01/SF02 are absent. It publishes only the approved Bo3
+semifinal pairings after a server-side standings check, is safe to retry, and
+sends no KOOK notification. Once both rows exist, the control becomes a status
+message and the fixtures are available for ordinary scheduling and reporting.
+
 This is a navigation inventory, not a security endorsement. Admin authentication and authorization are known hardening work, and menu visibility never replaces route-level authorization.
 
 ## Observed drift and follow-up checks
