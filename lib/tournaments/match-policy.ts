@@ -122,8 +122,8 @@ export function calculateTables(teams: { id: string; name: string }[], fixtures:
       team.played++; if (team.id === winner) { team.wins++; team.winTimeSeconds += games.filter(g => g.winnerTeamId === winner).reduce((n, g) => n + g.durationSeconds, 0); } else team.losses++;
     }
   }
-  standings.sort((a, b) => b.wins - a.wins || a.name.localeCompare(b.name));
-  for (const row of standings) row.tied = standings.some(t => t.id !== row.id && t.wins === row.wins && row.played > 0 && t.played > 0);
+  standings.sort((a, b) => b.wins - a.wins || a.winTimeSeconds - b.winTimeSeconds || a.name.localeCompare(b.name));
+  for (const row of standings) row.tied = standings.some(t => t.id !== row.id && t.wins === row.wins && t.winTimeSeconds === row.winTimeSeconds && row.played > 0 && t.played > 0);
   const players = [...stats.values()].map(v => ({ ...v, kda: v.statGames ? Math.round((v.kills + v.assists) / Math.max(1, v.deaths) * 100) / 100 : null }));
   return { standings, players, leaders: {
     kda: players.filter(p => p.statGames).sort((a, b) => (b.kda ?? 0) - (a.kda ?? 0) || b.statGames - a.statGames || a.name.localeCompare(b.name)).slice(0, 3),

@@ -161,6 +161,10 @@ The current main dashboard and public navigation are centered on Split II. Event
 
 The Results tab presents approved matches in chronological order, oldest first. The ordering is derived from each report payload's `playedAt` timestamp, with game number and report ID used only as deterministic tie-breakers.
 
+The Standings tab orders teams by wins and then by lower total duration of the
+games they won. It displays that `Win time` value; only teams equal on both
+wins and total winning time retain the provisional `*` marker.
+
 The match-stat dialog labels registered floaters and approved last-minute guest players with a `SUB` badge. Guest Riot IDs are result snapshots, not links to an ECL account.
 
 ### World Cup

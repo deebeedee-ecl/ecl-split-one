@@ -48,12 +48,13 @@ export function completedFixtureReply(fixture: Fixture, view: View) {
 export function splitTwoReadReply(action: string, args: string[], view: View): string | null {
   const name = (id: string) => view.teams.find(t => t.id === id)?.name ?? 'Unknown team';
   if (action === 'standings' || action === 'table') {
-    const table = [...view.standings].sort((a, b) => b.wins - a.wins || a.name.localeCompare(b.name));
+    const table = [...view.standings].sort((a, b) => b.wins - a.wins || a.winTimeSeconds - b.winTimeSeconds || a.name.localeCompare(b.name));
+    const winTime = (seconds: number) => `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
     return [
       'ECL Split II / Standings',
-      'Team / Played / W–L / Points',
-      ...table.map(t => `${t.name} / ${t.played} / ${t.wins}–${t.losses} / ${t.wins}`),
-      'One point per win. Equal points remain provisional until tie-breaks are resolved.',
+      'Team / Played / W–L / Win time / Points',
+      ...table.map(t => `${t.name}${t.tied ? ' *' : ''} / ${t.played} / ${t.wins}–${t.losses} / ${t.wins ? winTime(t.winTimeSeconds) : '—'} / ${t.wins}`),
+      'Equal wins are ranked by lower total time in games won. Exact ties (*) remain provisional.',
       hub,
     ].join('\n');
   }

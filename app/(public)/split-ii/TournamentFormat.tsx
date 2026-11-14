@@ -37,8 +37,8 @@ export default function TournamentFormat() {
 
       <section className={styles.formatCard} aria-labelledby="tie-format-heading">
         <div className={styles.formatCardTitle}><span>03</span><h4 id="tie-format-heading">Tie-breakers</h4></div>
-        <p>Teams tied on wins play Bo1 tie-breakers to decide qualification and seeding.</p>
-        <p>For a three-way tie for 3rd–5th, compare each team&apos;s total time in games they won. The slowest total win time is eliminated; the other two teams play a Bo1 for 3rd and 4th place.</p>
+        <p>Teams tied on wins are ranked by their total time in games they won. The lower total winning time receives the higher seed.</p>
+        <p>If two or more teams have exactly the same number of wins and total winning time, their places remain provisional until the tournament organiser resolves the tie.</p>
       </section>
     </section>
   );
