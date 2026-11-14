@@ -29,6 +29,12 @@ import {
   unavailableLzyumiRecentStat,
   type LzyumiOptionalRecentStat,
 } from "@/lib/lzyumi-browser-contract";
+import {
+  lzyumiIdentityFailureMessage,
+  resolveLzyumiBrowserIdentity,
+  type LzyumiIdentityAttemptKind,
+  type SignedLzyumiIdentityAttempt,
+} from "@/lib/lzyumi-browser-identity";
 import { getChinaServerDisplayName, getCountryOption } from "./account-options";
 import {
   loadPlayerProfile,
@@ -378,17 +384,70 @@ async function performLzyumiProfileRefresh(
   const token = options.accessToken;
   if (!token) throw new Error("Your session expired. Please log in again.");
 
-  const nickname = profile.riotTag
+  const expectedRiotId = profile.riotTag
     ? `${profile.riotName}#${profile.riotTag}`
     : profile.riotName;
-  const areaId = profile.chinaServerId;
+  const areaId = Number(profile.chinaServerId);
+  if (!profile.riotName || !profile.riotTag || !Number.isInteger(areaId) || areaId <= 0) {
+    throw new Error("Your profile is missing a complete Riot ID or China server.");
+  }
+
+  const identityBundleResponse = await fetch("/api/lzyumi-sign?type=profile-refresh", {
+    cache: "no-store",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const identityBundle = await identityBundleResponse.json().catch(() => null) as {
+    attempts?: Array<{ kind?: unknown; url?: unknown }>;
+    message?: unknown;
+  } | null;
+  if (!identityBundleResponse.ok) {
+    throw new Error(
+      typeof identityBundle?.message === "string"
+        ? identityBundle.message
+        : "Could not prepare the ECL.GG identity lookup.",
+    );
+  }
+
+  const allowedKinds = new Set<LzyumiIdentityAttemptKind>([
+    "bare-name",
+    "full-id",
+    "bare-name-with-open-id",
+    "full-id-with-open-id",
+    "open-id-only",
+  ]);
+  const identityAttempts = (identityBundle?.attempts ?? []).filter(
+    (attempt): attempt is SignedLzyumiIdentityAttempt =>
+      typeof attempt.kind === "string" &&
+      allowedKinds.has(attempt.kind as LzyumiIdentityAttemptKind) &&
+      typeof attempt.url === "string" &&
+      attempt.url.length > 0,
+  );
+  if (
+    identityAttempts.length === 0 ||
+    identityAttempts.length > 5 ||
+    identityAttempts.length !== identityBundle?.attempts?.length
+  ) {
+    throw new Error("ECL.GG returned an invalid identity lookup bundle.");
+  }
+
+  const identity = await resolveLzyumiBrowserIdentity({
+    attempts: identityAttempts,
+    expectedRiotId,
+    expectedAreaId: areaId,
+    lookup: (attempt) => fetchLzyumiBrowserResponse(attempt.url, "profile"),
+  });
+  if (identity.status !== "RESOLVED") {
+    throw new Error(lzyumiIdentityFailureMessage(identity));
+  }
+
+  const rawProfile = identity.rawProfile;
+  const openId = identity.openId;
   const signResponses = await Promise.all([
-    fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=1&allCount=10`),
-    fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=2&allCount=20`),
-    fetch(`/api/lzyumi-sign?nickname=${encodeURIComponent(nickname)}&areaId=${areaId}&filter=3&allCount=20`),
+    fetch(`/api/lzyumi-sign?openId=${encodeURIComponent(openId)}&areaId=${areaId}&filter=2&allCount=20`),
+    fetch(`/api/lzyumi-sign?openId=${encodeURIComponent(openId)}&areaId=${areaId}&filter=3&allCount=20`),
   ]);
   if (signResponses.some((response) => !response.ok)) {
-    throw new Error("Could not prepare the ECL.GG lookup.");
+    throw new Error("Could not prepare the ECL.GG history lookup.");
   }
 
   const signed = await Promise.all(signResponses.map((response) => response.json()));
@@ -397,13 +456,10 @@ async function performLzyumiProfileRefresh(
   );
   if (urls.some((url) => !url)) throw new Error("ECL.GG returned an invalid lookup URL.");
 
-  const [rawProfile, soloResponse, flexResponse] = await Promise.all([
-    fetchLzyumiBrowserResponse(urls[0]!, "profile"),
+  const [soloResponse, flexResponse] = await Promise.all([
+    fetchLzyumiBrowserResponse(urls[0]!, "history"),
     fetchLzyumiBrowserResponse(urls[1]!, "history"),
-    fetchLzyumiBrowserResponse(urls[2]!, "history"),
   ]);
-  const battleInfo = rawProfile.battleInfo as Record<string, unknown>;
-  const openId = String(battleInfo.openId);
   let recentStat: LzyumiOptionalRecentStat;
   try {
     const signResponse = await fetch(
