@@ -1,4 +1,5 @@
 import { formatRiotId, riotIdKey, splitRiotId } from "./riot-id";
+import { verifyLzyumiResolvedIdentity } from "./lzyumi-browser-identity";
 
 export const LZYUMI_CUSTOM_LABEL = "\u65b0\u6a21\u5f0f";
 export const LZYUMI_FINDER_FILTERS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
@@ -94,23 +95,17 @@ function targetDateParts(targetDate: string) {
 }
 
 export function verifyFinderIdentity(value: IdentityResponse, expectedRiotId: string, expectedAreaId: number): VerifiedFinderIdentity {
-  const expected = splitRiotId(expectedRiotId);
-  const expectedKey = riotIdKey(expected.riotName, expected.riotTag);
-  if (!expectedKey) throw new Error("Enter the exact full Riot ID, including #tag.");
-  const battleInfo = value.battleInfo;
-  const resolved = splitRiotId(battleInfo?.nameInfoNew);
-  const resolvedKey = riotIdKey(resolved.riotName, resolved.riotTag);
-  const openId = clean(battleInfo?.openId);
-  const areaId = Number(battleInfo?.areaId);
-  if (!battleInfo || resolvedKey !== expectedKey || areaId !== expectedAreaId || !openId) {
+  try {
+    const identity = verifyLzyumiResolvedIdentity(value, expectedRiotId, expectedAreaId);
+    return {
+      resolvedRiotId: identity.resolvedRiotId,
+      areaId: identity.areaId,
+      openId: identity.openId,
+      history: Array.isArray(value.data) ? value.data : [],
+    };
+  } catch {
     throw new Error("Lzyumi did not resolve the exact Riot ID on the selected China server.");
   }
-  return {
-    resolvedRiotId: formatRiotId(resolved.riotName, resolved.riotTag)!,
-    areaId,
-    openId,
-    history: Array.isArray(value.data) ? value.data : [],
-  };
 }
 
 export function parseFinderGameTime(game: FinderHistoryGame, targetDate: string) {

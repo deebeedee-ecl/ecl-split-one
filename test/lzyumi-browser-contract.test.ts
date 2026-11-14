@@ -119,3 +119,13 @@ test("rejects malformed JSON and incomplete successful payloads", async () => {
     (error) => error instanceof LzyumiBrowserContractError && error.kind === "malformed",
   );
 });
+
+test("treats code 1 with null identity and history as not found, never empty history", () => {
+  assert.throws(
+    () => validateLzyumiProfileResponse({ code: 1, battleInfo: null, data: null }),
+    (error) =>
+      error instanceof LzyumiBrowserContractError &&
+      error.kind === "not-found" &&
+      error.providerCode === 1,
+  );
+});
