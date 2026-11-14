@@ -7,6 +7,7 @@
   "main": "src/main.cjs",
   "scripts": {
     "build": "node build.cjs",
+    "build:verify": "node tools/build-verify.mjs",
     "start": "npm run build && node launch.cjs",
     "demo": "npm run build && node launch.cjs --demo",
     "test": "node --test test/*.test.cjs",

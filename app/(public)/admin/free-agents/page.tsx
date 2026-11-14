@@ -36,6 +36,10 @@ type EditForm = {
   notes: string;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 const rankOrder = [
   "No Elo",
   "Iron",
@@ -111,10 +115,13 @@ export default function AdminFreeAgentsPage() {
       const data = await res.json();
 
       const safeTeams = Array.isArray(data)
-        ? data.map((team: any) => ({
-            id: team.id,
-            name: team.name || team.teamName || "Unnamed Team",
-          }))
+        ? data
+            .filter(isRecord)
+            .map((team) => ({
+              id: String(team.id ?? ""),
+              name: String(team.name || team.teamName || "Unnamed Team"),
+            }))
+            .filter((team) => team.id)
         : [];
 
       setTeams(safeTeams);

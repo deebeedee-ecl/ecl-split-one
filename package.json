@@ -12,6 +12,7 @@
     "test:perf:ci": "node scripts/performance/run-ci-contract-tests.mjs",
     "perf:hub": "node scripts/performance/hub-route-baseline.mjs",
     "release:status": "node scripts/release-status.mjs",
+    "ops:preflight": "tsx scripts/ops-preflight.ts",
     "smoke:layouts": "node scripts/smoke-layout-boundaries.mjs",
     "db:baseline:inspect": "node scripts/prisma-baseline-inspect.mjs",
     "supabase:start": "supabase start",

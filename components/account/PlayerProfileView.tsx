@@ -1357,8 +1357,18 @@ function KookVerificationNotice({
   error: string;
   onRequestCode: () => void;
 }) {
+  const [nowMs, setNowMs] = useState(0);
+  useEffect(() => {
+    const refresh = () => setNowMs(Date.now());
+    const initialRefresh = window.setTimeout(refresh, 0);
+    const interval = window.setInterval(refresh, 1000);
+    return () => {
+      window.clearTimeout(initialRefresh);
+      window.clearInterval(interval);
+    };
+  }, []);
   const expiresAtMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
-  const isExpired = Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now();
+  const isExpired = nowMs > 0 && Number.isFinite(expiresAtMs) && expiresAtMs <= nowMs;
   const expiryLabel =
     expiresAt && Number.isFinite(expiresAtMs)
       ? new Intl.DateTimeFormat(undefined, {

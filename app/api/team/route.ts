@@ -3,6 +3,14 @@ import type { NextRequest } from "next/server";
 import { getAccountFromRequest } from "@/lib/account-auth";
 import { prisma } from "@/lib/prisma";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function textField(record: Record<string, unknown>, name: string) {
+  return String(record[name] ?? "").trim();
+}
+
 export async function GET(req: NextRequest) {
   try {
     const registrations = req.nextUrl.searchParams.get("registrations");
@@ -44,7 +52,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: Request) {
   try {
     const account = await getAccountFromRequest(req);
-    const body = await req.json();
+    const rawBody: unknown = await req.json();
+    const body = isRecord(rawBody) ? rawBody : {};
     const captainProfile = account
       ? await prisma.accountProfile.findUnique({
           where: { userId: account.id },
@@ -62,18 +71,18 @@ export async function POST(req: Request) {
         })
       : null;
 
-    const rawPlayers = Array.isArray(body.players) ? body.players : [];
+    const rawPlayers = Array.isArray(body.players) ? body.players.filter(isRecord) : [];
 
-    const players = rawPlayers.map((player: any) => ({
-      playerName: String(player.playerName || "").trim(),
-      riotName: String(player.riotName || "").trim(),
-      riotTag: String(player.riotTag || "").trim(),
-      currentRank: String(player.currentRank || player.rank || "").trim(),
-      primaryRole: String(player.primaryRole || "").trim(),
-      secondaryRole: String(player.secondaryRole || "").trim(),
-      nationality: String(player.nationality || "").trim(),
-      countryCode: String(player.countryCode || "").trim(),
-      countryFlag: String(player.countryFlag || "").trim(),
+    const players = rawPlayers.map((player) => ({
+      playerName: textField(player, "playerName"),
+      riotName: textField(player, "riotName"),
+      riotTag: textField(player, "riotTag"),
+      currentRank: textField(player, "currentRank") || textField(player, "rank"),
+      primaryRole: textField(player, "primaryRole"),
+      secondaryRole: textField(player, "secondaryRole"),
+      nationality: textField(player, "nationality"),
+      countryCode: textField(player, "countryCode"),
+      countryFlag: textField(player, "countryFlag"),
     }));
 
     const teamCountry = {
@@ -99,7 +108,7 @@ export async function POST(req: Request) {
       : null;
     const savedPlayers =
       players.length > 0
-        ? players.map((player: any) => ({
+        ? players.map((player) => ({
             ...player,
             ...teamCountry,
           }))
