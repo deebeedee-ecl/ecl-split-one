@@ -19,7 +19,7 @@ export async function GET(request:Request){
 export async function POST(request:Request){
   try{
     const actor=tournamentAdmin(request),b=object(await tournamentBody(request,true));
-    if(b.action==='publishSemifinals')return tournamentJson(await publishSplitTwoSemifinals(prisma,actor),201);
+    if(b.action==='publishSemifinals')return tournamentJson(await publishSplitTwoSemifinals(prisma,actor,text(b.fingerprint,64)),201);
     if(b.action==='submit')return tournamentJson(await submitTournamentReport(prisma,actor,b.report),201);
     if(b.action==='importLcu')return tournamentJson(await importTournamentLcu(prisma,actor,text(b.fixtureId,150),integer(b.gameNumber,1,5),b.raw,b.replacesId?text(b.replacesId,100):undefined),201);
     if(b.action==='retryNotification'){

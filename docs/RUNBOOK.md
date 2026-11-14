@@ -101,12 +101,15 @@ after use, preserve the fixture history and correct records through the normal
 tournament workflow.
 
 If the operator workstation cannot reach PostgreSQL, the authenticated Split II
-admin page exposes the same bounded release as **Publish SF01 & SF02**. The
-server-side action locks the event, rechecks completed non-provisional standings,
-rejects any unexpected or changed semifinal row, and inserts only missing exact
-fixtures. It is idempotent and never queues a KOOK notification. Capture the
-returned inserted codes and verify the public tournament API immediately. The
-same recovery boundary above applies.
+admin page exposes the same bounded release. The page first displays the exact
+server-generated fixtures, blockers, and SHA-256 fingerprint. **Publish reviewed
+SF01 & SF02 plan** sends that fingerprint back; the server locks the event,
+rebuilds the preview, rejects stale or changed state, and inserts only missing
+exact fixtures. It is idempotent and never queues a KOOK notification. Capture
+the returned audit ID, fingerprint, and inserted codes, then verify the public
+tournament API immediately. The CLI and admin page share this inspection and
+publication implementation so their safety checks cannot drift. The same
+recovery boundary above applies.
 
 ### Release evidence
 

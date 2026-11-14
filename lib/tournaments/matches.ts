@@ -2,7 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { tournamentIdentity } from './identity';
 import { SPLIT_II_SLUG } from "./split-ii-config";
 import { SPLIT_II_TEAMS, SPLIT_II_FIXTURE_WEEKS } from "./split-ii-fixtures";
-import { buildSplitTwoSemifinalPlan } from "./split-ii-playoffs";
+import { buildSplitTwoSemifinalInspection, inspectSplitTwoSemifinals, SPLIT_II_SEMIFINAL_OPERATION, splitTwoSemifinalPreview } from "./split-ii-release";
 import { SPLIT_II_ROSTERS } from "./split-ii-rosters";
 import { TournamentError, calculateTables, guestParticipantId, instant, integer, parseReport, storedProviderId, text, type MatchPayload, type Schedule } from "./match-policy";
 
@@ -46,28 +46,22 @@ export async function seedMatchWorkflow(db: PrismaClient) {
   },{maxWait:10000,timeout:60000});
 }
 
-export async function publishSplitTwoSemifinals(db: PrismaClient, actor: TournamentActor) {
+export async function previewSplitTwoSemifinals(db: PrismaClient, actor: TournamentActor) {
   if (!actor.admin) throw new TournamentError("Admin access required.", 403);
+  return splitTwoSemifinalPreview(await inspectSplitTwoSemifinals(db));
+}
+
+export async function publishSplitTwoSemifinals(db: PrismaClient, actor: TournamentActor, suppliedFingerprint: string) {
+  if (!actor.admin) throw new TournamentError("Admin access required.", 403);
+  if (!/^[a-f0-9]{64}$/.test(suppliedFingerprint)) throw new TournamentError("Publish requires the current preview fingerprint.", 400);
   const result = await db.$transaction(async tx => {
     const eventId = await eventLock(tx);
-    const [teams, fixtures, reports] = await Promise.all([
-      tx.tournamentTeam.findMany({ where: { tournamentId: eventId }, select: { id: true, key: true, name: true } }),
-      tx.tournamentFixture.findMany({ where: { tournamentId: eventId }, select: { id: true, code: true, stage: true, week: true, bestOf: true, pairKey: true, homeTeamId: true, awayTeamId: true, schedule: true, revision: true } }),
-      tx.tournamentReport.findMany({ where: { tournamentId: eventId, status: "APPROVED" }, select: { fixtureId: true, payload: true } }),
-    ]);
-    const standings = calculateTables(teams, fixtures, reports).standings;
-    const plan = buildSplitTwoSemifinalPlan(eventId, teams, standings);
-    const plannedCodes = new Set<string>(plan.map(row => row.code));
-    const candidates = fixtures.filter(fixture => fixture.stage === "SEMIFINAL" || plannedCodes.has(fixture.code));
-    for (const fixture of candidates) {
-      const expected = plan.find(row => row.code === fixture.code);
-      if (!expected || fixture.id !== expected.id || fixture.stage !== expected.stage || fixture.week !== expected.week || fixture.bestOf !== expected.bestOf || fixture.pairKey !== expected.pairKey || fixture.homeTeamId !== expected.homeTeamId || fixture.awayTeamId !== expected.awayTeamId || fixture.schedule !== null || fixture.revision !== 0) {
-        throw new TournamentError(`Existing semifinal fixture ${fixture.code} needs review.`, 409);
-      }
-    }
-    const existingCodes = new Set(candidates.map(fixture => fixture.code));
+    const inspection = await inspectSplitTwoSemifinals(tx, eventId);
+    if (inspection.blockers.length) throw new TournamentError(inspection.blockers[0], 409);
+    if (inspection.fingerprint !== suppliedFingerprint) throw new TournamentError("Tournament state changed after preview. Refresh before publishing.", 409);
+    const existingCodes = new Set(inspection.candidates.map(fixture => fixture.code));
     const inserted: string[] = [];
-    for (const row of plan) {
+    for (const row of inspection.plan) {
       if (existingCodes.has(row.code)) continue;
       await tx.tournamentFixture.create({ data: {
         id: row.id,
@@ -84,9 +78,17 @@ export async function publishSplitTwoSemifinals(db: PrismaClient, actor: Tournam
       } });
       inserted.push(row.code);
     }
-    return { inserted, alreadyApplied: inserted.length === 0, fixtures: plan.map(row => ({ code: row.code, homeTeam: row.homeTeam, awayTeam: row.awayTeam, bestOf: row.bestOf, gameOneSideSelection: row.gameOneSideSelection })) };
+    return {
+      operation: SPLIT_II_SEMIFINAL_OPERATION,
+      auditId: `${SPLIT_II_SEMIFINAL_OPERATION}:${suppliedFingerprint.slice(0, 12)}`,
+      fingerprint: suppliedFingerprint,
+      inserted,
+      alreadyApplied: inserted.length === 0,
+      notificationQueued: false,
+      fixtures: inspection.plan.map(row => ({ code: row.code, homeTeam: row.homeTeam, awayTeam: row.awayTeam, bestOf: row.bestOf, gameOneSideSelection: row.gameOneSideSelection })),
+    };
   }, { maxWait: 10_000, timeout: 30_000 });
-  console.info("[split-ii] semifinal fixtures published", { inserted: result.inserted, alreadyApplied: result.alreadyApplied });
+  console.info("[tournament-operation] completed", { operation: result.operation, auditId: result.auditId, inserted: result.inserted, alreadyApplied: result.alreadyApplied, notificationQueued: result.notificationQueued });
   return result;
 }
 
@@ -110,13 +112,16 @@ async function loadTournamentView(db:PrismaClient,actor:TournamentActor){
   if (teams.length !== 5 || fixtures.length < 10) throw new TournamentError("Tournament match setup is being prepared.",503);
   const approved = reports.filter(r=>r.status==='APPROVED');
   const tables = calculateTables(teams,fixtures,approved);
+  const semifinalOperation = actor.admin
+    ? splitTwoSemifinalPreview(buildSplitTwoSemifinalInspection(event.id, teams, fixtures, approved))
+    : undefined;
   return {event:{id:event.id,name:event.name,timezone:'Asia/Shanghai'},
     teams:teams.map(t=>({id:t.id,key:t.key,name:t.name,tag:t.tag,logo:t.logo,accent:t.accent,captainProfileId:t.captainProfileId,members:t.members.map(m=>({profileId:m.profileId,name:m.registration.displayNameSnapshot,role:m.registration.primaryRoleSnapshot,riotId:`${tournamentIdentity(m.registration).name}#${tournamentIdentity(m.registration).tag}`,pot:m.pot,captain:m.profileId===t.captainProfileId}))})),
     fixtures:fixtures.map(f=>{const s=f.schedule as unknown as Schedule|null;return {id:f.id,code:f.code,stage:f.stage,week:f.week,bestOf:f.bestOf,homeTeamId:f.homeTeamId,awayTeamId:f.awayTeamId,revision:f.revision,schedule:s?{state:s.state,at:s.at,byTeam:s.byTeam,revision:s.revision}:null,
       homeScore:approved.filter(r=>r.fixtureId===f.id&&(r.payload as unknown as MatchPayload).winnerTeamId===f.homeTeamId).length,
       awayScore:approved.filter(r=>r.fixtureId===f.id&&(r.payload as unknown as MatchPayload).winnerTeamId===f.awayTeamId).length};}),
     reports:reports.map(({reviewNote,...r})=>({...r,...(actor.admin?{reviewNote}:{})})), ...tables,
-    ...(actor.admin?{floaters:floaters.map(f=>({profileId:f.profileId,name:f.displayNameSnapshot,role:f.primaryRoleSnapshot})),notifications:await db.tournamentNotification.findMany({where:{tournamentId:event.id,status:{not:'SENT'}},select:{id:true,status:true,attempts:true,nextAttemptAt:true},orderBy:{createdAt:'asc'},take:50})}:{}),
+    ...(actor.admin?{floaters:floaters.map(f=>({profileId:f.profileId,name:f.displayNameSnapshot,role:f.primaryRoleSnapshot})),operations:{semifinals:semifinalOperation},notifications:await db.tournamentNotification.findMany({where:{tournamentId:event.id,status:{not:'SENT'}},select:{id:true,status:true,attempts:true,nextAttemptAt:true},orderBy:{createdAt:'asc'},take:50})}:{}),
     viewer:{admin:actor.admin,profileId:actor.profileId??null,captainTeamIds:teams.filter(t=>t.captainProfileId===actor.profileId).map(t=>t.id)},
   };
 }
