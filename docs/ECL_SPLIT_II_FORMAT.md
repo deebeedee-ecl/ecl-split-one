@@ -7,12 +7,20 @@ after Season details. It uses the existing UI components and Hub colours.
 - Teams: BallBreakers, Phoenix, Zero, NextGen and Exodus. RouteOne (R1) is excluded.
 - Single round robin: each team plays the other four once, for ten Bo1 games.
   Each win earns one point.
-- The top four qualify; fifth place is eliminated after required tie-breakers.
+- The top four qualify; fifth place is eliminated after applying the standings
+  tie-break rule.
 - Semifinals: first versus fourth and second versus third. Both are Bo3.
 - Final: the two semifinal winners, Bo3, on November 20.
-- Ties on wins use Bo1 tie-breakers for qualification/seeding. For a three-way tie
-  for third through fifth, total winning-game time eliminates the slowest team;
-  the other two play a Bo1 to decide third and fourth.
+- Ties on wins are ranked by total duration of the games each team won; the
+  lower total winning time receives the higher seed. Loss durations are not
+  counted. If two or more teams have the same wins and exactly the same total
+  winning time, their places remain provisional until the tournament organiser
+  resolves the tie.
+
+The owner confirmed the total-winning-time rule for all equal-win standings on
+November 14, 2026. The standings table exposes this value as `Win time`, and
+the shared standings calculation supplies the same order to public and KOOK
+surfaces.
 
 The owner explicitly confirmed Bo3 for both playoff stages, overriding the
 reference file's default Bo1 selectors. The six-team reference's fifteen-game

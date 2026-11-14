@@ -20,10 +20,14 @@ function sample() {
     f.homeScore = Number(f.homeTeamId === winnerTeamId); f.awayScore = Number(f.awayTeamId === winnerTeamId);
     return { id: 'report-' + fixtureId, fixtureId, gameNumber: 1, status: 'APPROVED', payload: { winnerTeamId, durationSeconds: 1842, playedAt: `2026-11-0${i + 1}T12:11:07.000Z` } };
   });
-  const standings = teams.map(t => ({ ...t, played: 0, wins: 0, losses: 0 }));
+  const standings = teams.map(t => ({ ...t, played: 0, wins: 0, losses: 0, winTimeSeconds: 0, tied: false }));
   for (const f of fixtures.filter(f => f.homeScore || f.awayScore)) for (const t of standings.filter(t => f.homeTeamId === t.id || f.awayTeamId === t.id)) {
-    t.played++; if ((f.homeScore ? f.homeTeamId : f.awayTeamId) === t.id) t.wins++; else t.losses++;
+    t.played++; if ((f.homeScore ? f.homeTeamId : f.awayTeamId) === t.id) {
+      t.wins++;
+      t.winTimeSeconds += Number(reports.find(report => report.fixtureId === f.id)?.payload.durationSeconds ?? 0);
+    } else t.losses++;
   }
+  for (const row of standings) row.tied = standings.some(other => other.id !== row.id && other.played > 0 && row.played > 0 && other.wins === row.wins && other.winTimeSeconds === row.winTimeSeconds);
   return { event: { id: 'event' }, teams, fixtures, reports, standings };
 }
 type View = Parameters<typeof splitTwoReadReply>[2];
@@ -46,13 +50,13 @@ test('full draw shows final scores, with no stale scheduling text on completed g
   assert.ok(!reply.includes('Time TBC'));
   assert.match(splitTwoReadReply('fixtures', ['bad'], asView(v))!, /Use !split2 fixtures/);
 });
-test('standings use published wins and do not invent a resolved tie-break', () => {
+test('standings expose winning time and retain only exact ties as provisional', () => {
   const v = sample(); const reply = splitTwoReadReply('standings', [], asView(v))!;
-  assert.match(reply, /BallBreakers \/ 2 \/ 2–0 \/ 2/);
-  assert.match(reply, /Exodus \/ 2 \/ 1–1 \/ 1/);
-  assert.match(reply, /Phoenix \/ 2 \/ 1–1 \/ 1/);
-  assert.match(reply, /NextGen \/ 2 \/ 0–2 \/ 0/);
-  assert.match(reply, /Equal points remain provisional/);
+  assert.match(reply, /BallBreakers \/ 2 \/ 2–0 \/ 1:01:24 \/ 2/);
+  assert.match(reply, /Exodus \* \/ 2 \/ 1–1 \/ 0:30:42 \/ 1/);
+  assert.match(reply, /Phoenix \* \/ 2 \/ 1–1 \/ 0:30:42 \/ 1/);
+  assert.match(reply, /NextGen \/ 2 \/ 0–2 \/ — \/ 0/);
+  assert.match(reply, /Equal wins are ranked by lower total time/);
 });
 test('results omit pending reports and include an approved game in an unfinished Bo3', () => {
   const v = sample();

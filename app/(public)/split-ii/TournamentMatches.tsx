@@ -3,6 +3,7 @@ import type { TournamentData } from '@/lib/tournaments/match-types';
 import TournamentResultList from './TournamentResultList';
 import styles from './split-ii.module.css';
 export const chinaTime=(value:string)=>new Date(value).toLocaleString('en-GB',{timeZone:'Asia/Shanghai',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:false})+' CST';
+const totalWinTime=(seconds:number)=>`${Math.floor(seconds/3600)}:${String(Math.floor(seconds%3600/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
 export function LiveFixtures({data}:{data:TournamentData}){
   const team=(id:string)=>data.teams.find(t=>t.id===id)!;
   const weeks=[...new Set(data.fixtures.map(f=>f.week))].sort((a,b)=>a-b);
@@ -35,9 +36,9 @@ export function TournamentStandings({data}:{data:TournamentData|null}){
   return <section aria-labelledby="standings-heading">
     <div className={styles.sectionHeading}><div><p>ECL SPLIT II / STANDINGS</p><h3 id="standings-heading">The league table.</h3></div></div>
     <div className={styles.tableScroll}><table className={styles.resultsTable}>
-      <caption>Round robin / 1 point per win. Approved results only. Ties (*) remain provisional until resolved under the tournament rules.</caption>
-      <thead><tr><th scope="col">Team</th><th scope="col">Played</th><th scope="col">W</th><th scope="col">L</th><th scope="col">Points</th></tr></thead>
-      <tbody>{data.standings.map(t=><tr key={t.id}><th scope="row">{t.name}{t.tied?' *':''}</th><td>{t.played}</td><td>{t.wins}</td><td>{t.losses}</td><td>{t.wins}</td></tr>)}</tbody>
+      <caption>Round robin / 1 point per win. Equal wins are ranked by lower total time in games won. Exact ties (*) remain provisional.</caption>
+      <thead><tr><th scope="col">Team</th><th scope="col">Played</th><th scope="col">W</th><th scope="col">L</th><th scope="col">Win time</th><th scope="col">Points</th></tr></thead>
+      <tbody>{data.standings.map(t=><tr key={t.id}><th scope="row">{t.name}{t.tied?' *':''}</th><td>{t.played}</td><td>{t.wins}</td><td>{t.losses}</td><td>{t.wins?totalWinTime(t.winTimeSeconds):'—'}</td><td>{t.wins}</td></tr>)}</tbody>
     </table></div>
   </section>;
 }
