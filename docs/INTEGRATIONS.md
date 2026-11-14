@@ -22,6 +22,17 @@ Lzyumi is ECL's primary external provider for China-server Riot identity, rank, 
 - `HISTORY_EMPTY` is valid only after identity resolution succeeded and the requested history endpoint returned a coherent empty array. Filter `1` may include localized custom-game history rows; `title` containing `新模式` is a discovery candidate only, and final custom-game acceptance still requires detail `gameType === CUSTOM_GAME` plus the normal server, identity, time, roster, and duplicate checks.
 - `getPlayerRecentStat`/champion recency is optional. It requires its own code-`1` object contract; failure must result in an explicit unavailable section, not retained stale champion data presented as fresh.
 
+The authenticated Hub custom-game finder at `/hub/search-engine` is a separate
+read-only discovery surface. It tries the bare Riot name before the full ID,
+accepts a response only after exact full-ID/server/`openId` verification, then
+loads history filters with concurrency capped at two. It deduplicates opaque
+game IDs, considers at most twelve dated detail candidates, and fetches those
+details sequentially. A result is shown only when structured detail reports
+`gameType === CUSTOM_GAME` and the searched participant matches both full Riot
+ID and the verified `openId`. Optional champion/opponent clues affect ranking;
+they never weaken identity or custom-game validation. The UI does not expose
+`openId`, signed URLs, or raw provider payloads and has no result-write action.
+
 Acceptance requires matching the expected full Riot ID, China server, and `openId`. Save profile/rank/Solo/Flex as one coherent snapshot only after every required response passes validation. A rejected replacement preserves the prior snapshot and timestamp; do not independently advance freshness for an unchanged section. Application-code semantics are endpoint-specific and must not be copied to token/session-status endpoints.
 
 #### Intended explicit manual refresh contract (not deployed)

@@ -73,6 +73,7 @@ Primary navigation:
 - Players → `/hub/players`
 - Champions → `/hub/champions`
 - Inhouses → `/hub/inhouses`
+- Game Finder → `/hub/search-engine`
 
 Secondary actions:
 
@@ -135,6 +136,16 @@ The authenticated pass showed this table populated from current reported inhouse
 The authenticated pass did receive current live matches, so the mock fallback was not active during the walkthrough. The dormant fallback remains a defect for empty/error conditions.
 
 `/hub/me/report-inhouse` is a separate player reporting surface used by the authenticated flow.
+
+### Game Finder
+
+`/hub/search-engine` is a dedicated read-only Lzyumi custom-game lookup, not an
+admin or result-publication screen. It requests the exact full Riot ID, China
+server, approximate China date, and optional champion/opponent clues. The page
+uses the signed browser flow, displays its bounded request summary, and exposes
+only detail-confirmed `CUSTOM_GAME` candidates with sanitized participant rows
+and the private provider game ID. It has no submit, approve, publish, ranked,
+LP, or tournament write action.
 
 ### Account Settings
 

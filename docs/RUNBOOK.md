@@ -288,6 +288,26 @@ A network-switch result is diagnostic evidence, not a permanent architecture. Pr
 - Discovery writes local JSON/CSV evidence only. It must not connect to the ECL database, claim report jobs, create ranked rows, or apply LP.
 - Provider payloads and player identities in the output are private operational evidence. Keep them ignored and never commit or paste unrestricted artifacts into logs, issues, or chat.
 
+### Interactive custom-game lookup
+
+Use `/hub/search-engine` when an operator remembers a player/date/champion but
+does not yet have the provider game ID. This is the lookup phase only; do not
+open the tournament admin page until a candidate has been independently
+reviewed and an authorized result workflow has been selected.
+
+1. Enter the player's exact full Riot ID, selected China server, and approximate
+   China date. Add champion and opposing-player clues only when known.
+2. Review the bounded scan summary. An unavailable filter/detail is a provider
+   failure, not evidence of empty history.
+3. Accept only a candidate marked as structured `CUSTOM_GAME` whose highlighted
+   searched player has the expected full Riot identity. Review both five-player
+   teams and all optional clue badges.
+4. Copy the opaque provider game ID only into ignored/private operational
+   evidence. It is not a numeric League Game ID.
+5. Stop after discovery unless the user separately authorizes the applicable
+   tournament or ranked-result workflow. The finder itself never writes ECL
+   data, applies LP, queues KOOK, or publishes a result.
+
 ### Completed ranked-inhouse backfill from 2026-11-12
 
 The reviewed five-game recovery completed under operation marker `ranked-inhouse-backfill-2026-11-12`; its one-off endpoint, import library, and client were removed after verification. Keep the private manifest and apply/post-verification audits in ignored operational storage. Do not recreate or generalize the removed write path for another incident.
