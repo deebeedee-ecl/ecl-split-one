@@ -13,15 +13,13 @@ import {
   type LzyumiRecentMatch,
 } from "@/lib/lzyumi";
 import { isLzyumiGameAlreadyReported } from "@/lib/lzyumi-report-dedupe";
+import { findInhouseDetailPlayer } from "@/lib/inhouse-roster-identity";
 import { acquireRankedInhouseReportLock } from "@/lib/inhouse-report-lock";
 import { syncPlayerForProfile } from "@/lib/player-profile-sync";
 import { prisma } from "@/lib/prisma";
 import {
   normalizeRiotPart,
   normalizeRiotTag,
-  riotIdKey,
-  riotNameKey,
-  splitRiotId,
 } from "@/lib/riot-id";
 
 export const dynamic = "force-dynamic";
@@ -90,20 +88,6 @@ function reportGameTimeIssue(game: Pick<LzyumiRecentMatch, "title" | "titleTime"
   }
 
   return "";
-}
-
-function playerRiotKeys(player: LzyumiPlayerDetail) {
-  return [player.nickNameStr, player.nickName]
-    .map(splitRiotId)
-    .map((parts) => riotIdKey(parts.riotName, parts.riotTag))
-    .filter((value): value is string => Boolean(value));
-}
-
-function playerRiotNameKeys(player: LzyumiPlayerDetail) {
-  return [player.nickNameStr, player.nickName]
-    .map(splitRiotId)
-    .map((parts) => riotNameKey(parts.riotName))
-    .filter((value): value is string => Boolean(value));
 }
 
 function parseScoreInfo(value: unknown) {
@@ -427,39 +411,28 @@ export async function POST(request: Request) {
   }
 
   const detailPlayers = matchDetail.data?.wgBattleDetailInfo ?? [];
-  const detailByRiotKey = new Map<string, LzyumiPlayerDetail>();
-  const detailByNameKey = new Map<string, LzyumiPlayerDetail | null>();
 
-  for (const player of detailPlayers) {
-    for (const key of playerRiotKeys(player)) {
-      detailByRiotKey.set(key, player);
-    }
-    for (const key of playerRiotNameKeys(player)) {
-      detailByNameKey.set(key, detailByNameKey.has(key) ? null : player);
-    }
-  }
-
-  // Enrich session players with AccountProfile riotName/riotTag when InhouseSessionPlayer fields are empty.
-  // Try by profileId first, fall back to kookUserId → AccountProfile.kookId.
-  const missingProfileIds = session.players
-    .filter((p) => (!p.riotName || !p.riotTag) && p.profileId)
+  // Load current stable provider identity for every session player. Riot ID fields
+  // on the session remain historical snapshots and may have changed after !ready.
+  const profileIds = session.players
+    .filter((p) => p.profileId)
     .map((p) => p.profileId as string);
 
-  const missingKookIds = session.players
-    .filter((p) => (!p.riotName || !p.riotTag) && !p.profileId)
+  const kookIds = session.players
+    .filter((p) => !p.profileId)
     .map((p) => p.kookUserId);
 
   const [enrichProfiles, enrichByKook] = await Promise.all([
-    missingProfileIds.length > 0
+    profileIds.length > 0
       ? prisma.accountProfile.findMany({
-          where: { id: { in: missingProfileIds } },
-          select: { id: true, riotName: true, riotTag: true },
+          where: { id: { in: profileIds } },
+          select: { id: true, riotName: true, riotTag: true, chinaServerId: true, openId: true },
         })
       : Promise.resolve([]),
-    missingKookIds.length > 0
+    kookIds.length > 0
       ? prisma.accountProfile.findMany({
-          where: { kookId: { in: missingKookIds } },
-          select: { kookId: true, riotName: true, riotTag: true },
+          where: { kookId: { in: kookIds } },
+          select: { kookId: true, riotName: true, riotTag: true, chinaServerId: true, openId: true },
         })
       : Promise.resolve([]),
   ]);
@@ -473,21 +446,19 @@ export async function POST(request: Request) {
       ...p,
       riotName: p.riotName || prof?.riotName || null,
       riotTag: normalizeRiotTag(p.riotTag || prof?.riotTag) || null,
+      chinaServerId: prof?.chinaServerId ?? null,
+      openId: prof?.openId ?? null,
     };
   });
+  type EnrichedSessionPlayer = (typeof enrichedSessionPlayers)[number];
 
   const matchedRows = enrichedSessionPlayers
     .map((sessionPlayer) => {
-      const key = riotIdKey(sessionPlayer.riotName, sessionPlayer.riotTag);
-      const nameKey = riotNameKey(sessionPlayer.riotName);
-      const hasTag = Boolean(normalizeRiotTag(sessionPlayer.riotTag));
-      const detailPlayer =
-        (key ? detailByRiotKey.get(key) : undefined) ??
-        (!hasTag && nameKey ? detailByNameKey.get(nameKey) ?? undefined : undefined);
+      const detailPlayer = findInhouseDetailPlayer(sessionPlayer, detailPlayers);
       return detailPlayer ? { sessionPlayer, detailPlayer } : null;
     })
     .filter(
-      (value): value is { sessionPlayer: SessionPlayer; detailPlayer: LzyumiPlayerDetail } =>
+      (value): value is { sessionPlayer: EnrichedSessionPlayer; detailPlayer: LzyumiPlayerDetail } =>
         Boolean(value),
     );
 

@@ -15,6 +15,7 @@ import {
 import { reportedLzyumiGameIds } from "@/lib/lzyumi-report-dedupe";
 import { translateLzyumiTier } from "@/lib/hub-profile";
 import { isValidatedLzyumiSnapshot } from "@/lib/lzyumi-snapshot";
+import { findInhouseDetailPlayer } from "@/lib/inhouse-roster-identity";
 import {
   fetchLzyumiMatchDetail,
   fetchLzyumiRecentGames,
@@ -37,9 +38,6 @@ import {
   formatRiotId,
   normalizeRiotPart,
   normalizeRiotTag,
-  riotIdKey,
-  riotNameKey,
-  splitRiotId,
 } from "@/lib/riot-id";
 
 function clean(value: unknown) {
@@ -245,20 +243,6 @@ function formatReporterLine(
   ].join("\n");
 }
 
-function playerRiotKeys(player: LzyumiPlayerDetail) {
-  return [player.nickNameStr, player.nickName]
-    .map(splitRiotId)
-    .map((parts) => riotIdKey(parts.riotName, parts.riotTag))
-    .filter((value): value is string => Boolean(value));
-}
-
-function playerRiotNameKeys(player: LzyumiPlayerDetail) {
-  return [player.nickNameStr, player.nickName]
-    .map(splitRiotId)
-    .map((parts) => riotNameKey(parts.riotName))
-    .filter((value): value is string => Boolean(value));
-}
-
 type SessionReportPlayer = {
   displayName: string;
   kookUserId: string;
@@ -318,30 +302,12 @@ function matchSessionPlayersToDetail(
   detail: LzyumiDetailResponse,
 ) {
   const detailPlayers = detail.data?.wgBattleDetailInfo ?? [];
-  const detailByRiotKey = new Map<string, LzyumiPlayerDetail>();
-  const detailByNameKey = new Map<string, LzyumiPlayerDetail | null>();
-
-  for (const player of detailPlayers) {
-    for (const key of playerRiotKeys(player)) {
-      detailByRiotKey.set(key, player);
-    }
-    for (const key of playerRiotNameKeys(player)) {
-      detailByNameKey.set(key, detailByNameKey.has(key) ? null : player);
-    }
-  }
 
   const matched: string[] = [];
   const missing: string[] = [];
 
   for (const sessionPlayer of sessionPlayers) {
-    const riotName = sessionPlayer.riotName;
-    const riotTag = sessionPlayer.riotTag;
-    const key = riotIdKey(riotName, riotTag);
-    const nameKey = riotNameKey(riotName);
-    const hasTag = Boolean(normalizeRiotTag(riotTag));
-    const detailPlayer =
-      (key ? detailByRiotKey.get(key) : undefined) ??
-      (!hasTag && nameKey ? detailByNameKey.get(nameKey) ?? undefined : undefined);
+    const detailPlayer = findInhouseDetailPlayer(sessionPlayer, detailPlayers);
 
     if (detailPlayer) {
       matched.push(sessionPlayer.displayName);
