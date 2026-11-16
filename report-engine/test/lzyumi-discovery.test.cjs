@@ -73,12 +73,11 @@ test("source identity requires the full Riot ID and rejects server or openId mis
   }), false);
 });
 
-test("detail roster identity rejects full Riot ID, server, and openId mismatches", () => {
+test("detail roster identity uses stable openId and server across Riot ID changes", () => {
   const player = { chinaServerId: 1, openId: "synthetic-open-id" };
   const valid = {
     player,
     detailPlayer: { openIdNow: "synthetic-open-id", translateAreaId: 1, identityOk: true },
-    riotIdentityMatches: (_expected, actual) => actual.identityOk,
   };
 
   assert.equal(detailParticipantMatchesExpectedIdentity(valid), true);
@@ -89,7 +88,7 @@ test("detail roster identity rejects full Riot ID, server, and openId mismatches
   assert.equal(detailParticipantMatchesExpectedIdentity({
     ...valid,
     detailPlayer: { ...valid.detailPlayer, identityOk: false },
-  }), false);
+  }), true);
   assert.equal(detailParticipantMatchesExpectedIdentity({
     ...valid,
     detailPlayer: { ...valid.detailPlayer, translateAreaId: 14 },
@@ -161,23 +160,25 @@ test("bounded discovery dedupes and filters before detail, confirms custom, and 
   assert.equal(result.match.game.gameId, "winner");
   assert.deepEqual(historyCalls, [
     { player: "reporter", filter: 1 },
+    { player: "unused-fallback", filter: 1 },
     { player: "reporter", filter: 2 },
+    { player: "unused-fallback", filter: 2 },
   ]);
   assert.deepEqual(detailCalls, ["not-custom", "winner"]);
   assert.deepEqual(result.budget, {
-    history: { used: 2, limit: 8 },
+    history: { used: 4, limit: 8 },
     detail: { used: 2, limit: 4 },
   });
 });
 
-test("bounded discovery never exceeds two concurrent history filters", async () => {
+test("bounded discovery never exceeds two concurrent player histories", async () => {
   let active = 0;
   let peak = 0;
   const budget = createDiscoveryRequestBudget({ historyLimit: 4, detailLimit: 1 });
 
   await findBoundedLzyumiMatch({
-    players: ["reporter"],
-    filters: [1, 2, 3, 4],
+    players: ["reporter", "fallback-1", "fallback-2", "fallback-3"],
+    filters: [1],
     historyConcurrency: 10,
     budget,
     fetchHistory: async (_player, _filter, requestBudget) => {
@@ -197,6 +198,45 @@ test("bounded discovery never exceeds two concurrent history filters", async () 
 
   assert.equal(peak, 2);
   assert.equal(budget.snapshot().history.used, 4);
+});
+
+test("checks roster breadth before later filters when reporter history is stale", async () => {
+  const historyCalls = [];
+  const detailCalls = [];
+  const players = ["reporter", "fallback", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10"];
+  const budget = createDiscoveryRequestBudget({ historyLimit: 8, detailLimit: 2 });
+
+  const result = await findBoundedLzyumiMatch({
+    players,
+    filters: [1, 2, 3, 4, 5, 6, 7, 8],
+    historyConcurrency: 2,
+    budget,
+    fetchHistory: async (player, filter, requestBudget) => {
+      requestBudget.consumeHistory();
+      historyCalls.push({ player, filter });
+      if (player === "reporter") return { player, games: [game("stale", 10, 1_293)] };
+      if (player === "fallback") return { player, games: [game("shared-inhouse", 10, 1)] };
+      return { player, games: [] };
+    },
+    fetchDetail: async (_source, candidate, requestBudget) => {
+      requestBudget.consumeDetail();
+      detailCalls.push(candidate.gameId);
+      return detail("CUSTOM_GAME", 10);
+    },
+    isInWindow: (candidate) => candidate.gameId !== "stale",
+    sortValue: (candidate) => candidate.distance,
+    matchRoster: (candidateDetail) => ({
+      matched: Array.from({ length: candidateDetail.data.matched }, (_, index) => `p${index}`),
+      missing: [],
+    }),
+    requiredMatches: 8,
+  });
+
+  assert.equal(result.match.game.gameId, "shared-inhouse");
+  assert.deepEqual(detailCalls, ["shared-inhouse"]);
+  assert.equal(historyCalls.length, 8);
+  assert.equal(historyCalls.every((call) => call.filter === 1), true);
+  assert.deepEqual(historyCalls.map((call) => call.player), players.slice(0, 8));
 });
 
 test("prioritizes observed custom candidates across concurrent history outcomes", async () => {
@@ -234,7 +274,7 @@ test("prioritizes observed custom candidates across concurrent history outcomes"
   assert.deepEqual(detailCalls, ["observed-custom"]);
 });
 
-test("stops fetching history after the detail budget is exhausted", async () => {
+test("stops before the next history filter after the detail budget is exhausted", async () => {
   let historyCalls = 0;
   const budget = createDiscoveryRequestBudget({ historyLimit: 8, detailLimit: 1 });
 
@@ -259,9 +299,9 @@ test("stops fetching history after the detail budget is exhausted", async () => 
   });
 
   assert.equal(result.match, null);
-  assert.equal(historyCalls, 2);
+  assert.equal(historyCalls, 1);
   assert.deepEqual(result.budget, {
-    history: { used: 2, limit: 8 },
+    history: { used: 1, limit: 8 },
     detail: { used: 1, limit: 1 },
   });
 });

@@ -113,9 +113,7 @@ function sourceMatchesExpectedIdentity({
     Number.isFinite(resolvedAreaId) && resolvedAreaId === expectedAreaId;
 }
 
-function detailParticipantMatchesExpectedIdentity({ player, detailPlayer, riotIdentityMatches }) {
-  if (!riotIdentityMatches(player, detailPlayer)) return false;
-
+function detailParticipantMatchesExpectedIdentity({ player, detailPlayer }) {
   const savedOpenId = typeof player.openId === "string" ? player.openId.trim() : "";
   const resolvedOpenId = typeof detailPlayer?.openIdNow === "string" ? detailPlayer.openIdNow.trim() : "";
   if (!savedOpenId || resolvedOpenId !== savedOpenId) return false;
@@ -168,9 +166,10 @@ async function findBoundedLzyumiMatch({
     budget: budget.snapshot(),
   });
 
-  const attemptCandidates = async (candidates) => {
+  const attemptCandidates = async (candidates, maxPriority = Number.POSITIVE_INFINITY) => {
     const pending = candidates
-      .filter((candidate) => !attemptedDetails.has(candidate.gameId))
+      .filter((candidate) =>
+        !attemptedDetails.has(candidate.gameId) && candidate.priority <= maxPriority)
       .sort((a, b) => a.priority - b.priority || sortValue(a.game) - sortValue(b.game));
 
     for (const candidate of pending) {
@@ -205,21 +204,23 @@ async function findBoundedLzyumiMatch({
   };
 
   outer:
-  for (let playerIndex = 0; playerIndex < searchPlayers.length; playerIndex += 1) {
-    for (let filterIndex = 0; filterIndex < historyFilters.length;) {
+  for (const filter of historyFilters) {
+    for (let playerIndex = 0; playerIndex < searchPlayers.length;) {
       const available = budget.remainingHistory();
       if (available <= 0 || budget.remainingDetail() <= 0) break outer;
 
-      const batchSize = Math.min(concurrency, available, historyFilters.length - filterIndex);
-      const batch = historyFilters.slice(filterIndex, filterIndex + batchSize);
-      filterIndex += batchSize;
+      const batchSize = Math.min(concurrency, available, searchPlayers.length - playerIndex);
+      const batch = searchPlayers
+        .slice(playerIndex, playerIndex + batchSize)
+        .map((player, offset) => ({ player, playerIndex: playerIndex + offset }));
+      playerIndex += batchSize;
 
-      const outcomes = await Promise.all(batch.map(async (filter) => {
+      const outcomes = await Promise.all(batch.map(async ({ player, playerIndex: sourcePlayerIndex }) => {
         try {
-          const source = await fetchHistory(searchPlayers[playerIndex], filter, budget);
-          return { filter, source, error: null };
+          const source = await fetchHistory(player, filter, budget);
+          return { filter, playerIndex: sourcePlayerIndex, source, error: null };
         } catch (error) {
-          return { filter, source: null, error };
+          return { filter, playerIndex: sourcePlayerIndex, source: null, error };
         }
       }));
 
@@ -233,7 +234,7 @@ async function findBoundedLzyumiMatch({
             await onLookupError({
               stage: "history",
               error: outcome.error,
-              playerIndex,
+              playerIndex: outcome.playerIndex,
               filter: outcome.filter,
             });
           }
@@ -266,17 +267,25 @@ async function findBoundedLzyumiMatch({
               game,
               gameId,
               priority,
-              playerIndex,
+              playerIndex: outcome.playerIndex,
               filter: outcome.filter,
             });
           }
         }
       }
-
-      const match = await attemptCandidates([...candidatesByGameId.values()]);
-      if (match) return result(match);
     }
+
+    // Search this filter across the roster before spending detail requests. This
+    // prevents one reporter's stale history from consuming the complete history
+    // budget before another participant can expose the shared custom game.
+    const match = await attemptCandidates([...candidatesByGameId.values()], 0);
+    if (match) return result(match);
   }
+
+  // Unknown history types remain valid discovery candidates, but only after
+  // observed custom-game candidates from the fair roster sweep were attempted.
+  const fallbackMatch = await attemptCandidates([...candidatesByGameId.values()]);
+  if (fallbackMatch) return result(fallbackMatch);
 
   return result();
 }

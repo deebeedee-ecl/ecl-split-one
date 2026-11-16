@@ -1404,7 +1404,6 @@ function detailPlayerMatchesVerified(player, detailPlayer) {
   return detailParticipantMatchesExpectedIdentity({
     player,
     detailPlayer,
-    riotIdentityMatches: detailPlayerMatches,
   });
 }
 
