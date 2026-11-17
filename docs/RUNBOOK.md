@@ -310,9 +310,26 @@ reviewed and an authorized result workflow has been selected.
 
 ### Completed ranked-inhouse backfill from 2026-11-12
 
-The reviewed five-game recovery completed under operation marker `ranked-inhouse-backfill-2026-11-12`; its one-off endpoint, import library, and client were removed after verification. Keep the private manifest and apply/post-verification audits in ignored operational storage. Do not recreate or generalize the removed write path for another incident.
+The reviewed five-game recovery completed under operation marker `ranked-inhouse-backfill-2026-11-12`; its one-off endpoint, import library, and client were removed after verification. Keep the private manifest and apply/post-verification audits in ignored operational storage. Do not recreate that dated write path for another incident; use the reviewed manual ranked-inhouse import workflow below.
 
 Recovery must preserve history. Freeze further ranked writes, inspect only sessions and `MatchGame.ocrRawJson` carrying that exact operation marker, and either restore the confirmed backup or run a separately reviewed reverse/replay transaction that removes only those operation rows and recomputes every affected player from remaining season stats. Never hand-edit LP or delete rows ad hoc.
+
+### Manual ranked-inhouse import
+
+Use this workflow when custom games were played outside the KOOK lifecycle and the owner asks Codex to add only the missing ranked results. This is a permanent reviewed boundary, not permission to write arbitrary match or LP rows.
+
+1. Run the local read-only discovery from `report-engine/BACKFILL_DISCOVERY.md` using exact full Riot IDs and a bounded China-date window. Discovery must not receive database credentials.
+2. Review the private CSV/JSON evidence. Reject tournament games and provider failures. A structured `CUSTOM_GAME` detail is mandatory.
+3. Copy `report-engine/manual-inhouse-import-review.example.json` to an ignored `report-engine/inhouse-discovery-*.json` review file. Select exact provider IDs, use a unique `manual-inhouse-*` batch ID, and explicitly record any unknown filler slots or provider `KIWI` override.
+4. Set `approvedUnregisteredParticipants` only after the owner authorizes excluding non-ECL fillers. Excluded participants never receive an account, `Player`, stat row, or LP.
+5. Prepare the immutable private manifest with `npm run inhouse:import:prepare -- --discovery=... --review=... --output=...`. The command refuses to replace an existing output.
+6. Run the production backend preflight through the report-engine environment with `npm run inhouse:import -- --preflight --target=production --endpoint=https://eclchina.lol/api/jobs/manual-inhouse-import --input=... --audit=...`. Keep credentials inside the worker process.
+7. Review the clean plan: exact game count, existing versus new games, excluded participants, affected players, inserted stat rows, replayed later stats, and both projected LP deltas. Stop on every identity, tournament, or partial-write collision.
+8. After explicit production approval, apply the exact fresh fingerprint with `--apply --approved-production --fingerprint=...` and a new ignored audit path. The API re-runs the plan under the ranked advisory lock and commits sessions, matches, stats, replayed LP, and player state in one transaction. Notifications remain disabled.
+9. Run a new preflight after apply. It must report every selected game as existing, zero games/stat rows to insert, zero existing-stat changes, and zero LP delta. Verify the production archive and ladder separately.
+10. Recovery data is stored on the first inserted session with the batch ID, fingerprint, prior player states, and prior ranked stats. A rollback is a separately reviewed reverse/replay transaction scoped to that batch; never delete or hand-edit rows ad hoc.
+
+The endpoint accepts only the dedicated report-engine/job secret, a fixed operation header, JSON, a bounded manifest (1-50 games and at most 31 China days), and a fingerprint from the immediately preceding database state. Repeating an applied batch is idempotent and produces no new rows.
 
 ### Report-engine deployment configuration
 

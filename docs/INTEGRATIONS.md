@@ -101,6 +101,8 @@ Authentication establishes the Supabase user. Application routes must then load 
 
 Any result/LP correction, merge, backfill, season reset, or tournament release can affect historical data and requires an explicit environment, preview, approval, transaction/recovery design, and post-check.
 
+The permanent manual ranked-inhouse import contract is `/api/jobs/manual-inhouse-import`. It accepts only a private reviewed Lzyumi manifest through the report-engine/job credential. `preflight` is read-only and returns a database-bound fingerprint; `apply` is production-only, rechecks that fingerprint under the ranked advisory lock, and atomically inserts only missing ranked games while replaying affected current-season LP. Unregistered fillers require explicit owner approval and are excluded rather than provisioned. Notifications are always off. Operational steps live in `docs/RUNBOOK.md`.
+
 Lzyumi match history exposes an opaque provider game ID rather than the numeric League Game ID. For an administrator-reviewed tournament recovery, that opaque value may be used as the private external-game identity when the numeric ID is unavailable. It must never be presented as a numeric League ID or exposed in the public tournament response; approval still checks it against tournament, ranked-report, legacy-game, and inhouse-session identities.
 
 ## Report engine

@@ -94,6 +94,50 @@ function detailPlayerKeys(player) {
     .filter(Boolean);
 }
 
+function detailPlayerKey(player) {
+  const riotKey = detailPlayerKeys(player)[0];
+  const openId = clean(player?.openIdNow || player?.openId);
+  return riotKey ? `riot:${riotKey}` : openId ? `open:${openId}` : "";
+}
+
+function mergeDetailVariants(variants) {
+  const successful = variants.filter((detail) =>
+    String(detail?.code) === "1" && Array.isArray(detail?.data?.wgBattleDetailInfo),
+  );
+  if (successful.length === 0) {
+    return { detail: null, participantCount: 0, variantCounts: [] };
+  }
+  const players = new Map();
+  for (const detail of successful) {
+    for (const player of detail.data.wgBattleDetailInfo) {
+      const key = detailPlayerKey(player);
+      if (!key) throw new TypeError("Every recovery detail participant must expose a full Riot ID or openId.");
+      const existing = players.get(key);
+      if (existing) {
+        const stableFields = ["teamId", "win", "scoreInfo", "openIdNow"];
+        const conflicts = stableFields.some((field) =>
+          clean(existing[field]) && clean(player?.[field]) && clean(existing[field]) !== clean(player[field]),
+        );
+        if (conflicts) throw new TypeError("Recovery detail variants disagree for the same participant.");
+      } else {
+        players.set(key, player);
+      }
+    }
+  }
+  const first = successful[0];
+  return {
+    detail: {
+      ...first,
+      data: {
+        ...first.data,
+        wgBattleDetailInfo: [...players.values()],
+      },
+    },
+    participantCount: players.size,
+    variantCounts: successful.map((detail) => detail.data.wgBattleDetailInfo.length),
+  };
+}
+
 function matchKnownPlayers(knownPlayers, detail) {
   const detailPlayers = Array.isArray(detail?.data?.wgBattleDetailInfo)
     ? detail.data.wgBattleDetailInfo
@@ -237,6 +281,7 @@ module.exports = {
   findExcludedGame,
   gameDurationSeconds,
   matchKnownPlayers,
+  mergeDetailVariants,
   normalizeDiscoveryPlayers,
   parseLzyumiGameTime,
   riotIdKey,
