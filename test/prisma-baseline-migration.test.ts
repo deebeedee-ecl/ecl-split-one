@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const migrationPath = "prisma/migrations/0_init/migration.sql";
+const metadataLockMigrationPath =
+  "prisma/migrations/20261117095944_lock_prisma_migration_metadata/migration.sql";
+const productionBaselineChecksum =
+  "49587901e862df8530d1f52e0cfe1f21ccfc48b364245664508bef08031082a4";
 
 async function read(path: string) {
   return readFile(path, "utf8");
@@ -24,6 +29,30 @@ test("0_init is an atomic schema-only PostgreSQL baseline", async () => {
   assert.doesNotMatch(migration, /\bINSERT\s+INTO\b/i);
   assert.doesNotMatch(migration, /\bCOPY\b[\s\S]*\bFROM\s+stdin\b/i);
   assert.doesNotMatch(migration, /\b(?:auth|storage)\./i);
+});
+
+test("recorded production baseline checksum remains immutable", async () => {
+  const migration = await readFile(migrationPath);
+  const checksum = createHash("sha256").update(migration).digest("hex");
+
+  assert.equal(checksum, productionBaselineChecksum);
+});
+
+test("metadata lock migration only revokes Supabase browser roles", async () => {
+  const migration = await read(metadataLockMigrationPath);
+
+  assert.match(migration, /^BEGIN;/);
+  assert.match(migration, /COMMIT;\s*$/);
+  assert.match(
+    migration,
+    /REVOKE ALL PRIVILEGES ON TABLE public\."_prisma_migrations" FROM anon, authenticated;/,
+  );
+  assert.doesNotMatch(
+    migration,
+    /\b(?:CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|TRUNCATE|GRANT)\b/i,
+  );
+  assert.equal(occurrences(migration, "REVOKE"), 1);
+  assert.equal(occurrences(migration, "_prisma_migrations"), 1);
 });
 
 test("0_init preserves production-only tournament integrity objects", async () => {

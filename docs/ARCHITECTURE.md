@@ -74,7 +74,7 @@ This client bootstrap controls presentation only. It is not an authorization bou
 5. The application verifies full Riot ID, China server, and `openId` before accepting a snapshot.
 6. A complete validated replacement is saved and then replaces the visible snapshot atomically. Optional recent champion statistics may fail without invalidating valid identity/rank data; their stale values must not survive as if refreshed. A failed required refresh leaves the prior snapshot and successful timestamp visible and unchanged.
 
-The intended manual owner/viewer refresh is not deployed. ADR 0002 defines its server-side contract: a durable one-use permit ledger must atomically enforce target and requester pressure limits before the browser receives a fixed request bundle. Do not implement this with process memory or reuse the scheduled `LzyumiRefreshQueue`; durable storage remains dependent on completing the production baseline activation boundary in issue #4.
+The intended manual owner/viewer refresh is not deployed. ADR 0002 defines its server-side contract: a durable one-use permit ledger must atomically enforce target and requester pressure limits before the browser receives a fixed request bundle. Do not implement this with process memory or reuse the scheduled `LzyumiRefreshQueue`. The production Prisma baseline is active, so the dedicated ledger can now proceed as a separate backward-compatible expand migration and server API slice.
 
 ### KOOK inhouse lifecycle
 
@@ -114,7 +114,7 @@ Approved last-minute guest substitutes are represented inside the tournament rep
 These are current code risks, not desired architecture:
 
 - The ranked-inhouse confirmation path protects its durable result with a transaction, deduplication, and an advisory lock. Other legacy result/stat/LP endpoints may still perform separate writes and retain partial-write or retry risk; continue tracking the broader atomicity work in GitHub issue #3.
-- The repository has a validated Prisma `0_init` baseline for the existing production `public` schema. Production migration metadata is not changed merely by committing it; the separately authorized `migrate resolve --applied 0_init` boundary remains tracked in issue #4.
+- The repository has a validated and production-activated Prisma `0_init` baseline for the existing `public` schema. The metadata table is not exposed to Supabase browser roles. Every later schema change still requires a separate reviewed migration, rollback boundary, and production authorization.
 - The repository has no committed CI workflow; track the cross-runtime checks in issue #5.
 - Admin auth currently contains fallback credentials and compares a raw shared value in the cookie. Several write/read exposure concerns are grouped in security issue #13.
 - `report-engine/` currently has no lockfile, reducing reproducibility and supply-chain reviewability.
