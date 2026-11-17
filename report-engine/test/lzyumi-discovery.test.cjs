@@ -6,11 +6,13 @@ const test = require("node:test");
 const {
   LzyumiDiscoveryBudgetError,
   LzyumiDiscoveryCooldownError,
+  classifyLzyumiDiscoveryResult,
   createDiscoveryRequestBudget,
   createProviderPressureCooldown,
   detailConfirmsCustomGame,
   detailParticipantMatchesExpectedIdentity,
   findBoundedLzyumiMatch,
+  formatIncompleteLzyumiDiscovery,
   historyCandidatePriority,
   sourceMatchesExpectedIdentity,
 } = require("../lzyumi-discovery.cjs");
@@ -33,6 +35,80 @@ test("classifies only observed history types as a prefilter and requires detail 
   assert.equal(detailConfirmsCustomGame(detail("CUSTOM_GAME")), true);
   assert.equal(detailConfirmsCustomGame(detail("MATCHED_GAME")), false);
   assert.equal(detailConfirmsCustomGame({ data: {} }), false);
+});
+
+test("provider failures take priority over stale or partial negative matches", () => {
+  const incomplete = classifyLzyumiDiscoveryResult({
+    match: null,
+    best: { rosterMatch: { matched: ["p1"] } },
+    closestOutOfWindow: { game: game("stale", 10, 214) },
+    historyFailures: 2,
+    detailFailures: 1,
+  });
+
+  assert.deepEqual(incomplete, {
+    kind: "provider-incomplete",
+    historyFailures: 2,
+    detailFailures: 1,
+  });
+  assert.equal(
+    formatIncompleteLzyumiDiscovery(incomplete),
+    "Lzyumi could not complete the inhouse lookup because 2 history requests and 1 match-detail request failed. " +
+      "This is a provider failure, not evidence that the game is missing. " +
+      "Wait a few minutes and type !report again if the inhouse is still active.",
+  );
+
+  const match = { game: game("exact", 10, 1) };
+  assert.deepEqual(
+    classifyLzyumiDiscoveryResult({ match, historyFailures: 3, detailFailures: 2 }),
+    { kind: "match", match },
+  );
+  assert.equal(
+    classifyLzyumiDiscoveryResult({
+      best: null,
+      closestOutOfWindow: { game: game("stale", 10, 214) },
+      historyFailures: 0,
+      detailFailures: 0,
+    }).kind,
+    "out-of-window",
+  );
+});
+
+test("a detail timeout cannot be reported as only a stale closest candidate", async () => {
+  const lookupErrors = [];
+  const budget = createDiscoveryRequestBudget({ historyLimit: 1, detailLimit: 1 });
+  const result = await findBoundedLzyumiMatch({
+    players: ["reporter"],
+    filters: [1],
+    budget,
+    fetchHistory: async (_player, _filter, requestBudget) => {
+      requestBudget.consumeHistory();
+      return {
+        games: [
+          game("stale", 10, 214),
+          game("current", 10, 1),
+        ],
+      };
+    },
+    fetchDetail: async (_source, _candidate, requestBudget) => {
+      requestBudget.consumeDetail();
+      throw new Error("provider detail timed out");
+    },
+    isInWindow: (candidate) => candidate.gameId === "current",
+    sortValue: (candidate) => candidate.distance,
+    matchRoster: () => assert.fail("detail never resolved"),
+    requiredMatches: 8,
+    onLookupError: (failure) => lookupErrors.push(failure),
+  });
+
+  assert.equal(result.closestOutOfWindow.game.gameId, "stale");
+  assert.equal(result.detailFailures, 1);
+  assert.equal(lookupErrors.length, 1);
+  assert.deepEqual(classifyLzyumiDiscoveryResult(result), {
+    kind: "provider-incomplete",
+    historyFailures: 0,
+    detailFailures: 1,
+  });
 });
 
 test("source identity requires the full Riot ID and rejects server or openId mismatches", () => {

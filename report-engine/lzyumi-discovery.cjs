@@ -87,6 +87,44 @@ function detailConfirmsCustomGame(detail) {
   return String(detail?.data?.gameType || "").trim().toUpperCase() === "CUSTOM_GAME";
 }
 
+function nonNegativeInteger(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
+}
+
+function classifyLzyumiDiscoveryResult(result) {
+  if (result?.match) return { kind: "match", match: result.match };
+
+  const historyFailures = nonNegativeInteger(result?.historyFailures);
+  const detailFailures = nonNegativeInteger(result?.detailFailures);
+  if (historyFailures > 0 || detailFailures > 0) {
+    return { kind: "provider-incomplete", historyFailures, detailFailures };
+  }
+
+  if (result?.best) return { kind: "roster-miss", best: result.best };
+  if (result?.closestOutOfWindow) {
+    return { kind: "out-of-window", closestOutOfWindow: result.closestOutOfWindow };
+  }
+  return { kind: "not-found" };
+}
+
+function formatIncompleteLzyumiDiscovery(outcome) {
+  const failures = [];
+  if (outcome?.historyFailures > 0) {
+    failures.push(`${outcome.historyFailures} history request${outcome.historyFailures === 1 ? "" : "s"}`);
+  }
+  if (outcome?.detailFailures > 0) {
+    failures.push(
+      `${outcome.detailFailures} match-detail request${outcome.detailFailures === 1 ? "" : "s"}`,
+    );
+  }
+
+  const failedRequests = failures.join(" and ") || "one or more provider requests";
+  return `Lzyumi could not complete the inhouse lookup because ${failedRequests} failed. ` +
+    "This is a provider failure, not evidence that the game is missing. " +
+    "Wait a few minutes and type !report again if the inhouse is still active.";
+}
+
 function sourceMatchesExpectedIdentity({
   player,
   profile,
@@ -293,11 +331,13 @@ async function findBoundedLzyumiMatch({
 module.exports = {
   LzyumiDiscoveryBudgetError,
   LzyumiDiscoveryCooldownError,
+  classifyLzyumiDiscoveryResult,
   createDiscoveryRequestBudget,
   createProviderPressureCooldown,
   detailConfirmsCustomGame,
   detailParticipantMatchesExpectedIdentity,
   findBoundedLzyumiMatch,
+  formatIncompleteLzyumiDiscovery,
   historyCandidatePriority,
   providerPressureCode,
   sourceMatchesExpectedIdentity,

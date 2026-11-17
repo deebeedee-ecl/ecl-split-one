@@ -18,10 +18,12 @@ const {
 } = require("./async-utils.cjs");
 const { collectLzyumiHistoryResponses } = require("./lzyumi-history.cjs");
 const {
+  classifyLzyumiDiscoveryResult,
   createDiscoveryRequestBudget,
   createProviderPressureCooldown,
   detailParticipantMatchesExpectedIdentity,
   findBoundedLzyumiMatch,
+  formatIncompleteLzyumiDiscovery,
   sourceMatchesExpectedIdentity,
 } = require("./lzyumi-discovery.cjs");
 const { findFirstRecentGameSource } = require("./report-sources.cjs");
@@ -2062,19 +2064,23 @@ async function findMatchingGameBounded(job) {
     found: Boolean(result.match),
   });
 
-  if (result.match) return result.match;
-  if (result.best) {
+  const outcome = classifyLzyumiDiscoveryResult(result);
+  if (outcome.kind === "match") return outcome.match;
+  if (outcome.kind === "provider-incomplete") {
+    throw new Error(formatIncompleteLzyumiDiscovery(outcome));
+  }
+  if (outcome.kind === "roster-miss") {
     throw new Error(
-      `${formatRosterMiss(result.best.rosterMatch)} Best candidate: ${formatCandidateSummary(
-        result.best,
+      `${formatRosterMiss(outcome.best.rosterMatch)} Best candidate: ${formatCandidateSummary(
+        outcome.best,
         job.session.createdAt,
       )}.`,
     );
   }
-  if (result.closestOutOfWindow) {
+  if (outcome.kind === "out-of-window") {
     throw new Error(
       `No matching inhouse found in the expected time window; ${gameTimeWindowIssue(
-        result.closestOutOfWindow.game,
+        outcome.closestOutOfWindow.game,
         job.session.createdAt,
       )}.`,
     );
