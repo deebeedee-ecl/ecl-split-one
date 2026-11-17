@@ -1,6 +1,6 @@
 # Prisma migration baseline plan
 
-Status: `prisma/migrations/0_init` represents the verified production `public` schema and has passed an isolated restore test. Production migration metadata has not been changed; Phase 5 still requires separate explicit authorization.
+Status: complete. `prisma/migrations/0_init` represents the verified production `public` schema, passed an isolated restore test, and was recorded as applied in production on November 17, 2026. No later migration was deployed in that operation.
 
 Tracking: GitHub issue #4.
 
@@ -90,9 +90,9 @@ The exact baseline SQL was also applied to a separate empty Supabase preview pro
 
 The baseline deliberately includes manual SQL for production objects Prisma cannot fully represent: tournament checks, three collection-job foreign keys, two partial unique indexes, five guard functions, seven triggers, RLS on nine tournament tables, and browser-role privilege revocation. Do not regenerate `0_init` from the Prisma datamodel alone, because doing so would silently remove those objects. `LzyumiRefreshQueue.updatedAt` and `InhouseReportJob.updatedAt` include both `@default(now())` and `@updatedAt` so the datamodel matches their live database defaults.
 
-This evidence validates the checked-in baseline and local recovery path only. It does not authorize `prisma migrate resolve`, later migrations, a production restore, or any other shared-database mutation.
+This evidence validated the checked-in baseline and local recovery path before the separately authorized production activation. It does not authorize later migrations, a production restore, or any other shared-database mutation.
 
-## Phase 5 - mark production as baselined
+## Phase 5 - mark production as baselined (completed November 17, 2026)
 
 After the exact baseline commit is reviewed and production authorization is granted, run the repository-pinned Prisma 6 `migrate resolve --applied 0_init` against the direct production connection. This writes Prisma migration metadata even though it does not recreate application tables, so it is a production database mutation.
 
@@ -105,10 +105,16 @@ Immediately verify:
 
 Do not deploy a later schema migration in the same first baseline operation.
 
+The authorized production operation recorded only `0_init`, with SHA-256 checksum `49587901e862df8530d1f52e0cfe1f21ccfc48b364245664508bef08031082a4`. Post-write verification confirmed exactly one finished, non-rolled-back migration record, no pending migration or history conflict, 25 unchanged application tables, and the expected manual public-schema objects. The only live-to-datamodel diff remained the three reviewed collection-job foreign keys that Prisma cannot represent. Because Prisma hashes checkout bytes, `.gitattributes` pins this recorded baseline to CRLF and the separately preview-verified metadata-lock migration to LF; changing either line-ending rule is a migration checksum change.
+
+Supabase default privileges initially granted `anon` and `authenticated` access to the newly created `_prisma_migrations` table. A separately authorized production operation immediately revoked all table privileges from both browser roles. Independent catalog verification confirmed one Prisma metadata table, zero browser-role grants on it, no browser-role grants on the nine tournament tables, and no missing functions, triggers, partial indexes, collection foreign keys, or checks. Public Hub, tournament, and ranked-ladder read smokes remained healthy.
+
+Do not edit the now-recorded `0_init` checksum to encode that revoke. The separate `20261117095944_lock_prisma_migration_metadata` security migration records the idempotent privilege reduction so newly provisioned databases converge on the verified production state. On November 17, 2026, an isolated Supabase preview with the already verified 25-table baseline recorded `0_init`, deployed only this follow-up migration, and finished with exactly two successful Prisma migration rows, 25 unchanged application tables, and zero browser-role grants on `_prisma_migrations`. Keep its production rollout separate from the permit-ledger expand migration; the earlier manual production revoke does not mark this follow-up migration as applied.
+
 For normal development after Phase 5, create a new migration against a disposable local database, review the SQL, and validate both forward application and application compatibility. Shared preview/production environments use `prisma migrate deploy`; never use `prisma db push` there. Rollback remains restore-or-forward-repair based: do not edit `_prisma_migrations` manually and do not bundle destructive cleanup into the first compatible deployment.
 
 ## Recovery boundary
 
-Before the production metadata write, the rollback target is “no Prisma migration history.” If `migrate resolve` records the wrong migration or checksum, stop all migration activity. Do not improvise by deleting `_prisma_migrations` rows. Use the reviewed backup/restore or a separately reviewed metadata-repair operation, then rerun drift/status checks.
+The pre-activation rollback target was “no Prisma migration history.” After the verified activation, rollback is restore-or-forward-repair based. If a future migration records the wrong migration or checksum, stop all migration activity. Do not improvise by deleting `_prisma_migrations` rows. Use the reviewed backup/restore or a separately reviewed metadata-repair operation, then rerun drift/status checks.
 
 The first real schema change after baselining must be a separate backward-compatible expand migration with its own rollback and application compatibility plan.
