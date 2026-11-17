@@ -38,7 +38,18 @@ The command produces a JSON file with the complete provider payload and a CSV re
 
 Check `coverage[].oldest` in the JSON result. If active players do not reach October 18, increase `allCount` or add lower-volume players whose histories cover the missing dates.
 
-Discovery intentionally stops before database import. Reviewed candidates should later be imported idempotently using `lzyumiGameId` as the unique key.
+Discovery intentionally stops before database import. The worker queries complementary participant detail variants until it has a complete ten-player detail or exhausts the bounded source set, then merges only non-conflicting identities. This reduces false partial results without weakening review.
+
+After reviewing candidates, copy `manual-inhouse-import-review.example.json` to an ignored `inhouse-discovery-*.json` file and list only the approved provider game IDs. Prepare the immutable import manifest from the repository root:
+
+```sh
+npm run inhouse:import:prepare -- \
+  --discovery=report-engine/inhouse-discovery-example.json \
+  --review=report-engine/inhouse-discovery-example-review.json \
+  --output=report-engine/inhouse-discovery-example-manifest.json
+```
+
+The permanent backend workflow and production approval rules are documented under **Manual ranked-inhouse import** in `docs/RUNBOOK.md`. `lzyumiGameId` remains the durable idempotency key. Discovery and manifest preparation never connect to the ECL database.
 
 ## Tournament exclusions
 

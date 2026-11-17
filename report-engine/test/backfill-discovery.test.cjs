@@ -7,9 +7,32 @@ const {
   classifyCandidate,
   customGameEvidence,
   findExcludedGame,
+  mergeDetailVariants,
   normalizeDiscoveryPlayers,
   parseLzyumiGameTime,
 } = require("../backfill-discovery.cjs");
+
+test("merges complementary provider detail variants without duplicating players", () => {
+  const player = (index) => ({
+    nickNameStr: `Player ${index}#ECL`,
+    openIdNow: `open-${index}`,
+    teamId: index <= 5 ? "100" : "200",
+    win: index <= 5 ? "1" : "0",
+    scoreInfo: "1/2/3",
+  });
+  const left = { code: 1, data: { gameType: "CUSTOM_GAME", wgBattleDetailInfo: [1, 2, 3, 4, 5, 6].map(player) } };
+  const right = { code: 1, data: { gameType: "CUSTOM_GAME", wgBattleDetailInfo: [5, 6, 7, 8, 9, 10].map(player) } };
+  const merged = mergeDetailVariants([left, right]);
+  assert.equal(merged.participantCount, 10);
+  assert.deepEqual(merged.variantCounts, [6, 6]);
+  assert.equal(merged.detail.data.wgBattleDetailInfo.length, 10);
+});
+
+test("rejects conflicting recovery detail variants", () => {
+  const first = { code: 1, data: { wgBattleDetailInfo: [{ nickNameStr: "Player#ECL", openIdNow: "open", teamId: "100", win: "1", scoreInfo: "1/2/3" }] } };
+  const second = { code: 1, data: { wgBattleDetailInfo: [{ nickNameStr: "Player#ECL", openIdNow: "open", teamId: "200", win: "1", scoreInfo: "1/2/3" }] } };
+  assert.throws(() => mergeDetailVariants([first, second]), /disagree/);
+});
 
 const knownPlayers = Array.from({ length: 10 }, (_, index) => ({
   displayName: `Player ${index + 1}`,
