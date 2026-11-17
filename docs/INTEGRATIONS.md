@@ -39,7 +39,7 @@ Acceptance requires matching the expected full Riot ID, China server, and `openI
 
 The planned OP.GG-style action uses a durable, short-lived, one-use permit bound to the authenticated requester profile and one active, verified, stale target profile. Permit issuance must atomically enforce per-profile cooldown, per-requester cooldown, and a requester rolling-window budget across serverless instances. One permit authorizes only the fixed profile filter `1`, Solo/Duo filter `2`, Flex filter `3`, optional recent-stat, and coherent snapshot-save bundle derived from stored target identity.
 
-The existing scheduled `LzyumiRefreshQueue` is not the manual-permit store. It owns one background lease per target profile and has no requester-bound lifecycle. The dedicated permit ledger and API remain blocked on the reviewed Prisma migration baseline in issue #4; current production has no manual refresh action. See ADR 0002 for authorization, replay, persistence, and rollback boundaries.
+The existing scheduled `LzyumiRefreshQueue` is not the manual-permit store. It owns one background lease per target profile and has no requester-bound lifecycle. The repository now has a validated Prisma `0_init`, but the dedicated permit ledger and API remain blocked until the separately authorized production baseline activation boundary in issue #4 is complete. Current production has no manual refresh action. See ADR 0002 for authorization, replay, persistence, and rollback boundaries.
 
 ### Match-report worker flow
 

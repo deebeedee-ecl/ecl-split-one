@@ -56,7 +56,7 @@ The website uses PostgreSQL through Prisma, Supabase Auth for player accounts, a
    npm run db:push:local
    ```
 
-   This command explicitly loads the ignored `.env.local` file because Prisma does not load that Next.js-specific filename by default. Its wrapper rejects any `DATABASE_URL` that does not use a loopback PostgreSQL host. This repository does not yet contain a Prisma migration history. Do not run `prisma db push` against a shared, staging, or production database. Ask the repository owner for the approved database workflow when using an existing environment.
+   This command explicitly loads the ignored `.env.local` file because Prisma does not load that Next.js-specific filename by default. Its wrapper rejects any `DATABASE_URL` that does not use a loopback PostgreSQL host. The repository contains a validated `prisma/migrations/0_init` baseline, but that does not authorize applying or resolving it against a shared environment. Do not run `prisma db push` against a shared, staging, or production database. Follow [`docs/database/PRISMA_MIGRATION_BASELINE.md`](docs/database/PRISMA_MIGRATION_BASELINE.md) for the approved migration workflow.
 
 5. Start the development server:
 
