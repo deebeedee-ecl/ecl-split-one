@@ -45,6 +45,7 @@ When documentation and implementation disagree, verify the current schema, route
 - `prisma db push` is allowed only for a disposable local database. This repository currently has no committed Prisma migration history.
 - Prefer read-only probes first. State which environment a command targets before any operation that can write data.
 - For a manual Split II tournament result or correction from Codex, follow **Manual Split II tournament results from Codex** in `docs/RUNBOOK.md`. Use the tournament submit/review workflow with a fingerprinted dry run and audit; never route it through ranked-inhouse tables or silently send a KOOK notification.
+- For a manual ranked-inhouse import from Codex, follow **Manual ranked-inhouse import** in `docs/RUNBOOK.md`. Use the permanent reviewed endpoint with a fresh preflight fingerprint and explicit production authorization; never recreate a dated write path. Exclude unregistered fillers only after owner approval, never provision them, and keep notifications off.
 
 ## Release workflow
 
