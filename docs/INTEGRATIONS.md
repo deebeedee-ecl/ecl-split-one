@@ -19,6 +19,8 @@ Lzyumi is ECL's primary external provider for China-server Riot identity, rank, 
 - Browser signing uses `/lzyumi/lol/info` for profile/history, `/lzyumi/lol/info/getPlayerRecentStat` for optional recent stats, and `/lzyumi/lol/info/findOrderDetailInfoAll` for match detail.
 - Profile and history success requires HTTP success, endpoint application code `1`, and the expected object/array shape. HTTP errors, malformed payloads, and application codes `6`, `7`, or `8` are provider failures, never valid empty history.
 - Identity lookup uses a bounded cascade: bare Riot name, full `name#tag`, then saved-`openId` variants when available. A bare-name response is only a candidate until `battleInfo.nameInfoNew`, `areaId`, and `openId` prove the expected full identity. Lzyumi has been observed returning code `1` with `battleInfo: null` and `data: null` for the full ID while the bare name resolves the exact same `name#tag`; that response is `IDENTITY_NOT_FOUND`/`INCOMPLETE_LOOKUP`, not empty history.
+- The authenticated owner's browser refresh receives at most five server-built identity attempts in that order: bare name, full ID, bare name plus the stored `openId`, full ID plus the stored `openId`, and stored-`openId` only. The server adds stored identity data only for the authenticated owner's profile; the browser cannot choose another target identity. Solo/Duo and Flex history requests start only after one attempt resolves the exact full Riot ID and China server, and they use that verified `openId`.
+- Browser identity resolution reports one explicit terminal state: `RESOLVED`, `IDENTITY_NOT_FOUND`, `IDENTITY_MISMATCH`, `INCOMPLETE_LOOKUP`, `THROTTLED`, or `AUTH_FAILURE`. HTTP errors, malformed responses, code `8`, and exhausted mixed/incomplete attempts are `INCOMPLETE_LOOKUP`; they never become empty history. Code `6` is `AUTH_FAILURE` and code `7` is `THROTTLED` for these profile endpoints.
 - `HISTORY_EMPTY` is valid only after identity resolution succeeded and the requested history endpoint returned a coherent empty array. Filter `1` may include localized custom-game history rows; `title` containing `新模式` is a discovery candidate only, and final custom-game acceptance still requires detail `gameType === CUSTOM_GAME` plus the normal server, identity, time, roster, and duplicate checks.
 - `getPlayerRecentStat`/champion recency is optional. It requires its own code-`1` object contract; failure must result in an explicit unavailable section, not retained stale champion data presented as fresh.
 
@@ -32,6 +34,8 @@ details sequentially. A result is shown only when structured detail reports
 ID and the verified `openId`. Optional champion/opponent clues affect ranking;
 they never weaken identity or custom-game validation. The UI does not expose
 `openId`, signed URLs, or raw provider payloads and has no result-write action.
+Unlike the owner profile-refresh bundle, an arbitrary Search Engine query has no
+trusted stored target identity, so it does not add saved-`openId` attempts.
 
 Acceptance requires matching the expected full Riot ID, China server, and `openId`. Save profile/rank/Solo/Flex as one coherent snapshot only after every required response passes validation. A rejected replacement preserves the prior snapshot and timestamp; do not independently advance freshness for an unchanged section. Application-code semantics are endpoint-specific and must not be copied to token/session-status endpoints.
 
