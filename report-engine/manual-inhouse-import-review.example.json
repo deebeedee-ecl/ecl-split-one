@@ -1,0 +1,15 @@
+{
+  "batchId": "manual-inhouse-2026-12-01-example",
+  "sinceChinaDay": "2026-12-01",
+  "untilChinaDay": "2026-12-02",
+  "confirmedAsRankedInhouseCandidates": true,
+  "approvedUnregisteredParticipants": false,
+  "note": "Replace synthetic IDs only in an ignored inhouse-discovery-*.json copy after operator review.",
+  "games": [
+    {
+      "providerGameId": "synthetic-provider-game-id",
+      "ownerAuthorizedUnregisteredFillerSlots": 0,
+      "allowProviderModeKiwi": false
+    }
+  ]
+}

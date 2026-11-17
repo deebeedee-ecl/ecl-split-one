@@ -10,6 +10,8 @@
     "test:focused": "node --import tsx --test scripts/test-ranked-season.ts scripts/test-split-ii-kook-commands.ts scripts/test-desktop-update-host.ts scripts/test-split-ii-bot.cjs",
     "test:perf": "node --test test/hub-route-baseline.test.mjs",
     "test:perf:ci": "node scripts/performance/run-ci-contract-tests.mjs",
+    "inhouse:import:prepare": "tsx scripts/manual-inhouse-import-prepare.ts",
+    "inhouse:import": "tsx scripts/manual-inhouse-import.ts",
     "perf:hub": "node scripts/performance/hub-route-baseline.mjs",
     "release:status": "node scripts/release-status.mjs",
     "ops:preflight": "tsx scripts/ops-preflight.ts",

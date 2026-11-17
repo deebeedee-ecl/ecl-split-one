@@ -35,6 +35,7 @@ const {
   candidatesCsv,
   classifyCandidate,
   customGameEvidence,
+  mergeDetailVariants,
   normalizeDiscoveryPlayers,
   parseLzyumiGameTime,
 } = require("./backfill-discovery.cjs");
@@ -1748,9 +1749,10 @@ function loadDiscoveryConfig(filePath) {
 
 async function fetchDiscoveryDetail(entry) {
   let lastError = null;
+  const variants = [];
   for (const source of entry.sources) {
     try {
-      return await retryProviderCode(
+      const detail = await retryProviderCode(
         () => fetchDetailForSource(source, entry.game),
         {
           code: "7",
@@ -1759,10 +1761,15 @@ async function fetchDiscoveryDetail(entry) {
           isMatch: (error) => error instanceof LzyumiResponseError && error.code === "7",
         },
       );
+      variants.push(detail);
+      const merged = mergeDetailVariants(variants);
+      if (merged.participantCount === 10) return merged.detail;
     } catch (error) {
       lastError = error;
     }
   }
+  const merged = mergeDetailVariants(variants);
+  if (merged.detail) return merged.detail;
   throw lastError || new Error("No participant source was available for match detail lookup.");
 }
 

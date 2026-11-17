@@ -88,6 +88,12 @@ The intended manual owner/viewer refresh is not deployed. ADR 0002 defines its s
 8. The web API revalidates authorization, roster, time window, provider identity, and deduplication, then commits the match, statistics, session completion, and LP effects atomically and idempotently.
 9. KOOK delivery happens after the durable commit. Delivery failure must not revert or disguise completed ECL state; it is an operational retry concern.
 
+### Manual ranked-inhouse import
+
+Custom games played outside the KOOK lifecycle use a separate operator-reviewed boundary. Local `report-engine` discovery collects private Lzyumi evidence without database access. A prepared manifest selects the exact provider-game set, date window, filler policy, and optional provider-mode override. `/api/jobs/manual-inhouse-import` then performs a read-only production preflight or a fingerprinted apply using the dedicated worker credential.
+
+The website remains the final authority. It revalidates provider evidence, stable identities, tournament/ranked collisions, and the active season; excludes only owner-approved non-ECL fillers; takes the ranked advisory lock; and commits missing sessions, matches, stats, chronological LP replay, player state, and recovery evidence in one transaction. The provider game ID is the idempotency key. Manual imports never send KOOK notifications.
+
 ### Tournament lifecycle
 
 Tournament routes and library modules own registrations, identity checks, rosters, fixtures, reports, notifications, and collection jobs. The tournament database models are separate from the older general `Team`/`Match` models, so code must be explicit about which competition model it is changing.
