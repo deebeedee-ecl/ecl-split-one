@@ -1,6 +1,6 @@
 # ADR 0002: Gate manual Lzyumi refreshes with durable permits
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-13
 - Tracking: GitHub issues #62 and #4
 
@@ -10,7 +10,7 @@ Opening another player's public profile no longer starts an implicit Lzyumi refr
 
 That explicit action needs both per-profile and per-requester pressure controls. An in-memory limiter is not sufficient in a serverless web runtime because concurrent instances and restarts would not share it. The existing `LzyumiRefreshQueue` is also not the correct store: it owns scheduled cloud refresh leases, has one row per target profile, and has no requester identity or one-use browser-permit lifecycle.
 
-The repository currently has no committed Prisma migration history. Issue #4 owns the required production-schema baseline, drift review, backup, and rollback process. This ADR defines the application contract without changing the Prisma schema or a shared database.
+The reviewed Prisma baseline and metadata-table privilege lock are active. The dedicated permit ledger is therefore delivered as its own additive migration and remains inert until its schema and explicit rollout configuration are available.
 
 ## Decision
 
@@ -26,6 +26,7 @@ The repository currently has no committed Prisma migration history. Issue #4 own
 - A permit ledger, not process memory, supplies the latest target-profile issue time, latest requester issue time, and requester rolling-window count.
 - Issuance enforces a per-profile cooldown, a per-requester cooldown, and a per-requester rolling-window maximum.
 - Exact production durations and limits are rollout configuration. They must be selected and recorded before the storage/API implementation is enabled; this contract fails closed for missing, zero, negative, non-integer, or incoherent policy values.
+- The reviewed initial rollout values are: two-minute permit TTL, five-minute target cooldown, one-minute requester cooldown, 24-hour requester window, and 20 permits per requester per window. The endpoint remains disabled until those values are separately configured in the target environment.
 - The eligibility check and permit insert occur in one serialized transaction. The implementation must lock both the target-profile and requester scopes, or provide equivalent uniqueness/serialization guarantees, so concurrent instances cannot each issue a permit.
 
 ### Permit scope and lifecycle
@@ -56,8 +57,7 @@ The storage/API PR must include concurrency tests against a disposable database 
 
 ### API and rollout boundary
 
-- This contract PR adds no route, UI, Prisma model, migration, shared-database write, or provider request.
-- A later storage PR follows the reviewed expand/deploy/migrate sequence from `docs/RUNBOOK.md` and remains inert until its schema is available.
+- The storage/API slice adds the dedicated ledger and authenticated issue/consume routes but no UI. It follows the reviewed expand/deploy/migrate sequence from `docs/RUNBOOK.md` and fails closed until its schema and policy configuration are available.
 - The OP.GG-style UI is a separate PR after durable issuance and consumption are available.
 - Existing owner background refresh and scheduled/admin flows are unchanged by this decision. They must not be silently routed through the manual permit ledger.
 - Disable the manual-refresh entry point as the first rollback. The additive ledger may remain inert until a later reviewed cleanup; rollback must not require deleting history.
