@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { STARTING_ELO, applyInactivityDecay } from "@/lib/elo";
-import { INHOUSE_MATCH_FILTER } from "@/lib/inhouse-filter";
+import { INHOUSE_MATCH_FILTER, isInhouseRoundLabel } from "@/lib/inhouse-filter";
 import { prisma } from "@/lib/prisma";
 import { deployedRankedSeason } from "@/lib/ranked-season-config";
 
@@ -66,7 +66,7 @@ export async function loadRankedSeasonStates(playerIds: string[], season: Ranked
 }
 
 export function isRankedInhouse(roundLabel: string | null | undefined) {
-  return typeof roundLabel === "string" && (roundLabel.startsWith("IH") || roundLabel === "Ranked Inhouse");
+  return isInhouseRoundLabel(roundLabel);
 }
 
 export class ArchivedRankedMatchError extends Error {}
