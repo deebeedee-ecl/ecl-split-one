@@ -37,7 +37,7 @@ export const MANUAL_INHOUSE_IMPORT_DEFINITION_BASE = {
   applyOperationId: MANUAL_INHOUSE_IMPORT_APPLY_OPERATION,
   target: MANUAL_INHOUSE_IMPORT_TARGET,
   source: "manual-inhouse-import",
-  labelPrefix: "Manual IH",
+  labelPrefix: "IH Manual",
   sessionChannelPrefix: "MANUAL_IMPORT",
   unregisteredParticipantPolicy: "manifest",
   allowKiwiForAuthorizedPartial: false,
