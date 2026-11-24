@@ -91,7 +91,7 @@ Do not combine irreversible cleanup with the first production deployment. High-r
 
 #### Manual Lzyumi refresh permit rollout
 
-The permit ledger/API is an additive, disabled-by-default capability. Apply and verify its Prisma migration in an isolated preview database before any production schema operation. Preview must prove that simultaneous issuance for one requester or target produces only one permit, simultaneous consumption commits only once, invalid provider data preserves the prior snapshot/timestamp, and Supabase browser roles have no ledger privileges.
+The permit ledger/API is an additive, disabled-by-default, owner-only capability. Apply and verify its Prisma migration in an isolated preview database before any production schema operation. Preview must prove that simultaneous issuance for one owner target produces only one permit, simultaneous consumption commits only once, invalid provider data preserves the prior snapshot/timestamp, a viewer-bound permit with correct target identity plus forged/foreign history cannot write or advance freshness, and Supabase browser roles have no ledger privileges. Do not enable viewer refresh from a browser-supplied response without a separately reviewed provider-attestation or equivalent trusted-response design.
 
 Activation requires all of the following variables; missing, non-integer, zero, negative, or incoherent values return `PERMITS_UNAVAILABLE` without issuing a token:
 

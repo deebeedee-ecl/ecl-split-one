@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   consumeLzyumiRefreshPermit,
+  hashLzyumiRefreshPermitToken,
   issueLzyumiRefreshPermit,
   LzyumiRefreshPermitConfigurationError,
   orderedLzyumiRefreshPermitLockKeys,
@@ -68,6 +69,7 @@ class TransactionFaithfulFakeDatabase {
   accountProfile = {
     findUnique: async ({ where }: { where: { userId?: string; id?: string } }) => {
       if (where.userId === "synthetic-requester-user") return { id: requesterId };
+      if (where.userId === "synthetic-owner-user") return { id: targetId };
       if (where.id === requesterId) return { id: requesterId };
       if (where.id === targetId) return { ...this.target };
       return null;
@@ -230,7 +232,7 @@ test("lock scopes have a deterministic order for requester/target concurrency", 
 test("simultaneous issuance for one target creates one permit and one cooldown rejection", async () => {
   const database = new TransactionFaithfulFakeDatabase();
   const input = {
-    requesterUserId: "synthetic-requester-user",
+    requesterUserId: "synthetic-owner-user",
     targetProfileId: targetId,
     policy,
     now,
@@ -255,7 +257,7 @@ test("simultaneous consumption commits once and rejects replay", async () => {
   const staleRecent = { marker: "stale-recent" };
   database.target.lzyumiRecentStat = staleRecent;
   const issued = await issueLzyumiRefreshPermit({
-    requesterUserId: "synthetic-requester-user",
+    requesterUserId: "synthetic-owner-user",
     targetProfileId: targetId,
     policy,
     now,
@@ -265,7 +267,7 @@ test("simultaneous consumption commits once and rejects replay", async () => {
   if (issued.status !== "issued") return;
 
   const consume = () => consumeLzyumiRefreshPermit({
-    requesterUserId: "synthetic-requester-user",
+    requesterUserId: "synthetic-owner-user",
     targetProfileId: targetId,
     permitToken: issued.permitToken,
     now: new Date(now.getTime() + 30_000),
@@ -312,7 +314,7 @@ test("provider failure rejects the permit without replacing snapshot or freshnes
   database.target.lzyumiLastLookupAt = previousTimestamp;
 
   const issued = await issueLzyumiRefreshPermit({
-    requesterUserId: "synthetic-requester-user",
+    requesterUserId: "synthetic-owner-user",
     targetProfileId: targetId,
     policy,
     now,
@@ -322,7 +324,7 @@ test("provider failure rejects the permit without replacing snapshot or freshnes
   if (issued.status !== "issued") return;
 
   const result = await consumeLzyumiRefreshPermit({
-    requesterUserId: "synthetic-requester-user",
+    requesterUserId: "synthetic-owner-user",
     targetProfileId: targetId,
     permitToken: issued.permitToken,
     now: new Date(now.getTime() + 30_000),
@@ -340,6 +342,57 @@ test("provider failure rejects the permit without replacing snapshot or freshnes
   });
   assert.equal(database.permits[0].status, "REJECTED");
   assert.equal(database.target.lzyumiRawProfile, previousSnapshot);
+  assert.equal(database.target.lzyumiLastLookupAt, previousTimestamp);
+});
+
+test("a viewer cannot use correct target identity with forged history to replace another profile", async () => {
+  const database = new TransactionFaithfulFakeDatabase();
+  const previousProfile = { marker: "previous-profile" };
+  const previousHistory = { marker: "previous-history" };
+  const previousTimestamp = new Date(now.getTime() - 13 * 60 * minute);
+  database.target.lzyumiRawProfile = previousProfile;
+  database.target.lzyumiRankedGames = previousHistory;
+  database.target.lzyumiLastLookupAt = previousTimestamp;
+
+  const permitToken = "synthetic-viewer-permit-token-with-sufficient-length";
+  database.permits.push({
+    id: "00000000-0000-4000-8000-000000000003",
+    tokenHash: hashLzyumiRefreshPermitToken(permitToken),
+    requesterProfileId: requesterId,
+    targetProfileId: targetId,
+    status: "ISSUED",
+    issuedAt: now,
+    expiresAt: new Date(now.getTime() + policy.permitTtlMs),
+    terminalCode: null,
+  });
+
+  const result = await consumeLzyumiRefreshPermit({
+    requesterUserId: "synthetic-requester-user",
+    targetProfileId: targetId,
+    permitToken,
+    now: new Date(now.getTime() + 30_000),
+    database: database as never,
+    snapshot: {
+      profileResponse: {
+        code: 1,
+        battleInfo: {
+          nameInfoNew: "ContractTester#T100",
+          openId: "synthetic-open-id",
+          areaId: 1,
+          mapOneInfoList: [],
+        },
+        data: [],
+      },
+      soloResponse: { code: 1, data: [{ gameId: "forged-solo-game" }] },
+      flexResponse: { code: 1, data: [{ gameId: "foreign-flex-game" }] },
+      recentStat: { status: "unavailable", reason: "network-rejected" },
+    },
+  });
+
+  assert.deepEqual(result, { status: "rejected", code: "OWNER_ONLY" });
+  assert.equal(database.permits[0].status, "REJECTED");
+  assert.equal(database.target.lzyumiRawProfile, previousProfile);
+  assert.equal(database.target.lzyumiRankedGames, previousHistory);
   assert.equal(database.target.lzyumiLastLookupAt, previousTimestamp);
 });
 

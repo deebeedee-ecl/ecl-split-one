@@ -446,6 +446,15 @@ export async function consumeLzyumiRefreshPermit({
       return decision;
     }
 
+    // A signed request bundle does not attest the provider response returned
+    // through a browser. Recheck ownership during consumption as well as
+    // issuance so a previously issued or manually inserted viewer permit
+    // cannot write a browser-controlled snapshot to another profile.
+    if (requester.id !== targetProfileId) {
+      await rejectPermit(transaction, permit!.id, "OWNER_ONLY", now);
+      return { status: "rejected" as const, code: "OWNER_ONLY" };
+    }
+
     await transaction.$queryRaw(Prisma.sql`
       SELECT id
       FROM public."AccountProfile"

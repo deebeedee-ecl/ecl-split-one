@@ -82,7 +82,10 @@ export async function POST(request: Request) {
     throw error;
   }
   if (result.status === "rejected") {
-    return NextResponse.json({ ok: false, code: result.code }, { status: 409 });
+    return NextResponse.json(
+      { ok: false, code: result.code },
+      { status: result.code === "OWNER_ONLY" ? 403 : 409 },
+    );
   }
 
   revalidatePath(`/hub/players/${result.targetProfileId}`);

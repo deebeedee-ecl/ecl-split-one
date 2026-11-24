@@ -12,6 +12,7 @@ export const preferredRegion = "icn1";
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 function rejectionStatus(code: string) {
+  if (code === "OWNER_ONLY") return 403;
   if (code === "PROFILE_COOLDOWN" || code === "REQUESTER_COOLDOWN" || code === "REQUESTER_BUDGET_EXHAUSTED") {
     return 429;
   }
