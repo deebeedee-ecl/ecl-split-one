@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BarChart3, CheckCircle2, Crown, Sparkles, Trophy, UserCircle } from "lucide-react";
+import { BarChart3, CheckCircle2, Crown, RefreshCw, Sparkles, Trophy, UserCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   PolarAngleAxis,
@@ -38,6 +38,10 @@ import {
   runStoredProfileRefreshFlow,
   selectImplicitProfileRefreshCandidate,
 } from "./player-profile-refresh";
+import {
+  runManualLzyumiRefresh,
+  type ManualLzyumiRefreshResult,
+} from "./manual-lzyumi-refresh";
 import { profileLoadErrorMessage } from "./profile-request";
 import type { PlayerProfileDto } from "@/lib/account-profile-dto";
 
@@ -500,6 +504,7 @@ export default function PlayerProfileView({
   const [refreshingStats, setRefreshingStats] = useState(false);
   const [statRefreshError, setStatRefreshError] = useState("");
   const [statRefreshSucceeded, setStatRefreshSucceeded] = useState(false);
+  const [manualRefreshResult, setManualRefreshResult] = useState<ManualLzyumiRefreshResult | null>(null);
   const [inhouseData, setInhouseData] = useState<InhouseProfileData | null>(null);
   const [inhouseLoading, setInhouseLoading] = useState(true);
   const [codeRequesting, setCodeRequesting] = useState(false);
@@ -529,6 +534,7 @@ export default function PlayerProfileView({
       setRefreshingStats(false);
       setStatRefreshError("");
       setStatRefreshSucceeded(false);
+      setManualRefreshResult(null);
     }
 
     if (hubStatus === "loading") {
@@ -752,6 +758,28 @@ export default function PlayerProfileView({
   const isKookVerified = profile.verificationStatus === "VERIFIED";
   const verification = profile.kookVerifications?.[0] ?? null;
   const lastUpdatedLabel = formatLastUpdated(profile, now);
+  const isOwnerProfileRoute = !initialProfile;
+  const manualRefreshNeeded = shouldRefreshStats(profile);
+  const ownerProfileId = profile.id;
+  const manualCooldownActive = manualRefreshResult?.status === "cooldown" && (
+    !manualRefreshResult.retryAt || new Date(manualRefreshResult.retryAt).getTime() > now
+  );
+  const visibleManualRefreshResult = manualRefreshResult?.status === "cooldown" &&
+    !manualCooldownActive
+    ? null
+    : manualRefreshResult;
+  const snapshotStatusMessage = visibleManualRefreshResult &&
+    visibleManualRefreshResult.status !== "success"
+    ? visibleManualRefreshResult.message
+    : statRefreshError
+      ? statRefreshError
+      : visibleManualRefreshResult?.status === "success"
+        ? visibleManualRefreshResult.recentStatStatus === "available"
+          ? "Profile, ranks, history, and recent champion data were refreshed."
+          : "Profile, ranks, and history were refreshed. Recent champion data is unavailable."
+        : hasValidatedProfileSnapshot
+          ? `Identity-checked snapshot fetched ${lastUpdatedLabel}.`
+          : "Waiting for a fresh identity-checked ECL.GG snapshot.";
 
   const soloRank = formatSharedLzyumiRank(ranks.solo);
   const flexRank = formatSharedLzyumiRank(ranks.flex);
@@ -779,6 +807,47 @@ export default function PlayerProfileView({
       );
     } finally {
       setCodeRequesting(false);
+    }
+  }
+
+  async function manuallyRefreshLeagueData() {
+    if (!accessToken) {
+      setStatRefreshError("Your session expired. Please log in again.");
+      return;
+    }
+
+    setRefreshingStats(true);
+    setStatRefreshError("");
+    setStatRefreshSucceeded(false);
+    setManualRefreshResult(null);
+
+    try {
+      const result = await runManualLzyumiRefresh({
+        targetProfileId: ownerProfileId,
+        accessToken,
+      });
+      setManualRefreshResult(result);
+
+      if (result.status !== "success") {
+        if (result.status === "up-to-date") {
+          const current = await loadPlayerProfile(accessToken);
+          if (current) setLoadedProfile(current);
+          setNow(Date.now());
+        }
+        if (result.status === "failure") setStatRefreshError(result.message);
+        return;
+      }
+
+      const refreshed = await loadPlayerProfile(accessToken);
+      if (refreshed) setLoadedProfile(refreshed);
+      setNow(Date.now());
+      setStatRefreshSucceeded(true);
+    } catch {
+      setStatRefreshError(
+        "League data could not be refreshed. Your previous snapshot was kept.",
+      );
+    } finally {
+      setRefreshingStats(false);
     }
   }
 
@@ -908,6 +977,12 @@ export default function PlayerProfileView({
             </p>
             {refreshingStats ? (
               <p className="mt-1 text-sm font-black text-[#ffd84d] animate-pulse">Fetching stats…</p>
+            ) : visibleManualRefreshResult?.status === "cooldown" ? (
+              <p className="mt-1 text-sm font-black text-[#ffd84d]">Refresh on cooldown</p>
+            ) : visibleManualRefreshResult?.status === "unavailable" ? (
+              <p className="mt-1 text-sm font-black text-[#ff6b6b]">Refresh unavailable</p>
+            ) : visibleManualRefreshResult?.status === "up-to-date" ? (
+              <p className="mt-1 text-sm font-black text-[#48f0df]">League data is up to date</p>
             ) : statRefreshError ? (
               <p className="mt-1 text-sm font-black text-[#ff6b6b]" title={statRefreshError}>Update failed</p>
             ) : statRefreshSucceeded ? (
@@ -916,23 +991,44 @@ export default function PlayerProfileView({
               <p className="mt-1 text-lg font-black text-[#48f0df]">{lastUpdatedLabel}</p>
             )}
             <p className="mt-1 text-[11px] font-semibold text-[#6b7280]">
-              {statRefreshError
-                ? statRefreshError
-                : hasValidatedProfileSnapshot
-                  ? `Identity-checked snapshot fetched ${lastUpdatedLabel}.`
-                  : "Waiting for a fresh identity-checked ECL.GG snapshot."}
+              {snapshotStatusMessage}
             </p>
-            {statRefreshError && (
-              <button
-                type="button"
-                onClick={() => {
-                  setStatRefreshError("");
-                  setProfileLoadAttempt((attempt) => attempt + 1);
-                }}
-                className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-[#ffd84d] hover:text-white"
-              >
-                Retry update
-              </button>
+            {manualCooldownActive && manualRefreshResult?.retryAt && (
+              <p className="mt-2 text-[11px] font-bold text-[#ffd84d]">
+                Available after {new Date(manualRefreshResult.retryAt).toLocaleString([], {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}.
+              </p>
+            )}
+            {isOwnerProfileRoute && (
+              <div className="mt-4 border-t border-white/[0.08] pt-4">
+                <button
+                  type="button"
+                  onClick={manuallyRefreshLeagueData}
+                  disabled={refreshingStats || !manualRefreshNeeded || manualCooldownActive}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0f66d8] px-4 py-2.5 text-xs font-black uppercase tracking-[0.1em] text-white transition hover:bg-[#247cf0] disabled:cursor-not-allowed disabled:bg-white/[0.07] disabled:text-[#6b7280]"
+                >
+                  <RefreshCw
+                    aria-hidden="true"
+                    className={`h-4 w-4 ${refreshingStats ? "animate-spin" : ""}`}
+                  />
+                  {refreshingStats
+                    ? "Refreshing League data"
+                    : manualCooldownActive
+                      ? "Refresh on cooldown"
+                      : manualRefreshNeeded
+                        ? "Refresh League data"
+                        : "League data is up to date"}
+                </button>
+                <p className="mt-2 text-[10px] font-semibold leading-relaxed text-[#6b7280]">
+                  This sends a fixed ECL.GG request from your browser using your current
+                  network connection. ECL saves it only after your full Riot ID, China
+                  server, and linked profile are validated.
+                </p>
+              </div>
             )}
           </div>
 

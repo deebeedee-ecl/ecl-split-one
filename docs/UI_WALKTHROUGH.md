@@ -101,9 +101,12 @@ The authenticated desktop and mobile pass confirmed that this is a large event m
 - performance radar, role stats, top inhouse champions, and awards;
 - reported champion/ranked-game snapshot;
 - personal inhouse match-history preview;
+- an owner-only `Refresh League data` action when the verified snapshot is stale or incomplete;
 - a KOOK verification notice/code flow when the profile is not linked.
 
 The route-specific profile request renders the last coherent stored snapshot before any stale/missing provider refresh completes. The signed browser refresh then runs in the background, keeps that snapshot visible while pending or failed, and replaces it only after the complete identity-checked snapshot is accepted. Data freshness remains tied to the last successful coherent replacement.
+
+The explicit owner action discloses that its fixed provider bundle is fetched from the current browser/network connection. It reports refreshing, success, unavailable, failure, and durable cooldown states. Core profile/Solo/Flex failure keeps the previous snapshot and timestamp; optional recent champion data may be marked unavailable. The action is not rendered on `/hub/players/[slug]`, because a signed provider request does not attest a viewer-supplied response body.
 
 Historical walkthrough evidence from 2026-11-07 captured “Loading profile...” at 2.5 seconds because the provider refresh blocked the stored snapshot. The current flow still waits for the route-specific account profile request, but no longer waits for the browser-based Lzyumi refresh before rendering a valid saved snapshot.
 
@@ -119,7 +122,7 @@ The authenticated pass showed the live October 2026 ladder populated with player
 
 `/hub/players` lists verified ECL profiles with display name, Riot ID, roles, and event/team status where available. It supports text search plus primary/secondary role filters. World Cup player/free-agent filtering is conditionally shown when the loaded data includes World Cup status.
 
-`/hub/players/[slug]` is the public/profile-detail surface for another player and reuses the profile presentation without the authenticated user's personal controls. It renders the last verified provider snapshot and timestamp but does not implicitly sign or send Lzyumi requests through the viewer's browser.
+`/hub/players/[slug]` is the public/profile-detail surface for another player and reuses the profile presentation without the authenticated user's personal controls. It renders the last verified provider snapshot and timestamp but does not implicitly sign or send Lzyumi requests through the viewer's browser, and it does not expose the owner-only manual refresh action.
 
 ### Champions
 
