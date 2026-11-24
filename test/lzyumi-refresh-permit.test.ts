@@ -25,7 +25,7 @@ function issueInput(
 ): LzyumiRefreshPermitIssueInput {
   return {
     now,
-    requesterProfileId: "synthetic-requester",
+    requesterProfileId: "synthetic-target",
     target: {
       profileId: "synthetic-target",
       active: true,
@@ -44,21 +44,23 @@ function issueInput(
   };
 }
 
-test("allows authenticated owners and viewers with the same bounded request bundle", () => {
-  const viewer = evaluateLzyumiRefreshPermitIssue(issueInput(), policy);
-  const ownerInput = issueInput();
-  ownerInput.requesterProfileId = ownerInput.target.profileId;
-  const owner = evaluateLzyumiRefreshPermitIssue(ownerInput, policy);
+test("allows owners and rejects viewers until provider responses can be attested", () => {
+  const owner = evaluateLzyumiRefreshPermitIssue(issueInput(), policy);
+  const viewer = evaluateLzyumiRefreshPermitIssue(issueInput({
+    requesterProfileId: "synthetic-viewer",
+  }), policy);
 
-  assert.equal(viewer.status, "allowed");
   assert.equal(owner.status, "allowed");
-  if (viewer.status !== "allowed" || owner.status !== "allowed") return;
+  assert.deepEqual(viewer, {
+    status: "rejected",
+    code: "OWNER_ONLY",
+    retryAt: null,
+  });
+  if (owner.status !== "allowed") return;
 
-  assert.equal(viewer.actor, "viewer");
   assert.equal(owner.actor, "owner");
-  assert.deepEqual(viewer.requestBudget, LZYUMI_MANUAL_REFRESH_REQUEST_BUDGET);
   assert.deepEqual(owner.requestBudget, LZYUMI_MANUAL_REFRESH_REQUEST_BUDGET);
-  assert.equal(viewer.expiresAt.toISOString(), "2026-11-13T00:02:00.000Z");
+  assert.equal(owner.expiresAt.toISOString(), "2026-11-13T00:02:00.000Z");
 });
 
 test("rejects unauthenticated, unavailable, incomplete-identity, and fresh targets", () => {

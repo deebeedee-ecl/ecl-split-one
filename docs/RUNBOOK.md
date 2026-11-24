@@ -89,6 +89,23 @@ For schema changes and durable workflow changes, prefer an expand/deploy/migrate
 
 Do not combine irreversible cleanup with the first production deployment. High-risk behavior should use a feature flag or another reversible activation path when practical.
 
+#### Manual Lzyumi refresh permit rollout
+
+The permit ledger/API is an additive, disabled-by-default, owner-only capability. Apply and verify its Prisma migration in an isolated preview database before any production schema operation. Preview must prove that simultaneous issuance for one owner target produces only one permit, simultaneous consumption commits only once, invalid provider data preserves the prior snapshot/timestamp, a viewer-bound permit with correct target identity plus forged/foreign history cannot write or advance freshness, and Supabase browser roles have no ledger privileges. Do not enable viewer refresh from a browser-supplied response without a separately reviewed provider-attestation or equivalent trusted-response design.
+
+Activation requires all of the following variables; missing, non-integer, zero, negative, or incoherent values return `PERMITS_UNAVAILABLE` without issuing a token:
+
+- `LZYUMI_MANUAL_REFRESH_PERMITS_ENABLED`
+- `LZYUMI_MANUAL_REFRESH_PERMIT_TTL_MS`
+- `LZYUMI_MANUAL_REFRESH_PROFILE_COOLDOWN_MS`
+- `LZYUMI_MANUAL_REFRESH_REQUESTER_COOLDOWN_MS`
+- `LZYUMI_MANUAL_REFRESH_REQUESTER_WINDOW_MS`
+- `LZYUMI_MANUAL_REFRESH_REQUESTER_MAX_PERMITS`
+
+Record the reviewed production values before enabling the flag. Deploy schema support first, then compatible API code with the flag off, verify the migration and browser-role revocation, and only then enable the endpoint under separate authorization. The first rollback is setting `LZYUMI_MANUAL_REFRESH_PERMITS_ENABLED=false`; do not drop the ledger or delete its pressure-window history during the initial rollback.
+
+The reviewed initial rollout policy is a two-minute permit TTL, five-minute target-profile cooldown, one-minute requester cooldown, 24-hour requester window, and at most 20 permits per requester in that window. In milliseconds the configured values are `120000`, `300000`, `60000`, and `86400000`; the maximum is `20`. Changing any value is a separate reviewed production-configuration operation.
+
 For the approved Split II semifinal release, use
 `scripts/release-split-ii-semifinals.ts`. Run `check --target=production` first,
 review the standings, planned `SF01`/`SF02` matchups, blockers, and fingerprint,

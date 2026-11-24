@@ -35,6 +35,7 @@ export type LzyumiRefreshPermitIssueInput = {
 
 export type LzyumiRefreshPermitRejectionCode =
   | "UNAUTHENTICATED"
+  | "OWNER_ONLY"
   | "TARGET_UNAVAILABLE"
   | "IDENTITY_INCOMPLETE"
   | "SNAPSHOT_FRESH"
@@ -45,7 +46,7 @@ export type LzyumiRefreshPermitRejectionCode =
 export type LzyumiRefreshPermitIssueDecision =
   | {
       status: "allowed";
-      actor: "owner" | "viewer";
+      actor: "owner";
       requesterProfileId: string;
       targetProfileId: string;
       expiresAt: Date;
@@ -131,6 +132,14 @@ export function evaluateLzyumiRefreshPermitIssue(
     return { status: "rejected", code: "TARGET_UNAVAILABLE", retryAt: null };
   }
 
+  // Signed provider request URLs constrain what the browser may ask for, but
+  // Lzyumi responses are not provider-signed. Until ECL has a verifiable
+  // response-attestation path, a viewer must not be able to persist data for
+  // another profile from a browser-controlled payload.
+  if (requesterProfileId !== input.target.profileId) {
+    return { status: "rejected", code: "OWNER_ONLY", retryAt: null };
+  }
+
   if (!hasCompleteTargetIdentity(input.target)) {
     return { status: "rejected", code: "IDENTITY_INCOMPLETE", retryAt: null };
   }
@@ -197,7 +206,7 @@ export function evaluateLzyumiRefreshPermitIssue(
 
   return {
     status: "allowed",
-    actor: requesterProfileId === input.target.profileId ? "owner" : "viewer",
+    actor: "owner",
     requesterProfileId,
     targetProfileId: input.target.profileId,
     expiresAt: new Date(nowMs + policy.permitTtlMs),

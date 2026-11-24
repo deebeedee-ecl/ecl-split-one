@@ -21,6 +21,20 @@ function getCurrentRank(raw: unknown): string | null {
   return formatted.label === "Unranked" ? null : formatted.label;
 }
 
+export function ownerRefreshProfileWhere(
+  accountId: string,
+  targetProfileId: string | null,
+): Prisma.AccountProfileWhereInput {
+  return targetProfileId
+    ? {
+        id: targetProfileId,
+        userId: accountId,
+        verificationStatus: "VERIFIED",
+        accountStatus: "ACTIVE",
+      }
+    : { userId: accountId };
+}
+
 export async function POST(request: Request) {
   const account = await getAccountFromRequest(request);
   if (!account) {
@@ -61,13 +75,7 @@ export async function POST(request: Request) {
   }
 
   const profile = await prisma.accountProfile.findFirst({
-    where: targetProfileId
-      ? {
-          id: targetProfileId,
-          verificationStatus: "VERIFIED",
-          accountStatus: "ACTIVE",
-        }
-      : { userId: account.id },
+    where: ownerRefreshProfileWhere(account.id, targetProfileId),
     select: {
       id: true,
       riotName: true,
