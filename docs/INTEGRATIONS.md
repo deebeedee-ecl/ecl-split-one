@@ -35,6 +35,38 @@ they never weaken identity or custom-game validation. The UI does not expose
 
 Acceptance requires matching the expected full Riot ID, China server, and `openId`. Save profile/rank/Solo/Flex as one coherent snapshot only after every required response passes validation. A rejected replacement preserves the prior snapshot and timestamp; do not independently advance freshness for an unchanged section. Application-code semantics are endpoint-specific and must not be copied to token/session-status endpoints.
 
+#### Hidden China-stats preview
+
+The direct-link `/labs/china-stats` surface is a noindex, feature-gated product
+preview. Its root redirects to the real-player lookup; no synthetic leaderboard
+or profile data is exposed. It is available by default only in development. A
+deployed environment fails closed unless `CHINA_STATS_PREVIEW_ENABLED=true` is set
+deliberately.
+
+`/labs/china-stats/live` is a read-only browser lookup for one exact full Riot
+ID on Ionia (`areaId=1`) or Super Server (`areaId=31`). It uses the dedicated
+authenticated POST signer at `/api/china-stats/sign` and the residential-browser
+flow. The signer accepts only profile, Solo/Duo, Flex, optional recent-stat, and
+match-detail reads with fixed bounds; it does not expose a general provider URL
+signer. The lookup tries the bare name before the full Riot ID and accepts the
+result only after full Riot ID, server, and `openId` verification. A failed
+queue or recent-stat section is shown as unavailable rather than replaced with
+stale data. Match detail is lazy and capped at five unique requests per lookup.
+The preview does not persist provider data, expose signed URLs, `openId`, opaque
+provider game IDs, or raw payloads, and has no result-write action.
+
+The dedicated signer has a best-effort per-account warm-instance request
+ceiling. A small authenticated preview must also use the deployment platform's
+request controls; a broader public launch requires a durable cross-instance
+rate-limit contract. The legacy `/api/lzyumi-sign` contract remains unchanged
+for existing ECL flows and is not used by this preview.
+
+The currently inspected provider contract exposes per-player profile, history,
+detail, recent-stat, and rank-point routes, but no verified server-wide ladder
+endpoint. Do not derive a complete Challenger, Grandmaster, or Master
+leaderboard from searched players. A real ladder requires a separately reviewed
+source plus freshness, identity, pagination, and rate-limit contracts.
+
 #### Explicit manual refresh permit API (UI not deployed)
 
 The OP.GG-style action is backed by a durable, short-lived, one-use permit bound to the authenticated owner profile and that same active, verified, stale target profile. `POST /api/hub/lzyumi-refresh-permits` rejects a target owned by another profile, then atomically enforces per-profile cooldown, per-requester cooldown, and a requester rolling-window budget across serverless instances. It returns only the opaque one-use token, expiry, target profile ID, and a fixed signed-browser bundle for profile filter `1`, Solo/Duo filter `2`, Flex filter `3`, and optional recent-stat derived from stored target identity. `POST /api/hub/lzyumi-refresh-permits/consume` rechecks owner/target equality even for an otherwise valid permit, validates the complete core snapshot, and atomically replaces it while completing the permit.
