@@ -8,7 +8,7 @@ export function ChinaStatsLabFrame({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-50 border-b border-white/[0.08] bg-[#090e17]/95 backdrop-blur-xl">
         <div className="mx-auto flex min-h-16 max-w-[1540px] items-center gap-3 px-4 sm:px-6 lg:px-8">
           <Link
-            href="/labs/china-stats/live"
+            href="/labs/china-stats/leaderboard"
             className="flex min-w-0 items-center gap-3 font-black tracking-[-0.03em] text-white"
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#36d7ff]/30 bg-[#36d7ff]/10 text-[#36d7ff]">
@@ -18,6 +18,7 @@ export function ChinaStatsLabFrame({ children }: { children: ReactNode }) {
           </Link>
 
           <nav className="hidden items-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.025] p-1 lg:flex">
+            <Link href="/labs/china-stats/leaderboard" className="rounded-lg px-3 py-2 text-xs font-black text-[#8eeaff] transition hover:bg-[#36d7ff]/10">Leaderboard</Link>
             <Link href="/labs/china-stats/live" className="rounded-lg px-3 py-2 text-xs font-black text-[#8eeaff] transition hover:bg-[#36d7ff]/10">Player search</Link>
           </nav>
 

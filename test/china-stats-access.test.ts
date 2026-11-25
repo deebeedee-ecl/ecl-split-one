@@ -26,7 +26,7 @@ test("China stats is direct-link, feature-gated, authenticated in production, an
   assert.match(layout, /HubBootstrapProvider/);
   assert.match(layout, /ChinaStatsPreviewAccessGate/);
   assert.match(layout, /robots:[\s\S]*index: false[\s\S]*follow: false/);
-  assert.match(rootPage, /redirect\("\/labs\/china-stats\/live"\)/);
+  assert.match(rootPage, /redirect\("\/labs\/china-stats\/leaderboard"\)/);
   assert.match(robots, /disallow: "\/labs\/"/);
   assert.match(environment, /CHINA_STATS_PREVIEW_ENABLED/);
   assert.match(environment, /CHINA_STATS_PREVIEW_ALLOWED_PROFILE_IDS/);

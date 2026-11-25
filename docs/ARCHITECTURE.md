@@ -107,6 +107,7 @@ Approved last-minute guest substitutes are represented inside the tournament rep
 - KOOK and worker endpoints require their configured shared secret; missing secrets must fail closed.
 - Shared-secret service calls authenticate the service, not every business action. The API must still validate the acting KOOK ID, session membership, admin override, and resource state.
 - Lzyumi/WeGame payloads must be structurally validated and bound to the expected Riot identity and server.
+- A local League-client ladder collector is a privileged edge input, not a browser or serverless trust shortcut. It must sanitize client credentials and stable provider identifiers before upload; the web API must independently validate platform, queue, tier coverage, values, capture time, and collector authorization before replacing a durable snapshot. The current file-backed China Stats ladder is local-development-only.
 - Raw provider data and contact fields are private operational data unless explicitly projected into a public view.
 
 ## Known structural risks

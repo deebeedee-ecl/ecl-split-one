@@ -38,8 +38,8 @@ Acceptance requires matching the expected full Riot ID, China server, and `openI
 #### Hidden China-stats preview
 
 The direct-link `/labs/china-stats` surface is a noindex, feature-gated product
-preview. Its root redirects to the real-player lookup; no synthetic leaderboard
-or profile data is exposed. It is available by default only in development. A
+preview. Its root redirects to the apex leaderboard, whose players link to the
+real-player lookup. It is available by default only in development. A
 deployed environment fails closed unless `CHINA_STATS_PREVIEW_ENABLED=true` is set
 deliberately and `CHINA_STATS_PREVIEW_ALLOWED_PROFILE_IDS` contains a valid,
 comma-separated allowlist of stable `AccountProfile.id` UUIDs.
@@ -69,11 +69,27 @@ the same server-side profile check and returns `403` for every other account,
 so bypassing the client gate does not grant provider access. Change the
 allowlist only through deployment configuration; never commit real profile IDs.
 
-The currently inspected provider contract exposes per-player profile, history,
-detail, recent-stat, and rank-point routes, but no verified server-wide ladder
-endpoint. Do not derive a complete Challenger, Grandmaster, or Master
-leaderboard from searched players. A real ladder requires a separately reviewed
-source plus freshness, identity, pagination, and rate-limit contracts.
+`/labs/china-stats/leaderboard` reads a sanitized apex snapshot through the
+authenticated `/api/china-stats/leaderboard` boundary. A local Tencent League
+client probe verified the standard Solo/Duo apex standings source and the
+separate PUUID-to-Riot-ID batch resolution required for display. On Ionia
+(`HN1`), the observed client returned 200 Challenger, 500 Grandmaster, and
+10,000 Master standings. The first prototype stores only the top 100 resolved
+rows per tier and projects rank, full Riot ID, tier, LP, record, and profile
+icon; PUUIDs, summoner IDs, client credentials, and raw payloads are never sent
+to the browser.
+
+The snapshot file configured by `CHINA_STATS_LADDER_SNAPSHOT_PATH` is a
+local-development input, not a production ingestion design. The API validates
+the platform, capture time (including a 24-hour maximum age), queue, required
+tier groups, values, and identities before returning a no-store response.
+Production needs a separately reviewed,
+authenticated collector upload and durable snapshot store with freshness,
+pagination, replay, and rollback contracts. Super Server maps to platform
+`BGP2`, but its snapshot remains unverified until collected from a client
+session connected to that server. Per-player details continue to come from the
+existing Lzyumi browser flow; searched players are never used to fabricate the
+ladder.
 
 #### Explicit manual refresh permit API (UI not deployed)
 
