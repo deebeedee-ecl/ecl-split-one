@@ -24,8 +24,20 @@ function storeFailureDiagnostic(error: unknown) {
   const code = typeof source.code === "string" && /^P\d{4}$/.test(source.code)
     ? source.code
     : "NO_PRISMA_CODE";
+  const allowedStages = new Set([
+    "TRANSACTION_START",
+    "ADVISORY_LOCK",
+    "READ_CURRENT",
+    "CREATE_SNAPSHOT",
+    "UPDATE_SNAPSHOT",
+  ]);
+  const stage = typeof source.storeStage === "string" && allowedStages.has(source.storeStage)
+    ? source.storeStage
+    : "UNKNOWN_STAGE";
   const message = error instanceof Error ? error.message : "";
-  const category = /chinaStatsLadderSnapshot|findUnique/i.test(message)
+  const category = stage !== "UNKNOWN_STAGE"
+    ? "STORE_STAGE_FAILURE"
+    : /chinaStatsLadderSnapshot|findUnique/i.test(message)
     ? "PRISMA_MODEL_UNAVAILABLE"
     : /does not exist|unknown table|P2021/i.test(message)
       ? "DATABASE_OBJECT_MISSING"
@@ -34,7 +46,7 @@ function storeFailureDiagnostic(error: unknown) {
         : /permission|denied|P1010/i.test(message)
           ? "DATABASE_PERMISSION_FAILURE"
           : "UNCLASSIFIED_STORE_FAILURE";
-  return { category, code };
+  return { category, code, stage };
 }
 
 export async function POST(request: Request) {

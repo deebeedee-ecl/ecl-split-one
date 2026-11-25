@@ -180,6 +180,30 @@ test("durable ladder writes lock by server and reject rollback, replay drift, an
   assert.equal(fake.current()?.contentHash, chinaStatsLadderContentHash(newer));
 });
 
+test("durable ladder write failures expose only their bounded store stage", async () => {
+  const snapshot = normalizeChinaStatsLadderSnapshot(source());
+  assert.ok(snapshot);
+  const database = {
+    async $transaction<T>(operation: (transaction: never) => Promise<T>) {
+      return operation({
+        async $queryRaw() {
+          throw new Error("credential-like diagnostic details must not escape");
+        },
+      } as never);
+    },
+  } as ChinaStatsLadderDatabase;
+
+  await assert.rejects(
+    storeChinaStatsLadderSnapshot(database, snapshot),
+    (error: Error & { storeStage?: string }) => {
+      assert.equal(error.storeStage, "ADVISORY_LOCK");
+      assert.equal(error.message, "China stats ladder persistence failed.");
+      assert.doesNotMatch(error.message, /credential/i);
+      return true;
+    },
+  );
+});
+
 test("leaderboard route preserves account authorization and private identifiers", async () => {
   const [route, ingestRoute, migration] = await Promise.all([
     readFile(new URL("../app/api/china-stats/leaderboard/route.ts", import.meta.url), "utf8"),

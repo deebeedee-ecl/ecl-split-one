@@ -25,6 +25,26 @@ export type ChinaStatsLadderWriteResult = {
   contentHash: string;
 };
 
+type ChinaStatsLadderStoreStage =
+  | "TRANSACTION_START"
+  | "ADVISORY_LOCK"
+  | "READ_CURRENT"
+  | "CREATE_SNAPSHOT"
+  | "UPDATE_SNAPSHOT";
+
+class ChinaStatsLadderStoreError extends Error {
+  readonly storeStage: ChinaStatsLadderStoreStage;
+  readonly code?: string;
+
+  constructor(stage: ChinaStatsLadderStoreStage, cause: unknown) {
+    super("China stats ladder persistence failed.");
+    this.name = "ChinaStatsLadderStoreError";
+    this.storeStage = stage;
+    const source = cause && typeof cause === "object" ? cause as Record<string, unknown> : {};
+    if (typeof source.code === "string" && /^P\d{4}$/.test(source.code)) this.code = source.code;
+  }
+}
+
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -60,28 +80,49 @@ export async function storeChinaStatsLadderSnapshot(
 ): Promise<ChinaStatsLadderWriteResult> {
   const contentHash = chinaStatsLadderContentHash(snapshot);
   const capturedAt = new Date(snapshot.capturedAt);
+  let stage: ChinaStatsLadderStoreStage = "TRANSACTION_START";
 
-  return database.$transaction(async (transaction) => {
-    await transaction.$queryRaw(Prisma.sql`
-      SELECT pg_advisory_xact_lock(
-        hashtextextended(${`china-stats-ladder:${snapshot.server}`}, 0)
-      ) AS locked
-    `);
-    const current = await transaction.chinaStatsLadderSnapshot.findUnique({
-      where: { server: snapshot.server },
-      select: { capturedAt: true, contentHash: true },
-    });
-
-    if (current) {
-      const currentTime = current.capturedAt.getTime();
-      const incomingTime = capturedAt.getTime();
-      if (currentTime > incomingTime) return { status: "stale", contentHash };
-      if (currentTime === incomingTime) {
-        return { status: current.contentHash === contentHash ? "duplicate" : "conflict", contentHash };
-      }
-      await transaction.chinaStatsLadderSnapshot.update({
+  try {
+    return await database.$transaction(async (transaction) => {
+      stage = "ADVISORY_LOCK";
+      await transaction.$queryRaw(Prisma.sql`
+        SELECT pg_advisory_xact_lock(
+          hashtextextended(${`china-stats-ladder:${snapshot.server}`}, 0)
+        ) AS locked
+      `);
+      stage = "READ_CURRENT";
+      const current = await transaction.chinaStatsLadderSnapshot.findUnique({
         where: { server: snapshot.server },
+        select: { capturedAt: true, contentHash: true },
+      });
+
+      if (current) {
+        const currentTime = current.capturedAt.getTime();
+        const incomingTime = capturedAt.getTime();
+        if (currentTime > incomingTime) return { status: "stale", contentHash };
+        if (currentTime === incomingTime) {
+          return { status: current.contentHash === contentHash ? "duplicate" : "conflict", contentHash };
+        }
+        stage = "UPDATE_SNAPSHOT";
+        await transaction.chinaStatsLadderSnapshot.update({
+          where: { server: snapshot.server },
+          data: {
+            platformId: snapshot.platformId,
+            queue: snapshot.queue,
+            capturedAt,
+            coverage: snapshot.coverage as unknown as Prisma.InputJsonValue,
+            rows: snapshot.rows as unknown as Prisma.InputJsonValue,
+            contentHash,
+            collectorVersion: snapshot.schemaVersion,
+          },
+        });
+        return { status: "replaced", contentHash };
+      }
+
+      stage = "CREATE_SNAPSHOT";
+      await transaction.chinaStatsLadderSnapshot.create({
         data: {
+          server: snapshot.server,
           platformId: snapshot.platformId,
           queue: snapshot.queue,
           capturedAt,
@@ -91,21 +132,9 @@ export async function storeChinaStatsLadderSnapshot(
           collectorVersion: snapshot.schemaVersion,
         },
       });
-      return { status: "replaced", contentHash };
-    }
-
-    await transaction.chinaStatsLadderSnapshot.create({
-      data: {
-        server: snapshot.server,
-        platformId: snapshot.platformId,
-        queue: snapshot.queue,
-        capturedAt,
-        coverage: snapshot.coverage as unknown as Prisma.InputJsonValue,
-        rows: snapshot.rows as unknown as Prisma.InputJsonValue,
-        contentHash,
-        collectorVersion: snapshot.schemaVersion,
-      },
+      return { status: "created", contentHash };
     });
-    return { status: "created", contentHash };
-  });
+  } catch (error) {
+    throw new ChinaStatsLadderStoreError(stage, error);
+  }
 }
