@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   if (!developmentBypass && !account) {
     return NextResponse.json({ message: "Sign in to view the China ranked ladder." }, { status: 401, headers: responseHeaders });
   }
-  if (account && !await hasChinaStatsPreviewAccess(account.id)) {
+  if (account && !await hasChinaStatsPreviewAccess(account.id, request.headers.get("authorization"))) {
     return NextResponse.json({ message: "This ECL account is not invited to the China Stats preview." }, { status: 403, headers: responseHeaders });
   }
 

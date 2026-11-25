@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       { status: 401, headers: responseHeaders },
     );
   }
-  if (account && !developmentBypass && !await hasChinaStatsPreviewAccess(account.id)) {
+  if (account && !developmentBypass && !await hasChinaStatsPreviewAccess(account.id, request.headers.get("authorization"))) {
     return NextResponse.json(
       { message: "This ECL account is not invited to the China Stats preview." },
       { status: 403, headers: responseHeaders },

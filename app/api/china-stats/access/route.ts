@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   if (!account) {
     return NextResponse.json({ allowed: false }, { status: 401, headers: responseHeaders });
   }
-  if (!await hasChinaStatsPreviewAccess(account.id)) {
+  if (!await hasChinaStatsPreviewAccess(account.id, request.headers.get("authorization"))) {
     return NextResponse.json({ allowed: false }, { status: 403, headers: responseHeaders });
   }
   return NextResponse.json({ allowed: true }, { headers: responseHeaders });

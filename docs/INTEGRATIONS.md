@@ -44,6 +44,14 @@ deployed environment fails closed unless `CHINA_STATS_PREVIEW_ENABLED=true` is s
 deliberately and `CHINA_STATS_PREVIEW_ALLOWED_PROFILE_IDS` contains a valid,
 comma-separated allowlist of stable `AccountProfile.id` UUIDs.
 
+An isolated preview database may set `CHINA_STATS_PREVIEW_ACCESS_ORIGIN` to the
+canonical HTTPS origin. In that mode, preview routes forward the current
+Supabase bearer token only to the fixed `/api/china-stats/access` endpoint and
+accept only its boolean allow/deny result; redirects, malformed origins,
+failures, and non-2xx responses fail closed. Player data and the ladder
+snapshot remain in the isolated preview database, and the canonical deployment
+does not expose account records to preview.
+
 `/labs/china-stats/live` is a read-only browser lookup for one exact full Riot
 ID on Ionia (`areaId=1`) or Super Server (`areaId=31`). It uses the dedicated
 authenticated POST signer at `/api/china-stats/sign` and the residential-browser
