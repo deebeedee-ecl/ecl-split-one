@@ -19,6 +19,24 @@ function json(body: Record<string, unknown>, status: number) {
   return NextResponse.json(body, { status, headers: responseHeaders });
 }
 
+function storeFailureDiagnostic(error: unknown) {
+  const source = error && typeof error === "object" ? error as Record<string, unknown> : {};
+  const code = typeof source.code === "string" && /^P\d{4}$/.test(source.code)
+    ? source.code
+    : "NO_PRISMA_CODE";
+  const message = error instanceof Error ? error.message : "";
+  const category = /chinaStatsLadderSnapshot|findUnique/i.test(message)
+    ? "PRISMA_MODEL_UNAVAILABLE"
+    : /does not exist|unknown table|P2021/i.test(message)
+      ? "DATABASE_OBJECT_MISSING"
+      : /transaction|P2028|P2034/i.test(message)
+        ? "TRANSACTION_FAILURE"
+        : /permission|denied|P1010/i.test(message)
+          ? "DATABASE_PERMISSION_FAILURE"
+          : "UNCLASSIFIED_STORE_FAILURE";
+  return { category, code };
+}
+
 export async function POST(request: Request) {
   if (!chinaStatsCollectorConfigured()) {
     return json({ ok: false, code: "COLLECTOR_UNAVAILABLE" }, 503);
@@ -64,7 +82,8 @@ export async function POST(request: Request) {
       capturedAt: snapshot.capturedAt,
       rows: snapshot.rows.length,
     }, result.status === "created" ? 201 : 200);
-  } catch {
+  } catch (error) {
+    console.error("China stats ladder store failed", storeFailureDiagnostic(error));
     return json({ ok: false, code: "STORE_UNAVAILABLE" }, 503);
   }
 }
