@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAccountFromRequest } from "@/lib/account-auth";
+import { hasChinaStatsPreviewAccess } from "@/lib/china-stats-preview-access-runtime";
 import {
   buildChinaStatsSignedUrl,
   ChinaStatsSigningInputError,
@@ -22,6 +23,12 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { message: "Sign in to search China ranked profiles." },
       { status: 401, headers: responseHeaders },
+    );
+  }
+  if (account && !developmentBypass && !await hasChinaStatsPreviewAccess(account.id)) {
+    return NextResponse.json(
+      { message: "This ECL account is not invited to the China Stats preview." },
+      { status: 403, headers: responseHeaders },
     );
   }
 

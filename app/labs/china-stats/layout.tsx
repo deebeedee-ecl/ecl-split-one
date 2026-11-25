@@ -5,6 +5,7 @@ import { HubAccessGate } from "@/app/(hub)/hub/_components/HubAccessGate";
 import { HubBootstrapProvider } from "@/app/(hub)/hub/_components/HubBootstrapProvider";
 import { isChinaStatsPreviewEnabled } from "@/lib/china-stats-preview-config";
 import { ChinaStatsLabFrame } from "./ChinaStatsLabFrame";
+import { ChinaStatsPreviewAccessGate } from "./ChinaStatsPreviewAccessGate";
 
 export const metadata: Metadata = {
   title: "China Stats | ECL",
@@ -23,7 +24,9 @@ export default function ChinaStatsLabLayout({ children }: { children: ReactNode 
 
   return process.env.NODE_ENV === "development" ? content : (
     <HubBootstrapProvider>
-      <HubAccessGate>{content}</HubAccessGate>
+      <HubAccessGate>
+        <ChinaStatsPreviewAccessGate>{content}</ChinaStatsPreviewAccessGate>
+      </HubAccessGate>
     </HubBootstrapProvider>
   );
 }

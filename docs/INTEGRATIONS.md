@@ -41,7 +41,8 @@ The direct-link `/labs/china-stats` surface is a noindex, feature-gated product
 preview. Its root redirects to the real-player lookup; no synthetic leaderboard
 or profile data is exposed. It is available by default only in development. A
 deployed environment fails closed unless `CHINA_STATS_PREVIEW_ENABLED=true` is set
-deliberately.
+deliberately and `CHINA_STATS_PREVIEW_ALLOWED_PROFILE_IDS` contains a valid,
+comma-separated allowlist of stable `AccountProfile.id` UUIDs.
 
 `/labs/china-stats/live` is a read-only browser lookup for one exact full Riot
 ID on Ionia (`areaId=1`) or Super Server (`areaId=31`). It uses the dedicated
@@ -60,6 +61,13 @@ ceiling. A small authenticated preview must also use the deployment platform's
 request controls; a broader public launch requires a durable cross-instance
 rate-limit contract. The legacy `/api/lzyumi-sign` contract remains unchanged
 for existing ECL flows and is not used by this preview.
+
+Knowing the direct URL is never an access grant. In deployed environments, the
+page calls the authenticated `/api/china-stats/access` boundary and renders the
+preview only for an active, verified allowlisted profile. The signer repeats
+the same server-side profile check and returns `403` for every other account,
+so bypassing the client gate does not grant provider access. Change the
+allowlist only through deployment configuration; never commit real profile IDs.
 
 The currently inspected provider contract exposes per-player profile, history,
 detail, recent-stat, and rank-point routes, but no verified server-wide ladder

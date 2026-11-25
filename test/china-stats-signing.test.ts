@@ -94,6 +94,8 @@ test("China stats signer is POST-only, authenticated in deployed environments, a
   assert.match(source, /getAccountFromRequest/);
   assert.match(source, /NODE_ENV === "development"/);
   assert.match(source, /consumeChinaStatsSigningBudget/);
+  assert.match(source, /hasChinaStatsPreviewAccess/);
+  assert.match(source, /status: 403/);
   assert.doesNotMatch(source, /export async function GET/);
   assert.doesNotMatch(source, /prisma|create\(|update\(|delete\(|upsert\(/);
 });

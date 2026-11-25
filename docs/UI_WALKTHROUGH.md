@@ -154,7 +154,10 @@ possible standalone China-server analytics experience. Its root redirects to
 the live player lookup. It presents no synthetic leaderboard as user data; a
 real ladder remains blocked on a reviewed server-wide source and freshness
 contract. The surface is absent from Hub navigation and uses the authenticated
-Hub gate in deployed environments.
+Hub gate in deployed environments. It then checks the stable active/verified
+profile against the server-side preview allowlist. Non-invited accounts see a
+preview-access message, and the signer independently returns `403`; knowing the
+URL is not sufficient.
 
 `/labs/china-stats/live` requests one exact full Riot ID and either Ionia or
 Super Server, then uses the authenticated, fixed-scope
