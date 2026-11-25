@@ -34,8 +34,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const snapshot = await loadChinaStatsLadderSnapshot();
-    if (snapshot.server !== server) {
+    const snapshot = await loadChinaStatsLadderSnapshot(server);
+    if (!snapshot) {
       return NextResponse.json({
         available: false,
         message: `A ${server === "ionia" ? "Ionia" : "Super Server"} ladder snapshot has not been collected yet.`,

@@ -1,6 +1,6 @@
 # ECL development and operations runbook
 
-Last reviewed: 2026-11-10
+Last reviewed: 2026-11-26
 
 ## Safe local start
 
@@ -88,6 +88,57 @@ For schema changes and durable workflow changes, prefer an expand/deploy/migrate
 5. Remove the old representation only in a later approved change.
 
 Do not combine irreversible cleanup with the first production deployment. High-risk behavior should use a feature flag or another reversible activation path when practical.
+
+#### China Stats ladder collector rollout
+
+The durable ladder is an additive, disabled-by-default write path. Do not apply
+`20261126030000_add_china_stats_ladder_snapshots` first in production. Apply it
+to an isolated preview database, confirm the table constraints and zero grants
+for `PUBLIC`, `anon`, and `authenticated`, then deploy compatible web code with
+`CHINA_STATS_LADDER_INGEST_ENABLED=false`. The migration creates no player rows,
+does not change ECL LP, and has no backfill.
+
+Generate an independent random collector secret of at least 32 characters. Keep
+the same value only in the target deployment's server-only
+`CHINA_STATS_COLLECTOR_SECRET` and the operator process used for upload. Do not
+reuse the KOOK, job, report-engine, admin, Lzyumi, or Supabase credentials. Set
+`CHINA_STATS_COLLECTOR_BASE_URL` only in the operator environment; it is not a
+deployed secret. Enabling ingestion is a separate preview configuration action.
+
+With the Tencent League client connected to the intended server, open an
+Administrator PowerShell in the repository and run:
+
+```powershell
+npm run china-stats:ladder:collect
+```
+
+The command reads the local client connection in memory, resolves the top 100
+players in each standard Solo/Duo apex tier, and atomically writes only the
+sanitized projection to `.tmp/china-stats-ladder-snapshot.json`. It never prints
+or stores the LCU token or PUUIDs. Review only bounded metadata such as platform,
+capture time, tier counts, and total row count; do not copy player rows into
+logs, issues, or documentation.
+
+After selecting the isolated preview target and supplying its secret through
+process environment variables, upload with:
+
+```powershell
+npm run china-stats:ladder:upload
+```
+
+Preview verification must prove: an exact retry is a no-op; an older capture and
+a same-time changed payload are rejected; Ionia and Super Server cannot replace
+one another; a missing/wrong secret, oversized body, malformed snapshot, and
+browser-role table read all fail closed; the allowlisted page returns only the
+public projection; and a non-allowlisted ECL account remains denied. Record the
+migration, preview deployment, capture platform/time/count, endpoint statuses,
+and rollback target without credentials or player identities.
+
+The first rollback is `CHINA_STATS_LADDER_INGEST_ENABLED=false`. Preserve the
+last coherent row for diagnosis; the read API will stop presenting it after the
+24-hour freshness limit. Dropping the table, deleting rows, rotating unrelated
+credentials, or enabling production ingestion each requires a separate review
+and explicit environment authorization.
 
 #### Manual Lzyumi refresh permit rollout
 

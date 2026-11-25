@@ -61,6 +61,14 @@ function riotId(value: unknown) {
   return normalized;
 }
 
+function captureTime(value: unknown) {
+  const milliseconds = typeof value === "string" ? Date.parse(value) : Number.NaN;
+  if (!Number.isFinite(milliseconds)
+    || milliseconds > Date.now() + 5 * 60_000
+    || milliseconds < Date.now() - MAX_SNAPSHOT_AGE_MS) return null;
+  return new Date(milliseconds).toISOString();
+}
+
 export function normalizeChinaStatsLadderSnapshot(value: unknown): ChinaStatsLadderSnapshot | null {
   const source = record(value);
   if (!source || source.connected !== true || typeof source.platform !== "string") return null;
@@ -69,10 +77,8 @@ export function normalizeChinaStatsLadderSnapshot(value: unknown): ChinaStatsLad
   const server = PLATFORM_SERVER[platformId];
   if (!server) return null;
 
-  const capturedAtMs = typeof source.capturedAt === "string" ? Date.parse(source.capturedAt) : Number.NaN;
-  if (!Number.isFinite(capturedAtMs)
-    || capturedAtMs > Date.now() + 5 * 60_000
-    || capturedAtMs < Date.now() - MAX_SNAPSHOT_AGE_MS) return null;
+  const capturedAt = captureTime(source.capturedAt);
+  if (!capturedAt) return null;
 
   const results = Array.isArray(source.results) ? source.results : [];
   const coverage: ChinaStatsLadderCoverage[] = [];
@@ -87,7 +93,7 @@ export function normalizeChinaStatsLadderSnapshot(value: unknown): ChinaStatsLad
         && candidate.tier === expectedTier);
     if (!group) return null;
 
-    const totalAvailable = integer(group.rowCount, 0, 100_000);
+    const totalAvailable = integer(group.rowCount, 1, 100_000);
     if (totalAvailable === null) return null;
 
     const accepted: ChinaStatsLadderRow[] = [];
@@ -109,6 +115,7 @@ export function normalizeChinaStatsLadderSnapshot(value: unknown): ChinaStatsLad
       accepted.push({ rank, riotId: id, tier: expectedTier, leaguePoints, wins, losses, profileIconId });
     }
     accepted.sort((left, right) => left.rank - right.rank || right.leaguePoints - left.leaguePoints);
+    if (accepted.length === 0) return null;
     rows.push(...accepted);
     coverage.push({ tier: expectedTier, totalAvailable, shown: accepted.length });
   }
@@ -121,7 +128,75 @@ export function normalizeChinaStatsLadderSnapshot(value: unknown): ChinaStatsLad
     serverName: CHINA_STATS_SERVERS[server].name,
     platformId,
     queue: "RANKED_SOLO_5x5",
-    capturedAt: new Date(capturedAtMs).toISOString(),
+    capturedAt,
+    coverage,
+    rows,
+  };
+}
+
+export function validateChinaStatsLadderSnapshot(value: unknown): ChinaStatsLadderSnapshot | null {
+  const source = record(value);
+  if (!source
+    || source.schemaVersion !== 1
+    || source.source !== "LCU_APEX_LADDER"
+    || source.queue !== "RANKED_SOLO_5x5"
+    || typeof source.platformId !== "string"
+    || typeof source.server !== "string") return null;
+
+  const platformId = source.platformId.trim().toUpperCase();
+  const server = PLATFORM_SERVER[platformId];
+  if (!server || source.server !== server) return null;
+  const capturedAt = captureTime(source.capturedAt);
+  if (!capturedAt) return null;
+
+  const coverageSource = Array.isArray(source.coverage) ? source.coverage.map(record) : [];
+  const coverage: ChinaStatsLadderCoverage[] = [];
+  for (const expectedTier of CHINA_STATS_LADDER_TIERS) {
+    const matches = coverageSource.filter((candidate) => tier(candidate?.tier) === expectedTier);
+    if (matches.length !== 1) return null;
+    const totalAvailable = integer(matches[0]?.totalAvailable, 1, 100_000);
+    const shown = integer(matches[0]?.shown, 1, 100_000);
+    if (totalAvailable === null || shown === null || shown > totalAvailable) return null;
+    coverage.push({ tier: expectedTier, totalAvailable, shown });
+  }
+
+  if (!Array.isArray(source.rows) || source.rows.length > 30_000) return null;
+  const rows: ChinaStatsLadderRow[] = [];
+  const identities = new Set<string>();
+  const ranks = new Set<number>();
+  for (const candidate of source.rows) {
+    const row = record(candidate);
+    if (!row) return null;
+    const rowTier = tier(row.tier);
+    const rank = integer(row.rank, 1, 100_000);
+    const id = riotId(row.riotId);
+    const leaguePoints = integer(row.leaguePoints, 0, 100_000);
+    const wins = integer(row.wins, 0, 100_000);
+    const losses = integer(row.losses, 0, 100_000);
+    const profileIconId = row.profileIconId === null || row.profileIconId === undefined
+      ? null
+      : integer(row.profileIconId, 0, 100_000);
+    if (!rowTier || rank === null || !id || leaguePoints === null || wins === null || losses === null) return null;
+    const identityKey = id.toLocaleLowerCase("en-US");
+    if (identities.has(identityKey) || ranks.has(rank)) return null;
+    identities.add(identityKey);
+    ranks.add(rank);
+    rows.push({ rank, riotId: id, tier: rowTier, leaguePoints, wins, losses, profileIconId });
+  }
+
+  for (const item of coverage) {
+    if (rows.filter((row) => row.tier === item.tier).length !== item.shown) return null;
+  }
+  rows.sort((left, right) => left.rank - right.rank || right.leaguePoints - left.leaguePoints);
+
+  return {
+    schemaVersion: 1,
+    source: "LCU_APEX_LADDER",
+    server,
+    serverName: CHINA_STATS_SERVERS[server].name,
+    platformId,
+    queue: "RANKED_SOLO_5x5",
+    capturedAt,
     coverage,
     rows,
   };

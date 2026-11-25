@@ -1,6 +1,6 @@
 # ECL architecture
 
-Last reviewed: 2026-11-13
+Last reviewed: 2026-11-26
 
 ## System boundary
 
@@ -108,6 +108,7 @@ Approved last-minute guest substitutes are represented inside the tournament rep
 - Shared-secret service calls authenticate the service, not every business action. The API must still validate the acting KOOK ID, session membership, admin override, and resource state.
 - Lzyumi/WeGame payloads must be structurally validated and bound to the expected Riot identity and server.
 - A local League-client ladder collector is a privileged edge input, not a browser or serverless trust shortcut. It must sanitize client credentials and stable provider identifiers before upload; the web API must independently validate platform, queue, tier coverage, values, capture time, and collector authorization before replacing a durable snapshot. The current file-backed China Stats ladder is local-development-only.
+- Durable China Stats ladder state is one sanitized PostgreSQL row per China server. A dedicated disabled-by-default service secret authenticates collector uploads; a per-server transaction advisory lock prevents stale replacement and same-time content drift. Supabase browser roles have no table privileges, and allowlisted viewers receive only the validated public projection through the no-store API.
 - Raw provider data and contact fields are private operational data unless explicitly projected into a public view.
 
 ## Known structural risks

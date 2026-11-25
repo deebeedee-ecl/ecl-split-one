@@ -1,6 +1,6 @@
 # ECL UI walkthrough
 
-Last reviewed: 2026-11-09
+Last reviewed: 2026-11-26
 
 ## Scope and evidence
 

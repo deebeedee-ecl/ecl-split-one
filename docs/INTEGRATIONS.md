@@ -1,6 +1,6 @@
 # ECL integration contracts
 
-Last reviewed: 2026-11-14
+Last reviewed: 2026-11-26
 
 This document records responsibilities and invariants, not credentials. Supported variable names live in `.env.example`; real values stay outside version control.
 
@@ -79,17 +79,33 @@ rows per tier and projects rank, full Riot ID, tier, LP, record, and profile
 icon; PUUIDs, summoner IDs, client credentials, and raw payloads are never sent
 to the browser.
 
-The snapshot file configured by `CHINA_STATS_LADDER_SNAPSHOT_PATH` is a
-local-development input, not a production ingestion design. The API validates
-the platform, capture time (including a 24-hour maximum age), queue, required
-tier groups, values, and identities before returning a no-store response.
-Production needs a separately reviewed,
-authenticated collector upload and durable snapshot store with freshness,
-pagination, replay, and rollback contracts. Super Server maps to platform
-`BGP2`, but its snapshot remains unverified until collected from a client
-session connected to that server. Per-player details continue to come from the
-existing Lzyumi browser flow; searched players are never used to fabricate the
-ladder.
+The snapshot file configured by `CHINA_STATS_LADDER_SNAPSHOT_PATH` remains a
+local-development override. The durable path is the additive
+`china_stats_ladder_snapshots` table: one sanitized public snapshot per server,
+read only through the authenticated leaderboard API. The disabled-by-default
+`POST /api/jobs/china-stats-ladder` boundary requires its own 32-or-more-character
+`CHINA_STATS_COLLECTOR_SECRET`; it never accepts the KOOK, job, or report-engine
+secret as a fallback. The server normalizes the upload before persistence and
+stores only platform, queue, capture time, tier coverage, public rows, a content
+hash, and collector schema version.
+
+Each server write takes a transaction-scoped advisory lock. A newer capture
+atomically replaces the prior row, an exact retry is a no-op, and an older or
+same-time/different-content upload is rejected. Both ingestion and reads enforce
+the 24-hour maximum age, exact platform-to-server mapping, standard Solo/Duo
+queue, required apex tiers, unique full Riot IDs, bounded numeric values, and
+coverage counts. Browser roles have all table privileges revoked by the
+additive migration. `CHINA_STATS_LADDER_INGEST_ENABLED=false` is the immediate
+write-path rollback; disabling it preserves the last coherent row and timestamp.
+
+The Windows collector resolves PUUIDs to current full Riot IDs inside the local
+League client, then writes only the sanitized projection under ignored `.tmp/`.
+The upload helper refuses files outside that directory and rejects credential,
+PUUID, summoner-ID, `openId`, or diagnostic credential markers before sending.
+Super Server maps to platform `BGP2`, but its snapshot remains unverified until
+collected from a client session connected to that server. Per-player details
+continue to come from the existing Lzyumi browser flow; searched players are
+never used to fabricate the ladder.
 
 #### Explicit manual refresh permit API (UI not deployed)
 
