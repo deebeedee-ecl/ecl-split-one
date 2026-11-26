@@ -226,6 +226,79 @@ immediately set the branch-scoped Preview
 same commit, and send a no-secret POST with `vercel curl`. Do not continue until
 the response is `COLLECTOR_UNAVAILABLE`.
 
+For an authorized production snapshot refresh, use the maintained production
+command instead of manually changing Vercel variables or reconstructing the
+temporary upload script. Run it only from a clean `main` checkout whose exact
+HEAD already has successful GitHub checks and a READY production Vercel
+deployment:
+
+```powershell
+npm run china-stats:ladder:production-smoke -- `
+  -ConfirmProductionWrite `
+  -SupabaseProjectRef <production-project-ref> `
+  -InputPath ".tmp/china-stats-ladder-ionia.json,.tmp/china-stats-ladder-super-server.json"
+```
+
+Supply one or two files. Each must stay under repository `.tmp`, be no more than
+2 MiB, be less than 24 hours old, contain exactly 100 sanitized rows for each of
+Challenger, Grandmaster, and Master, and use one supported source/schema pair:
+`LCU_APEX_LADDER`/v1 or `WEGAME_TIER_RANK`/v2. The two-input form must target
+different servers. The production Supabase ref is an explicit operator input;
+do not commit it, a database password, or a connection URI.
+
+The command verifies the migration history, v2 constraint, `postgres` table
+ownership, zero browser-role grants, no leftover migration role, existing
+snapshot freshness, exact CI/deployment SHA, and the initially disabled
+collector. It generates an independent collector secret in memory, adds or
+updates only the two dedicated production variables, redeploys the exact
+production commit, uploads each snapshot twice, and requires the retry to be
+`duplicate`. Its `finally` block restores
+`CHINA_STATS_LADDER_INGEST_ENABLED=false`, creates a final production redeploy,
+and proves `COLLECTOR_UNAVAILABLE`. A final Supabase read-only query confirms
+the platform, collector version, capture time, and 300 public rows for every
+supplied server without selecting player rows.
+
+`-ConfirmProductionWrite` is a mechanical guard, not authorization. The
+production database/configuration write, snapshot scope, and affected server(s)
+still require explicit approval. If the command is interrupted before its final
+disabled probe, immediately set the production ingest flag to `false`, redeploy
+the same reviewed commit, and do not resume until a no-secret POST returns
+`COLLECTOR_UNAVAILABLE`.
+
+If a reviewed Prisma migration must run but the primary Supabase database
+password is unavailable, do not reset that password merely for the migration
+and do not substitute ECL admin/session credentials. Use the authenticated
+Supabase CLI for a read-only preflight and create a time-limited, minimally
+privileged migration role with a random URI-safe password held only in process
+memory. Copy the exact Session pooler host from Supabase **Connect**; its cluster
+index cannot be inferred. Run only the reviewed migration files with
+`prisma db execute`, followed by `prisma migrate resolve --applied` for those
+exact names. Do not use `prisma migrate deploy` when an unrelated pending
+migration exists.
+
+PostgreSQL objects are owned by the role that creates them. Before removing a
+temporary migration role, assert that the intended migration metadata is
+complete and that a newly created snapshot table is still empty. The Supabase
+write channel connects as `postgres`, but it cannot transfer an object owned by
+the temporary role until it inherits that role. Perform the bounded cleanup in
+one transaction:
+
+```sql
+BEGIN;
+GRANT <temporary-migrator-role> TO postgres;
+ALTER TABLE public.<new-table> OWNER TO postgres;
+REVOKE <temporary-migrator-role> FROM postgres;
+REVOKE ALL PRIVILEGES ON TABLE public._prisma_migrations
+  FROM <temporary-migrator-role>;
+REVOKE USAGE, CREATE ON SCHEMA public FROM <temporary-migrator-role>;
+DROP ROLE <temporary-migrator-role>;
+COMMIT;
+```
+
+If any assertion or cleanup statement fails, the transaction must roll back.
+Re-run a read-only ownership/dependency audit before another write; never repeat
+role creation or migration SQL blindly.
+
 #### Manual Lzyumi refresh permit rollout
 
 The permit ledger/API is an additive, disabled-by-default, owner-only capability. Apply and verify its Prisma migration in an isolated preview database before any production schema operation. Preview must prove that simultaneous issuance for one owner target produces only one permit, simultaneous consumption commits only once, invalid provider data preserves the prior snapshot/timestamp, a viewer-bound permit with correct target identity plus forged/foreign history cannot write or advance freshness, and Supabase browser roles have no ledger privileges. Do not enable viewer refresh from a browser-supplied response without a separately reviewed provider-attestation or equivalent trusted-response design.
