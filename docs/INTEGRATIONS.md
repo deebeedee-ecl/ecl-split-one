@@ -1,6 +1,6 @@
 # ECL integration contracts
 
-Last reviewed: 2026-11-25
+Last reviewed: 2026-11-27
 
 This document records responsibilities and invariants, not credentials. Supported variable names live in `.env.example`; real values stay outside version control.
 
@@ -12,7 +12,7 @@ Lzyumi is ECL's primary external provider for China-server Riot identity, rank, 
 
 - The server signs a short-lived request through `/api/lzyumi-sign`.
 - The authenticated player's browser fetches that URL so a provider that blocks cloud IPs sees the residential connection.
-- Opening another player's public profile renders the last verified snapshot and timestamp without signing or sending Lzyumi requests from the viewer's browser. Automatic and explicit browser refreshes are limited to the authenticated user's own profile; viewer refresh requires a separately trusted response design.
+- Opening another player's public profile renders the last verified snapshot and timestamp without signing or sending Lzyumi requests from the viewer's browser. The current automatic browser refresh is limited to the authenticated user's own profile until the explicit manual-refresh contract and its server-side request budgets are available.
 - Filter `1`: resolved identity/profile/rank.
 - Filter `2`: Solo/Duo history.
 - Filter `3`: Flex history.
@@ -34,6 +34,91 @@ they never weaken identity or custom-game validation. The UI does not expose
 `openId`, signed URLs, or raw provider payloads and has no result-write action.
 
 Acceptance requires matching the expected full Riot ID, China server, and `openId`. Save profile/rank/Solo/Flex as one coherent snapshot only after every required response passes validation. A rejected replacement preserves the prior snapshot and timestamp; do not independently advance freshness for an unchanged section. Application-code semantics are endpoint-specific and must not be copied to token/session-status endpoints.
+
+#### Hidden China-stats preview
+
+The direct-link `/labs/china-stats` surface is a noindex, feature-gated product
+preview. Its root redirects to the apex leaderboard, whose players link to the
+real-player lookup. It is available by default only in development. A
+deployed environment fails closed unless `CHINA_STATS_PREVIEW_ENABLED=true` is set
+deliberately and `CHINA_STATS_PREVIEW_ALLOWED_PROFILE_IDS` contains a valid,
+comma-separated allowlist of stable `AccountProfile.id` UUIDs.
+
+An isolated preview database may set `CHINA_STATS_PREVIEW_ACCESS_ORIGIN` to the
+canonical HTTPS origin. In that mode, preview routes forward the current
+Supabase bearer token only to the fixed `/api/china-stats/access` endpoint and
+accept only its boolean allow/deny result; redirects, malformed origins,
+failures, and non-2xx responses fail closed. Player data and the ladder
+snapshot remain in the isolated preview database, and the canonical deployment
+does not expose account records to preview.
+
+`/labs/china-stats/live` is a read-only browser lookup for one exact full Riot
+ID on Ionia (`areaId=1`) or Super Server (`areaId=31`). It uses the dedicated
+authenticated POST signer at `/api/china-stats/sign` and the residential-browser
+flow. The signer accepts only profile, Solo/Duo, Flex, optional recent-stat, and
+match-detail reads with fixed bounds; it does not expose a general provider URL
+signer. The lookup tries the bare name before the full Riot ID and accepts the
+result only after full Riot ID, server, and `openId` verification. A failed
+queue or recent-stat section is shown as unavailable rather than replaced with
+stale data. Match detail is lazy and capped at five unique requests per lookup.
+The preview does not persist provider data, expose signed URLs, `openId`, opaque
+provider game IDs, or raw payloads, and has no result-write action.
+
+The dedicated signer has a best-effort per-account warm-instance request
+ceiling. A small authenticated preview must also use the deployment platform's
+request controls; a broader public launch requires a durable cross-instance
+rate-limit contract. The legacy `/api/lzyumi-sign` contract remains unchanged
+for existing ECL flows and is not used by this preview.
+
+Knowing the direct URL is never an access grant. In deployed environments, the
+page calls the authenticated `/api/china-stats/access` boundary and renders the
+preview only for an active, verified allowlisted profile. The signer repeats
+the same server-side profile check and returns `403` for every other account,
+so bypassing the client gate does not grant provider access. Change the
+allowlist only through deployment configuration; never commit real profile IDs.
+
+`/labs/china-stats/leaderboard` reads a sanitized apex snapshot through the
+authenticated `/api/china-stats/leaderboard` boundary. Two collectors are
+supported. The local League client collector resolves apex PUUIDs to Riot IDs
+inside LCU and projects rank, full Riot ID, tier, LP, record, and profile icon.
+The browser-run WeGame collector uses the operator's existing logged-in WeGame
+page, projects rank, full Riot ID, tier, LP, profile icon, and public champion
+IDs, and discards WeGame `openid` before creating the file. WeGame does not
+supply wins/losses on this boundary, so those records remain unavailable rather
+than being fabricated. Both collectors store at most 100 rows per apex tier;
+PUUIDs, summoner IDs, `openid`, session credentials, and raw payloads are never
+uploaded.
+
+The snapshot file configured by `CHINA_STATS_LADDER_SNAPSHOT_PATH` remains a
+local-development override. The durable path is the additive
+`china_stats_ladder_snapshots` table: one sanitized public snapshot per server,
+read only through the authenticated leaderboard API. The disabled-by-default
+`POST /api/jobs/china-stats-ladder` boundary requires its own 32-or-more-character
+`CHINA_STATS_COLLECTOR_SECRET`; it never accepts the KOOK, job, or report-engine
+secret as a fallback. The server normalizes the upload before persistence and
+stores only platform, queue, capture time, tier coverage, public rows, a content
+hash, and collector schema version. The version also encodes provenance:
+version `1` is the LCU projection and version `2` is the WeGame tier-rank
+projection.
+
+Each server write takes a transaction-scoped advisory lock. A newer capture
+atomically replaces the prior row, an exact retry is a no-op, and an older or
+same-time/different-content upload is rejected. Both ingestion and reads enforce
+the 24-hour maximum age, exact platform-to-server mapping, standard Solo/Duo
+queue, required apex tiers, unique full Riot IDs, bounded numeric values, and
+coverage counts. Browser roles have all table privileges revoked by the
+additive migration. `CHINA_STATS_LADDER_INGEST_ENABLED=false` is the immediate
+write-path rollback; disabling it preserves the last coherent row and timestamp.
+
+The Windows collector resolves PUUIDs to current full Riot IDs inside the local
+League client, then writes only the sanitized projection under ignored `.tmp/`.
+The WeGame collector runs only on the official logged-in rank page and downloads
+the same bounded sanitized file; it never exports the browser session. The
+upload helper refuses files outside `.tmp/` and rejects credential, PUUID,
+summoner-ID, `openId`, or diagnostic credential markers before sending. Ionia
+maps to WeGame area `1` / platform `HN1`; Super Server maps to area `31` /
+platform `BGP2`. Per-player details continue to come from the existing Lzyumi
+browser flow; searched players are never used to fabricate the ladder.
 
 #### Explicit manual refresh permit API and owner UI
 

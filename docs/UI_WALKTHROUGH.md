@@ -1,6 +1,6 @@
 # ECL UI walkthrough
 
-Last reviewed: 2026-11-09
+Last reviewed: 2026-11-26
 
 ## Scope and evidence
 
@@ -149,6 +149,37 @@ uses the signed browser flow, displays its bounded request summary, and exposes
 only detail-confirmed `CUSTOM_GAME` candidates with sanitized participant rows
 and the private provider game ID. It has no submit, approve, publish, ranked,
 LP, or tournament write action.
+
+### China Stats preview
+
+`/labs/china-stats` is a direct-link, `noindex`, feature-gated preview for a
+possible standalone China-server analytics experience. Its root redirects to
+the apex leaderboard. The surface is absent from Hub navigation and uses the
+authenticated Hub gate in deployed environments. It then checks the stable active/verified
+profile against the server-side preview allowlist. Non-invited accounts see a
+preview-access message, and the signer independently returns `403`; knowing the
+URL is not sufficient.
+
+`/labs/china-stats/leaderboard` presents the latest validated client snapshot
+for Ionia or Super Server. It supports Challenger, Grandmaster, and Master tier
+filters, Riot-ID search, responsive rows, coverage/freshness context, and links
+each player into the existing live profile and match-history lookup. The first
+local prototype includes up to 100 resolved players per tier. A server without
+a collected snapshot has an explicit unavailable state; it does not reuse the
+other server's rows. The API repeats account and preview-allowlist authorization
+and never exposes client credentials, PUUIDs, summoner IDs, or raw payloads.
+
+`/labs/china-stats/live` requests one exact full Riot ID and either Ionia or
+Super Server, then uses the authenticated, fixed-scope
+`/api/china-stats/sign` POST contract and the residential-browser flow.
+Identity resolution is bounded to bare-name/full-ID attempts and must prove the
+full ID, selected server, and `openId`. Filters `1`, `2`, and `3` plus optional
+recent stats are normalized only in the current browser tab; partial Solo/Flex
+provider failure is labelled unavailable rather than empty. Match detail is
+lazy, limited to five user-triggered requests per lookup, and never renders the
+provider game ID. Queue record, win rate, form, streak, role mix, and champion
+pool are derived locally from the bounded history rows. The route performs no
+profile snapshot save, database write, report, LP, or tournament action.
 
 ### Account Settings
 

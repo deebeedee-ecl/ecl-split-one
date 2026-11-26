@@ -5,6 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
+      disallow: "/labs/",
     },
     sitemap: "https://eclchina.lol/sitemap.xml",
   };

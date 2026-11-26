@@ -1,0 +1,33 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
+import { HubAccessGate } from "@/app/(hub)/hub/_components/HubAccessGate";
+import { HubBootstrapProvider } from "@/app/(hub)/hub/_components/HubBootstrapProvider";
+import { isChinaStatsPreviewEnabled } from "@/lib/china-stats-preview-config";
+import { ChinaStatsLabFrame } from "./ChinaStatsLabFrame";
+import { ChinaStatsPreviewAccessGate } from "./ChinaStatsPreviewAccessGate";
+
+export const metadata: Metadata = {
+  title: "China Stats | ECL",
+  description: "China-server rankings, player profiles, and ranked match history.",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+  },
+};
+
+export default function ChinaStatsLabLayout({ children }: { children: ReactNode }) {
+  if (!isChinaStatsPreviewEnabled()) notFound();
+
+  const content = <ChinaStatsLabFrame>{children}</ChinaStatsLabFrame>;
+  const usesRemoteAccessVerification = Boolean(process.env.CHINA_STATS_PREVIEW_ACCESS_ORIGIN?.trim());
+
+  return process.env.NODE_ENV === "development" ? content : (
+    <HubBootstrapProvider>
+      <HubAccessGate allowProfileSetup={usesRemoteAccessVerification}>
+        <ChinaStatsPreviewAccessGate>{content}</ChinaStatsPreviewAccessGate>
+      </HubAccessGate>
+    </HubBootstrapProvider>
+  );
+}

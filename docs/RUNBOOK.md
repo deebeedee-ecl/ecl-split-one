@@ -1,6 +1,6 @@
 # ECL development and operations runbook
 
-Last reviewed: 2026-11-10
+Last reviewed: 2026-11-26
 
 ## Safe local start
 
@@ -88,6 +88,216 @@ For schema changes and durable workflow changes, prefer an expand/deploy/migrate
 5. Remove the old representation only in a later approved change.
 
 Do not combine irreversible cleanup with the first production deployment. High-risk behavior should use a feature flag or another reversible activation path when practical.
+
+#### China Stats ladder collector rollout
+
+The durable ladder is an additive, disabled-by-default write path. Do not apply
+`20261126030000_add_china_stats_ladder_snapshots` or the later
+`20261126180000_add_china_stats_ladder_v2` migration first in production.
+Apply both in order to an isolated preview database, confirm the table
+constraints and zero grants
+for `PUBLIC`, `anon`, and `authenticated`, then deploy compatible web code with
+`CHINA_STATS_LADDER_INGEST_ENABLED=false`. The migration creates no player rows,
+does not change ECL LP, and has no backfill.
+
+Generate an independent random collector secret of at least 32 characters. Keep
+the same value only in the target deployment's server-only
+`CHINA_STATS_COLLECTOR_SECRET` and the operator process used for upload. Do not
+reuse the KOOK, job, report-engine, admin, Lzyumi, or Supabase credentials. Set
+`CHINA_STATS_COLLECTOR_BASE_URL` only in the operator environment; it is not a
+deployed secret. Enabling ingestion is a separate preview configuration action.
+
+With the Tencent League client connected to the intended server, open an
+Administrator PowerShell in the repository and run:
+
+```powershell
+npm run china-stats:ladder:collect
+```
+
+The command reads the local client connection in memory, resolves the top 100
+players in each standard Solo/Duo apex tier, and atomically writes only the
+sanitized projection to `.tmp/china-stats-ladder-snapshot.json`. It never prints
+or stores the LCU token or PUUIDs. Review only bounded metadata such as platform,
+capture time, tier counts, and total row count; do not copy player rows into
+logs, issues, or documentation.
+
+For Super Server without a Super Server LCU account, use the official WeGame
+rank page in a normal logged-in Edge session:
+
+1. Open `https://www.wegame.com.cn/helper/lol/index.html#/rank/user-rank` and
+   confirm the leaderboard is visible.
+2. Open DevTools Console and run the complete contents of
+   `scripts/china-stats-wegame-collect.browser.js`.
+3. Choose area `31` for Super Server or `1` for Ionia. The script discovers the
+   current tier boundaries, samples the top 100 rows per tier, strips `openid`
+   and all unapproved fields, and downloads `china-stats-ladder-snapshot.json`.
+4. Move only that downloaded sanitized file to
+   `.tmp/china-stats-ladder-snapshot.json`. Do not export cookies, copy a raw
+   response, or save browser storage/network archives.
+
+The WeGame rank boundary has no W/L record. The v2 snapshot therefore stores a
+null record plus up to five public champion IDs. This is expected and must not
+be replaced with zeroes. The upload command and server normalization remain the
+same as for the LCU projection.
+
+After selecting the isolated preview target and supplying its secret through
+process environment variables, upload with:
+
+```powershell
+npm run china-stats:ladder:upload
+```
+
+For the standard isolated-preview smoke test, prefer the maintained command
+below instead of manually editing variables and calling the protected deployment
+with a normal HTTP client:
+
+```powershell
+npm run china-stats:ladder:preview-smoke -- -ConfirmPreviewWrite
+```
+
+Run it only after explicit authorization to mutate the isolated preview database
+and preview Vercel configuration. The worktree must be clean, the current branch
+must not be `main` or `master`, and Vercel must already have a READY deployment
+for the exact current commit. The command reads the sanitized JSON only from
+`.tmp`, rejects private identifier markers, generates a dedicated collector
+secret in memory, updates only branch-scoped Preview variables, redeploys the
+exact commit, and uses `vercel curl` so Vercel Deployment Protection is bypassed
+without bypassing the application collector secret. It uploads the same payload
+twice and requires the second result to be `duplicate`. Its `finally` block sets
+`CHINA_STATS_LADDER_INGEST_ENABLED=false`, redeploys, and proves the final
+endpoint returns `COLLECTOR_UNAVAILABLE`. It never uses `vercel env pull`,
+`vercel env run`, `.env.local`, or a secret file.
+
+The command assumes the branch-specific `DATABASE_URL` is already valid. For the
+current isolated preview project, the non-secret connection identity is:
+
+- project ref: `uwpqgzekiuonytixfjpp`;
+- role: `ecl_china_stats_preview`;
+- shared transaction-pooler username:
+  `ecl_china_stats_preview.uwpqgzekiuonytixfjpp`;
+- host: `aws-0-ap-northeast-2.pooler.supabase.com`;
+- port/database: `6543/postgres`.
+
+Re-copy the host from Supabase **Connect > Transaction pooler** before a future
+credential repair; the pooler cluster index must not be guessed. A credential
+repair is a separate approved preview-database write. Generate one URI-safe
+random password in memory, set that exact value on the custom Postgres role and
+inside the branch-specific Preview `DATABASE_URL`, and redeploy. Do not include
+placeholder brackets, quotes, or the password in logs, chat, files, or command
+output. Supavisor may briefly retain the old credential after rotation, so use a
+bounded retry rather than rotating again immediately.
+
+Known preview failure classifications:
+
+| Observed result | Meaning | Required response |
+| --- | --- | --- |
+| `P1000`, `TRANSACTION_START`, `AUTHENTICATION` | The pooler was reached, but the custom-role password and branch `DATABASE_URL` do not match. | Synchronize the role password and branch URL in one approved operation, redeploy, then allow for the bounded Supavisor credential-cache delay. |
+| `POOLER_IDENTITY` or tenant/user not found | The shared-pooler host or `[role].[project-ref]` username is wrong. | Copy the Transaction pooler string again; do not infer its host or omit the project ref. |
+| Plain HTTP `401` before an application JSON response | Vercel Deployment Protection intercepted the request. | Use the maintained command or `vercel curl`; do not weaken Deployment Protection. |
+| `P2010` at `ADVISORY_LOCK` | A Prisma raw query attempted to decode PostgreSQL's `void` lock result. | Confirm the deployment includes the `$executeRaw` advisory-lock fix; do not broaden database privileges. |
+| `Complete your Hub profile` on an isolated preview | The outer Hub gate tried to load a profile from the empty preview database. | Confirm the remote-access gate fix is deployed, use the stable branch alias, and log in once on that alias with the existing ECL account. |
+| A Vercel env change appears to have no effect | Vercel env values are captured by deployments. | Redeploy after every relevant branch-variable change and probe that new deployment, not an older URL. |
+
+Browser sessions are origin-scoped. Use the stable Vercel branch alias for UI
+smoke tests rather than a new immutable deployment URL each time. Log in once on
+that alias with the existing ECL credentials. When
+`CHINA_STATS_PREVIEW_ACCESS_ORIGIN` is configured, the isolated preview may pass
+the bearer token only to the fixed production `/api/china-stats/access` endpoint;
+the production allowlist remains authoritative and the preview database does not
+need copied account/profile rows.
+
+Preview verification must prove: an exact retry is a no-op; an older capture and
+a same-time changed payload are rejected; Ionia and Super Server cannot replace
+one another; a missing/wrong secret, oversized body, malformed snapshot, and
+browser-role table read all fail closed; the allowlisted page returns only the
+public projection; and a non-allowlisted ECL account remains denied. Record the
+migration, preview deployment, capture platform/time/count, endpoint statuses,
+and rollback target without credentials or player identities.
+
+The first rollback is `CHINA_STATS_LADDER_INGEST_ENABLED=false`. Preserve the
+last coherent row for diagnosis; the read API will stop presenting it after the
+24-hour freshness limit. Dropping the table, deleting rows, rotating unrelated
+credentials, or enabling production ingestion each requires a separate review
+and explicit environment authorization.
+
+If the maintained command is interrupted before its `finally` block completes,
+immediately set the branch-scoped Preview
+`CHINA_STATS_LADDER_INGEST_ENABLED=false`, redeploy a READY deployment for the
+same commit, and send a no-secret POST with `vercel curl`. Do not continue until
+the response is `COLLECTOR_UNAVAILABLE`.
+
+For an authorized production snapshot refresh, use the maintained production
+command instead of manually changing Vercel variables or reconstructing the
+temporary upload script. Run it only from a clean `main` checkout whose exact
+HEAD already has successful GitHub checks and a READY production Vercel
+deployment:
+
+```powershell
+npm run china-stats:ladder:production-smoke -- `
+  -ConfirmProductionWrite `
+  -SupabaseProjectRef <production-project-ref> `
+  -InputPath ".tmp/china-stats-ladder-ionia.json,.tmp/china-stats-ladder-super-server.json"
+```
+
+Supply one or two files. Each must stay under repository `.tmp`, be no more than
+2 MiB, be less than 24 hours old, contain exactly 100 sanitized rows for each of
+Challenger, Grandmaster, and Master, and use one supported source/schema pair:
+`LCU_APEX_LADDER`/v1 or `WEGAME_TIER_RANK`/v2. The two-input form must target
+different servers. The production Supabase ref is an explicit operator input;
+do not commit it, a database password, or a connection URI.
+
+The command verifies the migration history, v2 constraint, `postgres` table
+ownership, zero browser-role grants, no leftover migration role, existing
+snapshot freshness, exact CI/deployment SHA, and the initially disabled
+collector. It generates an independent collector secret in memory, adds or
+updates only the two dedicated production variables, redeploys the exact
+production commit, uploads each snapshot twice, and requires the retry to be
+`duplicate`. Its `finally` block restores
+`CHINA_STATS_LADDER_INGEST_ENABLED=false`, creates a final production redeploy,
+and proves `COLLECTOR_UNAVAILABLE`. A final Supabase read-only query confirms
+the platform, collector version, capture time, and 300 public rows for every
+supplied server without selecting player rows.
+
+`-ConfirmProductionWrite` is a mechanical guard, not authorization. The
+production database/configuration write, snapshot scope, and affected server(s)
+still require explicit approval. If the command is interrupted before its final
+disabled probe, immediately set the production ingest flag to `false`, redeploy
+the same reviewed commit, and do not resume until a no-secret POST returns
+`COLLECTOR_UNAVAILABLE`.
+
+If a reviewed Prisma migration must run but the primary Supabase database
+password is unavailable, do not reset that password merely for the migration
+and do not substitute ECL admin/session credentials. Use the authenticated
+Supabase CLI for a read-only preflight and create a time-limited, minimally
+privileged migration role with a random URI-safe password held only in process
+memory. Copy the exact Session pooler host from Supabase **Connect**; its cluster
+index cannot be inferred. Run only the reviewed migration files with
+`prisma db execute`, followed by `prisma migrate resolve --applied` for those
+exact names. Do not use `prisma migrate deploy` when an unrelated pending
+migration exists.
+
+PostgreSQL objects are owned by the role that creates them. Before removing a
+temporary migration role, assert that the intended migration metadata is
+complete and that a newly created snapshot table is still empty. The Supabase
+write channel connects as `postgres`, but it cannot transfer an object owned by
+the temporary role until it inherits that role. Perform the bounded cleanup in
+one transaction:
+
+```sql
+BEGIN;
+GRANT <temporary-migrator-role> TO postgres;
+ALTER TABLE public.<new-table> OWNER TO postgres;
+REVOKE <temporary-migrator-role> FROM postgres;
+REVOKE ALL PRIVILEGES ON TABLE public._prisma_migrations
+  FROM <temporary-migrator-role>;
+REVOKE USAGE, CREATE ON SCHEMA public FROM <temporary-migrator-role>;
+DROP ROLE <temporary-migrator-role>;
+COMMIT;
+```
+
+If any assertion or cleanup statement fails, the transaction must roll back.
+Re-run a read-only ownership/dependency audit before another write; never repeat
+role creation or migration SQL blindly.
 
 #### Manual Lzyumi refresh permit rollout
 
