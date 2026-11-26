@@ -92,8 +92,10 @@ Do not combine irreversible cleanup with the first production deployment. High-r
 #### China Stats ladder collector rollout
 
 The durable ladder is an additive, disabled-by-default write path. Do not apply
-`20261126030000_add_china_stats_ladder_snapshots` first in production. Apply it
-to an isolated preview database, confirm the table constraints and zero grants
+`20261126030000_add_china_stats_ladder_snapshots` or the later
+`20261126180000_add_china_stats_ladder_v2` migration first in production.
+Apply both in order to an isolated preview database, confirm the table
+constraints and zero grants
 for `PUBLIC`, `anon`, and `authenticated`, then deploy compatible web code with
 `CHINA_STATS_LADDER_INGEST_ENABLED=false`. The migration creates no player rows,
 does not change ECL LP, and has no backfill.
@@ -118,6 +120,25 @@ sanitized projection to `.tmp/china-stats-ladder-snapshot.json`. It never prints
 or stores the LCU token or PUUIDs. Review only bounded metadata such as platform,
 capture time, tier counts, and total row count; do not copy player rows into
 logs, issues, or documentation.
+
+For Super Server without a Super Server LCU account, use the official WeGame
+rank page in a normal logged-in Edge session:
+
+1. Open `https://www.wegame.com.cn/helper/lol/index.html#/rank/user-rank` and
+   confirm the leaderboard is visible.
+2. Open DevTools Console and run the complete contents of
+   `scripts/china-stats-wegame-collect.browser.js`.
+3. Choose area `31` for Super Server or `1` for Ionia. The script discovers the
+   current tier boundaries, samples the top 100 rows per tier, strips `openid`
+   and all unapproved fields, and downloads `china-stats-ladder-snapshot.json`.
+4. Move only that downloaded sanitized file to
+   `.tmp/china-stats-ladder-snapshot.json`. Do not export cookies, copy a raw
+   response, or save browser storage/network archives.
+
+The WeGame rank boundary has no W/L record. The v2 snapshot therefore stores a
+null record plus up to five public champion IDs. This is expected and must not
+be replaced with zeroes. The upload command and server normalization remain the
+same as for the LCU projection.
 
 After selecting the isolated preview target and supplying its secret through
 process environment variables, upload with:

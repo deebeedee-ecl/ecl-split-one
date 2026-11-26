@@ -85,7 +85,11 @@ export async function loadChinaStatsLadderSnapshot(
     if (!stored) return null;
     const snapshot = validateChinaStatsLadderSnapshot({
       schemaVersion: stored.collectorVersion,
-      source: "LCU_APEX_LADDER",
+      source: stored.collectorVersion === 1
+        ? "LCU_APEX_LADDER"
+        : stored.collectorVersion === 2
+          ? "WEGAME_TIER_RANK"
+          : null,
       server: stored.server,
       platformId: stored.platformId,
       queue: stored.queue,

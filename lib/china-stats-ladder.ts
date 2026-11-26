@@ -2,15 +2,17 @@ import { CHINA_STATS_SERVERS, type ChinaStatsServerKey } from "@/lib/china-stats
 
 export const CHINA_STATS_LADDER_TIERS = ["CHALLENGER", "GRANDMASTER", "MASTER"] as const;
 export type ChinaStatsLadderTier = (typeof CHINA_STATS_LADDER_TIERS)[number];
+export type ChinaStatsLadderSource = "LCU_APEX_LADDER" | "WEGAME_TIER_RANK";
 
 export type ChinaStatsLadderRow = {
   rank: number;
   riotId: string;
   tier: ChinaStatsLadderTier;
   leaguePoints: number;
-  wins: number;
-  losses: number;
+  wins: number | null;
+  losses: number | null;
   profileIconId: number | null;
+  championIds?: number[];
 };
 
 export type ChinaStatsLadderCoverage = {
@@ -20,8 +22,8 @@ export type ChinaStatsLadderCoverage = {
 };
 
 export type ChinaStatsLadderSnapshot = {
-  schemaVersion: 1;
-  source: "LCU_APEX_LADDER";
+  schemaVersion: 1 | 2;
+  source: ChinaStatsLadderSource;
   server: ChinaStatsServerKey;
   serverName: string;
   platformId: string;
@@ -36,6 +38,11 @@ const PLATFORM_SERVER: Record<string, ChinaStatsServerKey> = {
   BGP2: "super-server",
 };
 
+const SOURCE_VERSION: Record<ChinaStatsLadderSource, 1 | 2> = {
+  LCU_APEX_LADDER: 1,
+  WEGAME_TIER_RANK: 2,
+};
+
 const MAX_SNAPSHOT_AGE_MS = 24 * 60 * 60_000;
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -43,6 +50,7 @@ function record(value: unknown): Record<string, unknown> | null {
     ? value as Record<string, unknown>
     : null;
 }
+
 function integer(value: unknown, minimum: number, maximum: number) {
   const number = typeof value === "number" ? value : Number(value);
   return Number.isInteger(number) && number >= minimum && number <= maximum ? number : null;
@@ -54,11 +62,23 @@ function tier(value: unknown): ChinaStatsLadderTier | null {
     : null;
 }
 
+function sourceName(value: unknown): ChinaStatsLadderSource | null {
+  return value === "LCU_APEX_LADDER" || value === "WEGAME_TIER_RANK" ? value : null;
+}
+
 function riotId(value: unknown) {
   if (typeof value !== "string") return null;
   const normalized = value.trim();
   if (normalized.length < 3 || normalized.length > 80 || !normalized.includes("#")) return null;
   return normalized;
+}
+
+function championIds(value: unknown) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 5) return null;
+  const ids = value.map((candidate) => integer(candidate, 1, 10_000));
+  if (ids.some((candidate) => candidate === null)) return null;
+  return [...new Set(ids as number[])];
 }
 
 function captureTime(value: unknown) {
@@ -69,21 +89,51 @@ function captureTime(value: unknown) {
   return new Date(milliseconds).toISOString();
 }
 
-export function normalizeChinaStatsLadderSnapshot(value: unknown): ChinaStatsLadderSnapshot | null {
-  const source = record(value);
-  if (!source || source.connected !== true || typeof source.platform !== "string") return null;
+function normalizeRow(
+  candidate: unknown,
+  expectedTier: ChinaStatsLadderTier,
+  source: ChinaStatsLadderSource,
+): ChinaStatsLadderRow | null {
+  const row = record(candidate);
+  if (!row || tier(row.tier) !== expectedTier) return null;
+  const rank = integer(row.rank, 1, 100_000);
+  const id = riotId(row.riotId);
+  const leaguePoints = integer(row.leaguePoints, 0, 100_000);
+  const profileIconId = row.profileIconId === null || row.profileIconId === undefined
+    ? null
+    : integer(row.profileIconId, 0, 100_000);
+  const champions = championIds(row.championIds);
+  if (rank === null || !id || leaguePoints === null || champions === null) return null;
 
-  const platformId = source.platform.trim().toUpperCase();
+  if (source === "LCU_APEX_LADDER") {
+    const wins = integer(row.wins, 0, 100_000);
+    const losses = integer(row.losses, 0, 100_000);
+    if (wins === null || losses === null) return null;
+    if (champions.length > 0) return null;
+    return { rank, riotId: id, tier: expectedTier, leaguePoints, wins, losses, profileIconId };
+  }
+
+  if ((row.wins !== null && row.wins !== undefined) || (row.losses !== null && row.losses !== undefined)) return null;
+  return { rank, riotId: id, tier: expectedTier, leaguePoints, wins: null, losses: null, profileIconId, championIds: champions };
+}
+
+export function normalizeChinaStatsLadderSnapshot(value: unknown): ChinaStatsLadderSnapshot | null {
+  const input = record(value);
+  if (!input || input.connected !== true || typeof input.platform !== "string") return null;
+
+  const source = input.source === undefined ? "LCU_APEX_LADDER" : sourceName(input.source);
+  if (!source || (input.schemaVersion !== undefined && input.schemaVersion !== SOURCE_VERSION[source])) return null;
+  const platformId = input.platform.trim().toUpperCase();
   const server = PLATFORM_SERVER[platformId];
   if (!server) return null;
-
-  const capturedAt = captureTime(source.capturedAt);
+  const capturedAt = captureTime(input.capturedAt);
   if (!capturedAt) return null;
 
-  const results = Array.isArray(source.results) ? source.results : [];
+  const results = Array.isArray(input.results) ? input.results : [];
   const coverage: ChinaStatsLadderCoverage[] = [];
   const rows: ChinaStatsLadderRow[] = [];
   const identities = new Set<string>();
+  const ranks = new Set<number>();
 
   for (const expectedTier of CHINA_STATS_LADDER_TIERS) {
     const group = results
@@ -98,21 +148,13 @@ export function normalizeChinaStatsLadderSnapshot(value: unknown): ChinaStatsLad
 
     const accepted: ChinaStatsLadderRow[] = [];
     for (const candidate of Array.isArray(group.rows) ? group.rows : []) {
-      const row = record(candidate);
-      if (!row || tier(row.tier) !== expectedTier) continue;
-      const rank = integer(row.rank, 1, 100_000);
-      const id = riotId(row.riotId);
-      const leaguePoints = integer(row.leaguePoints, 0, 100_000);
-      const wins = integer(row.wins, 0, 100_000);
-      const losses = integer(row.losses, 0, 100_000);
-      const profileIconId = row.profileIconId === null || row.profileIconId === undefined
-        ? null
-        : integer(row.profileIconId, 0, 100_000);
-      if (rank === null || !id || leaguePoints === null || wins === null || losses === null) continue;
-      const identityKey = id.toLocaleLowerCase("en-US");
-      if (identities.has(identityKey)) continue;
+      const row = normalizeRow(candidate, expectedTier, source);
+      if (!row) continue;
+      const identityKey = row.riotId.toLocaleLowerCase("en-US");
+      if (identities.has(identityKey) || ranks.has(row.rank)) continue;
       identities.add(identityKey);
-      accepted.push({ rank, riotId: id, tier: expectedTier, leaguePoints, wins, losses, profileIconId });
+      ranks.add(row.rank);
+      accepted.push(row);
     }
     accepted.sort((left, right) => left.rank - right.rank || right.leaguePoints - left.leaguePoints);
     if (accepted.length === 0) return null;
@@ -122,8 +164,8 @@ export function normalizeChinaStatsLadderSnapshot(value: unknown): ChinaStatsLad
 
   rows.sort((left, right) => left.rank - right.rank || right.leaguePoints - left.leaguePoints);
   return {
-    schemaVersion: 1,
-    source: "LCU_APEX_LADDER",
+    schemaVersion: SOURCE_VERSION[source],
+    source,
     server,
     serverName: CHINA_STATS_SERVERS[server].name,
     platformId,
@@ -135,21 +177,22 @@ export function normalizeChinaStatsLadderSnapshot(value: unknown): ChinaStatsLad
 }
 
 export function validateChinaStatsLadderSnapshot(value: unknown): ChinaStatsLadderSnapshot | null {
-  const source = record(value);
-  if (!source
-    || source.schemaVersion !== 1
-    || source.source !== "LCU_APEX_LADDER"
-    || source.queue !== "RANKED_SOLO_5x5"
-    || typeof source.platformId !== "string"
-    || typeof source.server !== "string") return null;
+  const input = record(value);
+  const source = sourceName(input?.source);
+  if (!input
+    || !source
+    || input.schemaVersion !== SOURCE_VERSION[source]
+    || input.queue !== "RANKED_SOLO_5x5"
+    || typeof input.platformId !== "string"
+    || typeof input.server !== "string") return null;
 
-  const platformId = source.platformId.trim().toUpperCase();
+  const platformId = input.platformId.trim().toUpperCase();
   const server = PLATFORM_SERVER[platformId];
-  if (!server || source.server !== server) return null;
-  const capturedAt = captureTime(source.capturedAt);
+  if (!server || input.server !== server) return null;
+  const capturedAt = captureTime(input.capturedAt);
   if (!capturedAt) return null;
 
-  const coverageSource = Array.isArray(source.coverage) ? source.coverage.map(record) : [];
+  const coverageSource = Array.isArray(input.coverage) ? input.coverage.map(record) : [];
   const coverage: ChinaStatsLadderCoverage[] = [];
   for (const expectedTier of CHINA_STATS_LADDER_TIERS) {
     const matches = coverageSource.filter((candidate) => tier(candidate?.tier) === expectedTier);
@@ -160,28 +203,21 @@ export function validateChinaStatsLadderSnapshot(value: unknown): ChinaStatsLadd
     coverage.push({ tier: expectedTier, totalAvailable, shown });
   }
 
-  if (!Array.isArray(source.rows) || source.rows.length > 30_000) return null;
+  if (!Array.isArray(input.rows) || input.rows.length > 30_000) return null;
   const rows: ChinaStatsLadderRow[] = [];
   const identities = new Set<string>();
   const ranks = new Set<number>();
-  for (const candidate of source.rows) {
-    const row = record(candidate);
+  for (const candidate of input.rows) {
+    const rowRecord = record(candidate);
+    const rowTier = tier(rowRecord?.tier);
+    if (!rowTier) return null;
+    const row = normalizeRow(rowRecord, rowTier, source);
     if (!row) return null;
-    const rowTier = tier(row.tier);
-    const rank = integer(row.rank, 1, 100_000);
-    const id = riotId(row.riotId);
-    const leaguePoints = integer(row.leaguePoints, 0, 100_000);
-    const wins = integer(row.wins, 0, 100_000);
-    const losses = integer(row.losses, 0, 100_000);
-    const profileIconId = row.profileIconId === null || row.profileIconId === undefined
-      ? null
-      : integer(row.profileIconId, 0, 100_000);
-    if (!rowTier || rank === null || !id || leaguePoints === null || wins === null || losses === null) return null;
-    const identityKey = id.toLocaleLowerCase("en-US");
-    if (identities.has(identityKey) || ranks.has(rank)) return null;
+    const identityKey = row.riotId.toLocaleLowerCase("en-US");
+    if (identities.has(identityKey) || ranks.has(row.rank)) return null;
     identities.add(identityKey);
-    ranks.add(rank);
-    rows.push({ rank, riotId: id, tier: rowTier, leaguePoints, wins, losses, profileIconId });
+    ranks.add(row.rank);
+    rows.push(row);
   }
 
   for (const item of coverage) {
@@ -190,8 +226,8 @@ export function validateChinaStatsLadderSnapshot(value: unknown): ChinaStatsLadd
   rows.sort((left, right) => left.rank - right.rank || right.leaguePoints - left.leaguePoints);
 
   return {
-    schemaVersion: 1,
-    source: "LCU_APEX_LADDER",
+    schemaVersion: SOURCE_VERSION[source],
+    source,
     server,
     serverName: CHINA_STATS_SERVERS[server].name,
     platformId,
@@ -201,4 +237,3 @@ export function validateChinaStatsLadderSnapshot(value: unknown): ChinaStatsLadd
     rows,
   };
 }
-

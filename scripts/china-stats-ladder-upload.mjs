@@ -33,7 +33,7 @@ if (!metadata.isFile() || metadata.size < 2 || metadata.size > MAX_BODY_BYTES) {
   throw new Error("The sanitized collector snapshot has an invalid size.");
 }
 const body = await readFile(inputPath, "utf8");
-if (/"(?:puuid|summonerId|openId|credentialSource)"\s*:/i.test(body)
+if (/"(?:puuid|summonerId|openId|openid|credentialSource)"\s*:/i.test(body)
   || /remoting-auth-token/i.test(body)) {
   throw new Error("The collector snapshot contains a private identifier or credential marker and will not be uploaded.");
 }

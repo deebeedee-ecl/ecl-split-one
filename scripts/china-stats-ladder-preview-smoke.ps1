@@ -181,12 +181,25 @@ try {
     throw 'The collector input must be an existing JSON file under the repository .tmp directory.'
   }
   $snapshotText = [IO.File]::ReadAllText($script:resolvedInputPath)
-  if ($snapshotText -match '"(?:puuid|summonerId|openId|credentialSource)"\s*:' `
+  if ($snapshotText -match '"(?:puuid|summonerId|openId|openid|credentialSource)"\s*:' `
     -or $snapshotText -match 'remoting-auth-token') {
     throw 'The collector input contains a private identifier or credential marker.'
   }
   $snapshot = $snapshotText | ConvertFrom-Json
-  if (-not $snapshot.server -or -not $snapshot.capturedAt -or @($snapshot.rows).Count -eq 0) {
+  $expectedSource = if ($snapshot.schemaVersion -eq 1) {
+    'LCU_APEX_LADDER'
+  } elseif ($snapshot.schemaVersion -eq 2) {
+    'WEGAME_TIER_RANK'
+  } else {
+    ''
+  }
+  $resultRows = @($snapshot.results | ForEach-Object { @($_.rows) })
+  if ($snapshot.connected -ne $true `
+    -or $snapshot.source -ne $expectedSource `
+    -or $snapshot.platform -notin @('HN1', 'BGP2') `
+    -or -not $snapshot.capturedAt `
+    -or @($snapshot.results).Count -ne 3 `
+    -or $resultRows.Count -eq 0) {
     throw 'The collector input does not contain a complete sanitized snapshot.'
   }
   $snapshotText = $null

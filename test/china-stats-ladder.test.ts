@@ -49,6 +49,39 @@ function group(tier: string, rowCount: number, rank: number, riotId: string) {
   };
 }
 
+function weGameSource(platform = "BGP2") {
+  return {
+    schemaVersion: 2,
+    source: "WEGAME_TIER_RANK",
+    connected: true,
+    platform,
+    capturedAt: new Date(Date.now() - 60_000).toISOString(),
+    results: [
+      weGameGroup("CHALLENGER", 199, 1, "Alpha#WG"),
+      weGameGroup("GRANDMASTER", 504, 200, "Bravo#WG"),
+      weGameGroup("MASTER", 9_297, 704, "Charlie#WG"),
+    ],
+  };
+}
+
+function weGameGroup(tier: string, rowCount: number, rank: number, riotId: string) {
+  return {
+    ok: true,
+    queue: "RANKED_SOLO_5x5",
+    tier,
+    rowCount,
+    rows: [{
+      rank,
+      riotId,
+      tier,
+      leaguePoints: 1_500,
+      profileIconId: 29,
+      championIds: [221, 799, 18],
+      openid: "must-not-leak",
+    }],
+  };
+}
+
 test("normalizes an Ionia apex snapshot into the public projection", () => {
   const snapshot = normalizeChinaStatsLadderSnapshot(source());
 
@@ -72,6 +105,22 @@ test("maps BGP2 to Super Server and rejects unknown or incomplete sources", () =
   const stale = source();
   stale.capturedAt = new Date(Date.now() - 25 * 60 * 60_000).toISOString();
   assert.equal(normalizeChinaStatsLadderSnapshot(stale), null);
+});
+
+test("normalizes WeGame tier rank without fabricating records or retaining openid", () => {
+  const snapshot = normalizeChinaStatsLadderSnapshot(weGameSource());
+
+  assert.ok(snapshot);
+  assert.equal(snapshot.schemaVersion, 2);
+  assert.equal(snapshot.source, "WEGAME_TIER_RANK");
+  assert.equal(snapshot.server, "super-server");
+  assert.deepEqual(snapshot.coverage.map((item) => item.totalAvailable), [199, 504, 9_297]);
+  assert.deepEqual(snapshot.rows[0].championIds, [221, 799, 18]);
+  assert.equal(snapshot.rows[0].wins, null);
+  assert.equal(snapshot.rows[0].losses, null);
+  assert.equal("openid" in snapshot.rows[0], false);
+  assert.deepEqual(validateChinaStatsLadderSnapshot(snapshot), snapshot);
+  assert.equal(validateChinaStatsLadderSnapshot({ ...snapshot, schemaVersion: 1 }), null);
 });
 
 test("validates the durable public projection without accepting identity drift", () => {
@@ -169,7 +218,7 @@ test("durable ladder writes lock by server and reject rollback, replay drift, an
 
   const conflict: ChinaStatsLadderSnapshot = {
     ...snapshot,
-    rows: snapshot.rows.map((row, index) => index === 0 ? { ...row, wins: row.wins + 1 } : row),
+    rows: snapshot.rows.map((row, index) => index === 0 ? { ...row, wins: (row.wins ?? 0) + 1 } : row),
   };
   assert.equal((await storeChinaStatsLadderSnapshot(fake.database, conflict)).status, "conflict");
 
@@ -216,10 +265,12 @@ test("database failures are reduced to bounded categories without exposing messa
 });
 
 test("leaderboard route preserves account authorization and private identifiers", async () => {
-  const [route, ingestRoute, migration] = await Promise.all([
+  const [route, ingestRoute, initialMigration, sourceMigration, weGameCollector] = await Promise.all([
     readFile(new URL("../app/api/china-stats/leaderboard/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/jobs/china-stats-ladder/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../prisma/migrations/20261126030000_add_china_stats_ladder_snapshots/migration.sql", import.meta.url), "utf8"),
+    readFile(new URL("../prisma/migrations/20261126180000_add_china_stats_ladder_v2/migration.sql", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/china-stats-wegame-collect.browser.js", import.meta.url), "utf8"),
   ]);
 
   assert.match(route, /getAccountFromRequest/);
@@ -232,8 +283,14 @@ test("leaderboard route preserves account authorization and private identifiers"
   assert.match(ingestRoute, /MAX_BODY_BYTES/);
   assert.match(ingestRoute, /status === "stale"/);
   assert.doesNotMatch(ingestRoute, /ECL_JOB_SECRET|ECL_KOOK_BOT_SECRET|ECL_REPORT_ENGINE_SECRET/);
-  assert.match(migration, /REVOKE ALL PRIVILEGES[\s\S]*PUBLIC, anon, authenticated/);
-  assert.match(migration, /CHECK \(server IN \('ionia', 'super-server'\)\)/);
+  assert.match(initialMigration, /REVOKE ALL PRIVILEGES[\s\S]*PUBLIC, anon, authenticated/);
+  assert.match(initialMigration, /CHECK \(server IN \('ionia', 'super-server'\)\)/);
+  assert.match(sourceMigration, /collector_version IN \(1, 2\)/);
+  assert.match(weGameCollector, /source: "WEGAME_TIER_RANK"/);
+  assert.match(weGameCollector, /tierOrder/);
+  assert.match(weGameCollector, /candidateOrder <= expectedOrder/);
+  assert.match(weGameCollector, /rows\.push\(\{ rank, riotId, tier: group\.tier, leaguePoints, profileIconId, championIds \}\)/);
+  assert.doesNotMatch(weGameCollector, /rows\.push\(candidate\)|\.\.\.candidate/);
 });
 
 test("preview smoke command keeps the write window bounded and proves rollback", async () => {
@@ -251,5 +308,8 @@ test("preview smoke command keeps the write window bounded and proves rollback",
   assert.match(script, /CHINA_STATS_LADDER_INGEST_ENABLED' -Value 'false'/);
   assert.match(script, /COLLECTOR_UNAVAILABLE/);
   assert.match(script, /retry\.status -ne 'duplicate'/);
+  assert.match(script, /snapshot\.connected -ne \$true/);
+  assert.match(script, /WEGAME_TIER_RANK/);
+  assert.match(script, /openid/);
   assert.doesNotMatch(script, /vercel env (?:run|pull)/);
 });

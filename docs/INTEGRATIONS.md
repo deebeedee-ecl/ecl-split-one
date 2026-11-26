@@ -78,14 +78,16 @@ so bypassing the client gate does not grant provider access. Change the
 allowlist only through deployment configuration; never commit real profile IDs.
 
 `/labs/china-stats/leaderboard` reads a sanitized apex snapshot through the
-authenticated `/api/china-stats/leaderboard` boundary. A local Tencent League
-client probe verified the standard Solo/Duo apex standings source and the
-separate PUUID-to-Riot-ID batch resolution required for display. On Ionia
-(`HN1`), the observed client returned 200 Challenger, 500 Grandmaster, and
-10,000 Master standings. The first prototype stores only the top 100 resolved
-rows per tier and projects rank, full Riot ID, tier, LP, record, and profile
-icon; PUUIDs, summoner IDs, client credentials, and raw payloads are never sent
-to the browser.
+authenticated `/api/china-stats/leaderboard` boundary. Two collectors are
+supported. The local League client collector resolves apex PUUIDs to Riot IDs
+inside LCU and projects rank, full Riot ID, tier, LP, record, and profile icon.
+The browser-run WeGame collector uses the operator's existing logged-in WeGame
+page, projects rank, full Riot ID, tier, LP, profile icon, and public champion
+IDs, and discards WeGame `openid` before creating the file. WeGame does not
+supply wins/losses on this boundary, so those records remain unavailable rather
+than being fabricated. Both collectors store at most 100 rows per apex tier;
+PUUIDs, summoner IDs, `openid`, session credentials, and raw payloads are never
+uploaded.
 
 The snapshot file configured by `CHINA_STATS_LADDER_SNAPSHOT_PATH` remains a
 local-development override. The durable path is the additive
@@ -95,7 +97,9 @@ read only through the authenticated leaderboard API. The disabled-by-default
 `CHINA_STATS_COLLECTOR_SECRET`; it never accepts the KOOK, job, or report-engine
 secret as a fallback. The server normalizes the upload before persistence and
 stores only platform, queue, capture time, tier coverage, public rows, a content
-hash, and collector schema version.
+hash, and collector schema version. The version also encodes provenance:
+version `1` is the LCU projection and version `2` is the WeGame tier-rank
+projection.
 
 Each server write takes a transaction-scoped advisory lock. A newer capture
 atomically replaces the prior row, an exact retry is a no-op, and an older or
@@ -108,12 +112,13 @@ write-path rollback; disabling it preserves the last coherent row and timestamp.
 
 The Windows collector resolves PUUIDs to current full Riot IDs inside the local
 League client, then writes only the sanitized projection under ignored `.tmp/`.
-The upload helper refuses files outside that directory and rejects credential,
-PUUID, summoner-ID, `openId`, or diagnostic credential markers before sending.
-Super Server maps to platform `BGP2`, but its snapshot remains unverified until
-collected from a client session connected to that server. Per-player details
-continue to come from the existing Lzyumi browser flow; searched players are
-never used to fabricate the ladder.
+The WeGame collector runs only on the official logged-in rank page and downloads
+the same bounded sanitized file; it never exports the browser session. The
+upload helper refuses files outside `.tmp/` and rejects credential, PUUID,
+summoner-ID, `openId`, or diagnostic credential markers before sending. Ionia
+maps to WeGame area `1` / platform `HN1`; Super Server maps to area `31` /
+platform `BGP2`. Per-player details continue to come from the existing Lzyumi
+browser flow; searched players are never used to fabricate the ladder.
 
 #### Explicit manual refresh permit API (UI not deployed)
 

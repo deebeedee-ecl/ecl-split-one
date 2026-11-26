@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, Clock3, Loader2, Search, Server, ShieldCheck, Trophy, Users } from "lucide-react";
 import {
@@ -25,6 +26,17 @@ const TIER_STYLE: Record<ChinaStatsLadderTier, string> = {
 function winRate(wins: number, losses: number) {
   const games = wins + losses;
   return games ? wins / games * 100 : 0;
+}
+
+function hasRecord(row: ChinaStatsLadderSnapshot["rows"][number]): row is typeof row & { wins: number; losses: number } {
+  return row.wins !== null && row.losses !== null;
+}
+
+function ChampionPool({ championIds, compact = false }: { championIds?: number[]; compact?: boolean }) {
+  if (!championIds?.length) return <span className="text-[#65738a]">—</span>;
+  return <span className="flex items-center gap-1.5">{championIds.slice(0, compact ? 3 : 5).map((championId) => (
+    <Image key={championId} src={`/lol/champions/${championId}.png`} alt={`Champion ${championId}`} width={compact ? 28 : 32} height={compact ? 28 : 32} className={`${compact ? "h-7 w-7" : "h-8 w-8"} rounded-lg object-cover`} />
+  ))}</span>;
 }
 
 function tierLabel(tier: ChinaStatsLadderTier) {
@@ -98,13 +110,13 @@ export function ChinaStatsLeaderboardClient() {
         <div className="relative flex flex-col gap-7 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-2 text-sm font-black uppercase tracking-[0.12em] text-[#78e7ff]">
-              <ShieldCheck size={17} /> Verified client ladder snapshot
+              <ShieldCheck size={17} /> Verified ranked ladder snapshot
             </div>
             <h1 className="mt-4 text-4xl font-black tracking-[-0.05em] text-white sm:text-6xl">
               China Solo Queue <span className="text-[#36d7ff]">Leaderboard</span>
             </h1>
             <p className="mt-4 max-w-2xl text-base font-semibold leading-7 text-[#98a8bf]">
-              Apex rankings collected directly from the China League client, with player profiles and match history powered by the existing lookup flow.
+              Official China Solo/Duo rankings for Ionia and Super Server, linked to player profiles and recent match history.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -189,7 +201,9 @@ export function ChinaStatsLeaderboardClient() {
               <p className="mt-6 truncate text-xl font-black text-white group-hover:text-[#8eeaff]">{row.riotId}</p>
               <div className="mt-3 flex items-center justify-between text-sm font-bold">
                 <span className="text-[#98a6bb]">{row.leaguePoints.toLocaleString()} LP</span>
-                <span className="text-emerald-300">{winRate(row.wins, row.losses).toFixed(1)}% WR</span>
+                {hasRecord(row)
+                  ? <span className="text-emerald-300">{winRate(row.wins, row.losses).toFixed(1)}% WR</span>
+                  : <ChampionPool championIds={row.championIds} compact />}
               </div>
             </Link>
           ))}
@@ -213,22 +227,24 @@ export function ChinaStatsLeaderboardClient() {
           <Status icon={<Search size={28} className="text-[#77869c]" />} title="No matching player" body="Try another Riot ID or apex tier." />
         ) : (
           <>
-            <div className="hidden grid-cols-[5rem_minmax(15rem,1fr)_10rem_8rem_8rem_8rem] gap-4 border-b border-white/[0.08] px-6 py-4 text-sm font-black uppercase tracking-[0.1em] text-[#65738a] md:grid">
-              <span>Rank</span><span>Player</span><span>Tier</span><span className="text-right">LP</span><span className="text-right">Record</span><span className="text-right">Win rate</span>
+            <div className="hidden grid-cols-[5rem_minmax(15rem,1fr)_10rem_8rem_11rem_10rem] gap-4 border-b border-white/[0.08] px-6 py-4 text-sm font-black uppercase tracking-[0.1em] text-[#65738a] md:grid">
+              <span>Rank</span><span>Player</span><span>Tier</span><span className="text-right">LP</span><span>Most played</span><span className="text-right">Record</span>
             </div>
             <div className="divide-y divide-white/[0.06]">
               {rows.slice(0, visible).map((row) => (
                 <Link
                   key={`${row.tier}-${row.riotId}`}
                   href={`/labs/china-stats/live?server=${server}&riotId=${encodeURIComponent(row.riotId)}`}
-                  className="grid gap-3 px-5 py-5 transition hover:bg-[#36d7ff]/[0.035] md:grid-cols-[5rem_minmax(15rem,1fr)_10rem_8rem_8rem_8rem] md:items-center md:gap-4 md:px-6 md:py-4"
+                  className="grid gap-3 px-5 py-5 transition hover:bg-[#36d7ff]/[0.035] md:grid-cols-[5rem_minmax(15rem,1fr)_10rem_8rem_11rem_10rem] md:items-center md:gap-4 md:px-6 md:py-4"
                 >
                   <span className="text-2xl font-black text-white md:text-lg">#{row.rank}</span>
                   <div className="min-w-0"><p className="truncate text-base font-black text-white">{row.riotId}</p><p className="mt-1 text-sm font-semibold text-[#66758b]">View profile and match history</p></div>
                   <span className={`w-fit rounded-full border px-3 py-1.5 text-sm font-black ${TIER_STYLE[row.tier]}`}>{tierLabel(row.tier)}</span>
                   <span className="text-base font-black text-white md:text-right">{row.leaguePoints.toLocaleString()}</span>
-                  <span className="text-sm font-bold text-[#9aa8bc] md:text-right">{row.wins}W {row.losses}L</span>
-                  <span className="text-sm font-black text-emerald-300 md:text-right">{winRate(row.wins, row.losses).toFixed(1)}%</span>
+                  <ChampionPool championIds={row.championIds} />
+                  {hasRecord(row)
+                    ? <span className="text-sm font-bold text-[#9aa8bc] md:text-right"><span className="text-white">{row.wins}W {row.losses}L</span><span className="mt-1 block font-black text-emerald-300">{winRate(row.wins, row.losses).toFixed(1)}%</span></span>
+                    : <span className="text-sm font-bold text-[#77869c] md:text-right">Not provided</span>}
                 </Link>
               ))}
             </div>

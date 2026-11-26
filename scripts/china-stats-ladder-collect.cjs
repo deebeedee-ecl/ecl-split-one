@@ -150,6 +150,7 @@ function writeAtomically(value) {
 
   writeAtomically({
     schemaVersion: 1,
+    source: "LCU_APEX_LADDER",
     capturedAt: new Date().toISOString(),
     connected: true,
     platform,
