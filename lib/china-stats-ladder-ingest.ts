@@ -8,7 +8,7 @@ type StoredSnapshotIdentity = {
 };
 
 type LadderTransaction = {
-  $queryRaw<T>(query: Prisma.Sql): Promise<T>;
+  $executeRaw(query: Prisma.Sql): Promise<number>;
   chinaStatsLadderSnapshot: {
     findUnique(args: unknown): Promise<StoredSnapshotIdentity | null>;
     create(args: unknown): Promise<unknown>;
@@ -120,7 +120,7 @@ export async function storeChinaStatsLadderSnapshot(
   try {
     return await database.$transaction(async (transaction) => {
       stage = "ADVISORY_LOCK";
-      await transaction.$queryRaw(Prisma.sql`
+      await transaction.$executeRaw(Prisma.sql`
         SELECT pg_advisory_xact_lock(
           hashtextextended(${`china-stats-ladder:${snapshot.server}`}, 0)
         ) AS locked

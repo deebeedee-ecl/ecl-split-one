@@ -134,9 +134,9 @@ function fakeDatabase(initial: { capturedAt: Date; contentHash: string } | null 
   const database = {
     async $transaction<T>(operation: (transaction: never) => Promise<T>) {
       return operation({
-        async $queryRaw() {
+        async $executeRaw() {
           events.push("lock");
-          return [{ locked: null }];
+          return 1;
         },
         chinaStatsLadderSnapshot: {
           async findUnique() {
@@ -187,7 +187,7 @@ test("durable ladder write failures expose only their bounded store stage", asyn
   const database = {
     async $transaction<T>(operation: (transaction: never) => Promise<T>) {
       return operation({
-        async $queryRaw() {
+        async $executeRaw() {
           throw new Error("credential-like diagnostic details must not escape");
         },
       } as never);
