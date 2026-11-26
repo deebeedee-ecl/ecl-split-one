@@ -120,8 +120,8 @@ export function ChinaStatsLeaderboardClient() {
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Metric icon={<Users size={18} />} label="Collected" value={snapshot ? snapshot.rows.length.toLocaleString() : "—"} />
-            <Metric icon={<Trophy size={18} />} label="Apex pool" value={snapshot ? totalAvailable.toLocaleString() : "—"} />
+            <Metric icon={<Users size={18} />} label="Players shown" value={snapshot ? snapshot.rows.length.toLocaleString() : "—"} />
+            <Metric icon={<Trophy size={18} />} label="Apex players" value={snapshot ? totalAvailable.toLocaleString() : "—"} />
             <Metric icon={<Clock3 size={18} />} label="Snapshot" value={snapshot ? new Date(snapshot.capturedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"} wide />
           </div>
         </div>
@@ -180,9 +180,13 @@ export function ChinaStatsLeaderboardClient() {
         <div className="rounded-3xl border border-white/[0.08] bg-[#0d131d] p-5">
           <p className="text-sm font-black uppercase tracking-[0.12em] text-[#708097]">Coverage</p>
           <p className="mt-2 text-base font-bold text-white">
-            {snapshot ? `Top ${snapshot.coverage.map((item) => item.shown).join(" / ")} rows by tier` : "Waiting for snapshot"}
+            {snapshot
+              ? snapshot.coverage.map((item) => `${item.shown} ${tierLabel(item.tier)}`).join(" · ")
+              : "Waiting for snapshot"}
           </p>
-          <p className="mt-2 text-sm font-semibold leading-6 text-[#7f8da3]">The first prototype samples 100 players from each apex tier. Full Master pagination comes next.</p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-[#7f8da3]">
+            Showing the highest-ranked players available for each tier in this snapshot. Search by Riot ID or switch tiers to narrow the list.
+          </p>
         </div>
       </section>
 

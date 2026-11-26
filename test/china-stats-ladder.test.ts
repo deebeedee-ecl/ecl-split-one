@@ -293,6 +293,19 @@ test("leaderboard route preserves account authorization and private identifiers"
   assert.doesNotMatch(weGameCollector, /rows\.push\(candidate\)|\.\.\.candidate/);
 });
 
+test("leaderboard UI uses player-facing coverage copy and links rows to live lookup", async () => {
+  const source = await readFile(
+    new URL("../app/labs/china-stats/ChinaStatsLeaderboardClient.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /label="Players shown"/);
+  assert.match(source, /label="Apex players"/);
+  assert.match(source, /Showing the highest-ranked players available for each tier in this snapshot/);
+  assert.doesNotMatch(source, /first prototype|pagination comes next/i);
+  assert.match(source, /\/labs\/china-stats\/live\?server=\$\{server\}&riotId=\$\{encodeURIComponent\(row\.riotId\)\}/);
+});
+
 test("preview smoke command keeps the write window bounded and proves rollback", async () => {
   const [script, packageJson] = await Promise.all([
     readFile(new URL("../scripts/china-stats-ladder-preview-smoke.ps1", import.meta.url), "utf8"),
