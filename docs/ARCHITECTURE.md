@@ -1,6 +1,6 @@
 # ECL architecture
 
-Last reviewed: 2026-11-13
+Last reviewed: 2026-11-26
 
 ## System boundary
 
@@ -76,6 +76,25 @@ This client bootstrap controls presentation only. It is not an authorization bou
 
 The manual refresh UI is not deployed. ADR 0002 is implemented by a dedicated additive permit ledger plus authenticated issue/consume Route Handlers. The current API is owner-only at both issuance and consumption: a signed browser request constrains provider request parameters but does not attest the response body, so a viewer-controlled payload cannot write another player's snapshot. Issuance serializes target and requester scopes, stores only a hash of the opaque token, and returns a fixed server-derived browser bundle. Consumption locks the permit and target, revalidates the complete provider snapshot, and commits the coherent replacement with the one-use `ISSUED -> COMPLETED` transition in one transaction. Invalid core data rejects the permit without changing the prior snapshot or timestamp; optional recent-stat failure is stored as unavailable. The endpoints fail closed until the additive migration exists and explicit rollout policy variables enable them. The legacy owner background-save route also remains limited to the authenticated owner's own profile. Viewer refresh requires a separate trusted-response/attestation design and is not enabled by a permit alone. The permit flow does not reuse the scheduled `LzyumiRefreshQueue`.
 
+### China Stats apex ladder snapshot
+
+1. An operator collects a bounded public projection from either local LCU or a
+   logged-in official WeGame rank page. Provider credentials and stable private
+   identifiers never enter the projection.
+2. LCU schema v1 includes W/L records. WeGame schema v2 includes public
+   champion IDs and explicitly unavailable W/L fields; `openid` is discarded in
+   the browser before file creation.
+3. The upload helper accepts only ignored `.tmp` JSON, rejects private marker
+   names, and sends it to a dedicated disabled-by-default authenticated job
+   boundary.
+4. The server re-normalizes the complete snapshot, takes a per-server advisory
+   lock, and atomically creates or replaces the single Ionia or Super Server
+   row. Stale and same-time conflicting uploads fail closed.
+5. The allowlisted leaderboard API derives the source from the stored collector
+   version, verifies the content hash and 24-hour freshness, and returns only
+   the public projection. Player clicks enter the separate Lzyumi signed-browser
+   lookup.
+
 ### KOOK inhouse lifecycle
 
 1. The adjacent bot reads KOOK events and voice membership.
@@ -107,6 +126,8 @@ Approved last-minute guest substitutes are represented inside the tournament rep
 - KOOK and worker endpoints require their configured shared secret; missing secrets must fail closed.
 - Shared-secret service calls authenticate the service, not every business action. The API must still validate the acting KOOK ID, session membership, admin override, and resource state.
 - Lzyumi/WeGame payloads must be structurally validated and bound to the expected Riot identity and server.
+- A local League-client ladder collector is a privileged edge input, not a browser or serverless trust shortcut. It must sanitize client credentials and stable provider identifiers before upload; the web API must independently validate platform, queue, tier coverage, values, capture time, and collector authorization before replacing a durable snapshot. The current file-backed China Stats ladder is local-development-only.
+- Durable China Stats ladder state is one sanitized PostgreSQL row per China server. A dedicated disabled-by-default service secret authenticates collector uploads; a per-server transaction advisory lock prevents stale replacement and same-time content drift. Supabase browser roles have no table privileges, and allowlisted viewers receive only the validated public projection through the no-store API.
 - Raw provider data and contact fields are private operational data unless explicitly projected into a public view.
 
 ## Known structural risks

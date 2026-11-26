@@ -284,6 +284,22 @@ model LzyumiRefreshQueue {
   @@index([notifiedAt])
 }
 
+model ChinaStatsLadderSnapshot {
+  server           String   @id
+  platformId       String   @map("platform_id")
+  queue            String   @default("RANKED_SOLO_5x5")
+  capturedAt       DateTime @map("captured_at") @db.Timestamptz(3)
+  coverage         Json
+  rows             Json
+  contentHash      String   @map("content_hash")
+  collectorVersion Int      @default(1) @map("collector_version")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([capturedAt], map: "china_stats_ladder_snapshots_captured_idx")
+  @@map("china_stats_ladder_snapshots")
+}
+
 model LzyumiRefreshPermit {
   id                 String                    @id @default(uuid()) @db.Uuid
   tokenHash          String                    @unique @map("token_hash")

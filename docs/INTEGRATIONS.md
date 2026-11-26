@@ -1,6 +1,6 @@
 # ECL integration contracts
 
-Last reviewed: 2026-11-14
+Last reviewed: 2026-11-26
 
 This document records responsibilities and invariants, not credentials. Supported variable names live in `.env.example`; real values stay outside version control.
 
@@ -38,11 +38,19 @@ Acceptance requires matching the expected full Riot ID, China server, and `openI
 #### Hidden China-stats preview
 
 The direct-link `/labs/china-stats` surface is a noindex, feature-gated product
-preview. Its root redirects to the real-player lookup; no synthetic leaderboard
-or profile data is exposed. It is available by default only in development. A
+preview. Its root redirects to the apex leaderboard, whose players link to the
+real-player lookup. It is available by default only in development. A
 deployed environment fails closed unless `CHINA_STATS_PREVIEW_ENABLED=true` is set
 deliberately and `CHINA_STATS_PREVIEW_ALLOWED_PROFILE_IDS` contains a valid,
 comma-separated allowlist of stable `AccountProfile.id` UUIDs.
+
+An isolated preview database may set `CHINA_STATS_PREVIEW_ACCESS_ORIGIN` to the
+canonical HTTPS origin. In that mode, preview routes forward the current
+Supabase bearer token only to the fixed `/api/china-stats/access` endpoint and
+accept only its boolean allow/deny result; redirects, malformed origins,
+failures, and non-2xx responses fail closed. Player data and the ladder
+snapshot remain in the isolated preview database, and the canonical deployment
+does not expose account records to preview.
 
 `/labs/china-stats/live` is a read-only browser lookup for one exact full Riot
 ID on Ionia (`areaId=1`) or Super Server (`areaId=31`). It uses the dedicated
@@ -69,11 +77,48 @@ the same server-side profile check and returns `403` for every other account,
 so bypassing the client gate does not grant provider access. Change the
 allowlist only through deployment configuration; never commit real profile IDs.
 
-The currently inspected provider contract exposes per-player profile, history,
-detail, recent-stat, and rank-point routes, but no verified server-wide ladder
-endpoint. Do not derive a complete Challenger, Grandmaster, or Master
-leaderboard from searched players. A real ladder requires a separately reviewed
-source plus freshness, identity, pagination, and rate-limit contracts.
+`/labs/china-stats/leaderboard` reads a sanitized apex snapshot through the
+authenticated `/api/china-stats/leaderboard` boundary. Two collectors are
+supported. The local League client collector resolves apex PUUIDs to Riot IDs
+inside LCU and projects rank, full Riot ID, tier, LP, record, and profile icon.
+The browser-run WeGame collector uses the operator's existing logged-in WeGame
+page, projects rank, full Riot ID, tier, LP, profile icon, and public champion
+IDs, and discards WeGame `openid` before creating the file. WeGame does not
+supply wins/losses on this boundary, so those records remain unavailable rather
+than being fabricated. Both collectors store at most 100 rows per apex tier;
+PUUIDs, summoner IDs, `openid`, session credentials, and raw payloads are never
+uploaded.
+
+The snapshot file configured by `CHINA_STATS_LADDER_SNAPSHOT_PATH` remains a
+local-development override. The durable path is the additive
+`china_stats_ladder_snapshots` table: one sanitized public snapshot per server,
+read only through the authenticated leaderboard API. The disabled-by-default
+`POST /api/jobs/china-stats-ladder` boundary requires its own 32-or-more-character
+`CHINA_STATS_COLLECTOR_SECRET`; it never accepts the KOOK, job, or report-engine
+secret as a fallback. The server normalizes the upload before persistence and
+stores only platform, queue, capture time, tier coverage, public rows, a content
+hash, and collector schema version. The version also encodes provenance:
+version `1` is the LCU projection and version `2` is the WeGame tier-rank
+projection.
+
+Each server write takes a transaction-scoped advisory lock. A newer capture
+atomically replaces the prior row, an exact retry is a no-op, and an older or
+same-time/different-content upload is rejected. Both ingestion and reads enforce
+the 24-hour maximum age, exact platform-to-server mapping, standard Solo/Duo
+queue, required apex tiers, unique full Riot IDs, bounded numeric values, and
+coverage counts. Browser roles have all table privileges revoked by the
+additive migration. `CHINA_STATS_LADDER_INGEST_ENABLED=false` is the immediate
+write-path rollback; disabling it preserves the last coherent row and timestamp.
+
+The Windows collector resolves PUUIDs to current full Riot IDs inside the local
+League client, then writes only the sanitized projection under ignored `.tmp/`.
+The WeGame collector runs only on the official logged-in rank page and downloads
+the same bounded sanitized file; it never exports the browser session. The
+upload helper refuses files outside `.tmp/` and rejects credential, PUUID,
+summoner-ID, `openId`, or diagnostic credential markers before sending. Ionia
+maps to WeGame area `1` / platform `HN1`; Super Server maps to area `31` /
+platform `BGP2`. Per-player details continue to come from the existing Lzyumi
+browser flow; searched players are never used to fabricate the ladder.
 
 #### Explicit manual refresh permit API (UI not deployed)
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { AlertTriangle, BarChart3, ChevronDown, ChevronUp, Clock3, Loader2, Search, Server, ShieldCheck, Swords, Wifi } from "lucide-react";
 import { fetchLzyumiBrowserResponse, LzyumiBrowserContractError } from "@/lib/lzyumi-browser-contract";
 import { verifyFinderIdentity } from "@/lib/lzyumi-custom-game-finder";
@@ -83,9 +83,15 @@ function failureMessage(error: unknown) {
   return error instanceof Error ? error.message : "The player lookup failed.";
 }
 
-export function ChinaStatsLiveLookupClient() {
-  const [riotId, setRiotId] = useState("");
-  const [server, setServer] = useState<ChinaStatsServerKey>("ionia");
+export function ChinaStatsLiveLookupClient({
+  initialRiotId = "",
+  initialServer = "ionia",
+}: {
+  initialRiotId?: string;
+  initialServer?: ChinaStatsServerKey;
+}) {
+  const [riotId, setRiotId] = useState(initialRiotId);
+  const [server, setServer] = useState<ChinaStatsServerKey>(initialServer);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [snapshot, setSnapshot] = useState<LiveSnapshot | null>(null);
@@ -95,15 +101,16 @@ export function ChinaStatsLiveLookupClient() {
   const verifiedOpenId = useRef("");
   const championNames = useRef<ReadonlyMap<string, string>>(new Map());
   const requestedDetails = useRef(new Set<string>());
+  const autoSearched = useRef("");
 
-  async function search() {
-    const expected = splitRiotId(riotId);
+  async function search(targetRiotId = riotId, targetServer = server) {
+    const expected = splitRiotId(targetRiotId);
     if (!expected.riotName || !expected.riotTag) {
       setError("Enter the exact full Riot ID, including #tag.");
       return;
     }
 
-    const serverInfo = CHINA_STATS_SERVERS[server];
+    const serverInfo = CHINA_STATS_SERVERS[targetServer];
     setLoading(true);
     setError("");
     setSnapshot(null);
@@ -196,6 +203,17 @@ export function ChinaStatsLiveLookupClient() {
       setLoading(false);
     }
   }
+
+  const runInitialSearch = useEffectEvent((targetRiotId: string, targetServer: ChinaStatsServerKey) => {
+    void search(targetRiotId, targetServer);
+  });
+
+  useEffect(() => {
+    const key = `${initialServer}:${initialRiotId.trim().toLocaleLowerCase("en-US")}`;
+    if (!initialRiotId.trim() || autoSearched.current === key) return;
+    autoSearched.current = key;
+    runInitialSearch(initialRiotId, initialServer);
+  }, [initialRiotId, initialServer]);
 
   async function toggleDetail(match: ChinaStatsLiveMatch) {
     if (expandedMatch === match.providerGameId) {

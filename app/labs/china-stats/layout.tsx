@@ -21,10 +21,11 @@ export default function ChinaStatsLabLayout({ children }: { children: ReactNode 
   if (!isChinaStatsPreviewEnabled()) notFound();
 
   const content = <ChinaStatsLabFrame>{children}</ChinaStatsLabFrame>;
+  const usesRemoteAccessVerification = Boolean(process.env.CHINA_STATS_PREVIEW_ACCESS_ORIGIN?.trim());
 
   return process.env.NODE_ENV === "development" ? content : (
     <HubBootstrapProvider>
-      <HubAccessGate>
+      <HubAccessGate allowProfileSetup={usesRemoteAccessVerification}>
         <ChinaStatsPreviewAccessGate>{content}</ChinaStatsPreviewAccessGate>
       </HubAccessGate>
     </HubBootstrapProvider>
