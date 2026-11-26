@@ -33,6 +33,12 @@ The website/API and database are the ECL source of truth. External providers sup
 | Report engine | `report-engine/` | Always-on match-discovery and confirmation-job polling, China-server lookup/detail collection, and final KOOK result delivery |
 | Windows companion | `companion/` | Optional local client/data collection and desktop Hub experience; historical inhouse pilots used it for game-ID collection, but the current Lzyumi reporting path does not require it |
 
+The web runtime prefers the explicit `DATABASE_URL` contract. When it is absent,
+it accepts the Vercel/Supabase integration's standard `POSTGRES_PRISMA_URL` for
+the same Prisma datasource. This fallback does not override an existing
+`DATABASE_URL`, so production and operator-selected database targets retain
+priority.
+
 The report engine is deployed from `report-engine/` to the Railway service
 `ECL Report Engine` in the `production` environment. The same Railway project
 also contains `ecl-kook-bot`, but that service is owned by the adjacent
