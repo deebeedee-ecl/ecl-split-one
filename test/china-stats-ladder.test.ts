@@ -326,3 +326,43 @@ test("preview smoke command keeps the write window bounded and proves rollback",
   assert.match(script, /openid/);
   assert.doesNotMatch(script, /vercel env (?:run|pull)/);
 });
+
+test("production smoke command pins the release, checks Supabase, and always disables ingestion", async () => {
+  const [script, databaseCheck, packageJson, runbook] = await Promise.all([
+    readFile(new URL("../scripts/china-stats-ladder-production-smoke.ps1", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/china-stats-ladder-production-check.sql", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../docs/RUNBOOK.md", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(packageJson, /china-stats:ladder:production-smoke/);
+  assert.match(script, /ConfirmProductionWrite/);
+  assert.match(script, /SupabaseProjectRef/);
+  assert.match(script, /currentBranch -notin @\('main', 'master'\)/);
+  assert.match(script, /@\('git', 'gh', 'node', 'vercel', \$npxCommand\)/);
+  assert.match(script, /ExpectedProductionSha[\s\S]*currentSha/);
+  assert.match(script, /release-status\.mjs --sha/);
+  assert.match(script, /supabase db query/);
+  assert.match(script, /--read-only/);
+  assert.match(script, /created', 'replaced', 'duplicate/);
+  assert.match(script, /retry\.status -ne 'duplicate'/);
+  assert.match(script, /finally/);
+  assert.match(script, /CHINA_STATS_LADDER_INGEST_ENABLED' -Value 'false'/);
+  assert.match(script, /COLLECTOR_UNAVAILABLE/);
+  assert.match(script, /LCU_APEX_LADDER/);
+  assert.match(script, /WEGAME_TIER_RANK/);
+  assert.match(script, /Multiple inputs target/);
+  assert.match(script, /private identifier or credential marker/);
+  assert.doesNotMatch(script, /vercel env (?:run|pull)/);
+
+  assert.match(databaseCheck, /information_schema\.table_privileges/);
+  assert.match(databaseCheck, /browser_role_grant_count/);
+  assert.match(databaseCheck, /temporary_migrator_present/);
+  assert.match(databaseCheck, /jsonb_array_length\(rows\)/);
+  assert.doesNotMatch(databaseCheck, /SELECT\s+rows\b/i);
+
+  assert.match(runbook, /GRANT <temporary-migrator-role> TO postgres/);
+  assert.match(runbook, /ALTER TABLE public\.<new-table> OWNER TO postgres/);
+  assert.match(runbook, /prisma migrate resolve --applied/);
+  assert.match(runbook, /COLLECTOR_UNAVAILABLE/);
+});
