@@ -23,6 +23,7 @@
     "db:push:local": "node --env-file=.env.local scripts/db-push-local.mjs",
     "china-stats:ladder:collect": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/china-stats-ladder-collect.ps1",
     "china-stats:ladder:upload": "node scripts/china-stats-ladder-upload.mjs --input=.tmp/china-stats-ladder-snapshot.json",
+    "china-stats:ladder:preview-smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/china-stats-ladder-preview-smoke.ps1",
     "lint": "eslint",
     "postinstall": "prisma generate"
   },

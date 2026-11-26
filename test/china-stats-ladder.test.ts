@@ -235,3 +235,21 @@ test("leaderboard route preserves account authorization and private identifiers"
   assert.match(migration, /REVOKE ALL PRIVILEGES[\s\S]*PUBLIC, anon, authenticated/);
   assert.match(migration, /CHECK \(server IN \('ionia', 'super-server'\)\)/);
 });
+
+test("preview smoke command keeps the write window bounded and proves rollback", async () => {
+  const [script, packageJson] = await Promise.all([
+    readFile(new URL("../scripts/china-stats-ladder-preview-smoke.ps1", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(packageJson, /china-stats:ladder:preview-smoke/);
+  assert.match(script, /ConfirmPreviewWrite/);
+  assert.match(script, /--git-branch/);
+  assert.match(script, /githubCommitSha/);
+  assert.match(script, /vercel curl/);
+  assert.match(script, /finally/);
+  assert.match(script, /CHINA_STATS_LADDER_INGEST_ENABLED' -Value 'false'/);
+  assert.match(script, /COLLECTOR_UNAVAILABLE/);
+  assert.match(script, /retry\.status -ne 'duplicate'/);
+  assert.doesNotMatch(script, /vercel env (?:run|pull)/);
+});

@@ -126,6 +126,65 @@ process environment variables, upload with:
 npm run china-stats:ladder:upload
 ```
 
+For the standard isolated-preview smoke test, prefer the maintained command
+below instead of manually editing variables and calling the protected deployment
+with a normal HTTP client:
+
+```powershell
+npm run china-stats:ladder:preview-smoke -- -ConfirmPreviewWrite
+```
+
+Run it only after explicit authorization to mutate the isolated preview database
+and preview Vercel configuration. The worktree must be clean, the current branch
+must not be `main` or `master`, and Vercel must already have a READY deployment
+for the exact current commit. The command reads the sanitized JSON only from
+`.tmp`, rejects private identifier markers, generates a dedicated collector
+secret in memory, updates only branch-scoped Preview variables, redeploys the
+exact commit, and uses `vercel curl` so Vercel Deployment Protection is bypassed
+without bypassing the application collector secret. It uploads the same payload
+twice and requires the second result to be `duplicate`. Its `finally` block sets
+`CHINA_STATS_LADDER_INGEST_ENABLED=false`, redeploys, and proves the final
+endpoint returns `COLLECTOR_UNAVAILABLE`. It never uses `vercel env pull`,
+`vercel env run`, `.env.local`, or a secret file.
+
+The command assumes the branch-specific `DATABASE_URL` is already valid. For the
+current isolated preview project, the non-secret connection identity is:
+
+- project ref: `uwpqgzekiuonytixfjpp`;
+- role: `ecl_china_stats_preview`;
+- shared transaction-pooler username:
+  `ecl_china_stats_preview.uwpqgzekiuonytixfjpp`;
+- host: `aws-0-ap-northeast-2.pooler.supabase.com`;
+- port/database: `6543/postgres`.
+
+Re-copy the host from Supabase **Connect > Transaction pooler** before a future
+credential repair; the pooler cluster index must not be guessed. A credential
+repair is a separate approved preview-database write. Generate one URI-safe
+random password in memory, set that exact value on the custom Postgres role and
+inside the branch-specific Preview `DATABASE_URL`, and redeploy. Do not include
+placeholder brackets, quotes, or the password in logs, chat, files, or command
+output. Supavisor may briefly retain the old credential after rotation, so use a
+bounded retry rather than rotating again immediately.
+
+Known preview failure classifications:
+
+| Observed result | Meaning | Required response |
+| --- | --- | --- |
+| `P1000`, `TRANSACTION_START`, `AUTHENTICATION` | The pooler was reached, but the custom-role password and branch `DATABASE_URL` do not match. | Synchronize the role password and branch URL in one approved operation, redeploy, then allow for the bounded Supavisor credential-cache delay. |
+| `POOLER_IDENTITY` or tenant/user not found | The shared-pooler host or `[role].[project-ref]` username is wrong. | Copy the Transaction pooler string again; do not infer its host or omit the project ref. |
+| Plain HTTP `401` before an application JSON response | Vercel Deployment Protection intercepted the request. | Use the maintained command or `vercel curl`; do not weaken Deployment Protection. |
+| `P2010` at `ADVISORY_LOCK` | A Prisma raw query attempted to decode PostgreSQL's `void` lock result. | Confirm the deployment includes the `$executeRaw` advisory-lock fix; do not broaden database privileges. |
+| `Complete your Hub profile` on an isolated preview | The outer Hub gate tried to load a profile from the empty preview database. | Confirm the remote-access gate fix is deployed, use the stable branch alias, and log in once on that alias with the existing ECL account. |
+| A Vercel env change appears to have no effect | Vercel env values are captured by deployments. | Redeploy after every relevant branch-variable change and probe that new deployment, not an older URL. |
+
+Browser sessions are origin-scoped. Use the stable Vercel branch alias for UI
+smoke tests rather than a new immutable deployment URL each time. Log in once on
+that alias with the existing ECL credentials. When
+`CHINA_STATS_PREVIEW_ACCESS_ORIGIN` is configured, the isolated preview may pass
+the bearer token only to the fixed production `/api/china-stats/access` endpoint;
+the production allowlist remains authoritative and the preview database does not
+need copied account/profile rows.
+
 Preview verification must prove: an exact retry is a no-op; an older capture and
 a same-time changed payload are rejected; Ionia and Super Server cannot replace
 one another; a missing/wrong secret, oversized body, malformed snapshot, and
@@ -139,6 +198,12 @@ last coherent row for diagnosis; the read API will stop presenting it after the
 24-hour freshness limit. Dropping the table, deleting rows, rotating unrelated
 credentials, or enabling production ingestion each requires a separate review
 and explicit environment authorization.
+
+If the maintained command is interrupted before its `finally` block completes,
+immediately set the branch-scoped Preview
+`CHINA_STATS_LADDER_INGEST_ENABLED=false`, redeploy a READY deployment for the
+same commit, and send a no-secret POST with `vercel curl`. Do not continue until
+the response is `COLLECTOR_UNAVAILABLE`.
 
 #### Manual Lzyumi refresh permit rollout
 
