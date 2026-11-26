@@ -7,6 +7,7 @@ import {
   type ChinaStatsLadderSnapshot,
 } from "../lib/china-stats-ladder";
 import {
+  classifyChinaStatsLadderStoreCause,
   chinaStatsCollectorAuthorized,
   chinaStatsCollectorConfigured,
   chinaStatsLadderContentHash,
@@ -195,13 +196,23 @@ test("durable ladder write failures expose only their bounded store stage", asyn
 
   await assert.rejects(
     storeChinaStatsLadderSnapshot(database, snapshot),
-    (error: Error & { storeStage?: string }) => {
+    (error: Error & { storeStage?: string; causeCategory?: string }) => {
       assert.equal(error.storeStage, "ADVISORY_LOCK");
+      assert.equal(error.causeCategory, "UNKNOWN");
       assert.equal(error.message, "China stats ladder persistence failed.");
       assert.doesNotMatch(error.message, /credential/i);
       return true;
     },
   );
+});
+
+test("database failures are reduced to bounded categories without exposing messages", () => {
+  assert.equal(classifyChinaStatsLadderStoreCause(Object.assign(new Error("password authentication failed for private user"), { errorCode: "P1000" })), "AUTHENTICATION");
+  assert.equal(classifyChinaStatsLadderStoreCause(new Error("FATAL: Tenant or user not found")), "POOLER_IDENTITY");
+  assert.equal(classifyChinaStatsLadderStoreCause(Object.assign(new Error("private host must not escape"), { errorCode: "P1001" })), "UNREACHABLE");
+  assert.equal(classifyChinaStatsLadderStoreCause(new Error("invalid database URL containing private input")), "INVALID_CONFIGURATION");
+  assert.equal(classifyChinaStatsLadderStoreCause(Object.assign(new Error("private permission detail"), { code: "P1010" })), "PERMISSION");
+  assert.equal(classifyChinaStatsLadderStoreCause(new Error("credential-like diagnostic details must not escape")), "UNKNOWN");
 });
 
 test("leaderboard route preserves account authorization and private identifiers", async () => {

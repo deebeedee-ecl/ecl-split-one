@@ -32,16 +32,51 @@ type ChinaStatsLadderStoreStage =
   | "CREATE_SNAPSHOT"
   | "UPDATE_SNAPSHOT";
 
+export type ChinaStatsLadderStoreCause =
+  | "AUTHENTICATION"
+  | "POOLER_IDENTITY"
+  | "UNREACHABLE"
+  | "INVALID_CONFIGURATION"
+  | "PERMISSION"
+  | "TIMEOUT"
+  | "UNKNOWN";
+
+export function classifyChinaStatsLadderStoreCause(cause: unknown): ChinaStatsLadderStoreCause {
+  const source = cause && typeof cause === "object" ? cause as Record<string, unknown> : {};
+  const code = typeof source.code === "string"
+    ? source.code
+    : typeof source.errorCode === "string"
+      ? source.errorCode
+      : "";
+  const message = cause instanceof Error ? cause.message : "";
+  if (/tenant or user not found|EAUTHQUERY/i.test(message)) return "POOLER_IDENTITY";
+  if (code === "P1000" || /authentication failed|credentials.*not valid|password authentication failed/i.test(message)) {
+    return "AUTHENTICATION";
+  }
+  if (code === "P1001" || /can't reach database|ECONNREFUSED|ENOTFOUND|EHOSTUNREACH/i.test(message)) {
+    return "UNREACHABLE";
+  }
+  if (code === "P1010" || /permission denied|denied access/i.test(message)) return "PERMISSION";
+  if (code === "P2024" || /timed? out|timeout/i.test(message)) return "TIMEOUT";
+  if (/invalid (?:database )?(?:url|port)|invalid connection string|must start with.*postgres/i.test(message)) {
+    return "INVALID_CONFIGURATION";
+  }
+  return "UNKNOWN";
+}
+
 class ChinaStatsLadderStoreError extends Error {
   readonly storeStage: ChinaStatsLadderStoreStage;
   readonly code?: string;
+  readonly causeCategory: ChinaStatsLadderStoreCause;
 
   constructor(stage: ChinaStatsLadderStoreStage, cause: unknown) {
     super("China stats ladder persistence failed.");
     this.name = "ChinaStatsLadderStoreError";
     this.storeStage = stage;
     const source = cause && typeof cause === "object" ? cause as Record<string, unknown> : {};
-    if (typeof source.code === "string" && /^P\d{4}$/.test(source.code)) this.code = source.code;
+    const code = typeof source.code === "string" ? source.code : source.errorCode;
+    if (typeof code === "string" && /^P\d{4}$/.test(code)) this.code = code;
+    this.causeCategory = classifyChinaStatsLadderStoreCause(cause);
   }
 }
 

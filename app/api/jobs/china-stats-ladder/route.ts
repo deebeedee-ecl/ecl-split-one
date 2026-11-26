@@ -34,6 +34,18 @@ function storeFailureDiagnostic(error: unknown) {
   const stage = typeof source.storeStage === "string" && allowedStages.has(source.storeStage)
     ? source.storeStage
     : "UNKNOWN_STAGE";
+  const allowedCauses = new Set([
+    "AUTHENTICATION",
+    "POOLER_IDENTITY",
+    "UNREACHABLE",
+    "INVALID_CONFIGURATION",
+    "PERMISSION",
+    "TIMEOUT",
+    "UNKNOWN",
+  ]);
+  const cause = typeof source.causeCategory === "string" && allowedCauses.has(source.causeCategory)
+    ? source.causeCategory
+    : "UNKNOWN";
   const message = error instanceof Error ? error.message : "";
   const category = stage !== "UNKNOWN_STAGE"
     ? "STORE_STAGE_FAILURE"
@@ -46,7 +58,7 @@ function storeFailureDiagnostic(error: unknown) {
         : /permission|denied|P1010/i.test(message)
           ? "DATABASE_PERMISSION_FAILURE"
           : "UNCLASSIFIED_STORE_FAILURE";
-  return { category, code, stage };
+  return { category, code, stage, cause };
 }
 
 export async function POST(request: Request) {
