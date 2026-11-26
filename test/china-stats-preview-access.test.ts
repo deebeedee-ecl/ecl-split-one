@@ -148,6 +148,8 @@ test("page access and signer share the same server-side allowlist boundary", asy
   assert.match(runtime, /resolveChinaStatsPreviewAccess/);
   assert.match(runtime, /authorization/);
   assert.match(layout, /ChinaStatsPreviewAccessGate/);
+  assert.match(layout, /HubAccessGate allowProfileSetup=\{usesRemoteAccessVerification\}/);
+  assert.match(layout, /CHINA_STATS_PREVIEW_ACCESS_ORIGIN/);
   assert.match(gate, /\/api\/china-stats\/access/);
   assert.doesNotMatch(`${accessRoute}${signerRoute}${gate}`, /Kasper|deebeedee/);
 });
