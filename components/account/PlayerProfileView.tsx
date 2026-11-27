@@ -490,9 +490,11 @@ async function performLzyumiProfileRefresh(
 
 export default function PlayerProfileView({
   initialProfile,
+  manualRefreshPermitsEnabled = false,
   showPersonalMatchPreview = true,
 }: {
   initialProfile?: AccountProfile;
+  manualRefreshPermitsEnabled?: boolean;
   showPersonalMatchPreview?: boolean;
 } = {}) {
   const { status: hubStatus, accessToken, session: hubSession } = useHubBootstrap();
@@ -570,6 +572,7 @@ export default function PlayerProfileView({
           refreshCandidate: selectImplicitProfileRefreshCandidate({
             publicProfile: fallbackProfile,
             authenticatedProfile: loaded,
+            manualRefreshPermitsEnabled,
           }),
         };
       },
@@ -627,7 +630,14 @@ export default function PlayerProfileView({
       cancelled = true;
       controller.abort();
     };
-  }, [accessToken, hubSession?.user.id, hubStatus, initialProfile, profileLoadAttempt]);
+  }, [
+    accessToken,
+    hubSession?.user.id,
+    hubStatus,
+    initialProfile,
+    manualRefreshPermitsEnabled,
+    profileLoadAttempt,
+  ]);
 
   useEffect(() => {
     const statsProfile = initialProfile ?? loadedProfile;

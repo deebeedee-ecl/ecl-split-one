@@ -9,19 +9,23 @@ type ProfileIdentity = {
 
 /**
  * Public profile navigation must never turn another signed-in viewer into an
- * implicit residential-IP scout. The existing automatic refresh remains
- * limited to the authenticated user's own profile until the explicit manual
- * refresh contract is introduced.
+ * implicit residential-IP scout. When durable manual permits are enabled, the
+ * explicit owner action owns stale refreshes on /hub/me; disabling the flag
+ * immediately restores the legacy implicit owner refresh.
  */
 export function selectImplicitProfileRefreshCandidate<TProfile extends ProfileIdentity>({
   publicProfile,
   authenticatedProfile,
+  manualRefreshPermitsEnabled = false,
 }: {
   publicProfile: TProfile | null;
   authenticatedProfile: TProfile | null;
+  manualRefreshPermitsEnabled?: boolean;
 }) {
   if (!authenticatedProfile) return null;
-  if (!publicProfile) return authenticatedProfile;
+  if (!publicProfile) {
+    return manualRefreshPermitsEnabled ? null : authenticatedProfile;
+  }
 
   return authenticatedProfile.id === publicProfile.id
     ? authenticatedProfile
