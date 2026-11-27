@@ -7,6 +7,11 @@ import {
   normalizeChinaStatsLiveProfile,
   summarizeChinaStatsLiveMatches,
 } from "../lib/china-stats-live.ts";
+import {
+  canRequestChinaStatsDetail,
+  getChinaStatsDetailBudget,
+  shouldRetainChinaStatsResult,
+} from "../lib/china-stats-demo-states.ts";
 
 const championNames = new Map([
   ["103", "Ahri"],
@@ -175,4 +180,49 @@ test("live lookup labels role and optional recent-stat samples without unsupport
   assert.match(source, /Role mix:/);
   assert.doesNotMatch(source, /30-day KDA/);
   assert.doesNotMatch(source, /match\.role \?\? \(match\.queue/);
+});
+
+test("live lookup retains a coherent result only for the same full Riot ID and server", () => {
+  const current = { riotId: "Synthetic Player#LIVE", server: "ionia" as const };
+  assert.equal(shouldRetainChinaStatsResult(current, {
+    riotId: " synthetic player#live ",
+    server: "ionia",
+  }), true);
+  assert.equal(shouldRetainChinaStatsResult(current, {
+    riotId: "Another Player#LIVE",
+    server: "ionia",
+  }), false);
+  assert.equal(shouldRetainChinaStatsResult(current, {
+    riotId: "Synthetic Player#LIVE",
+    server: "super-server",
+  }), false);
+  assert.equal(shouldRetainChinaStatsResult(null, current), false);
+});
+
+test("match-detail budget allows retries but blocks a sixth unique detail request", () => {
+  const requested = new Set(["game-1", "game-2", "game-3", "game-4", "game-5"]);
+  assert.deepEqual(getChinaStatsDetailBudget(requested, 5), {
+    used: 5,
+    remaining: 0,
+    maximum: 5,
+    exhausted: true,
+  });
+  assert.equal(canRequestChinaStatsDetail(requested, "game-3", 5), true);
+  assert.equal(canRequestChinaStatsDetail(requested, "game-6", 5), false);
+  assert.equal(canRequestChinaStatsDetail(new Set(["game-1"]), "game-2", 5), true);
+});
+
+test("live lookup renders intentional loading, partial, empty, retry, and budget states", async () => {
+  const source = await readFile("app/labs/china-stats/ChinaStatsLiveLookupClient.tsx", "utf8");
+  assert.match(source, /ChinaStatsLookupSkeleton/);
+  assert.match(source, /Finding the exact player/);
+  assert.match(source, /Some player data is unavailable/);
+  assert.match(source, /No recent matches in this queue/);
+  assert.match(source, /The queue loaded successfully but returned no ranked history/);
+  assert.match(source, /Retry player data/);
+  assert.match(source, /Retry match details/);
+  assert.match(source, /Detail limit reached/);
+  assert.match(source, /canRequestChinaStatsDetail/);
+  assert.match(source, /shouldRetainChinaStatsResult/);
+  assert.match(source, /CHINA_STATS_SERVERS\[snapshot\.target\.server\]/);
 });
