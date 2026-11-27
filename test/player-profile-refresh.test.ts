@@ -66,6 +66,33 @@ function callbacks(state: ReturnType<typeof createFlowState>) {
   };
 }
 
+test("the owner route passes the server-side permit flag to the profile view", async () => {
+  const previous = process.env.LZYUMI_MANUAL_REFRESH_PERMITS_ENABLED;
+  const { default: MyProfilePage } = await import("../app/(hub)/hub/me/page");
+
+  try {
+    process.env.LZYUMI_MANUAL_REFRESH_PERMITS_ENABLED = "true";
+    const enabledPage = MyProfilePage();
+    assert.equal(
+      enabledPage.props.children.props.manualRefreshPermitsEnabled,
+      true,
+    );
+
+    process.env.LZYUMI_MANUAL_REFRESH_PERMITS_ENABLED = "false";
+    const disabledPage = MyProfilePage();
+    assert.equal(
+      disabledPage.props.children.props.manualRefreshPermitsEnabled,
+      false,
+    );
+  } finally {
+    if (previous === undefined) {
+      delete process.env.LZYUMI_MANUAL_REFRESH_PERMITS_ENABLED;
+    } else {
+      process.env.LZYUMI_MANUAL_REFRESH_PERMITS_ENABLED = previous;
+    }
+  }
+});
+
 test("public profile navigation never runs an implicit refresh through another viewer", async () => {
   const publicProfile = {
     id: "synthetic-public-profile",
@@ -105,7 +132,7 @@ test("public profile navigation never runs an implicit refresh through another v
   assert.equal(refreshCalls, 0);
 });
 
-test("the authenticated user's own profile remains eligible for the existing implicit refresh", () => {
+test("flag off preserves the authenticated owner's legacy implicit refresh", () => {
   const authenticatedProfile = {
     id: "synthetic-owner-profile",
     rank: "Gold I",
@@ -116,11 +143,48 @@ test("the authenticated user's own profile remains eligible for the existing imp
   assert.equal(selectImplicitProfileRefreshCandidate({
     publicProfile: null,
     authenticatedProfile,
+    manualRefreshPermitsEnabled: false,
   }), authenticatedProfile);
   assert.equal(selectImplicitProfileRefreshCandidate({
     publicProfile: authenticatedProfile,
     authenticatedProfile,
   }), authenticatedProfile);
+});
+
+test("flag on displays the stored owner snapshot without starting the legacy implicit refresh", async () => {
+  const stored: TestProfile = {
+    id: "synthetic-owner-profile",
+    rank: "Gold I",
+    lzyumiLastLookupAt: "2026-11-10T00:00:00.000Z",
+    recent: "stored-recent",
+  };
+  const state = createFlowState();
+  let refreshCalls = 0;
+
+  await runStoredProfileRefreshFlow({
+    async loadStoredProfile() {
+      return {
+        visibleProfile: stored,
+        refreshCandidate: selectImplicitProfileRefreshCandidate({
+          publicProfile: null,
+          authenticatedProfile: stored,
+          manualRefreshPermitsEnabled: true,
+        }),
+      };
+    },
+    shouldRefresh: () => true,
+    async refreshProfile() {
+      refreshCalls += 1;
+      return stored;
+    },
+    isCurrent: () => true,
+    ...callbacks(state),
+  });
+
+  assert.equal(state.profile, stored);
+  assert.equal(state.ready, true);
+  assert.equal(state.refreshing, false);
+  assert.equal(refreshCalls, 0);
 });
 
 test("publishes the stored snapshot while browser refresh is still pending, then replaces it atomically", async () => {

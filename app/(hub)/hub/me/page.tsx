@@ -9,7 +9,11 @@ export default function MyProfilePage() {
       title="My Profile"
       description="Your player card, ECL stats, champion pool, match history, and verification status."
     >
-      <PlayerProfileView />
+      <PlayerProfileView
+        manualRefreshPermitsEnabled={
+          process.env.LZYUMI_MANUAL_REFRESH_PERMITS_ENABLED === "true"
+        }
+      />
     </HubShell>
   );
 }
