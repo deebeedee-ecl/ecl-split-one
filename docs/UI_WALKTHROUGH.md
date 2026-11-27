@@ -73,7 +73,6 @@ Primary navigation:
 - Players → `/hub/players`
 - Champions → `/hub/champions`
 - Inhouses → `/hub/inhouses`
-- Game Finder → `/hub/search-engine`
 
 Secondary actions:
 
@@ -142,8 +141,10 @@ The authenticated pass did receive current live matches, so the mock fallback wa
 
 ### Game Finder
 
-`/hub/search-engine` is a dedicated read-only Lzyumi custom-game lookup, not an
-admin or result-publication screen. It requests the exact full Riot ID, China
+`/admin/game-finder` is a dedicated admin-session-protected, read-only Lzyumi
+custom-game lookup for administrators/operators, not a result-publication
+screen. The legacy `/hub/search-engine` URL redirects to the protected admin
+route and is no longer shown in player Hub navigation. The finder requests the exact full Riot ID, China
 server, approximate China date, and optional champion/opponent clues. The page
 uses the signed browser flow, displays its bounded request summary, and exposes
 only detail-confirmed `CUSTOM_GAME` candidates with sanitized participant rows

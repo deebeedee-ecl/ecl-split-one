@@ -101,21 +101,22 @@ Additional public routes expose teams, schedules/results/standings, stats, tourn
 - Players
 - Champions
 - Inhouses
-- Game Finder
 - Account Settings
 - Return to website / Sign out
 
 Account Settings currently groups account status, Riot identity and China server, KOOK linkage, player roles, nationality/timezone, profile media/bio, and privacy controls.
 
-Game Finder is a read-only authenticated Hub tool for recovering a remembered
-China-server custom game before entering any ranked or tournament workflow. It
-requires an exact full Riot ID and server, accepts an approximate China date and
-optional champion/opponent clues, and returns only detail-verified custom-game
-candidates. It does not create, submit, approve, or publish an ECL result.
-
 ### Admin surface
 
 The current admin shell links tournament operations, dashboard, teams, users, match history, ELO/LP, admin users, messages, news drafts, and the inhouse reporter. Presence in the menu does not prove that every section is complete or securely authorized.
+
+Game Finder at `/admin/game-finder` is an admin-session-protected, read-only
+operator tool for recovering a remembered China-server custom game before
+entering any ranked or tournament workflow. It requires an exact full Riot ID
+and server, accepts an approximate China date and optional champion/opponent
+clues, and returns only detail-verified custom-game candidates. It does not
+create, submit, approve, or publish an ECL result. The former Hub URL redirects
+to the protected admin route and the player Hub no longer advertises the tool.
 
 ## Product invariants
 
