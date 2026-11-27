@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -65,6 +66,21 @@ function callbacks(state: ReturnType<typeof createFlowState>) {
     },
   };
 }
+
+test("the owner refresh card uses concise player-facing copy", async () => {
+  const source = await readFile(
+    new URL("../components/account/PlayerProfileView.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, />\s*Ranked stats\s*</);
+  assert.match(source, /Updated \{lastUpdatedLabel\}/);
+  assert.match(source, /\? "Refreshing\.\.\."/);
+  assert.match(source, /\? "Refresh stats"/);
+  assert.match(source, /: "Up to date"/);
+  assert.doesNotMatch(source, /League snapshot/);
+  assert.doesNotMatch(source, /This sends a fixed ECL\.GG request/);
+});
 
 test("the owner route passes the server-side permit flag to the profile view", async () => {
   const previous = process.env.LZYUMI_MANUAL_REFRESH_PERMITS_ENABLED;
