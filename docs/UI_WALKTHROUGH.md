@@ -101,12 +101,12 @@ The authenticated desktop and mobile pass confirmed that this is a large event m
 - performance radar, role stats, top inhouse champions, and awards;
 - reported champion/ranked-game snapshot;
 - personal inhouse match-history preview;
-- an owner-only `Refresh League data` action when the verified snapshot is stale or incomplete;
+- an owner-only `Refresh stats` action when the verified snapshot is stale or incomplete;
 - a KOOK verification notice/code flow when the profile is not linked.
 
 The route-specific profile request renders the last coherent stored snapshot first. When manual refresh permits are enabled, `/hub/me` leaves a stale or incomplete snapshot visible and actionable instead of starting the legacy signed-browser refresh during page entry. Disabling the flag restores that implicit owner refresh as the immediate rollback. A completed refresh replaces the snapshot only after the complete identity-checked snapshot is accepted, and freshness remains tied to the last successful coherent replacement.
 
-The explicit owner action discloses that its fixed provider bundle is fetched from the current browser/network connection. It reports refreshing, success, unavailable, failure, and durable cooldown states. Core profile/Solo/Flex failure keeps the previous snapshot and timestamp; optional recent champion data may be marked unavailable. The action is not rendered on `/hub/players/[slug]`, because a signed provider request does not attest a viewer-supplied response body.
+The explicit owner action uses concise refresh, success, unavailable, failure, and durable cooldown states. Core profile/Solo/Flex failure keeps the previous snapshot and timestamp; optional recent champion data may be marked unavailable. The action is not rendered on `/hub/players/[slug]`, because a signed provider request does not attest a viewer-supplied response body.
 
 Historical walkthrough evidence from 2026-11-07 captured “Loading profile...” at 2.5 seconds because the provider refresh blocked the stored snapshot. The current flow still waits for the route-specific account profile request, but no longer waits for the browser-based Lzyumi refresh before rendering a valid saved snapshot.
 

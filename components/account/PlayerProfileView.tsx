@@ -779,17 +779,16 @@ export default function PlayerProfileView({
     ? null
     : manualRefreshResult;
   const snapshotStatusMessage = visibleManualRefreshResult &&
-    visibleManualRefreshResult.status !== "success"
+    visibleManualRefreshResult.status !== "success" &&
+    visibleManualRefreshResult.status !== "up-to-date"
     ? visibleManualRefreshResult.message
     : statRefreshError
       ? statRefreshError
       : visibleManualRefreshResult?.status === "success"
-        ? visibleManualRefreshResult.recentStatStatus === "available"
-          ? "Profile, ranks, history, and recent champion data were refreshed."
-          : "Profile, ranks, and history were refreshed. Recent champion data is unavailable."
-        : hasValidatedProfileSnapshot
-          ? `Identity-checked snapshot fetched ${lastUpdatedLabel}.`
-          : "Waiting for a fresh identity-checked ECL.GG snapshot.";
+        ? visibleManualRefreshResult.recentStatStatus === "unavailable"
+          ? "Recent champion data is unavailable."
+          : ""
+        : "";
 
   const soloRank = formatSharedLzyumiRank(ranks.solo);
   const flexRank = formatSharedLzyumiRank(ranks.flex);
@@ -983,26 +982,28 @@ export default function PlayerProfileView({
           </div>
           <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#aeb5da]">
-              League snapshot
+              Ranked stats
             </p>
             {refreshingStats ? (
-              <p className="mt-1 text-sm font-black text-[#ffd84d] animate-pulse">Fetching stats…</p>
+              <p className="mt-1 text-sm font-black text-[#ffd84d] animate-pulse">Refreshing...</p>
             ) : visibleManualRefreshResult?.status === "cooldown" ? (
               <p className="mt-1 text-sm font-black text-[#ffd84d]">Refresh on cooldown</p>
             ) : visibleManualRefreshResult?.status === "unavailable" ? (
               <p className="mt-1 text-sm font-black text-[#ff6b6b]">Refresh unavailable</p>
             ) : visibleManualRefreshResult?.status === "up-to-date" ? (
-              <p className="mt-1 text-sm font-black text-[#48f0df]">League data is up to date</p>
+              <p className="mt-1 text-sm font-black text-[#48f0df]">Up to date</p>
             ) : statRefreshError ? (
               <p className="mt-1 text-sm font-black text-[#ff6b6b]" title={statRefreshError}>Update failed</p>
             ) : statRefreshSucceeded ? (
               <p className="mt-1 text-sm font-black text-[#48f0df]">Stats updated</p>
             ) : (
-              <p className="mt-1 text-lg font-black text-[#48f0df]">{lastUpdatedLabel}</p>
+              <p className="mt-1 text-lg font-black text-[#48f0df]">Updated {lastUpdatedLabel}</p>
             )}
-            <p className="mt-1 text-[11px] font-semibold text-[#6b7280]">
-              {snapshotStatusMessage}
-            </p>
+            {snapshotStatusMessage && (
+              <p className="mt-1 text-[11px] font-semibold text-[#6b7280]">
+                {snapshotStatusMessage}
+              </p>
+            )}
             {manualCooldownActive && manualRefreshResult?.retryAt && (
               <p className="mt-2 text-[11px] font-bold text-[#ffd84d]">
                 Available after {new Date(manualRefreshResult.retryAt).toLocaleString([], {
@@ -1026,18 +1027,13 @@ export default function PlayerProfileView({
                     className={`h-4 w-4 ${refreshingStats ? "animate-spin" : ""}`}
                   />
                   {refreshingStats
-                    ? "Refreshing League data"
+                    ? "Refreshing..."
                     : manualCooldownActive
                       ? "Refresh on cooldown"
                       : manualRefreshNeeded
-                        ? "Refresh League data"
-                        : "League data is up to date"}
+                        ? "Refresh stats"
+                        : "Up to date"}
                 </button>
-                <p className="mt-2 text-[10px] font-semibold leading-relaxed text-[#6b7280]">
-                  This sends a fixed ECL.GG request from your browser using your current
-                  network connection. ECL saves it only after your full Riot ID, China
-                  server, and linked profile are validated.
-                </p>
               </div>
             )}
           </div>
