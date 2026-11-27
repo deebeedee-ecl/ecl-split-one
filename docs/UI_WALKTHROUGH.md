@@ -149,6 +149,10 @@ LP, or tournament write action.
 
 ### China Stats preview
 
+The bounded product objective, first-demo Definition of Done, stop rule, and
+post-demo ECL-versus-standalone decision gate are maintained in
+[`CHINA_STATS_DEMO.md`](CHINA_STATS_DEMO.md).
+
 `/labs/china-stats` is a direct-link, `noindex`, feature-gated preview for a
 possible standalone China-server analytics experience. Its root redirects to
 the apex leaderboard. The surface is absent from Hub navigation and uses the
