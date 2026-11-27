@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { NextRequest } from "next/server";
+import { middleware } from "../middleware";
 import {
   evaluateFinderCandidate,
   parseFinderGameTime,
@@ -91,10 +93,37 @@ test("detail confirmation requires a custom game and the verified openId player"
   }), null);
 });
 
-test("Hub finder stays on the signed read-only provider flow", async () => {
-  const source = await readFile("app/(hub)/hub/search-engine/CustomGameFinderClient.tsx", "utf8");
+test("admin finder stays on the signed read-only provider flow", async () => {
+  const source = await readFile("app/(public)/admin/game-finder/CustomGameFinderClient.tsx", "utf8");
   assert.match(source, /\/api\/lzyumi-sign/);
   assert.match(source, /fetchLzyumiBrowserResponse/);
   assert.doesNotMatch(source, /method:\s*["']POST["']/);
   assert.doesNotMatch(source, /\/api\/admin|report-match|publishSemifinals/);
+});
+
+test("custom-game finder is exposed only through the protected admin surface", async () => {
+  const [adminPage, legacyPage, hubShell, hubScaffold, middlewareSource] = await Promise.all([
+    readFile("app/(public)/admin/game-finder/page.tsx", "utf8"),
+    readFile("app/(hub)/hub/search-engine/page.tsx", "utf8"),
+    readFile("app/(hub)/hub/_components/HubShell.tsx", "utf8"),
+    readFile("app/(hub)/hub/_components/HubScaffold.tsx", "utf8"),
+    readFile("middleware.ts", "utf8"),
+  ]);
+
+  assert.match(adminPage, /CustomGameFinderClient/);
+  assert.match(legacyPage, /redirect\("\/admin\/game-finder"\)/);
+  assert.doesNotMatch(hubShell, /Game Finder|\/hub\/search-engine/);
+  assert.doesNotMatch(hubScaffold, /Search Engine|\/hub\/search-engine/);
+  assert.match(middlewareSource, /"\/admin\/:path\*"/);
+});
+
+test("admin game finder redirects an unauthenticated request to admin login", () => {
+  const response = middleware(new NextRequest("https://eclchina.lol/admin/game-finder"));
+  const location = response.headers.get("location");
+
+  assert.equal(response.status, 307);
+  assert.ok(location);
+  const loginUrl = new URL(location);
+  assert.equal(loginUrl.pathname, "/admin/login");
+  assert.equal(loginUrl.searchParams.get("next"), "/admin/game-finder");
 });

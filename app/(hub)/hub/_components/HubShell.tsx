@@ -5,7 +5,6 @@ import {
   Award,
   DoorOpen,
   Gauge,
-  Search,
   Settings,
   Swords,
   Trophy,
@@ -23,7 +22,6 @@ type HubSection =
   | "players"
   | "champions"
   | "inhouses"
-  | "finder"
   | "world-cup"
   | "settings";
 
@@ -42,7 +40,6 @@ const primaryItems: HubMenuItem[] = [
   { id: "players", label: "Players", description: "Browse every registered ECL player profile.", href: "/hub/players", icon: Users },
   { id: "champions", label: "Champions", description: "Champion pools, win rates, and meta stats.", href: "/hub/champions", icon: Award },
   { id: "inhouses", label: "Inhouses", description: "Match history, drafts, stats, and reports.", href: "/hub/inhouses", icon: Swords },
-  { id: "finder", label: "Game Finder", description: "Read-only China-server custom-game lookup.", href: "/hub/search-engine", icon: Search },
 ];
 
 const secondaryItems: HubMenuItem[] = [

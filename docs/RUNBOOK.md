@@ -517,7 +517,7 @@ A network-switch result is diagnostic evidence, not a permanent architecture. Pr
 
 ### Interactive custom-game lookup
 
-Use `/hub/search-engine` when an operator remembers a player/date/champion but
+Use `/admin/game-finder` when an authenticated administrator/operator remembers a player/date/champion but
 does not yet have the provider game ID. This is the lookup phase only; do not
 open the tournament admin page until a candidate has been independently
 reviewed and an authorized result workflow has been selected.

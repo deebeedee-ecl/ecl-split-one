@@ -66,12 +66,6 @@ export const hubFeatures: Feature[] = [
     href: "/hub/matches",
     icon: Swords,
   },
-  {
-    title: "Search Engine",
-    description: "China server search and import workflow.",
-    href: "/hub/search-engine",
-    icon: Search,
-  },
 ];
 
 export function HubPage({
