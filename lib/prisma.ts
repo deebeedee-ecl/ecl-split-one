@@ -1,14 +1,18 @@
 import { performance } from "node:perf_hooks";
 import { Prisma, PrismaClient } from "@prisma/client";
+import { resolveApplicationDatabaseUrl } from "@/lib/database-url";
 import { recordActiveDatabaseQuery } from "@/lib/performance-timing";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
+const datasourceUrl = resolveApplicationDatabaseUrl();
+
 export const prisma =
   globalForPrisma.prisma ??
   (new PrismaClient({
+    ...(datasourceUrl ? { datasourceUrl } : {}),
     log:
       process.env.NODE_ENV === "development"
         ? ["error", "warn"]

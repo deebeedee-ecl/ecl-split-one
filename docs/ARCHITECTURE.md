@@ -33,6 +33,12 @@ The website/API and database are the ECL source of truth. External providers sup
 | Report engine | `report-engine/` | Always-on match-discovery and confirmation-job polling, China-server lookup/detail collection, and final KOOK result delivery |
 | Windows companion | `companion/` | Optional local client/data collection and desktop Hub experience; historical inhouse pilots used it for game-ID collection, but the current Lzyumi reporting path does not require it |
 
+The web runtime prefers the explicit `DATABASE_URL` contract. When it is absent,
+it accepts the Vercel/Supabase integration's standard `POSTGRES_PRISMA_URL` for
+the same Prisma datasource. This fallback does not override an existing
+`DATABASE_URL`, so production and operator-selected database targets retain
+priority.
+
 The report engine is deployed from `report-engine/` to the Railway service
 `ECL Report Engine` in the `production` environment. The same Railway project
 also contains `ecl-kook-bot`, but that service is owned by the adjacent
@@ -74,7 +80,7 @@ This client bootstrap controls presentation only. It is not an authorization bou
 5. The application verifies full Riot ID, China server, and `openId` before accepting a snapshot.
 6. A complete validated replacement is saved and then replaces the visible snapshot atomically. Optional recent champion statistics may fail without invalidating valid identity/rank data; their stale values must not survive as if refreshed. A failed required refresh leaves the prior snapshot and successful timestamp visible and unchanged.
 
-The manual refresh UI is not deployed. ADR 0002 is implemented by a dedicated additive permit ledger plus authenticated issue/consume Route Handlers. The current API is owner-only at both issuance and consumption: a signed browser request constrains provider request parameters but does not attest the response body, so a viewer-controlled payload cannot write another player's snapshot. Issuance serializes target and requester scopes, stores only a hash of the opaque token, and returns a fixed server-derived browser bundle. Consumption locks the permit and target, revalidates the complete provider snapshot, and commits the coherent replacement with the one-use `ISSUED -> COMPLETED` transition in one transaction. Invalid core data rejects the permit without changing the prior snapshot or timestamp; optional recent-stat failure is stored as unavailable. The endpoints fail closed until the additive migration exists and explicit rollout policy variables enable them. The legacy owner background-save route also remains limited to the authenticated owner's own profile. Viewer refresh requires a separate trusted-response/attestation design and is not enabled by a permit alone. The permit flow does not reuse the scheduled `LzyumiRefreshQueue`.
+The explicit owner action on `/hub/me` uses the dedicated additive permit ledger plus authenticated issue/consume Route Handlers from ADR 0002. It appears only on the owner route and is actionable only for a stale or incomplete snapshot. The current API is owner-only at both issuance and consumption: a signed browser request constrains provider request parameters but does not attest the response body, so a viewer-controlled payload cannot write another player's snapshot. Issuance serializes target and requester scopes, stores only a hash of the opaque token, and returns a fixed server-derived browser bundle. The owner browser fetches that bundle from its current network connection; consumption locks the permit and target, revalidates the complete provider snapshot, and commits the coherent replacement with the one-use `ISSUED -> COMPLETED` transition in one transaction. Invalid core data rejects the permit without changing the prior snapshot or timestamp; optional recent-stat failure is stored as unavailable. The endpoints fail closed until the additive migration exists and explicit rollout policy variables enable them. The legacy owner background-save route also remains limited to the authenticated owner's own profile and is unchanged by the manual action. Viewer refresh requires a separate trusted-response/attestation design and is not enabled by a permit alone. The permit flow does not reuse the scheduled `LzyumiRefreshQueue`.
 
 ### China Stats apex ladder snapshot
 

@@ -1,6 +1,6 @@
 # ECL integration contracts
 
-Last reviewed: 2026-11-26
+Last reviewed: 2026-11-27
 
 This document records responsibilities and invariants, not credentials. Supported variable names live in `.env.example`; real values stay outside version control.
 
@@ -120,11 +120,11 @@ maps to WeGame area `1` / platform `HN1`; Super Server maps to area `31` /
 platform `BGP2`. Per-player details continue to come from the existing Lzyumi
 browser flow; searched players are never used to fabricate the ladder.
 
-#### Explicit manual refresh permit API (UI not deployed)
+#### Explicit manual refresh permit API and owner UI
 
-The OP.GG-style action is backed by a durable, short-lived, one-use permit bound to the authenticated owner profile and that same active, verified, stale target profile. `POST /api/hub/lzyumi-refresh-permits` rejects a target owned by another profile, then atomically enforces per-profile cooldown, per-requester cooldown, and a requester rolling-window budget across serverless instances. It returns only the opaque one-use token, expiry, target profile ID, and a fixed signed-browser bundle for profile filter `1`, Solo/Duo filter `2`, Flex filter `3`, and optional recent-stat derived from stored target identity. `POST /api/hub/lzyumi-refresh-permits/consume` rechecks owner/target equality even for an otherwise valid permit, validates the complete core snapshot, and atomically replaces it while completing the permit.
+The OP.GG-style action on `/hub/me` is backed by a durable, short-lived, one-use permit bound to the authenticated owner profile and that same active, verified, stale target profile. The UI discloses that the fixed ECL.GG bundle is fetched by the owner's browser over its current network connection and reports deterministic refreshing, success, unavailable, failure, and cooldown states. It is not rendered on a public profile route. `POST /api/hub/lzyumi-refresh-permits` rejects a target owned by another profile, then atomically enforces per-profile cooldown, per-requester cooldown, and a requester rolling-window budget across serverless instances. It returns only the opaque one-use token, expiry, target profile ID, and a fixed signed-browser bundle for profile filter `1`, Solo/Duo filter `2`, Flex filter `3`, and optional recent-stat derived from stored target identity. `POST /api/hub/lzyumi-refresh-permits/consume` rechecks owner/target equality even for an otherwise valid permit, validates the complete core snapshot, and atomically replaces it while completing the permit.
 
-The existing scheduled `LzyumiRefreshQueue` is not the manual-permit store. It owns one background lease per target profile and has no requester-bound lifecycle. The permit ledger is an additive Prisma migration with retention-safe `RESTRICT` relations and no browser-role privileges. The API remains fail-closed unless `LZYUMI_MANUAL_REFRESH_PERMITS_ENABLED=true` and every positive-integer policy variable is present and coherent. The pre-existing background-save route is owner-bound even when a target profile ID is supplied; it cannot be used by a viewer to bypass permit pressure controls. Signed request URLs do not sign Lzyumi response bodies, so viewer refresh remains disabled until a separate reviewed attestation or equivalent trusted-response mechanism exists. Schema rollout, policy activation, and the later owner UI remain separate authorization/release boundaries. Current production has no manual refresh action. See ADR 0002 for authorization, replay, persistence, and rollback boundaries.
+The existing scheduled `LzyumiRefreshQueue` is not the manual-permit store. It owns one background lease per target profile and has no requester-bound lifecycle. The permit ledger is an additive Prisma migration with retention-safe `RESTRICT` relations and no browser-role privileges. The API remains fail-closed unless `LZYUMI_MANUAL_REFRESH_PERMITS_ENABLED=true` and every positive-integer policy variable is present and coherent. The pre-existing background-save route is owner-bound even when a target profile ID is supplied; it cannot be used by a viewer to bypass permit pressure controls. Signed request URLs do not sign Lzyumi response bodies, so viewer refresh remains disabled until a separate reviewed attestation or equivalent trusted-response mechanism exists. Schema rollout, policy activation, and application deployment remain separate authorization/release boundaries. See ADR 0002 for authorization, replay, persistence, and rollback boundaries.
 
 ### Match-report worker flow
 
