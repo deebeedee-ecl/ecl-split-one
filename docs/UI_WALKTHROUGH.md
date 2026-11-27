@@ -185,6 +185,15 @@ provider game ID. Queue record, win rate, form, streak, role mix, and champion
 pool are derived locally from the bounded history rows. The route performs no
 profile snapshot save, database write, report, LP, or tournament action.
 
+The current delivery branch gives the live lookup explicit presentation states:
+a profile-shaped first-load skeleton; progress copy for identity and ranked-data
+loading; same-target retention of the last coherent result; separate partial,
+successful-empty, and error states; retry controls for failed lookup sections
+and match details; and a visible five-unique-detail budget that blocks a sixth
+provider request. A search for a different full Riot ID or server never retains
+the prior player's result. Production evidence for this slice remains pending
+until its own approved rollout.
+
 ### Account Settings
 
 `/hub/settings`, confirmed by the supplied authenticated screenshot and current component, contains:

@@ -225,6 +225,11 @@ These ideas are valuable but must not delay the first external demonstrations:
   role remains explicitly unavailable instead of falling back to a queue label.
   The optional recent-stat card no longer claims an unverified 30-day KDA period
   and clearly distinguishes its summary sample from the loaded match history.
+- **Intentional live-lookup states (local delivery, not yet released):** the
+  first lookup uses a profile-shaped skeleton; a same-player retry retains the
+  last coherent result; partial, successful-empty, and terminal-error states
+  remain distinct; lookup and match-detail failures offer bounded retries; and
+  the five-unique-detail limit is visible and blocks a sixth provider request.
 
 ### Production delivery checkpoint: role and recent-stat label correctness
 
@@ -238,6 +243,40 @@ These ideas are valuable but must not delay the first external demonstrations:
   retained `noindex`/`nofollow`.
 - No database, provider, or Railway mutation occurred.
 - Rollback target: `c5c97aebedc12f82fe1f2d9e6b0e6e15eff3dd2d`.
+
+### Local delivery handoff: intentional live-lookup states
+
+Status on 2026-11-28: implemented and locally verified, but not pushed, opened
+as a PR, preview-deployed, merged, or production-deployed.
+
+- Branch: `feat/china-stats-demo-states`, based on production/main merge
+  `7dc89d2497153cba8ac2481cdb7a9c6126d5f0fd`.
+- Production-checkpoint docs commit:
+  `a0cf35290ae311a37a89391031b0b4e40cd35667`.
+- Intentional-state implementation commit:
+  `6993d923856e84989fdb57bf728e3769df1d0f7f`.
+- Changed runtime scope: `/labs/china-stats/live` presentation state only, plus
+  pure target-retention/detail-budget helpers and focused regression tests.
+- Verification passed: focused China Stats live tests (10/10), full root test
+  suite (186/186), TypeScript with incremental compilation disabled, targeted
+  ESLint for the three changed implementation/test files, and the production
+  build.
+- An ignored local Playwright harness at
+  `.tmp/china-stats-live-states-smoke.mjs` passed loading, partial, empty,
+  detail-retry, and detail-budget scenarios against a local development server.
+  It observed five unique detail requests plus one retry, no sixth provider
+  request, no browser/page error, and no desktop horizontal overflow.
+- The smoke intercepted both signing and provider responses. No real provider,
+  database, Railway, KOOK, or deployment mutation occurred.
+- Local implementation rollback boundary: revert `6993d923856e84989fdb57bf728e3769df1d0f7f`;
+  this does not change the production rollback target above. The docs-only
+  checkpoint remains independently revertible at `a0cf35290ae311a37a89391031b0b4e40cd35667`.
+- Next authorized action is owner review of the branch/diff. Pushing, opening a
+  PR, creating a Vercel preview, merging, and production deployment each still
+  require explicit approval. After this slice is released, the next canonical
+  implementation slice is compact match rows, local filters, verified
+  participant links, and navigation; it must remain separate from Matchups and
+  leaderboard redesign.
 
 ## Known issues to resolve or label
 
