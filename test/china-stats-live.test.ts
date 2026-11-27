@@ -69,6 +69,28 @@ test("live history normalization deduplicates provider IDs and enforces the twen
   assert.equal(matches[0].result, "W");
 });
 
+test("live history recognizes reliable abbreviated and full Chinese role markers", () => {
+  const matches = normalizeChinaStatsLiveHistory({ data: [
+    { gameId: "top-short", titleTime: "11-25 15:00:00\u3010\u4e0a\u3011" },
+    { gameId: "jungle-short", titleTime: "11-25 14:00:00\u3010\u91ce\u3011" },
+    { gameId: "jungle-full", titleTime: "11-25 13:00:00\u3010\u6253\u91ce\u3011" },
+    { gameId: "middle-full", title: "Ranked \u3010\u4e2d\u5355\u3011", titleTime: "11-25 12:00:00" },
+    { gameId: "bottom-full", titleTime: "11-25 11:00:00\u3010\u4e0b\u8def\u3011" },
+    { gameId: "support-full", titleTime: "11-25 10:00:00\u3010\u8f85\u52a9\u3011" },
+    { gameId: "unknown", titleTime: "11-25 09:00:00\u3010\u672a\u77e5\u3011" },
+  ] }, "SOLO_DUO", championNames);
+
+  assert.deepEqual(matches.map((match) => match.role), [
+    "Top",
+    "Jungle",
+    "Jungle",
+    "Middle",
+    "Bottom",
+    "Support",
+    null,
+  ]);
+});
+
 test("live history summary derives bounded form and champion performance without extra provider data", () => {
   const matches = normalizeChinaStatsLiveHistory({ data: [
     { gameId: "game-1", championId: 103, isWin: 1, titleTime: "11-25 12:00:00\u3010\u4e2d\u3011" },
@@ -142,4 +164,15 @@ test("live lookup stays on the authenticated signed browser read-only contract",
   assert.match(source, /Authorization/);
   assert.doesNotMatch(source, /\/api\/lzyumi-sign/);
   assert.doesNotMatch(source, /\/api\/admin|refresh-my-profile|save-lzyumi|report-match/);
+});
+
+test("live lookup labels role and optional recent-stat samples without unsupported claims", async () => {
+  const source = await readFile("app/labs/china-stats/ChinaStatsLiveLookupClient.tsx", "utf8");
+  assert.match(source, /Summary KDA/);
+  assert.match(source, /games in summary/);
+  assert.match(source, /different sample from the loaded match history/);
+  assert.match(source, /match\.role \?\? "Role unavailable"/);
+  assert.match(source, /Role mix:/);
+  assert.doesNotMatch(source, /30-day KDA/);
+  assert.doesNotMatch(source, /match\.role \?\? \(match\.queue/);
 });

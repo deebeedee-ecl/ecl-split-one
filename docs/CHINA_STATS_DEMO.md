@@ -218,15 +218,16 @@ These ideas are valuable but must not delay the first external demonstrations:
 - choosing the final ECL-versus-standalone architecture or brand;
 - claiming to be the first product to expose mainland China data.
 
+## Completed delivery slices
+
+- **Role and recent-stat label correctness:** abbreviated and full reliable
+  China-history role markers normalize to English roles, while an unresolved
+  role remains explicitly unavailable instead of falling back to a queue label.
+  The optional recent-stat card no longer claims an unverified 30-day KDA period
+  and clearly distinguishes its summary sample from the loaded match history.
+
 ## Known issues to resolve or label
 
-- Some jungle matches currently fall back to the queue label instead of a
-  normalized Jungle role. Do not show a role icon when the role is unresolved.
-- The current "30-day KDA" presentation needs validation against the visible
-  bounded match set and the optional provider recent-stat contract. Relabel or
-  remove it if the numerator, denominator, and period cannot be explained.
-- Champion cards sourced from optional provider recent statistics must not look
-  as if they were derived from only the visible recent matches.
 - WeGame ladder snapshots do not provide W/L records. Display unavailable, not
   `0W / 0L` or an inferred record.
 - Viewer-triggered public-scale refresh remains unresolved. The allowlisted demo

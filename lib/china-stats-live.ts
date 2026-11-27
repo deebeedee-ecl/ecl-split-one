@@ -226,18 +226,26 @@ function historyResult(value: unknown): ChinaStatsLiveMatch["result"] {
   return null;
 }
 
-function historyRole(value: unknown) {
-  const text = clean(value);
-  const match = text.match(/\u3010([^\u3011]+)\u3011/);
-  if (!match) return null;
+function historyRole(...values: unknown[]) {
   const roles: Record<string, string> = {
     "\u4e0a": "Top",
+    "\u4e0a\u5355": "Top",
+    "\u91ce": "Jungle",
     "\u6253\u91ce": "Jungle",
     "\u4e2d": "Middle",
+    "\u4e2d\u5355": "Middle",
     "\u4e0b": "Bottom",
+    "\u4e0b\u8def": "Bottom",
     "\u8f85": "Support",
+    "\u8f85\u52a9": "Support",
   };
-  return roles[match[1]] ?? null;
+
+  for (const value of values) {
+    const match = clean(value).match(/\u3010([^\u3011]+)\u3011/);
+    const role = match ? roles[match[1].trim()] : null;
+    if (role) return role;
+  }
+  return null;
 }
 
 export function normalizeChinaStatsLiveHistory(
@@ -268,7 +276,7 @@ export function normalizeChinaStatsLiveHistory(
       result: historyResult(game.isWin ?? game.win),
       title: clean(game.title) || null,
       titleTime: clean(game.titleTime) || null,
-      role: historyRole(game.titleTime),
+      role: historyRole(game.titleTime, game.title),
       wasMvp: clean(game.wasMvp).toLowerCase() === "mvp" || String(game.wasMvp) === "1",
       wasSvp: clean(game.wasSvp).toLowerCase() === "svp" || String(game.wasSvp) === "1",
     }];
