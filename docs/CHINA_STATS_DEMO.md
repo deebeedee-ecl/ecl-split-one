@@ -1,6 +1,6 @@
 # China Stats demo brief
 
-Last reviewed: 2026-11-27
+Last reviewed: 2026-11-28
 
 Status: active, allowlisted product demo
 
@@ -225,6 +225,19 @@ These ideas are valuable but must not delay the first external demonstrations:
   role remains explicitly unavailable instead of falling back to a queue label.
   The optional recent-stat card no longer claims an unverified 30-day KDA period
   and clearly distinguishes its summary sample from the loaded match history.
+
+### Production delivery checkpoint: role and recent-stat label correctness
+
+- PR [#101](https://github.com/deebeedee-ecl/ecl-split-one/pull/101), merged
+  as `7dc89d2497153cba8ac2481cdb7a9c6126d5f0fd`.
+- Vercel production deployment `dpl_4hBEkefbQJ6rEYsf4WJafnkApYVw` reached
+  `READY`; GitHub CI reached `SUCCESS`.
+- Local verification passed 183/183 tests, TypeScript, targeted ESLint, and the
+  production build. Production layout smoke passed all 20 route/viewport
+  combinations; signed-out China Stats access returned `401`, and the surface
+  retained `noindex`/`nofollow`.
+- No database, provider, or Railway mutation occurred.
+- Rollback target: `c5c97aebedc12f82fe1f2d9e6b0e6e15eff3dd2d`.
 
 ## Known issues to resolve or label
 
