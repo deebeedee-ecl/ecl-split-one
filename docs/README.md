@@ -7,6 +7,7 @@ This directory separates durable product/architecture context from dated deliver
 | Document | Use it for |
 | --- | --- |
 | [`PRODUCT.md`](PRODUCT.md) | Product purpose, users, journeys, navigation, terms, and open product questions |
+| [`CHINA_STATS_DEMO.md`](CHINA_STATS_DEMO.md) | China Stats demo objective, bounded scope, Definition of Done, stop rule, feedback, and post-demo decision gate |
 | [`UI_WALKTHROUGH.md`](UI_WALKTHROUGH.md) | Public and authenticated route map, access states, page contents, and known UI drift |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Runtime boundaries, data ownership, core flows, trust boundaries, and known structural risks |
 | [`INTEGRATIONS.md`](INTEGRATIONS.md) | Lzyumi, KOOK, Supabase, report-engine, and companion contracts |
