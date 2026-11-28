@@ -250,6 +250,45 @@ test("simultaneous issuance for one target creates one permit and one cooldown r
     ["PROFILE_COOLDOWN"],
   );
   assert.equal(database.permits.length, 1);
+
+  const issued = results.find((result) => result.status === "issued");
+  assert.ok(issued && issued.status === "issued");
+  if (!issued || issued.status !== "issued") return;
+  assert.deepEqual(
+    issued.requests.identityAttempts.map((attempt) => attempt.kind),
+    [
+      "bare-name",
+      "full-id",
+      "bare-name-with-open-id",
+      "full-id-with-open-id",
+      "open-id-only",
+    ],
+  );
+  const identityQueries = issued.requests.identityAttempts.map((attempt) =>
+    new URL(attempt.url).searchParams
+  );
+  assert.deepEqual(
+    identityQueries.map((query) => query.get("nickname")),
+    [
+      "ContractTester",
+      "ContractTester*~*~*T100",
+      "ContractTester",
+      "ContractTester*~*~*T100",
+      "",
+    ],
+  );
+  assert.deepEqual(
+    identityQueries.map((query) => query.get("openId")),
+    ["", "", "synthetic-open-id", "synthetic-open-id", "synthetic-open-id"],
+  );
+  assert.equal(
+    new URL(issued.requests.solo).searchParams.get("openId"),
+    "synthetic-open-id",
+  );
+  assert.equal(
+    new URL(issued.requests.flex).searchParams.get("openId"),
+    "synthetic-open-id",
+  );
 });
 
 test("simultaneous consumption commits once and rejects replay", async () => {

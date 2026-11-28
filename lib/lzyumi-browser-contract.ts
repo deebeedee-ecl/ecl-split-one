@@ -142,6 +142,15 @@ export function validateLzyumiProfileResponse(value: unknown) {
   const root = asRecord(value);
   requireSuccessCode(value, "profile");
 
+  if (root?.battleInfo === null) {
+    throw new LzyumiBrowserContractError(
+      "ECL.GG profile lookup did not resolve an identity.",
+      "profile",
+      "not-found",
+      providerCode(value) ?? undefined,
+    );
+  }
+
   const battleInfo = asRecord(root?.battleInfo);
   const nameInfoNew = typeof battleInfo?.nameInfoNew === "string"
     ? battleInfo.nameInfoNew.trim()

@@ -8,6 +8,7 @@ import {
   type LzyumiRefreshPermitPolicy,
 } from "@/lib/lzyumi-refresh-permit";
 import { buildLzyumiEndpointUrl } from "@/lib/lzyumi-browser-contract";
+import { buildLzyumiIdentityAttempts } from "@/lib/lzyumi-browser-identity";
 import {
   createLzyumiSignature,
   getChinaServer,
@@ -170,23 +171,27 @@ function infoUrl({
   filter,
   allCount,
   now,
+  nickname = target.riotName.trim(),
+  openId = target.openId?.trim() ?? "",
 }: {
   target: PermitTarget;
   filter: 1 | 2 | 3;
   allCount: 10 | 20;
   now: Date;
+  nickname?: string;
+  openId?: string;
 }) {
   const base = process.env.LZYUMI_BASE_URL ?? DEFAULT_LZYUMI_BROWSER_BASE;
   const url = buildLzyumiEndpointUrl(base, "profile");
   const server = getChinaServer(target.chinaServerId, target.chinaServerName);
   const { lzyumiSign, signStr } = createLzyumiSignature(now);
-  url.searchParams.set("nickname", target.riotName.trim());
+  url.searchParams.set("nickname", nickname.replace(/#/g, "*~*~*"));
   url.searchParams.set("allCount", String(allCount));
   url.searchParams.set("areaId", String(server.id));
   url.searchParams.set("areaName", server.name);
   url.searchParams.set("seleMe", "1");
   url.searchParams.set("filter", String(filter));
-  url.searchParams.set("openId", target.openId?.trim() ?? "");
+  url.searchParams.set("openId", openId);
   url.searchParams.set("lzyumiSign", lzyumiSign);
   url.searchParams.set("signStr", signStr);
   return url.toString();
@@ -205,8 +210,24 @@ function recentUrl(target: PermitTarget, now: Date) {
 }
 
 function browserRequestBundle(target: PermitTarget, now: Date) {
+  const identityAttempts = buildLzyumiIdentityAttempts({
+    riotName: target.riotName,
+    riotTag: target.riotTag,
+    hasSavedOpenId: Boolean(target.openId?.trim()),
+  }).map((attempt) => ({
+    kind: attempt.kind,
+    url: infoUrl({
+      target,
+      filter: 1,
+      allCount: 10,
+      now,
+      nickname: attempt.nickname,
+      openId: attempt.useSavedOpenId ? target.openId?.trim() ?? "" : "",
+    }),
+  }));
+
   return {
-    profile: infoUrl({ target, filter: 1, allCount: 10, now }),
+    identityAttempts,
     solo: infoUrl({ target, filter: 2, allCount: 20, now }),
     flex: infoUrl({ target, filter: 3, allCount: 20, now }),
     recent: recentUrl(target, now),
