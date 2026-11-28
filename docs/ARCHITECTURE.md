@@ -136,6 +136,7 @@ Approved last-minute guest substitutes are represented inside the tournament rep
 ## Trust boundaries
 
 - Browser input, KOOK messages, provider payloads, and companion uploads are untrusted until validated.
+- Public free-agent registration may create a pending submission, but listing contact/application details and changing or deleting a submission require the admin session before any database access. The public directory reads only approved/signed rows through a server-rendered projection that excludes email and contact/application notes.
 - Supabase authentication is not admin authorization.
 - KOOK and worker endpoints require their configured shared secret; missing secrets must fail closed.
 - Shared-secret service calls authenticate the service, not every business action. The API must still validate the acting KOOK ID, session membership, admin override, and resource state.

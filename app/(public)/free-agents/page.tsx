@@ -11,6 +11,17 @@ export default async function FreeAgentsPage() {
       },
     },
     orderBy: [{ status: "asc" }, { submittedAt: "desc" }],
+    select: {
+      id: true,
+      playerName: true,
+      riotName: true,
+      riotTag: true,
+      primaryRole: true,
+      secondaryRole: true,
+      currentRank: true,
+      status: true,
+      signedToTeamName: true,
+    },
   });
 
   const availableAgents = freeAgents.filter((agent) => agent.status === "approved");
@@ -226,19 +237,6 @@ export default async function FreeAgentsPage() {
                     <div className="rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-200">
                       Secondary: {agent.secondaryRole || "None"}
                     </div>
-                  </div>
-
-                  <div className="mt-6 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-
-                  <div className="mt-6">
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
-                      Notes
-                    </p>
-                    <p className="mt-3 min-h-[72px] text-sm leading-7 text-zinc-300">
-                      {agent.notes?.trim()
-                        ? agent.notes
-                        : "No additional notes provided for this player."}
-                    </p>
                   </div>
 
                   {isSigned && signedTeamName && (

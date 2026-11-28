@@ -278,6 +278,11 @@ export default function FreeAgentPage() {
               />
             </Field>
 
+            <p className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-6 text-zinc-300">
+              Your email and notes are visible only to ECL administrators. If approved, the public
+              directory shows your alias, Riot ID, roles, rank, and roster status.
+            </p>
+
             {submitState === "success" && (
               <StatusBox tone="success" title="Signup Received" message={message} />
             )}
