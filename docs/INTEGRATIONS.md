@@ -92,8 +92,9 @@ authenticated `/api/china-stats/leaderboard` boundary. Two collectors are
 supported. The local League client collector resolves apex PUUIDs to Riot IDs
 inside LCU and projects rank, full Riot ID, tier, LP, record, and profile icon.
 The browser-run WeGame collector uses the operator's existing logged-in WeGame
-page, projects rank, full Riot ID, tier, LP, profile icon, and public champion
-IDs, and discards WeGame `openid` before creating the file. WeGame does not
+page, projects rank, full Riot ID, tier, LP, profile icon, and up to five public
+champion IDs in the supported `1–10000` range, and discards out-of-range values
+plus WeGame `openid` before creating the file. WeGame does not
 supply wins/losses on this boundary, so those records remain unavailable rather
 than being fabricated. Both collectors store at most 100 rows per apex tier;
 PUUIDs, summoner IDs, `openid`, session credentials, and raw payloads are never

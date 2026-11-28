@@ -91,7 +91,7 @@ void (async () => {
         const leaguePoints = Number(candidate.win_point);
         const profileIconId = Number(candidate.icon_id);
         const championIds = Array.isArray(candidate.champions)
-          ? [...new Set(candidate.champions.map(Number).filter((value) => Number.isInteger(value) && value > 0))].slice(0, 5)
+          ? [...new Set(candidate.champions.map(Number).filter((value) => Number.isInteger(value) && value > 0 && value <= 10_000))].slice(0, 5)
           : [];
         if (!riotId.includes("#") || !Number.isInteger(rank) || rank < 1
           || !Number.isInteger(leaguePoints) || leaguePoints < 0

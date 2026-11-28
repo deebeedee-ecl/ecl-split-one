@@ -14,7 +14,7 @@ import { CHINA_STATS_SERVERS, type ChinaStatsServerKey } from "@/lib/china-stats
 type LoadState =
   | { status: "loading" }
   | { status: "ready"; snapshot: ChinaStatsLadderSnapshot }
-  | { status: "unavailable"; message: string }
+  | { status: "unavailable"; title: string; message: string }
   | { status: "error"; message: string };
 
 const TIER_STYLE: Record<ChinaStatsLadderTier, string> = {
@@ -78,7 +78,11 @@ export function ChinaStatsLeaderboardClient() {
         if (response.ok && body?.available === true && body.snapshot) {
           setState({ status: "ready", snapshot: body.snapshot });
         } else if (response.status === 404 || response.status === 503) {
-          setState({ status: "unavailable", message: typeof body?.message === "string" ? body.message : "This ladder is not available yet." });
+          setState({
+            status: "unavailable",
+            title: response.status === 404 ? "Snapshot not collected yet" : "Snapshot unavailable",
+            message: typeof body?.message === "string" ? body.message : "This ladder is not available yet.",
+          });
         } else {
           setState({ status: "error", message: typeof body?.message === "string" ? body.message : "The ladder could not be loaded." });
         }
@@ -220,7 +224,7 @@ export function ChinaStatsLeaderboardClient() {
         ) : state.status === "unavailable" || state.status === "error" ? (
           <Status
             icon={<AlertTriangle size={28} className="text-amber-200" />}
-            title={state.status === "unavailable" ? "Snapshot not collected yet" : "Ladder unavailable"}
+            title={state.status === "unavailable" ? state.title : "Ladder unavailable"}
             body={state.message}
             action={<button type="button" onClick={() => {
               setState({ status: "loading" });
