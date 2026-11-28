@@ -74,6 +74,16 @@ link only from one validated full Riot ID; the URL carries only the selected
 China Stats server and Riot ID. Incomplete identities remain text, and provider
 identifiers never enter the destination URL.
 
+Matchups is a client-local projection of those same detail responses, not a new
+provider endpoint. Match history and Matchups share one detail cache and the
+five-unique-request ceiling; retries of an already requested game remain inside
+that game slot. Same-role pairing requires one searched player with a reliable
+normalized role and exactly one opponent on the same normalized role. Final
+K/D/A, gold, champion damage, kill participation, result, team kills, available
+team objectives, and optional unambiguous jungle context may be rendered. The
+projection must not infer lane phase, lane-at-15, gank attribution, build order,
+or any timeline event, and it adds no database save or provider write.
+
 The dedicated signer has a best-effort per-account warm-instance request
 ceiling. A small authenticated preview must also use the deployment platform's
 request controls; a broader public launch requires a durable cross-instance

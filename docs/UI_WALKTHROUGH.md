@@ -213,6 +213,19 @@ and global China Stats navigation continue to provide the minimal return path.
 The 2026-11-28 rollout retained the deployed access and robots boundaries; its
 exact production evidence and rollback target are in `CHINA_STATS_DEMO.md`.
 
+The player result now separates **Match history** and **Matchups** into two
+tabs. Matchups reuses the same lazily loaded detail cache and the same visible
+five-unique-detail ceiling; opening a scoreboard and opening its matchup never
+create two unique detail requests. A final-state matchup renders only when the
+searched player has one reliable normalized role and the opposing team has
+exactly one player on that role. It shows final K/D/A, gold, champion damage,
+kill participation, result, team kills and available objectives, plus allied
+and enemy junglers only when both are unambiguous. Missing or ambiguous roles
+produce an intentional unavailable state rather than a guessed lane pairing.
+The view explicitly makes no lane-phase, gank-attribution, build-order, or
+timeline claim. Participant links retain the same full-Riot-ID and selected-
+server validation as the scoreboard.
+
 ### Account Settings
 
 `/hub/settings`, confirmed by the supplied authenticated screenshot and current component, contains:
