@@ -2,8 +2,7 @@
 
 Date: 2026-11-28 (Asia/Shanghai)
 
-Status: release candidate; implementation committed and GitHub delivery
-authorized, with PR/preview/merge evidence pending
+Status: merged and deployed to production
 
 ## Branch and base
 
@@ -13,8 +12,10 @@ authorized, with PR/preview/merge evidence pending
   `a89dce7975d260e36b6315e45d812415fdb37ace`
 - Implementation commit:
   `0462262d1be1bcde107cbe0b862ce360c0169acd`.
-- Documentation and this handoff are committed separately on the same branch so
-  the implementation SHA remains stable.
+- Documentation/handoff commit in the implementation PR:
+  `14aa5f1525ec5fb32ddfaf9386e8606cce7ced8d`.
+- PR [#106](https://github.com/deebeedee-ecl/ecl-split-one/pull/106)
+  merged as `fe316e7499555bae4370a01892b29cb6c55c462a`.
 
 ## Delivered scope
 
@@ -63,21 +64,29 @@ authorized, with PR/preview/merge evidence pending
 The feature and its verification perform no real provider, database, Railway,
 KOOK, Vercel-configuration, production-data, or community mutation. The
 synthetic smoke used only intercepted fixture responses on a local development
-server. GitHub PR/merge and preview metadata are release operations only and
-must be appended to the production checkpoint after completion.
+server. Authorized external release effects were GitHub PR/merge, Vercel
+preview/production deployments, and the automatic unchanged-source Railway
+report-engine deployment; all reached success.
 
-An isolated temporary preview or equivalent pre-production check is still
-required before production. It must not have unrestricted production write
-credentials. The owner authorized push, PR, isolated preview verification, and
-merge after the local checks passed. No manual Vercel configuration change or
-separate production deployment was authorized.
+The Vercel preview reached `READY`; Supabase preview was skipped, so no preview
+database or write credentials were provisioned. Vercel Protection blocked
+signed-out application-route smoke before the request reached the app, while
+the first response retained `X-Robots-Tag: noindex`. No protection bypass or
+configuration change was made. Local fixture browser smoke supplied the
+equivalent isolated functional coverage.
+
+Production deployment `dpl_2hv3aayxd8BVSXYznMV8YayrvsZW` reached `READY` for
+the merge SHA. `/labs/china-stats/live` returned `200` with
+`noindex`/`nofollow`/`nocache`; signed-out `/api/china-stats/access` returned
+`401` with `{"allowed":false}`. No real lookup was sent.
 
 ## Rollback and next step
 
-Before merge, the rollback boundary is the branch base
+The functional rollback target is
 `a89dce7975d260e36b6315e45d812415fdb37ace`. There is no schema, configuration,
-or stored-data cleanup.
+or stored-data cleanup; revert PR #106 as one unit if a critical production
+regression appears.
 
-Exact next step: push the authorized branch, open the focused PR, require CI
-and isolated preview evidence, and merge only if those gates pass. Matchups
-remains a separate later slice.
+Exact next step: the owner performs one authenticated production demo journey
+without sharing private identifiers. If accepted, Matchups remains a separate
+later slice.
