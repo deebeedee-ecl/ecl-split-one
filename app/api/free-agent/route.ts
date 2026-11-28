@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
 import { getAccountFromRequest } from "@/lib/account-auth";
+import { hasAdminSession } from "@/lib/admin-session";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+const privateHeaders = { "Cache-Control": "private, no-store" };
+
+export async function GET(request: Request) {
+  if (!hasAdminSession(request)) {
+    return NextResponse.json(
+      { error: "Admin access required" },
+      { status: 401, headers: privateHeaders },
+    );
+  }
+
   try {
     const freeAgents = await prisma.freeAgentRegistration.findMany({
       select: {
@@ -43,7 +53,7 @@ export async function GET() {
       );
     });
 
-    return NextResponse.json(sorted);
+    return NextResponse.json(sorted, { headers: privateHeaders });
   } catch (error) {
     console.error("GET /api/free-agent error:", error);
 

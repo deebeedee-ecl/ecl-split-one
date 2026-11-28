@@ -44,6 +44,8 @@ The home page positions ECL around a five-step loop: link a player profile → j
 | `/tournaments/winter-cup` | Winter Cup archive | Current code |
 | `/tournaments/split-one` | Split One archive | Current code |
 | `/tournaments/world-cup` | World Cup event/archive landing and roster CTAs | Current code plus indexed public snapshot |
+| `/free-agents` | Approved/signed free-agent directory; displays player identity, roles, rank, and roster status but not submitted email or contact/application notes | Current code |
+| `/register/free-agent` | Public free-agent submission; email and notes are disclosed as admin-only before submission | Current code |
 | `/login` | Email/password login and password-reset link | Live public |
 | `/signup` | Account, Riot identity/server, KOOK username, and optional WeChat onboarding | Public crawl snapshot plus current code |
 | `/rules` | Community, identity, KOOK participation, integrity, records, disputes, beta, and privacy terms | Live public |

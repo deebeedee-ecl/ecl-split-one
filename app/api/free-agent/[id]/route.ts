@@ -1,5 +1,17 @@
 import { NextResponse } from "next/server";
+import { hasAdminSession } from "@/lib/admin-session";
 import { prisma } from "@/lib/prisma";
+
+const privateHeaders = { "Cache-Control": "private, no-store" };
+
+function adminRequired(request: Request) {
+  return hasAdminSession(request)
+    ? null
+    : NextResponse.json(
+        { error: "Admin access required" },
+        { status: 401, headers: privateHeaders },
+      );
+}
 
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -97,6 +109,9 @@ export async function PATCH(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const unauthorized = adminRequired(req);
+  if (unauthorized) return unauthorized;
+
   try {
     const { id } = await context.params;
     const body = await req.json();
@@ -415,6 +430,9 @@ export async function DELETE(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const unauthorized = adminRequired(req);
+  if (unauthorized) return unauthorized;
+
   try {
     const { id } = await context.params;
 
