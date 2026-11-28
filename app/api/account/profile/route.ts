@@ -8,8 +8,9 @@ import { formatLzyumiRank, getLzyumiRankRows } from "@/lib/hub-profile";
 import { getChinaServer, fetchLzyumiRecentStat, fetchLzyumiRankedGames, lookupLzyumiIdentity } from "@/lib/lzyumi";
 import {
   hasLzyumiRecentStatData,
-  markValidatedLzyumiSnapshot,
   normalizeLzyumiRankedGames,
+  toStoredLzyumiProfileSnapshot,
+  toStoredLzyumiRecentStatSnapshot,
 } from "@/lib/lzyumi-snapshot";
 import { syncPlayerForProfile } from "@/lib/player-profile-sync";
 import { normalizeRiotPart, normalizeRiotTag, riotIdKey } from "@/lib/riot-id";
@@ -199,11 +200,11 @@ function lzyumiData(body: ProfilePayload, result: Awaited<ReturnType<typeof reso
   const snapshotComplete = identity?.status === "matched" && normalizedRankedGames !== null;
   const validatedRawProfile =
     snapshotComplete && identity.rawProfile
-      ? markValidatedLzyumiSnapshot(identity.rawProfile, now)
+      ? toStoredLzyumiProfileSnapshot(identity.rawProfile, now)
       : null;
   const validatedRecentStat =
     snapshotComplete && hasLzyumiRecentStatData(recentStat)
-      ? markValidatedLzyumiSnapshot(recentStat, now)
+      ? toStoredLzyumiRecentStatSnapshot(recentStat, now)
       : null;
 
   return {

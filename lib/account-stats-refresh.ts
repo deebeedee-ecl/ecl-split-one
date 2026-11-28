@@ -11,8 +11,9 @@ import {
 import { formatLzyumiRank, getLzyumiRankRows } from "@/lib/hub-profile";
 import {
   hasLzyumiRecentStatData,
-  markValidatedLzyumiSnapshot,
   normalizeLzyumiRankedGames,
+  toStoredLzyumiProfileSnapshot,
+  toStoredLzyumiRecentStatSnapshot,
   validateLzyumiSnapshotIdentity,
 } from "@/lib/lzyumi-snapshot";
 import { prisma } from "@/lib/prisma";
@@ -179,10 +180,10 @@ export async function refreshAccountProfileStats(profile: RefreshableProfile) {
   );
 
   const storedRankRows = hasRankRows(profileForStorage);
-  const validatedRawProfile = markValidatedLzyumiSnapshot(profileForStorage);
+  const validatedRawProfile = toStoredLzyumiProfileSnapshot(profileForStorage);
   const validatedRecentStat =
     recentStat.status === "fulfilled" && hasLzyumiRecentStatData(recentStat.value)
-      ? markValidatedLzyumiSnapshot(recentStat.value)
+      ? toStoredLzyumiRecentStatSnapshot(recentStat.value)
       : null;
   const updateData: Prisma.AccountProfileUpdateInput = {
     openId: identity.openId,

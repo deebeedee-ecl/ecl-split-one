@@ -69,6 +69,67 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function optionalString(record: Record<string, unknown>, key: string) {
+  return typeof record[key] === "string" ? record[key] : undefined;
+}
+
+function optionalNumber(record: Record<string, unknown>, key: string) {
+  const value = record[key];
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function compactRecord(entries: Array<[string, unknown]>) {
+  return Object.fromEntries(entries.filter(([, value]) => value !== undefined));
+}
+
+function storedGame(value: unknown) {
+  const game = asRecord(value);
+  if (!game) return null;
+
+  const stored = compactRecord([
+    ["championId", typeof game.championId === "string" || typeof game.championId === "number"
+      ? game.championId
+      : undefined],
+    ["isWin", optionalNumber(game, "isWin")],
+    ["wasMvp", optionalString(game, "wasMvp")],
+    ["wasSvp", optionalString(game, "wasSvp")],
+    ["title", optionalString(game, "title")],
+    ["titleTime", optionalString(game, "titleTime")],
+  ]);
+  return Object.keys(stored).length > 0 ? stored : null;
+}
+
+function storedGames(value: unknown) {
+  return Array.isArray(value)
+    ? value.map(storedGame).filter((game): game is NonNullable<typeof game> => Boolean(game))
+    : [];
+}
+
+function storedRankRow(value: unknown) {
+  const row = asRecord(value);
+  if (!row) return null;
+
+  const stored = compactRecord([
+    ["type", optionalString(row, "type")],
+    ["tier", optionalString(row, "tier")],
+    ["winPoint", optionalNumber(row, "winPoint")],
+    ["wins", optionalNumber(row, "wins")],
+    ["losses", optionalNumber(row, "losses")],
+    ["total", optionalNumber(row, "total")],
+    ["rate", optionalNumber(row, "rate")],
+  ]);
+  return Object.keys(stored).length > 0 ? stored : null;
+}
+
+function snapshotMetadata(fetchedAt: Date) {
+  return {
+    _eclSnapshotVersion: LZYUMI_SNAPSHOT_VERSION,
+    _eclFetchedAt: fetchedAt.toISOString(),
+  };
+}
+
 function snapshotBattleInfo(rawProfile: unknown) {
   const root = asRecord(rawProfile);
   const data = asRecord(root?.data);
@@ -134,7 +195,7 @@ export function hasLzyumiRecentStatData(value: unknown) {
   return Boolean(asRecord(root?.data));
 }
 
-export function markValidatedLzyumiSnapshot(value: unknown, fetchedAt = new Date()) {
+export function toStoredLzyumiProfileSnapshot(value: unknown, fetchedAt = new Date()) {
   const root = asRecord(value);
   if (!root) {
     throw new LzyumiSnapshotValidationError(
@@ -143,10 +204,52 @@ export function markValidatedLzyumiSnapshot(value: unknown, fetchedAt = new Date
     );
   }
 
+  const data = asRecord(root.data);
+  const battleInfo = asRecord(root.battleInfo) ?? asRecord(data?.battleInfo);
+  const rankRows = Array.isArray(battleInfo?.mapOneInfoList)
+    ? battleInfo.mapOneInfoList
+        .map(storedRankRow)
+        .filter((row): row is NonNullable<typeof row> => Boolean(row))
+    : [];
+
   return {
-    ...root,
-    _eclSnapshotVersion: LZYUMI_SNAPSHOT_VERSION,
-    _eclFetchedAt: fetchedAt.toISOString(),
+    ...snapshotMetadata(fetchedAt),
+    data: storedGames(root.data),
+    battleInfo: { mapOneInfoList: rankRows },
+  };
+}
+
+export function toStoredLzyumiRecentStatSnapshot(value: unknown, fetchedAt = new Date()) {
+  const root = asRecord(value);
+  const data = asRecord(root?.data);
+  if (!root || !data) {
+    throw new LzyumiSnapshotValidationError(
+      "The ECL.GG recent-stat snapshot is not a valid JSON object.",
+      "INVALID_SNAPSHOT",
+    );
+  }
+  const recentState = asRecord(data.recentState) ?? {};
+
+  const champions = Array.isArray(recentState.common_use_champions)
+    ? recentState.common_use_champions
+        .map((value) => {
+          const champion = asRecord(value);
+          if (!champion) return null;
+          const key = optionalNumber(champion, "key");
+          const games = optionalNumber(champion, "value");
+          return key === undefined || games === undefined ? null : { key, value: games };
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    : [];
+
+  return {
+    ...snapshotMetadata(fetchedAt),
+    data: {
+      recentState: compactRecord([
+        ["kda", optionalNumber(recentState, "kda")],
+        ["common_use_champions", champions],
+      ]),
+    },
   };
 }
 
@@ -194,8 +297,8 @@ export function normalizeLzyumiRankedGames(soloGames: unknown, flexGames: unknow
 
   return {
     _eclSnapshotVersion: LZYUMI_SNAPSHOT_VERSION,
-    soloGames,
-    flexGames,
+    soloGames: storedGames(soloGames),
+    flexGames: storedGames(flexGames),
   };
 }
 
@@ -230,9 +333,9 @@ export function resolveLzyumiSnapshotRefresh(
     return {
       status: "accepted",
       identity,
-      rawProfile: markValidatedLzyumiSnapshot(rawProfile, fetchedAt),
+      rawProfile: toStoredLzyumiProfileSnapshot(rawProfile, fetchedAt),
       recentStat: optionalRecentStat.status === "available"
-        ? markValidatedLzyumiSnapshot(optionalRecentStat.value, fetchedAt)
+        ? toStoredLzyumiRecentStatSnapshot(optionalRecentStat.value, fetchedAt)
         : null,
       recentStatStatus: optionalRecentStat.status,
       rankedGames,
