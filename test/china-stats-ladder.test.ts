@@ -289,6 +289,7 @@ test("leaderboard route preserves account authorization and private identifiers"
   assert.match(weGameCollector, /source: "WEGAME_TIER_RANK"/);
   assert.match(weGameCollector, /tierOrder/);
   assert.match(weGameCollector, /candidateOrder <= expectedOrder/);
+  assert.match(weGameCollector, /value > 0 && value <= 10_000/);
   assert.match(weGameCollector, /rows\.push\(\{ rank, riotId, tier: group\.tier, leaguePoints, profileIconId, championIds \}\)/);
   assert.doesNotMatch(weGameCollector, /rows\.push\(candidate\)|\.\.\.candidate/);
 });
@@ -302,6 +303,8 @@ test("leaderboard UI uses player-facing coverage copy and links rows to live loo
   assert.match(source, /label="Players shown"/);
   assert.match(source, /label="Apex players"/);
   assert.match(source, /Showing the highest-ranked players available for each tier in this snapshot/);
+  assert.match(source, /response\.status === 404 \? "Snapshot not collected yet" : "Snapshot unavailable"/);
+  assert.match(source, /title=\{state\.status === "unavailable" \? state\.title : "Ladder unavailable"\}/);
   assert.doesNotMatch(source, /first prototype|pagination comes next/i);
   assert.match(source, /\/labs\/china-stats\/live\?server=\$\{server\}&riotId=\$\{encodeURIComponent\(row\.riotId\)\}/);
 });

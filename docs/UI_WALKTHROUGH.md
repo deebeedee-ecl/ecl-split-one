@@ -170,9 +170,11 @@ for Ionia or Super Server. It supports Challenger, Grandmaster, and Master tier
 filters, Riot-ID search, responsive rows, coverage/freshness context, and links
 each player into the existing live profile and match-history lookup. The first
 local prototype includes up to 100 resolved players per tier. A server without
-a collected snapshot has an explicit unavailable state; it does not reuse the
-other server's rows. The API repeats account and preview-allowlist authorization
-and never exposes client credentials, PUUIDs, summoner IDs, or raw payloads.
+a collected snapshot has an explicit not-collected state; an expired, invalid,
+or unreadable snapshot has a separate unavailable state. Neither state reuses
+the other server's rows. The API repeats account and preview-allowlist
+authorization and never exposes client credentials, PUUIDs, summoner IDs, or
+raw payloads.
 
 `/labs/china-stats/live` requests one exact full Riot ID and either Ionia or
 Super Server, then uses the authenticated, fixed-scope

@@ -136,9 +136,11 @@ rank page in a normal logged-in Edge session:
    response, or save browser storage/network archives.
 
 The WeGame rank boundary has no W/L record. The v2 snapshot therefore stores a
-null record plus up to five public champion IDs. This is expected and must not
-be replaced with zeroes. The upload command and server normalization remain the
-same as for the LCU projection.
+null record plus up to five public champion IDs in the supported `1–10000`
+range. Out-of-range provider values are omitted rather than invalidating the
+otherwise public row. This is expected and must not be replaced with zeroes.
+The upload command and server normalization remain the same as for the LCU
+projection.
 
 After selecting the isolated preview target and supplying its secret through
 process environment variables, upload with:
