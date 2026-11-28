@@ -5,8 +5,9 @@ import { getLzyumiRankRows, formatLzyumiRank } from "@/lib/hub-profile";
 import {
   hasLzyumiRecentStatData,
   LzyumiSnapshotValidationError,
-  markValidatedLzyumiSnapshot,
   normalizeLzyumiRankedGames,
+  toStoredLzyumiProfileSnapshot,
+  toStoredLzyumiRecentStatSnapshot,
   validateLzyumiSnapshotIdentity,
 } from "@/lib/lzyumi-snapshot";
 
@@ -67,9 +68,9 @@ export async function POST(request: NextRequest) {
     const rankedGames = normalizeLzyumiRankedGames(soloGames, flexGames);
     const ranks = getLzyumiRankRows(rawProfile);
     const hasRanks = Boolean(ranks.solo || ranks.flex);
-    const validatedRawProfile = markValidatedLzyumiSnapshot(rawProfile);
+    const validatedRawProfile = toStoredLzyumiProfileSnapshot(rawProfile);
     const validatedRecentStat = hasLzyumiRecentStatData(recentStat)
-      ? markValidatedLzyumiSnapshot(recentStat)
+      ? toStoredLzyumiRecentStatSnapshot(recentStat)
       : null;
     await prisma.accountProfile.update({
       where: { id: profile.id },

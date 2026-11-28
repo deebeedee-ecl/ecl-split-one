@@ -4,10 +4,11 @@ import test from "node:test";
 import {
   isValidatedLzyumiSnapshot,
   LzyumiSnapshotValidationError,
-  markValidatedLzyumiSnapshot,
   normalizeLzyumiRankedGames,
   resolveLzyumiSnapshotRefresh,
   shouldRefreshLzyumiSnapshots,
+  toStoredLzyumiProfileSnapshot,
+  toStoredLzyumiRecentStatSnapshot,
   validateLzyumiSnapshotIdentity,
 } from "../lib/lzyumi-snapshot";
 
@@ -124,16 +125,73 @@ test("requires complete bounded ranked-game arrays", () => {
   );
 });
 
-test("marks only newly validated snapshots as displayable", () => {
+test("stores only rendered profile fields after identity validation", () => {
   assert.equal(isValidatedLzyumiSnapshot(validProfile), false);
-  const marked = markValidatedLzyumiSnapshot(validProfile, new Date("2026-11-06T14:00:00.000Z"));
+  const marked = toStoredLzyumiProfileSnapshot({
+    ...validProfile,
+    providerEnvelope: "drop",
+    battleInfo: {
+      ...validProfile.battleInfo,
+      privateIdentity: "drop",
+      mapOneInfoList: [{ type: "Solo", tier: "Gold I", winPoint: 20, secret: "drop" }],
+    },
+    data: [{
+      gameId: "opaque-provider-game-id",
+      championId: 1,
+      isWin: 1,
+      titleTime: "synthetic timestamp",
+      privateParticipant: "drop",
+    }],
+  }, new Date("2026-11-06T14:00:00.000Z"));
   assert.equal(isValidatedLzyumiSnapshot(marked), true);
   assert.equal(marked._eclFetchedAt, "2026-11-06T14:00:00.000Z");
+  assert.deepEqual(marked, {
+    _eclSnapshotVersion: 2,
+    _eclFetchedAt: "2026-11-06T14:00:00.000Z",
+    data: [{ championId: 1, isWin: 1, titleTime: "synthetic timestamp" }],
+    battleInfo: {
+      mapOneInfoList: [{ type: "Solo", tier: "Gold I", winPoint: 20 }],
+    },
+  });
+  assert.doesNotMatch(JSON.stringify(marked), /openId|nameInfoNew|providerEnvelope|gameId|private|secret/);
+});
+
+test("stores only rendered recent-stat fields", () => {
+  const stored = toStoredLzyumiRecentStatSnapshot({
+    code: 1,
+    data: {
+      recentState: {
+        kda: 4.2,
+        common_use_champions: [{ key: 1, value: 3, internal: "drop" }],
+        last_game_time: "drop",
+      },
+      gameCareer: { total_kills: 999 },
+    },
+  }, new Date("2026-11-06T14:00:00.000Z"));
+
+  assert.deepEqual(stored, {
+    _eclSnapshotVersion: 2,
+    _eclFetchedAt: "2026-11-06T14:00:00.000Z",
+    data: {
+      recentState: {
+        kda: 4.2,
+        common_use_champions: [{ key: 1, value: 3 }],
+      },
+    },
+  });
+
+  assert.deepEqual(toStoredLzyumiRecentStatSnapshot({ code: 1, data: {} }, new Date(
+    "2026-11-06T14:00:00.000Z",
+  )), {
+    _eclSnapshotVersion: 2,
+    _eclFetchedAt: "2026-11-06T14:00:00.000Z",
+    data: { recentState: { common_use_champions: [] } },
+  });
 });
 
 test("refreshes missing, legacy, and stale snapshots but keeps a fresh pair", () => {
   const now = new Date("2026-11-07T12:00:00.000Z").getTime();
-  const raw = markValidatedLzyumiSnapshot(validProfile);
+  const raw = toStoredLzyumiProfileSnapshot(validProfile);
   const ranked = normalizeLzyumiRankedGames([], []);
 
   assert.equal(shouldRefreshLzyumiSnapshots(null, ranked, new Date(now), now), true);
@@ -184,7 +242,16 @@ test("accepts a complete core snapshot while marking optional recent stats unava
   };
   const result = resolveLzyumiSnapshotRefresh(previous, {
     profileResponse: validProfile,
-    soloResponse: { code: 1, data: [{ gameId: "synthetic-solo-game" }] },
+    soloResponse: {
+      code: 1,
+      data: [{
+        gameId: "synthetic-solo-game",
+        championId: "1",
+        isWin: 1,
+        title: "Synthetic ranked game",
+        providerInternal: "drop",
+      }],
+    },
     flexResponse: { code: 1, data: [] },
     recentStat: { status: "unavailable", reason: "http-error" },
     riotName: "ContractTester",
@@ -198,6 +265,11 @@ test("accepts a complete core snapshot while marking optional recent stats unava
   if (result.status !== "accepted") return;
   assert.equal(result.recentStatStatus, "unavailable");
   assert.equal(result.recentStat, null);
-  assert.deepEqual(result.rankedGames.soloGames, [{ gameId: "synthetic-solo-game" }]);
+  assert.deepEqual(result.rankedGames.soloGames, [{
+    championId: "1",
+    isWin: 1,
+    title: "Synthetic ranked game",
+  }]);
+  assert.doesNotMatch(JSON.stringify(result.rankedGames), /gameId|providerInternal/);
   assert.equal(result.rawProfile._eclFetchedAt, "2026-11-10T10:00:00.000Z");
 });
