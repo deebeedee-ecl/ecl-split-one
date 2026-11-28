@@ -196,8 +196,8 @@ result. The 2026-11-28 production rollout retained the signed-out access gate
 and `noindex`/`nofollow` metadata; see `CHINA_STATS_DEMO.md` for its evidence and
 rollback target.
 
-The local match-history usability implementation, not yet released, renders
-compact rows with separate result, champion, role, queue, timestamp, and
+The production match-history usability implementation renders compact rows
+with separate result, champion, role, queue, timestamp, and
 verified MVP/SVP treatment. Its queue, champion, role, and result filters are
 purely local projections of already loaded history and provide both reset and
 intentional zero-results states; they do not sign or send another provider
@@ -208,6 +208,8 @@ one full Riot ID; the destination preserves the selected China server and
 contains no `openId`, provider game ID, signed URL, or raw payload. Incomplete or
 malformed participant identities remain plain text. The existing leaderboard
 and global China Stats navigation continue to provide the minimal return path.
+The 2026-11-28 rollout retained the deployed access and robots boundaries; its
+exact production evidence and rollback target are in `CHINA_STATS_DEMO.md`.
 
 ### Account Settings
 

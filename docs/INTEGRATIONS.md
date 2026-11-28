@@ -64,7 +64,7 @@ queue or recent-stat section is shown as unavailable rather than replaced with
 stale data. Match detail is lazy and capped at five unique requests per lookup.
 The preview does not persist provider data, expose signed URLs, `openId`, opaque
 provider game IDs, or raw payloads, and has no result-write action.
-Local history filters must consume only the already normalized in-tab rows and
+Client-local history filters must consume only the already normalized in-tab rows and
 must not call the signer or provider. A detail participant may become a profile
 link only from one validated full Riot ID; the URL carries only the selected
 China Stats server and Riot ID. Incomplete identities remain text, and provider

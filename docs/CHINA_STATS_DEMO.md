@@ -284,13 +284,11 @@ These ideas are valuable but must not delay the first external demonstrations:
   verified participant links, and navigation. Keep it separate from Matchups,
   leaderboard redesign, database changes, and provider write flows.
 
-### Release-candidate checkpoint: match-history usability
+### Production delivery checkpoint: match-history usability
 
-- Branch `feat/china-stats-match-history-usability` is based on
-  `a89dce7975d260e36b6315e45d812415fdb37ace` (`origin/main` at branch
-  creation). The implementation and regression tests are committed as
-  `0462262d1be1bcde107cbe0b862ce360c0169acd`; GitHub delivery was authorized
-  after local review.
+- PR [#106](https://github.com/deebeedee-ecl/ecl-split-one/pull/106), merged
+  as `fe316e7499555bae4370a01892b29cb6c55c462a`; the implementation commit is
+  `0462262d1be1bcde107cbe0b862ce360c0169acd`.
 - Focused China Stats live tests passed 13/13; the full root suite passed
   194/194. TypeScript with incremental compilation disabled, targeted ESLint,
   and the production build passed.
@@ -301,21 +299,27 @@ These ideas are valuable but must not delay the first external demonstrations:
   request. The valid participant URL retained Ionia, the malformed identity
   stayed unlinked, private fixture identifiers stayed out of the DOM, the
   browser console stayed clean, and neither viewport had horizontal overflow.
-- No real provider, database, Railway, KOOK, Vercel configuration, production,
-  or community side effect occurred during implementation and local
-  verification. GitHub and preview delivery evidence belongs to the release
-  workflow and must be recorded after it completes.
-- Preview boundary: an isolated preview remains required before release and
-  must keep production writes unavailable. No preview was created in this
-  slice because it requires separate owner authorization.
-- Rollback boundary before merge is the branch base
-  `a89dce7975d260e36b6315e45d812415fdb37ace`; the slice changes only UI,
-  normalization, tests, and documentation, with no schema or stored-data
-  cleanup.
+- GitHub Web CI reached `SUCCESS`. The Vercel preview for exact head
+  `14aa5f1525ec5fb32ddfaf9386e8606cce7ced8d` reached `READY`; Supabase preview
+  was skipped, so no preview database or write credentials were provisioned.
+  Signed-out route smoke stopped at Vercel Protection while retaining
+  `X-Robots-Tag: noindex`; no protection bypass or real lookup was attempted.
+- Vercel production deployment `dpl_2hv3aayxd8BVSXYznMV8YayrvsZW` reached
+  `READY` for the exact merge SHA. The existing Railway report-engine service
+  also completed its automatic unchanged-source deployment with `SUCCESS`.
+- Production `/labs/china-stats/live` returned `200` with
+  `noindex`/`nofollow`/`nocache`; signed-out `/api/china-stats/access` returned
+  `401` with `{"allowed":false}`. No Riot ID or provider request was sent.
+- No real provider, database, KOOK, Vercel-configuration, or community mutation
+  occurred. External release effects were the authorized GitHub PR/merge,
+  Vercel preview/production deployments, and the automatic Railway deployment.
+- Functional rollback target:
+  `a89dce7975d260e36b6315e45d812415fdb37ace`. The slice has no schema,
+  configuration, or stored-data cleanup.
 - Detailed handoff: [`CHINA_STATS_MATCH_HISTORY_HANDOFF_2026-11-28.md`](CHINA_STATS_MATCH_HISTORY_HANDOFF_2026-11-28.md).
-- Exact next step: push the authorized branch, open the focused PR, require CI
-  and isolated preview evidence, and merge only if those gates pass. Matchups
-  remains the next separate product slice after this usability release.
+- Exact next step: the owner performs one authenticated production demo journey
+  without sharing private identifiers. If accepted, Matchups remains the next
+  separate implementation slice.
 
 ## Known issues to resolve or label
 
