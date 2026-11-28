@@ -230,6 +230,14 @@ These ideas are valuable but must not delay the first external demonstrations:
   last coherent result; partial, successful-empty, and terminal-error states
   remain distinct; lookup and match-detail failures offer bounded retries; and
   the five-unique-detail limit is visible and blocks a sixth provider request.
+- **Match-history usability:** compact history rows
+  visually separate result, champion, role, queue, timestamp, and verified
+  MVP/SVP markers. Queue, champion, role, and result filters operate only on
+  already loaded rows, with reset and intentional zero-results states.
+  Scoreboard participants link to the same-server profile only when detail data
+  contains a valid full Riot ID; malformed or incomplete identities remain
+  text. History rows do not invent K/D/A from unrelated fields: K/D/A remains
+  available only in a successfully loaded detail scoreboard.
 
 ### Production delivery checkpoint: role and recent-stat label correctness
 
@@ -275,6 +283,39 @@ These ideas are valuable but must not delay the first external demonstrations:
 - The next canonical implementation slice is compact match rows, local filters,
   verified participant links, and navigation. Keep it separate from Matchups,
   leaderboard redesign, database changes, and provider write flows.
+
+### Release-candidate checkpoint: match-history usability
+
+- Branch `feat/china-stats-match-history-usability` is based on
+  `a89dce7975d260e36b6315e45d812415fdb37ace` (`origin/main` at branch
+  creation). The implementation and regression tests are committed as
+  `0462262d1be1bcde107cbe0b862ce360c0169acd`; GitHub delivery was authorized
+  after local review.
+- Focused China Stats live tests passed 13/13; the full root suite passed
+  194/194. TypeScript with incremental compilation disabled, targeted ESLint,
+  and the production build passed.
+- Synthetic Playwright smoke at 1440 and 390 pixels used only fixture
+  profile/history/detail responses. Queue/champion/role/result changes, zero
+  results, and reset kept signer/provider counts fixed at 4/4; opening one
+  scoreboard produced exactly one additional signed detail and provider
+  request. The valid participant URL retained Ionia, the malformed identity
+  stayed unlinked, private fixture identifiers stayed out of the DOM, the
+  browser console stayed clean, and neither viewport had horizontal overflow.
+- No real provider, database, Railway, KOOK, Vercel configuration, production,
+  or community side effect occurred during implementation and local
+  verification. GitHub and preview delivery evidence belongs to the release
+  workflow and must be recorded after it completes.
+- Preview boundary: an isolated preview remains required before release and
+  must keep production writes unavailable. No preview was created in this
+  slice because it requires separate owner authorization.
+- Rollback boundary before merge is the branch base
+  `a89dce7975d260e36b6315e45d812415fdb37ace`; the slice changes only UI,
+  normalization, tests, and documentation, with no schema or stored-data
+  cleanup.
+- Detailed handoff: [`CHINA_STATS_MATCH_HISTORY_HANDOFF_2026-11-28.md`](CHINA_STATS_MATCH_HISTORY_HANDOFF_2026-11-28.md).
+- Exact next step: push the authorized branch, open the focused PR, require CI
+  and isolated preview evidence, and merge only if those gates pass. Matchups
+  remains the next separate product slice after this usability release.
 
 ## Known issues to resolve or label
 

@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  DEFAULT_CHINA_STATS_MATCH_FILTERS,
+  chinaStatsChampionFilterKey,
+  chinaStatsParticipantProfileHref,
+  filterChinaStatsLiveMatches,
   normalizeChinaStatsLiveDetail,
   normalizeChinaStatsLiveHistory,
   normalizeChinaStatsLiveProfile,
@@ -122,9 +126,58 @@ test("live history summary derives bounded form and champion performance without
   assert.doesNotMatch(JSON.stringify(summary), /openId|providerGameId/i);
 });
 
+test("local match filters combine queue, champion, role, and result without network requests", () => {
+  const matches = [
+    ...normalizeChinaStatsLiveHistory({ data: [
+      { gameId: "solo-ahri-win", championId: 103, isWin: 1, titleTime: "11-25 12:00:00\u3010\u4e2d\u3011" },
+      { gameId: "solo-lee-loss", championId: 64, isWin: 2, titleTime: "11-25 11:00:00\u3010\u6253\u91ce\u3011" },
+    ] }, "SOLO_DUO", championNames),
+    ...normalizeChinaStatsLiveHistory({ data: [
+      { gameId: "flex-ahri-loss", championId: 103, isWin: 2, titleTime: "11-25 10:00:00\u3010\u8f85\u52a9\u3011" },
+      { gameId: "flex-unknown", isWin: "unknown", titleTime: "11-25 09:00:00\u3010\u672a\u77e5\u3011" },
+    ] }, "FLEX", championNames),
+  ];
+  const previousFetch = globalThis.fetch;
+  let networkRequests = 0;
+  globalThis.fetch = (async () => {
+    networkRequests += 1;
+    throw new Error("Local filters must not use the network.");
+  }) as typeof fetch;
+
+  try {
+    const ahriKey = chinaStatsChampionFilterKey(matches[0]);
+    assert.deepEqual(filterChinaStatsLiveMatches(matches, {
+      queue: "SOLO_DUO",
+      champion: ahriKey,
+      role: "Middle",
+      result: "W",
+    }).map((match) => match.providerGameId), ["solo-ahri-win"]);
+    assert.deepEqual(filterChinaStatsLiveMatches(matches, {
+      queue: "FLEX",
+      champion: ahriKey,
+      role: "Support",
+      result: "L",
+    }).map((match) => match.providerGameId), ["flex-ahri-loss"]);
+    assert.deepEqual(filterChinaStatsLiveMatches(matches, {
+      queue: "ALL",
+      champion: "ALL",
+      role: "UNAVAILABLE",
+      result: "UNAVAILABLE",
+    }).map((match) => match.providerGameId), ["flex-unknown"]);
+    assert.equal(filterChinaStatsLiveMatches(matches, {
+      ...DEFAULT_CHINA_STATS_MATCH_FILTERS,
+      champion: "id:999",
+    }).length, 0);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+
+  assert.equal(networkRequests, 0);
+});
+
 test("live detail normalization requires the verified player and removes openId values", () => {
   const players = Array.from({ length: 10 }, (_, index) => ({
-    nickNameStr: `Synthetic${index}#LAB`,
+    nickNameStr: index === 9 ? "Malformed participant" : `Synthetic${index}#LAB`,
     openIdNow: index === 0 ? "synthetic-private-open-id" : `synthetic-other-${index}`,
     detailChampionId: index % 2 ? 64 : 103,
     teamId: index < 5 ? 100 : 200,
@@ -150,11 +203,26 @@ test("live detail normalization requires the verified player and removes openId 
   assert.ok(detail.teams.every((team) => team.players.length === 5));
   assert.equal(detail.teams[0].players[0].searchedPlayer, true);
   assert.equal(detail.teams[0].result, "Win");
+  assert.equal(detail.teams[0].players[0].profileRiotId, "Synthetic0#LAB");
+  assert.equal(detail.teams[1].players[4].profileRiotId, null);
   assert.doesNotMatch(JSON.stringify(detail), /openId|synthetic-private-open-id|providerGameId/i);
   assert.throws(
     () => normalizeChinaStatsLiveDetail({ value: raw, searchedOpenId: "missing-open-id", championNames }),
     /verified player is missing/,
   );
+});
+
+test("scoreboard participant links require a full Riot ID and retain the selected China server", () => {
+  assert.equal(
+    chinaStatsParticipantProfileHref("Synthetic Player#LAB", "super-server"),
+    "/labs/china-stats/live?server=super-server&riotId=Synthetic+Player%23LAB",
+  );
+  for (const malformed of [null, "", "No tag", "#TAG", "Name#", "Name##TAG"]) {
+    assert.equal(chinaStatsParticipantProfileHref(malformed, "ionia"), null);
+  }
+  const href = chinaStatsParticipantProfileHref("Synthetic#LAB", "ionia");
+  assert.match(href ?? "", /server=ionia/);
+  assert.doesNotMatch(href ?? "", /openId|gameId|signed|provider/i);
 });
 
 test("live lookup stays on the authenticated signed browser read-only contract", async () => {
@@ -225,4 +293,20 @@ test("live lookup renders intentional loading, partial, empty, retry, and budget
   assert.match(source, /canRequestChinaStatsDetail/);
   assert.match(source, /shouldRetainChinaStatsResult/);
   assert.match(source, /CHINA_STATS_SERVERS\[snapshot\.target\.server\]/);
+});
+
+test("live lookup renders local filters, reset, zero results, and safe participant navigation", async () => {
+  const source = await readFile("app/labs/china-stats/ChinaStatsLiveLookupClient.tsx", "utf8");
+  assert.match(source, /Match history filters/);
+  assert.match(source, /All queues/);
+  assert.match(source, /All champions/);
+  assert.match(source, /All roles/);
+  assert.match(source, /All results/);
+  assert.match(source, /No matches match these filters/);
+  assert.match(source, /Reset filters/);
+  assert.match(source, /filterChinaStatsLiveMatches/);
+  assert.match(source, /server=\{snapshot\.target\.server\}/);
+  assert.match(source, /chinaStatsParticipantProfileHref/);
+  assert.match(source, /prefetch=\{false\}/);
+  assert.doesNotMatch(source, /match\.kda/);
 });
