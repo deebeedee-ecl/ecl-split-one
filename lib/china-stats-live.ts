@@ -89,9 +89,20 @@ export type ChinaStatsLiveDetailPlayer = {
   champion: string;
   role: string;
   kda: string | null;
+  kills: number | null;
+  deaths: number | null;
+  assists: number | null;
   gold: number | null;
   damage: number | null;
   searchedPlayer: boolean;
+};
+
+export type ChinaStatsLiveTeamContext = {
+  kills: number | null;
+  gold: number | null;
+  turrets: number | null;
+  dragons: number | null;
+  barons: number | null;
 };
 
 export type ChinaStatsLiveDetail = {
@@ -101,8 +112,25 @@ export type ChinaStatsLiveDetail = {
   teams: Array<{
     id: string;
     result: "Win" | "Loss" | "Unknown";
+    context: ChinaStatsLiveTeamContext;
     players: ChinaStatsLiveDetailPlayer[];
   }>;
+};
+
+export type ChinaStatsLiveMatchup = {
+  status: "available";
+  role: string;
+  searched: ChinaStatsLiveDetailPlayer & { killParticipation: number | null };
+  opponent: ChinaStatsLiveDetailPlayer & { killParticipation: number | null };
+  searchedTeam: ChinaStatsLiveTeamContext & { result: "Win" | "Loss" | "Unknown" };
+  opponentTeam: ChinaStatsLiveTeamContext & { result: "Win" | "Loss" | "Unknown" };
+  junglers: {
+    allied: ChinaStatsLiveDetailPlayer;
+    enemy: ChinaStatsLiveDetailPlayer;
+  } | null;
+} | {
+  status: "unavailable";
+  reason: "searched-role-unavailable" | "opponent-role-ambiguous";
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -424,7 +452,41 @@ function detailResult(value: unknown): "Win" | "Loss" | "Unknown" {
 
 function detailMetric(player: Record<string, unknown>, key: string) {
   const chart = asRecord(player.echartsMap);
-  return finiteNumber(chart?.[key] ?? player[key]);
+  const value = finiteNumber(chart?.[key] ?? player[key]);
+  return value !== null && value >= 0 ? value : null;
+}
+
+function detailKda(value: unknown) {
+  const match = clean(value).match(/^(\d+)\s*\/\s*(\d+)\s*\/\s*(\d+)$/);
+  if (!match) return null;
+  const values = match.slice(1).map(Number);
+  if (values.some((entry) => !Number.isSafeInteger(entry))) return null;
+  const [kills, deaths, assists] = values;
+  return { kills, deaths, assists, label: `${kills}/${deaths}/${assists}` };
+}
+
+function nonNegativeInteger(value: unknown) {
+  const parsed = integer(value);
+  return parsed !== null && parsed >= 0 ? parsed : null;
+}
+
+function teamMetric(team: Record<string, unknown> | null, key: string) {
+  return nonNegativeInteger(team?.[key]);
+}
+
+function teamTotalFromPlayers(
+  players: ChinaStatsLiveDetailPlayer[],
+  key: "kills" | "gold",
+) {
+  const values = players.map((player) => player[key]);
+  return values.every((value): value is number => value !== null)
+    ? values.reduce((sum, value) => sum + value, 0)
+    : null;
+}
+
+function killParticipation(player: ChinaStatsLiveDetailPlayer, teamKills: number | null) {
+  if (player.kills === null || player.assists === null || teamKills === null || teamKills <= 0) return null;
+  return ((player.kills + player.assists) / teamKills) * 100;
 }
 
 export function normalizeChinaStatsLiveDetail({
@@ -446,7 +508,7 @@ export function normalizeChinaStatsLiveDetail({
     throw new Error("The live match detail is not a coherent 5v5 game.");
   }
 
-  let searchedPlayerFound = false;
+  let searchedPlayerCount = 0;
   const normalizedTeams = teamIds.map((teamId) => {
     const teamRecord = asRecord(teams.find((team) => clean(String(asRecord(team)?.teamId ?? "")) === teamId));
     const normalizedPlayers = players.flatMap((entry): ChinaStatsLiveDetailPlayer[] => {
@@ -457,14 +519,18 @@ export function normalizeChinaStatsLiveDetail({
         ? null
         : clean(String(player.detailChampionId));
       const isSearchedPlayer = clean(player.openIdNow) === searchedOpenId;
-      searchedPlayerFound ||= isSearchedPlayer;
+      if (isSearchedPlayer) searchedPlayerCount += 1;
+      const kda = detailKda(player.scoreInfo);
       return [{
         riotId: riotId || "Player unavailable",
         profileRiotId: normalizeChinaStatsParticipantRiotId(riotId),
         championId: championId || null,
         champion: championId ? championName(championId, championNames) : "Champion unavailable",
         role: roleName(clean(player.position)),
-        kda: clean(player.scoreInfo) || null,
+        kda: kda?.label ?? null,
+        kills: kda?.kills ?? null,
+        deaths: kda?.deaths ?? null,
+        assists: kda?.assists ?? null,
         gold: detailMetric(player, "goldEarned"),
         damage: detailMetric(player, "totalDamageDealt"),
         searchedPlayer: isSearchedPlayer,
@@ -474,15 +540,66 @@ export function normalizeChinaStatsLiveDetail({
     const inferredResult = normalizedPlayers.find((row) => row.searchedPlayer)
       ? detailResult(players.find((entry) => clean(asRecord(entry)?.openIdNow) === searchedOpenId) && asRecord(players.find((entry) => clean(asRecord(entry)?.openIdNow) === searchedOpenId))?.win)
       : detailResult(teamRecord?.win);
-    return { id: teamId, result: inferredResult, players: normalizedPlayers };
+    return {
+      id: teamId,
+      result: inferredResult,
+      context: {
+        kills: teamMetric(teamRecord, "totalKills") ?? teamTotalFromPlayers(normalizedPlayers, "kills"),
+        gold: teamMetric(teamRecord, "totalGoldEarned") ?? teamTotalFromPlayers(normalizedPlayers, "gold"),
+        turrets: teamMetric(teamRecord, "totalTurretsKilled"),
+        dragons: teamMetric(teamRecord, "totalDragonKills"),
+        barons: teamMetric(teamRecord, "totalBaronKills"),
+      },
+      players: normalizedPlayers,
+    };
   });
 
-  if (!searchedPlayerFound) throw new Error("The verified player is missing from this match detail.");
+  if (searchedPlayerCount === 0) throw new Error("The verified player is missing from this match detail.");
+  if (searchedPlayerCount > 1) throw new Error("The verified player is not unique in this match detail.");
 
   return {
     gameType: detailGameType(data?.gameType),
     gameMode: clean(data?.gameMode) || null,
     durationSeconds: integer(data?.gameTime ?? data?.duration ?? data?.gameDuration),
     teams: normalizedTeams,
+  };
+}
+
+export function deriveChinaStatsLiveMatchup(detail: ChinaStatsLiveDetail): ChinaStatsLiveMatchup {
+  const searchedTeamIndex = detail.teams.findIndex((team) => team.players.some((player) => player.searchedPlayer));
+  const searchedTeam = detail.teams[searchedTeamIndex];
+  const opponentTeam = detail.teams.find((_, index) => index !== searchedTeamIndex);
+  const searched = searchedTeam?.players.find((player) => player.searchedPlayer);
+
+  if (!searched || !opponentTeam || searched.role === "Role unavailable") {
+    return { status: "unavailable", reason: "searched-role-unavailable" };
+  }
+
+  const sameRoleOpponents = opponentTeam.players.filter((player) => player.role === searched.role);
+  if (sameRoleOpponents.length !== 1) {
+    return { status: "unavailable", reason: "opponent-role-ambiguous" };
+  }
+
+  const opponent = sameRoleOpponents[0];
+  const alliedJunglers = searchedTeam.players.filter((player) => player.role === "Jungle");
+  const enemyJunglers = opponentTeam.players.filter((player) => player.role === "Jungle");
+  const junglers = searched.role !== "Jungle" && alliedJunglers.length === 1 && enemyJunglers.length === 1
+    ? { allied: alliedJunglers[0], enemy: enemyJunglers[0] }
+    : null;
+
+  return {
+    status: "available",
+    role: searched.role,
+    searched: {
+      ...searched,
+      killParticipation: killParticipation(searched, searchedTeam.context.kills),
+    },
+    opponent: {
+      ...opponent,
+      killParticipation: killParticipation(opponent, opponentTeam.context.kills),
+    },
+    searchedTeam: { ...searchedTeam.context, result: searchedTeam.result },
+    opponentTeam: { ...opponentTeam.context, result: opponentTeam.result },
+    junglers,
   };
 }

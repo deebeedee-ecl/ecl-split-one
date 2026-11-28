@@ -5,6 +5,7 @@ import {
   DEFAULT_CHINA_STATS_MATCH_FILTERS,
   chinaStatsChampionFilterKey,
   chinaStatsParticipantProfileHref,
+  deriveChinaStatsLiveMatchup,
   filterChinaStatsLiveMatches,
   normalizeChinaStatsLiveDetail,
   normalizeChinaStatsLiveHistory,
@@ -191,7 +192,10 @@ test("live detail normalization requires the verified player and removes openId 
       gameType: "MATCHED_GAME",
       gameMode: "CLASSIC",
       wgBattleDetailInfo: players,
-      teamDetails: [{ teamId: 100, win: "win" }, { teamId: 200, win: "loss" }],
+      teamDetails: [
+        { teamId: 100, win: "win", totalKills: 18, totalGoldEarned: 58_000, totalTurretsKilled: 8, totalDragonKills: 3, totalBaronKills: 1 },
+        { teamId: 200, win: "loss", totalKills: 12, totalGoldEarned: 49_000, totalTurretsKilled: 3, totalDragonKills: 1, totalBaronKills: 0 },
+      ],
     },
   };
   const detail = normalizeChinaStatsLiveDetail({
@@ -204,12 +208,99 @@ test("live detail normalization requires the verified player and removes openId 
   assert.equal(detail.teams[0].players[0].searchedPlayer, true);
   assert.equal(detail.teams[0].result, "Win");
   assert.equal(detail.teams[0].players[0].profileRiotId, "Synthetic0#LAB");
+  assert.equal(detail.teams[0].players[0].kills, 1);
+  assert.deepEqual(detail.teams[0].context, {
+    kills: 18,
+    gold: 58_000,
+    turrets: 8,
+    dragons: 3,
+    barons: 1,
+  });
   assert.equal(detail.teams[1].players[4].profileRiotId, null);
   assert.doesNotMatch(JSON.stringify(detail), /openId|synthetic-private-open-id|providerGameId/i);
   assert.throws(
     () => normalizeChinaStatsLiveDetail({ value: raw, searchedOpenId: "missing-open-id", championNames }),
     /verified player is missing/,
   );
+});
+
+test("live matchup pairs exactly one same-role opponent from final-state detail", () => {
+  const roles = ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"];
+  const players = Array.from({ length: 10 }, (_, index) => ({
+    nickNameStr: `Synthetic${index}#LAB`,
+    openIdNow: index === 2 ? "synthetic-private-open-id" : `synthetic-other-${index}`,
+    detailChampionId: index % 2 ? 64 : 103,
+    teamId: index < 5 ? 100 : 200,
+    position: roles[index % 5],
+    scoreInfo: index === 2 ? "7/2/9" : index === 7 ? "3/5/6" : "1/2/3",
+    win: index < 5 ? "win" : "loss",
+    echartsMap: { goldEarned: 10_000 + index * 500, totalDamageDealt: 20_000 + index * 1000 },
+  }));
+  const detail = normalizeChinaStatsLiveDetail({
+    value: {
+      data: {
+        gameType: "MATCHED_GAME",
+        gameMode: "CLASSIC",
+        wgBattleDetailInfo: players,
+        teamDetails: [
+          { teamId: 100, win: "win", totalKills: 20, totalGoldEarned: 60_000, totalTurretsKilled: 9, totalDragonKills: 4, totalBaronKills: 1 },
+          { teamId: 200, win: "loss", totalKills: 11, totalGoldEarned: 49_000, totalTurretsKilled: 2, totalDragonKills: 1, totalBaronKills: 0 },
+        ],
+      },
+    },
+    searchedOpenId: "synthetic-private-open-id",
+    championNames,
+  });
+
+  const matchup = deriveChinaStatsLiveMatchup(detail);
+  assert.equal(matchup.status, "available");
+  if (matchup.status !== "available") return;
+  assert.equal(matchup.role, "Middle");
+  assert.equal(matchup.searched.riotId, "Synthetic2#LAB");
+  assert.equal(matchup.opponent.riotId, "Synthetic7#LAB");
+  assert.equal(matchup.searched.killParticipation, 80);
+  assert.ok(matchup.opponent.killParticipation !== null && Math.abs(matchup.opponent.killParticipation - (900 / 11)) < 0.000_001);
+  assert.equal(matchup.searchedTeam.result, "Win");
+  assert.equal(matchup.opponentTeam.turrets, 2);
+  assert.equal(matchup.junglers?.allied.riotId, "Synthetic1#LAB");
+  assert.equal(matchup.junglers?.enemy.riotId, "Synthetic6#LAB");
+  assert.doesNotMatch(JSON.stringify(matchup), /openId|providerGameId|synthetic-private-open-id/i);
+});
+
+test("live matchup refuses unavailable or ambiguous role pairing", () => {
+  const basePlayer = (index: number, position: string) => ({
+    riotId: `Synthetic${index}#LAB`,
+    profileRiotId: `Synthetic${index}#LAB`,
+    championId: "103",
+    champion: "Ahri",
+    role: position,
+    kda: "1/2/3",
+    kills: 1,
+    deaths: 2,
+    assists: 3,
+    gold: 10_000,
+    damage: 20_000,
+    searchedPlayer: index === 0,
+  });
+  const detail = {
+    gameType: "MATCHED_GAME" as const,
+    gameMode: "CLASSIC",
+    durationSeconds: 1_800,
+    teams: [
+      { id: "one", result: "Win" as const, context: { kills: 10, gold: 50_000, turrets: 5, dragons: 2, barons: 1 }, players: [basePlayer(0, "Middle"), ...[1, 2, 3, 4].map((index) => basePlayer(index, "Jungle"))] },
+      { id: "two", result: "Loss" as const, context: { kills: 8, gold: 45_000, turrets: 2, dragons: 1, barons: 0 }, players: [basePlayer(5, "Middle"), basePlayer(6, "Middle"), ...[7, 8, 9].map((index) => basePlayer(index, "Jungle"))] },
+    ],
+  };
+
+  assert.deepEqual(deriveChinaStatsLiveMatchup(detail), {
+    status: "unavailable",
+    reason: "opponent-role-ambiguous",
+  });
+  detail.teams[0].players[0].role = "Role unavailable";
+  assert.deepEqual(deriveChinaStatsLiveMatchup(detail), {
+    status: "unavailable",
+    reason: "searched-role-unavailable",
+  });
 });
 
 test("scoreboard participant links require a full Riot ID and retain the selected China server", () => {
@@ -309,4 +400,20 @@ test("live lookup renders local filters, reset, zero results, and safe participa
   assert.match(source, /chinaStatsParticipantProfileHref/);
   assert.match(source, /prefetch=\{false\}/);
   assert.doesNotMatch(source, /match\.kda/);
+});
+
+test("live lookup renders bounded final-state Matchups on the shared detail budget", async () => {
+  const source = await readFile("app/labs/china-stats/ChinaStatsLiveLookupClient.tsx", "utf8");
+  assert.match(source, /aria-label="Player data views"/);
+  assert.match(source, /Matchups/);
+  assert.match(source, /Final scoreboard data only/);
+  assert.match(source, /deriveChinaStatsLiveMatchup/);
+  assert.match(source, /Shared detail limit reached/);
+  assert.match(source, /Load matchup/);
+  assert.match(source, /Retry matchup detail/);
+  assert.match(source, /Same-role opponent/);
+  assert.match(source, /Jungle context/);
+  assert.match(source, /label="KP"/);
+  assert.match(source, /loadMatchup=\{loadDetail\}/);
+  assert.doesNotMatch(source, /lane[- ]at[- ]15|build order|gank attribution data/i);
 });

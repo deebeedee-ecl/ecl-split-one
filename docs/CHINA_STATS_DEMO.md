@@ -238,6 +238,14 @@ These ideas are valuable but must not delay the first external demonstrations:
   contains a valid full Riot ID; malformed or incomplete identities remain
   text. History rows do not invent K/D/A from unrelated fields: K/D/A remains
   available only in a successfully loaded detail scoreboard.
+- **Bounded final-state Matchups:** Match history and Matchups are separate
+  player-profile tabs that share the existing five-unique-detail budget and
+  detail cache. A loaded detail becomes a comparison only when the searched
+  player has a reliable normalized role and exactly one opponent has that same
+  role. The comparison uses final K/D/A, gold, champion damage, kill
+  participation, result, team kills/objectives, and optional unambiguous jungle
+  context. It makes no lane-phase, gank-attribution, build-order, or timeline
+  claim and introduces no database or provider write.
 
 ### Production delivery checkpoint: role and recent-stat label correctness
 
@@ -317,9 +325,9 @@ These ideas are valuable but must not delay the first external demonstrations:
   `a89dce7975d260e36b6315e45d812415fdb37ace`. The slice has no schema,
   configuration, or stored-data cleanup.
 - Detailed handoff: [`CHINA_STATS_MATCH_HISTORY_HANDOFF_2026-11-28.md`](CHINA_STATS_MATCH_HISTORY_HANDOFF_2026-11-28.md).
-- Exact next step: the owner performs one authenticated production demo journey
-  without sharing private identifiers. If accepted, Matchups remains the next
-  separate implementation slice.
+- The owner subsequently completed the authenticated production demo journey
+  without sharing private identifiers and accepted this slice. Matchups became
+  the next separate implementation slice.
 
 ## Known issues to resolve or label
 

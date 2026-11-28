@@ -21,6 +21,7 @@ import {
   DEFAULT_CHINA_STATS_MATCH_FILTERS,
   chinaStatsChampionFilterKey,
   chinaStatsParticipantProfileHref,
+  deriveChinaStatsLiveMatchup,
   filterChinaStatsLiveMatches,
   normalizeChinaStatsLiveDetail,
   normalizeChinaStatsLiveHistory,
@@ -29,6 +30,7 @@ import {
   type ChinaStatsLiveDetail,
   type ChinaStatsLiveMatch,
   type ChinaStatsLiveMatchFilters,
+  type ChinaStatsLiveMatchup,
   type ChinaStatsLiveProfile,
   type ChinaStatsLiveQueue,
   type ChinaStatsLiveRank,
@@ -63,6 +65,7 @@ type LookupError = {
 };
 
 type LoadingStage = "finding-player" | "loading-ranked-data";
+type ProfileView = "history" | "matchups";
 
 const MAX_DETAIL_REQUESTS = 5;
 
@@ -140,6 +143,7 @@ export function ChinaStatsLiveLookupClient({
   const [matchFilters, setMatchFilters] = useState<ChinaStatsLiveMatchFilters>(DEFAULT_CHINA_STATS_MATCH_FILTERS);
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
   const [details, setDetails] = useState<Record<string, DetailState>>({});
+  const [profileView, setProfileView] = useState<ProfileView>("history");
   const verifiedOpenId = useRef("");
   const championNames = useRef<ReadonlyMap<string, string>>(new Map());
   const requestedDetails = useRef(new Set<string>());
@@ -173,6 +177,7 @@ export function ChinaStatsLiveLookupClient({
     if (!retainSnapshot) {
       setSnapshot(null);
       setMatchFilters(DEFAULT_CHINA_STATS_MATCH_FILTERS);
+      setProfileView("history");
     }
     setDetails({});
     setExpandedMatch(null);
@@ -410,9 +415,12 @@ export function ChinaStatsLiveLookupClient({
           expandedMatch={expandedMatch}
           details={details}
           detailBudget={detailBudget}
+          profileView={profileView}
+          setProfileView={setProfileView}
           retryLookup={() => void search(snapshot.target.riotId, snapshot.target.server)}
           toggleDetail={toggleDetail}
           retryDetail={retryDetail}
+          loadMatchup={loadDetail}
         />
       ) : null}
     </div>
@@ -462,9 +470,12 @@ function LiveResult({
   expandedMatch,
   details,
   detailBudget,
+  profileView,
+  setProfileView,
   retryLookup,
   toggleDetail,
   retryDetail,
+  loadMatchup,
 }: {
   snapshot: LiveSnapshot;
   matchFilters: ChinaStatsLiveMatchFilters;
@@ -473,9 +484,12 @@ function LiveResult({
   expandedMatch: string | null;
   details: Record<string, DetailState>;
   detailBudget: ChinaStatsDetailBudget;
+  profileView: ProfileView;
+  setProfileView: (view: ProfileView) => void;
   retryLookup: () => void;
   toggleDetail: (match: ChinaStatsLiveMatch) => Promise<void>;
   retryDetail: (match: ChinaStatsLiveMatch) => Promise<void>;
+  loadMatchup: (match: ChinaStatsLiveMatch) => Promise<void>;
 }) {
   const { profile } = snapshot;
   const loadedMatches = (Object.values(snapshot.queues) as QueueState[]).flatMap((state) => (
@@ -498,20 +512,42 @@ function LiveResult({
     {unavailableSections.length > 0 ? <section role="status" className="flex flex-col gap-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-4 text-amber-100 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><AlertTriangle size={18} className="mt-0.5 shrink-0" /><div><p className="text-sm font-black">Some player data is unavailable</p><p className="mt-1 text-xs font-semibold leading-5 text-amber-100/75">Available sections are still complete. Retry to load {unavailableSections.join(", ")}.</p></div></div><button type="button" onClick={retryLookup} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-amber-100/25 px-4 text-xs font-black transition hover:bg-amber-100/10"><RefreshCw size={15} /> Retry player data</button></section> : null}
     <section className="rounded-3xl border border-emerald-300/15 bg-[#0d131d] p-5 sm:p-6"><div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"><div><p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.13em] text-emerald-300"><ShieldCheck size={14} /> Player found</p><h2 className="mt-2 text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl">{profile.riotId}</h2><p className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-[#7f8ea3]"><Server size={14} />{profile.serverName}{profile.level !== null ? ` · Level ${profile.level}` : ""}</p></div><div className="rounded-xl border border-white/[0.08] bg-black/20 px-4 py-3 text-xs font-bold text-[#8290a4]"><span className="block text-[10px] font-black uppercase tracking-[0.1em] text-[#36d7ff]">Last updated</span><span className="mt-1 block">{chinaDateTime(profile.fetchedAt)}</span></div></div></section>
     <section className="grid gap-4 lg:grid-cols-3"><LiveRankCard label="Solo / Duo" rank={profile.ranks.solo} /><LiveRankCard label="Flex" rank={profile.ranks.flex} />{profile.recent ? <div className="rounded-2xl border border-white/[0.08] bg-[#0d131d] p-5"><p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#718096]">Recent performance summary</p><div className="mt-4 flex items-end justify-between"><div><p className="text-3xl font-black text-white">{profile.recent.kda?.toFixed(2) ?? "—"}</p><p className="mt-1 text-xs font-bold text-[#718096]">Summary KDA</p></div><div className="text-right text-xs font-bold text-[#8290a4]">{profile.recent.games ?? "—"} games in summary<br /><span className="text-emerald-300">{profile.recent.wins ?? "—"} wins in summary</span></div></div><div className="mt-4 flex gap-2">{profile.recent.champions.slice(0, 3).map((champion) => <div key={champion.championId} className="flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-white/[0.035] p-2"><Image src={`/lol/champions/${champion.championId}.png`} alt={champion.champion} width={32} height={32} className="h-8 w-8 rounded-lg object-cover" /><span className="min-w-0"><span className="block truncate text-[11px] font-black text-white">{champion.champion}</span><span className="text-[10px] font-bold text-[#718096]">{champion.games} summary games</span></span></div>)}</div><p className="mt-3 text-[11px] font-semibold leading-4 text-[#64748b]">This optional summary may cover a different sample from the loaded match history.</p></div> : <div className="rounded-2xl border border-dashed border-white/[0.1] bg-[#0d131d] p-5"><p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#718096]">Recent performance summary</p><p className="mt-4 text-sm font-black text-white">Recent stats unavailable</p><p className="mt-2 text-xs font-semibold leading-5 text-[#718096]">Rank and match history are still available for this player.</p></div>}</section>
-    <LiveMatchHistory
-      snapshot={snapshot}
-      filters={matchFilters}
-      setFilters={setMatchFilters}
-      visibleQueue={visibleQueue}
-      filteredMatches={filteredMatches}
-      selectedQueueMatchCount={selectedQueueMatchCount}
-      expandedMatch={expandedMatch}
-      details={details}
-      detailBudget={detailBudget}
-      retryLookup={retryLookup}
-      toggleDetail={toggleDetail}
-      retryDetail={retryDetail}
-    />
+    <div role="tablist" aria-label="Player data views" className="grid grid-cols-2 gap-1 rounded-2xl border border-white/[0.08] bg-[#080d14] p-1">
+      {([
+        ["history", "Match history"],
+        ["matchups", "Matchups"],
+      ] as const).map(([view, label]) => <button
+        key={view}
+        type="button"
+        role="tab"
+        aria-selected={profileView === view}
+        onClick={() => setProfileView(view)}
+        className={`min-h-11 rounded-xl px-4 text-xs font-black transition ${profileView === view ? "bg-[#1478b8] text-white shadow-[0_8px_24px_rgba(20,120,184,0.2)]" : "text-[#8290a4] hover:bg-white/[0.04] hover:text-white"}`}
+      >{label}</button>)}
+    </div>
+    {profileView === "history" ? <div role="tabpanel">
+      <LiveMatchHistory
+        snapshot={snapshot}
+        filters={matchFilters}
+        setFilters={setMatchFilters}
+        visibleQueue={visibleQueue}
+        filteredMatches={filteredMatches}
+        selectedQueueMatchCount={selectedQueueMatchCount}
+        expandedMatch={expandedMatch}
+        details={details}
+        detailBudget={detailBudget}
+        retryLookup={retryLookup}
+        toggleDetail={toggleDetail}
+        retryDetail={retryDetail}
+      />
+    </div> : <div role="tabpanel">
+      <LiveMatchups
+        snapshot={snapshot}
+        details={details}
+        detailBudget={detailBudget}
+        loadMatchup={loadMatchup}
+      />
+    </div>}
   </div>;
 }
 
@@ -675,6 +711,198 @@ function LiveMatchHistory({
       </div>
     )}
   </section>;
+}
+
+function LiveMatchups({
+  snapshot,
+  details,
+  detailBudget,
+  loadMatchup,
+}: {
+  snapshot: LiveSnapshot;
+  details: Record<string, DetailState>;
+  detailBudget: ChinaStatsDetailBudget;
+  loadMatchup: (match: ChinaStatsLiveMatch) => Promise<void>;
+}) {
+  const matches = (Object.values(snapshot.queues) as QueueState[]).flatMap((state) => (
+    state.status === "available" ? state.matches : []
+  ));
+
+  return <section className="overflow-hidden rounded-3xl border border-white/[0.08] bg-[#0d131d]">
+    <div className="flex flex-col gap-4 border-b border-white/[0.08] p-4 sm:p-5 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#36d7ff]">Same-role comparisons</p>
+        <h2 className="mt-1 text-2xl font-black text-white">Matchups</h2>
+        <p className={`mt-2 text-xs font-bold ${detailBudget.exhausted ? "text-amber-200" : "text-[#64748b]"}`}>
+          {detailBudget.exhausted ? "Shared detail limit reached" : `${detailBudget.remaining} of ${detailBudget.maximum} match details available`}
+          <span className="sr-only">. {detailBudget.used} opened across Match history and Matchups.</span>
+        </p>
+      </div>
+      <p className="max-w-lg text-xs font-semibold leading-5 text-[#718096]">Final scoreboard data only. A comparison appears only when the detail contains one unambiguous opponent on the same normalized role. No lane phase, gank attribution, or timeline inference.</p>
+    </div>
+
+    {matches.length === 0 ? <div role="status" className="p-10 text-center"><Swords size={24} className="mx-auto text-[#64748b]" /><p className="mt-3 text-sm font-black text-white">No ranked matches available for Matchups</p><p className="mt-1 text-xs font-semibold text-[#718096]">A successfully loaded Solo / Duo or Flex row is required before a final-state comparison can be requested.</p></div> : <div className="divide-y divide-white/[0.06]">
+      {matches.map((match) => <LiveMatchupRow
+        key={`${match.queue}-${match.providerGameId}`}
+        match={match}
+        server={snapshot.target.server}
+        detail={details[match.providerGameId]}
+        detailBudget={detailBudget}
+        onLoad={() => void loadMatchup(match)}
+        onRetry={() => void loadMatchup(match)}
+      />)}
+    </div>}
+  </section>;
+}
+
+function LiveMatchupRow({
+  match,
+  server,
+  detail,
+  detailBudget,
+  onLoad,
+  onRetry,
+}: {
+  match: ChinaStatsLiveMatch;
+  server: ChinaStatsServerKey;
+  detail?: DetailState;
+  detailBudget: ChinaStatsDetailBudget;
+  onLoad: () => void;
+  onRetry: () => void;
+}) {
+  const queueLabel = match.queue === "SOLO_DUO" ? "Solo / Duo" : "Flex";
+  const resultLabel = match.result === "W" ? "WIN" : match.result === "L" ? "LOSS" : "N/A";
+
+  if (!detail) {
+    return <article className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+      <div className="flex min-w-0 items-center gap-3">
+        {match.championId ? <Image src={`/lol/champions/${match.championId}.png`} alt={match.champion} width={42} height={42} className="h-10 w-10 shrink-0 rounded-xl object-cover" /> : <span className="h-10 w-10 shrink-0 rounded-xl bg-white/[0.05]" />}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-black text-white">{match.champion} <span className="text-[#526176]">vs same role</span></p>
+          <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs font-bold text-[#718096]"><span>{match.role ?? "Detail role required"}</span><span>{queueLabel}</span><span>{resultLabel}</span><span>{match.titleTime ?? "Time unavailable"}</span></p>
+        </div>
+      </div>
+      <button type="button" onClick={onLoad} disabled={detailBudget.exhausted} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#1478b8] px-4 text-xs font-black text-white transition hover:bg-[#1596d5] disabled:cursor-not-allowed disabled:bg-white/[0.06] disabled:text-[#64748b]"><Swords size={15} />{detailBudget.exhausted ? "Detail limit reached" : "Load matchup"}</button>
+    </article>;
+  }
+
+  if (detail.status === "loading") {
+    return <article role="status" className="flex items-center gap-3 p-5 text-sm font-bold text-[#8eeaff]"><Loader2 size={17} className="animate-spin" />Loading final scoreboard matchup…</article>;
+  }
+
+  if (detail.status === "unavailable") {
+    return <article role="status" className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between"><p className="flex items-start gap-2 text-sm font-bold text-amber-100"><AlertTriangle size={17} className="mt-0.5 shrink-0" />{detail.message}</p>{detail.retryable ? <button type="button" onClick={onRetry} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-amber-100/25 px-3 text-xs font-black text-amber-100"><RefreshCw size={14} /> Retry matchup detail</button> : null}</article>;
+  }
+
+  const matchup = deriveChinaStatsLiveMatchup(detail.detail);
+  if (matchup.status === "unavailable") {
+    const message = matchup.reason === "searched-role-unavailable"
+      ? "This final scoreboard does not contain a reliable normalized role for the searched player."
+      : "This final scoreboard does not contain exactly one opponent on the searched player's normalized role.";
+    return <article role="status" className="p-5"><p className="flex items-start gap-2 text-sm font-black text-white"><AlertTriangle size={17} className="mt-0.5 shrink-0 text-amber-200" />Same-role matchup unavailable</p><p className="mt-2 max-w-2xl text-xs font-semibold leading-5 text-[#718096]">{message} The complete scoreboard remains available in Match history.</p></article>;
+  }
+
+  return <LiveMatchupCard match={match} server={server} matchup={matchup} />;
+}
+
+function LiveMatchupCard({
+  match,
+  server,
+  matchup,
+}: {
+  match: ChinaStatsLiveMatch;
+  server: ChinaStatsServerKey;
+  matchup: Extract<ChinaStatsLiveMatchup, { status: "available" }>;
+}) {
+  const queueLabel = match.queue === "SOLO_DUO" ? "Solo / Duo" : "Flex";
+  return <article className="p-4 sm:p-5">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div><p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#36d7ff]">{matchup.role} matchup</p><p className="mt-1 text-xs font-bold text-[#718096]">{queueLabel} · {match.titleTime ?? "Time unavailable"}</p></div>
+      <span className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-[#a9b7ca]">Final state</span>
+    </div>
+
+    <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <MatchupPlayerPanel label="Searched player" player={matchup.searched} result={matchup.searchedTeam.result} server={server} accent="cyan" />
+      <MatchupPlayerPanel label="Same-role opponent" player={matchup.opponent} result={matchup.opponentTeam.result} server={server} accent="amber" />
+    </div>
+
+    <MatchupTeamContext searched={matchup.searchedTeam} opponent={matchup.opponentTeam} />
+
+    {matchup.junglers ? <div className="mt-3 rounded-2xl border border-white/[0.08] bg-[#080d14]/75 p-4">
+      <p className="text-[10px] font-black uppercase tracking-[0.11em] text-[#718096]">Jungle context</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <MatchupJungler label="Allied jungler" player={matchup.junglers.allied} server={server} />
+        <MatchupJungler label="Enemy jungler" player={matchup.junglers.enemy} server={server} />
+      </div>
+    </div> : null}
+  </article>;
+}
+
+function MatchupPlayerPanel({
+  label,
+  player,
+  result,
+  server,
+  accent,
+}: {
+  label: string;
+  player: Extract<ChinaStatsLiveMatchup, { status: "available" }>["searched"];
+  result: "Win" | "Loss" | "Unknown";
+  server: ChinaStatsServerKey;
+  accent: "cyan" | "amber";
+}) {
+  const accentStyles = accent === "cyan" ? "border-cyan-300/15 bg-cyan-300/[0.035]" : "border-amber-300/15 bg-amber-300/[0.03]";
+  const resultStyles = result === "Win" ? "text-emerald-300" : result === "Loss" ? "text-red-300" : "text-[#8290a4]";
+  return <div className={`rounded-2xl border p-4 ${accentStyles}`}>
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-3">
+        {player.championId ? <Image src={`/lol/champions/${player.championId}.png`} alt={player.champion} width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl object-cover" /> : <span className="h-11 w-11 shrink-0 rounded-xl bg-white/[0.05]" />}
+        <div className="min-w-0"><p className="text-[9px] font-black uppercase tracking-[0.11em] text-[#718096]">{label}</p><ScoreboardParticipantIdentity riotId={player.riotId} profileRiotId={player.profileRiotId} server={server} /><p className="mt-1 truncate text-[11px] font-bold text-[#718096]">{player.champion}</p></div>
+      </div>
+      <span className={`text-xs font-black uppercase ${resultStyles}`}>{result}</span>
+    </div>
+    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <MatchupMetric label="K / D / A" value={player.kda ?? "—"} />
+      <MatchupMetric label="Gold" value={formatMatchupNumber(player.gold)} />
+      <MatchupMetric label="Damage" value={formatMatchupNumber(player.damage)} />
+      <MatchupMetric label="KP" value={player.killParticipation === null ? "—" : `${player.killParticipation.toFixed(1)}%`} />
+    </div>
+  </div>;
+}
+
+function MatchupMetric({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl bg-black/20 px-3 py-2"><p className="text-[9px] font-black uppercase tracking-[0.08em] text-[#526176]">{label}</p><p className="mt-1 text-xs font-black text-white">{value}</p></div>;
+}
+
+function MatchupTeamContext({
+  searched,
+  opponent,
+}: {
+  searched: Extract<ChinaStatsLiveMatchup, { status: "available" }>["searchedTeam"];
+  opponent: Extract<ChinaStatsLiveMatchup, { status: "available" }>["opponentTeam"];
+}) {
+  const pairs = [
+    ["Team gold", searched.gold, opponent.gold, true],
+    ["Towers", searched.turrets, opponent.turrets, false],
+    ["Dragons", searched.dragons, opponent.dragons, false],
+    ["Barons", searched.barons, opponent.barons, false],
+  ] as const;
+  return <div className="mt-3 rounded-2xl border border-white/[0.08] bg-[#080d14]/75 p-4">
+    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[10px] font-black uppercase tracking-[0.11em] text-[#718096]">Final team context · searched vs opponent</p><p className="text-sm font-black text-white">{searched.kills === null || opponent.kills === null ? "Team kills unavailable" : `${searched.kills} – ${opponent.kills} kills`}</p></div>
+    <div className="mt-3 flex flex-wrap gap-2">{pairs.flatMap(([label, left, right, compact]) => left === null || right === null ? [] : [<span key={label} className="rounded-lg border border-white/[0.07] bg-white/[0.035] px-2.5 py-1.5 text-[11px] font-bold text-[#a9b7ca]">{label} {compact ? `${formatMatchupNumber(left)} – ${formatMatchupNumber(right)}` : `${left} – ${right}`}</span>])}</div>
+  </div>;
+}
+
+function MatchupJungler({ label, player, server }: { label: string; player: ChinaStatsLiveDetail["teams"][number]["players"][number]; server: ChinaStatsServerKey }) {
+  return <div className="flex min-w-0 items-center gap-3 rounded-xl bg-white/[0.03] p-3">
+    {player.championId ? <Image src={`/lol/champions/${player.championId}.png`} alt={player.champion} width={34} height={34} className="h-9 w-9 shrink-0 rounded-lg object-cover" /> : <span className="h-9 w-9 shrink-0 rounded-lg bg-white/[0.05]" />}
+    <div className="min-w-0"><p className="text-[9px] font-black uppercase tracking-[0.1em] text-[#526176]">{label}</p><ScoreboardParticipantIdentity riotId={player.riotId} profileRiotId={player.profileRiotId} server={server} /><p className="mt-0.5 truncate text-[10px] font-bold text-[#718096]">{player.champion} · {player.kda ?? "K/D/A unavailable"}</p></div>
+  </div>;
+}
+
+function formatMatchupNumber(value: number | null) {
+  if (value === null) return "—";
+  return new Intl.NumberFormat("en-GB", { notation: value >= 10_000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(value);
 }
 
 function LiveMatchFilterSelect({
