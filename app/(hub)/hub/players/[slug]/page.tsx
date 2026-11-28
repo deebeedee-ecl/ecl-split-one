@@ -1,11 +1,10 @@
 import { notFound } from "next/navigation";
-import { unstable_cache } from "next/cache";
 import PlayerProfileView from "@/components/account/PlayerProfileView";
 import { prisma } from "@/lib/prisma";
 import { HubShell } from "../../_components/HubShell";
-import { toPlayerProfileDto } from "@/lib/account-profile-dto";
+import { toPublicPlayerProfileDto } from "@/lib/account-profile-dto";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 export const preferredRegion = "icn1";
 
 type PlayerProfilePageProps = {
@@ -39,14 +38,12 @@ const publicProfileSelect = {
   lzyumiRankedGames: true,
 } as const;
 
-const loadPublicProfile = unstable_cache(
-  (id: string) => prisma.accountProfile.findFirst({
+function loadPublicProfile(id: string) {
+  return prisma.accountProfile.findFirst({
     where: { id, verificationStatus: "VERIFIED", accountStatus: "ACTIVE" },
     select: publicProfileSelect,
-  }),
-  ["public-player-profile-v1"],
-  { revalidate: 60 },
-);
+  });
+}
 
 export default async function PlayerProfilePage({ params }: PlayerProfilePageProps) {
   const { slug } = await params;
@@ -57,11 +54,13 @@ export default async function PlayerProfilePage({ params }: PlayerProfilePagePro
     notFound();
   }
 
-  const publicProfile = toPlayerProfileDto(profile);
+  const publicProfile = toPublicPlayerProfileDto(profile);
 
-  const subtitle = `${profile.riotName}#${profile.riotTag}${
-    profile.chinaServerName ? ` / ${profile.chinaServerName}` : ""
-  }`;
+  const subtitle = publicProfile.privacySettings.showRiotId
+    ? `${publicProfile.riotName}#${publicProfile.riotTag}${
+        publicProfile.chinaServerName ? ` / ${publicProfile.chinaServerName}` : ""
+      }`
+    : "Verified ECL player profile";
 
   return (
     <HubShell

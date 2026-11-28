@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { isValidatedLzyumiSnapshot } from "@/lib/lzyumi-snapshot";
+import { formatRiotId } from "@/lib/riot-id";
 
 export type AccountProfileView = "profile" | "settings" | "application" | "reporter";
 
@@ -262,6 +263,16 @@ export function normalizePrivacySettings(value: unknown): PrivacySettingsDto {
   };
 }
 
+export function publicRiotId(profile: {
+  riotName: string | null | undefined;
+  riotTag: string | null | undefined;
+  privacySettings: unknown;
+}) {
+  return normalizePrivacySettings(profile.privacySettings).showRiotId
+    ? formatRiotId(profile.riotName, profile.riotTag)
+    : null;
+}
+
 function snapshotMetadata(root: Record<string, unknown>) {
   return {
     _eclSnapshotVersion:
@@ -405,6 +416,18 @@ export function toPlayerProfileDto(profile: PlayerProfileSource): PlayerProfileD
     ...(profile.kookVerifications
       ? { kookVerifications: profile.kookVerifications.map(verificationDto) }
       : {}),
+  };
+}
+
+export function toPublicPlayerProfileDto(profile: PlayerProfileSource): PlayerProfileDto {
+  const dto = toPlayerProfileDto(profile);
+
+  if (dto.privacySettings.showRiotId) return dto;
+
+  return {
+    ...dto,
+    riotName: "",
+    riotTag: "",
   };
 }
 

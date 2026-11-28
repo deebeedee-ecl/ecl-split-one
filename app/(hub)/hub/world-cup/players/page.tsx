@@ -4,6 +4,7 @@ import {
 } from "@/lib/hub-profile";
 import { prisma } from "@/lib/prisma";
 import { riotIdKey } from "@/lib/riot-id";
+import { publicRiotId } from "@/lib/account-profile-dto";
 import { HubShell } from "../../_components/HubShell";
 import { PlayersDirectoryClient, type PlayerDirectoryRow } from "../../players/PlayersDirectoryClient";
 import { WorldCupNav } from "../WorldCupNav";
@@ -57,6 +58,7 @@ export default async function WorldCupPlayersPage() {
       displayName: true,
       riotName: true,
       riotTag: true,
+      privacySettings: true,
       primaryRole: true,
       secondaryRole: true,
     },
@@ -69,10 +71,7 @@ export default async function WorldCupPlayersPage() {
     return {
       id: profile.id,
       name: profile.displayName,
-      riotId:
-        clean(profile.riotName) && clean(profile.riotTag)
-          ? `${profile.riotName}#${profile.riotTag}`
-          : "Riot ID pending",
+      riotId: publicRiotId(profile),
       roles: [normalizeHubRole(profile.primaryRole), normalizeHubRole(profile.secondaryRole)].filter(
         Boolean,
       ) as HubRole[],

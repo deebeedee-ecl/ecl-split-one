@@ -8,6 +8,7 @@ import {
   PERFORMANCE_REQUEST_HEADER,
   withPerformanceTrace,
 } from "@/lib/performance-timing";
+import { publicRiotId } from "@/lib/account-profile-dto";
 import { HubShell } from "../_components/HubShell";
 import { PlayersDirectoryClient, type PlayerDirectoryRow } from "./PlayersDirectoryClient";
 
@@ -16,7 +17,6 @@ export const dynamic = "force-dynamic";
 type PlayerCard = PlayerDirectoryRow & {
   id: string;
   name: string;
-  riotId: string;
   roles: HubRole[];
 };
 
@@ -38,6 +38,7 @@ export default async function PlayersPage() {
           displayName: true,
           riotName: true,
           riotTag: true,
+          privacySettings: true,
           primaryRole: true,
           secondaryRole: true,
         },
@@ -48,7 +49,7 @@ export default async function PlayersPage() {
       profiles.map((profile): PlayerCard => ({
         id: profile.id,
         name: profile.displayName,
-        riotId: `${profile.riotName}#${profile.riotTag}`,
+        riotId: publicRiotId(profile),
         roles: [normalizeHubRole(profile.primaryRole), normalizeHubRole(profile.secondaryRole)].filter(
           Boolean,
         ) as HubRole[],
