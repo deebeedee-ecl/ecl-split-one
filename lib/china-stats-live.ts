@@ -1,4 +1,6 @@
 import { formatLzyumiRank, getLzyumiRankRows } from "./hub-profile.ts";
+import { normalizeRiotPart, splitRiotId } from "./riot-id.ts";
+import type { ChinaStatsServerKey } from "./china-stats-servers.ts";
 
 export type ChinaStatsLiveQueue = "SOLO_DUO" | "FLEX";
 
@@ -44,6 +46,23 @@ export type ChinaStatsLiveMatch = {
   wasSvp: boolean;
 };
 
+export type ChinaStatsLiveMatchFilters = {
+  queue: ChinaStatsLiveQueue | "ALL";
+  champion: string;
+  role: string;
+  result: "ALL" | "W" | "L" | "UNAVAILABLE";
+};
+
+export const CHINA_STATS_ALL_MATCH_FILTER = "ALL";
+export const CHINA_STATS_UNAVAILABLE_MATCH_FILTER = "UNAVAILABLE";
+
+export const DEFAULT_CHINA_STATS_MATCH_FILTERS: ChinaStatsLiveMatchFilters = {
+  queue: "SOLO_DUO",
+  champion: CHINA_STATS_ALL_MATCH_FILTER,
+  role: CHINA_STATS_ALL_MATCH_FILTER,
+  result: CHINA_STATS_ALL_MATCH_FILTER,
+};
+
 export type ChinaStatsLiveMatchSummary = {
   games: number;
   decidedGames: number;
@@ -65,6 +84,7 @@ export type ChinaStatsLiveMatchSummary = {
 
 export type ChinaStatsLiveDetailPlayer = {
   riotId: string;
+  profileRiotId: string | null;
   championId: string | null;
   champion: string;
   role: string;
@@ -92,6 +112,45 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+export function chinaStatsChampionFilterKey(match: Pick<ChinaStatsLiveMatch, "championId" | "champion">) {
+  return match.championId ? `id:${match.championId}` : `name:${match.champion}`;
+}
+
+export function filterChinaStatsLiveMatches(
+  matches: readonly ChinaStatsLiveMatch[],
+  filters: ChinaStatsLiveMatchFilters,
+) {
+  return matches.filter((match) => {
+    if (filters.queue !== "ALL" && match.queue !== filters.queue) return false;
+    if (filters.champion !== "ALL" && chinaStatsChampionFilterKey(match) !== filters.champion) return false;
+    if (filters.role === "UNAVAILABLE" && match.role !== null) return false;
+    if (filters.role !== "ALL" && filters.role !== "UNAVAILABLE" && match.role !== filters.role) return false;
+    if (filters.result === "UNAVAILABLE" && match.result !== null) return false;
+    if (filters.result !== "ALL" && filters.result !== "UNAVAILABLE" && match.result !== filters.result) return false;
+    return true;
+  });
+}
+
+export function normalizeChinaStatsParticipantRiotId(value: unknown) {
+  const normalized = normalizeRiotPart(typeof value === "string" ? value : "");
+  if (!normalized || normalized.length > 80) return null;
+  const firstHash = normalized.indexOf("#");
+  if (firstHash <= 0 || firstHash !== normalized.lastIndexOf("#")) return null;
+  const { riotName, riotTag } = splitRiotId(normalized);
+  if (!riotName || !riotTag) return null;
+  return `${riotName}#${riotTag}`;
+}
+
+export function chinaStatsParticipantProfileHref(
+  riotId: string | null,
+  server: ChinaStatsServerKey,
+) {
+  const normalized = normalizeChinaStatsParticipantRiotId(riotId);
+  if (!normalized) return null;
+  const params = new URLSearchParams({ server, riotId: normalized });
+  return `/labs/china-stats/live?${params.toString()}`;
 }
 
 function finiteNumber(value: unknown) {
@@ -401,6 +460,7 @@ export function normalizeChinaStatsLiveDetail({
       searchedPlayerFound ||= isSearchedPlayer;
       return [{
         riotId: riotId || "Player unavailable",
+        profileRiotId: normalizeChinaStatsParticipantRiotId(riotId),
         championId: championId || null,
         champion: championId ? championName(championId, championNames) : "Champion unavailable",
         role: roleName(clean(player.position)),
