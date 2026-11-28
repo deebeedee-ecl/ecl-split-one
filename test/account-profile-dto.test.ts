@@ -5,7 +5,9 @@ import test from "node:test";
 import {
   accountPlayerProfileSelect,
   accountSettingsProfileSelect,
+  publicRiotId,
   toPlayerProfileDto,
+  toPublicPlayerProfileDto,
   toSettingsProfileDto,
 } from "../lib/account-profile-dto";
 import { LZYUMI_SNAPSHOT_VERSION } from "../lib/lzyumi-snapshot";
@@ -115,6 +117,44 @@ test("settings DTO and database projection exclude raw provider snapshots and op
 
   const serialized = JSON.stringify(toSettingsProfileDto(source));
   assert.doesNotMatch(serialized, /must-not-leave-server|lzyumi|private/);
+});
+
+test("public profile projection removes a hidden Riot ID before client serialization", () => {
+  const source = {
+    id: "private-riot-profile",
+    displayName: "Private Player",
+    riotName: "Must Not Leak",
+    riotTag: "PRIVATE",
+    chinaServerId: 1,
+    chinaServerName: "Ionia",
+    primaryRole: "MID",
+    secondaryRole: null,
+    currentRank: null,
+    nationality: null,
+    timezone: null,
+    bio: null,
+    avatarStyle: null,
+    avatarUrl: null,
+    bannerUrl: null,
+    dashboardTheme: null,
+    championPool: null,
+    privacySettings: { showRiotId: false },
+    verificationStatus: "VERIFIED",
+    accountStatus: "ACTIVE",
+    lzyumiLastLookupAt: null,
+    lzyumiRawProfile: null,
+    lzyumiRecentStat: null,
+    lzyumiRankedGames: null,
+  };
+
+  const dto = toPublicPlayerProfileDto(source);
+
+  assert.equal(dto.riotName, "");
+  assert.equal(dto.riotTag, "");
+  assert.equal(dto.privacySettings.showRiotId, false);
+  assert.doesNotMatch(JSON.stringify(dto), /Must Not Leak|PRIVATE/);
+  assert.equal(publicRiotId(source), null);
+  assert.equal(publicRiotId({ ...source, privacySettings: { showRiotId: true } }), "Must Not Leak#PRIVATE");
 });
 
 test("profile radar starts ResponsiveContainer with valid dimensions", async () => {

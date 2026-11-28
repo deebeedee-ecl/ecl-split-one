@@ -13,7 +13,7 @@ import {
 export type PlayerDirectoryRow = {
   id: string;
   name: string;
-  riotId: string;
+  riotId: string | null;
   roles: HubRole[];
   primaryRole: HubRole | null;
   secondaryRole: HubRole | null;
@@ -47,7 +47,7 @@ export function PlayersDirectoryClient({ players }: { players: PlayerDirectoryRo
       const matchesName =
         !cleanQuery ||
         player.name.toLowerCase().includes(cleanQuery) ||
-        player.riotId.toLowerCase().includes(cleanQuery);
+        Boolean(player.riotId?.toLowerCase().includes(cleanQuery));
       const matchesPrimary = !primaryRole || player.primaryRole === primaryRole;
       const matchesSecondary = !secondaryRole || player.secondaryRole === secondaryRole;
       const matchesWorldCupView =
@@ -105,7 +105,7 @@ export function PlayersDirectoryClient({ players }: { players: PlayerDirectoryRo
               value={nameQuery}
               onChange={(event) => setNameQuery(event.target.value)}
               className="world-cup-input pl-10"
-              placeholder="Filter by player or Riot ID"
+              placeholder="Filter by player or visible Riot ID"
             />
           </label>
           <select
@@ -160,12 +160,12 @@ export function PlayersDirectoryClient({ players }: { players: PlayerDirectoryRo
                   {player.name}
                 </h2>
                 <p className="mt-1 text-xs font-bold text-[#C9DFEB] lg:hidden">
-                  {player.riotId}
+                  {player.riotId ?? "Riot ID hidden"}
                 </p>
               </div>
 
               <p className="mt-3 hidden min-w-0 break-all text-sm font-bold text-[#C9DFEB] lg:mt-0 lg:block lg:pr-4">
-                {player.riotId}
+                {player.riotId ?? "Riot ID hidden"}
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2 lg:mt-0">

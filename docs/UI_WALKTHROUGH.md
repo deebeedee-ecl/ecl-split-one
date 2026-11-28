@@ -119,9 +119,9 @@ The authenticated pass showed the live October 2026 ladder populated with player
 
 ### Players
 
-`/hub/players` lists verified ECL profiles with display name, Riot ID, roles, and event/team status where available. It supports text search plus primary/secondary role filters. World Cup player/free-agent filtering is conditionally shown when the loaded data includes World Cup status.
+`/hub/players` lists verified ECL profiles with display name, roles, and event/team status where available. Riot ID is searchable and displayed only when that profile's `showRiotId` privacy choice allows it; the same server-side projection applies to the shared World Cup player directory. It supports text search plus primary/secondary role filters. World Cup player/free-agent filtering is conditionally shown when the loaded data includes World Cup status.
 
-`/hub/players/[slug]` is the public/profile-detail surface for another player and reuses the profile presentation without the authenticated user's personal controls. It renders the last verified provider snapshot and timestamp but does not implicitly sign or send Lzyumi requests through the viewer's browser, and it does not expose the owner-only manual refresh action.
+`/hub/players/[slug]` is the public/profile-detail surface for another player and reuses the profile presentation without the authenticated user's personal controls. When `showRiotId` is disabled, the server removes Riot name and tag before serializing the profile to the client and uses a neutral page description. This privacy-sensitive lookup is not held in the cross-request profile cache, so a later page request reads the current stored choice. It renders the last verified provider snapshot and timestamp but does not implicitly sign or send Lzyumi requests through the viewer's browser, and it does not expose the owner-only manual refresh action.
 
 ### Champions
 
